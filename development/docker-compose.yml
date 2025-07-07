@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  postgres:
+    profiles:
+      - postgres
+      - all
+    image: postgres:14.7-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: "trust"
+      POSTGRES_DB: capstone-project
+      PGDATA: /data/postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - app_network
+
+volumes:
+  postgres_data:
+
+networks:
+  app_network:
