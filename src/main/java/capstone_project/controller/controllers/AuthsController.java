@@ -11,7 +11,9 @@ import capstone_project.controller.dtos.response.UserResponse;
 import capstone_project.enums.RoleType;
 import capstone_project.service.services.EmailProtocolService;
 import capstone_project.service.services.RegistersService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -29,11 +31,11 @@ public class AuthsController {
      * @return the response entity
      */
     @PostMapping("/register")
-    public ApiResponse<UserResponse> register(@RequestBody RegisterUserRequest registerUserRequest, @RequestParam RoleType roleType) {
+    public ResponseEntity<ApiResponse<UserResponse>> register(@RequestBody @Valid RegisterUserRequest registerUserRequest, @RequestParam RoleType roleType) {
         final var register = registersService.register(registerUserRequest, roleType);
         String otp = registersService.generateOtp();
         emailProtocolService.sendOtpEmail(registerUserRequest.getEmail(), otp);
-        return ApiResponse.ok(register);
+        return ResponseEntity.ok(ApiResponse.ok(register));
     }
 
     /**
@@ -43,21 +45,21 @@ public class AuthsController {
      * @return the response entity
      */
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@RequestBody LoginWithoutEmailRequest loginRequest) {
+    public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody @Valid LoginWithoutEmailRequest loginRequest) {
         final var login = registersService.login(loginRequest);
-        return ApiResponse.ok(login);
+        return ResponseEntity.ok(ApiResponse.ok(login));
     }
 
     @PostMapping("/login/google")
-    public ApiResponse<LoginResponse> loginWithGoogle(@RequestBody RegisterUserRequest registerUserRequest) {
+    public ResponseEntity<ApiResponse<LoginResponse>> loginWithGoogle(@RequestBody @Valid RegisterUserRequest registerUserRequest) {
         final var login = registersService.loginWithGoogle(registerUserRequest);
-        return ApiResponse.ok(login);
+        return ResponseEntity.ok(ApiResponse.ok(login));
     }
 
     @PostMapping("/refresh/access-token")
-    public ApiResponse<RefreshTokenResponse> refreshAccessToken(@RequestBody RefreshTokenRequest refreshTokenRequest) {
+    public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshAccessToken(@RequestBody @Valid RefreshTokenRequest refreshTokenRequest) {
         final var refreshTokenResponse = registersService.refreshAccessToken(refreshTokenRequest);
-        return ApiResponse.ok(refreshTokenResponse);
+        return ResponseEntity.ok(ApiResponse.ok(refreshTokenResponse));
     }
 
 }

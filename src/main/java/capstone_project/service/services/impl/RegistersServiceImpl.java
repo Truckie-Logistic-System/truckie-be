@@ -76,14 +76,6 @@ public class RegistersServiceImpl implements RegistersService {
 
             Date validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
 
-            if (registerUserRequest.getPhoneNumber().isEmpty()) {
-                log.info("[register] Phone number is empty");
-                throw new BadRequestException(
-                        ErrorEnum.NULL.getMessage(),
-                        ErrorEnum.NULL.getErrorCode()
-                );
-            }
-
             UsersEntity user = UsersEntity.builder()
                     .username(username)
                     .email(email)

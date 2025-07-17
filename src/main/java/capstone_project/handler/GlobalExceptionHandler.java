@@ -7,6 +7,7 @@ import capstone_project.exceptions.dto.InternalServerException;
 import io.jsonwebtoken.ExpiredJwtException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -40,6 +41,20 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(ApiResponse.fail("Access token expired. Please refresh your token.", HttpStatus.UNAUTHORIZED.value()));
     }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<?>> handleValidation(MethodArgumentNotValidException ex) {
+        StringBuilder errorMessages = new StringBuilder("Validation failed: ");
+        ex.getBindingResult().getFieldErrors().forEach(err -> {
+            errorMessages.append("[").append(err.getField()).append(": ").append(err.getDefaultMessage()).append("] ");
+        });
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.fail(errorMessages.toString().trim(), HttpStatus.BAD_REQUEST.value()));
+    }
+
+
 }
 
 

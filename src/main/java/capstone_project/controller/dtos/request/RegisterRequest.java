@@ -1,5 +1,6 @@
 package capstone_project.controller.dtos.request;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
@@ -12,11 +13,14 @@ import java.io.Serializable;
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class RegisterRequest extends LoginRequest implements Serializable {
+public class RegisterRequest extends AuthBaseRequest implements Serializable {
     @Serial
     private static final long serialVersionUID = 2834600384867483553L;
 
     private Boolean gender;
+
+    @NotBlank(message = "Date of birth is required")
     private String dateOfBirth;
+
     private String imageUrl;
 }

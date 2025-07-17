@@ -1,5 +1,6 @@
 package capstone_project.controller.dtos.request;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
@@ -16,6 +17,9 @@ public class RegisterUserRequest extends RegisterRequest implements Serializable
     @Serial
     private static final long serialVersionUID = -4607626783922079883L;
 
+    @NotBlank(message = "Full name is required")
     private String fullName;
+
+    @NotBlank(message = "Phone number is required")
     private String phoneNumber;
 }

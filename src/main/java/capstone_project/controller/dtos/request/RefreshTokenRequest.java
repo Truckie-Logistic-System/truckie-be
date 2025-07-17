@@ -1,5 +1,6 @@
 package capstone_project.controller.dtos.request;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
@@ -9,5 +10,6 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RefreshTokenRequest {
+    @NotBlank
     private String refreshToken;
 }
