@@ -13,6 +13,7 @@ public interface UsersEntityService {
      * Gets user by username.
      *
      * @param username the username
+     *
      * @return the user by username
      */
     Optional<UsersEntity> getUserByUserName(String username);
@@ -22,6 +23,7 @@ public interface UsersEntityService {
      *
      * @param username the username
      * @param email    the email
+     *
      * @return the user by username or email
      */
     Optional<UsersEntity> getUserByUserNameOrEmail(String username, String email);
@@ -30,9 +32,12 @@ public interface UsersEntityService {
      * Gets user by email.
      *
      * @param email the email
+     *
      * @return the user by email
      */
     Optional<UsersEntity> getUserByEmail(String email);
 
     UsersEntity createUser(UsersEntity usersEntity);
+
+    Optional<UsersEntity> getByUsernameWithRole(final String username);
 }
