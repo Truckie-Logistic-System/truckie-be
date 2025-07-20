@@ -5,6 +5,7 @@ import capstone_project.service.auth.AuthUserService;
 import capstone_project.service.auth.JwtRequestFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -25,10 +26,13 @@ public class SecurityConfigurer {
 
     private final AuthUserService authUserService;
 
+    @Value("${auth.api.base-path}")
+    private String authApiBasePath;
+
     public static final String[] PUBLIC_ENDPOINTS = {
             "/api/v1/auths/**",
-            "/api/v1/managers/**",
             "/api/v1/emails/**",
+//            "/api/v1/managers/**",
             "/swagger-ui/**",
             "/v3/api-docs/**",
             "/swagger-resources/**",
@@ -63,6 +67,7 @@ public class SecurityConfigurer {
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(PUBLIC_ENDPOINTS
                         ).permitAll()
+                        .requestMatchers("/api/v1/managers/**").hasAuthority("ADMIN")
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)

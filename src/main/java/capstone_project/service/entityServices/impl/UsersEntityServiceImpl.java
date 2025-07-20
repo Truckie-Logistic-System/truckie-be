@@ -40,4 +40,9 @@ public class UsersEntityServiceImpl implements UsersEntityService {
     public Optional<UsersEntity> getUserByEmail(final String email) {
         return userRepository.findByEmail(email);
     }
+
+    @Override
+    public Optional<UsersEntity> getByUsernameWithRole(final String username) {
+        return userRepository.findByUsernameWithRole(username);
+    }
 }

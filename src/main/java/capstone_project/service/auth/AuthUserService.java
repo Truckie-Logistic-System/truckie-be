@@ -22,7 +22,7 @@ public class AuthUserService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        final var user = userRepository.findByUsername(username)
+        final var user = userRepository.findByUsernameWithRole(username)
                 .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with username or email: " + username));
 
@@ -44,6 +44,6 @@ public class AuthUserService implements UserDetailsService {
     }
 
     private Collection<? extends GrantedAuthority> getAuthorities(UsersEntity user) {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().getRoleName()));
+        return List.of(new SimpleGrantedAuthority(user.getRole().getRoleName()));
     }
 }
