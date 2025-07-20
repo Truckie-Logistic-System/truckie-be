@@ -4,5 +4,6 @@ public enum RoleType {
     ADMIN,
     CUSTOMER,
     PARTNER,
-    STAFF
+    STAFF,
+    DRIVER
 }

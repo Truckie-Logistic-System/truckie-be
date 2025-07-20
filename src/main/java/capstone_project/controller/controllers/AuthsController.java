@@ -1,13 +1,8 @@
 package capstone_project.controller.controllers;
 
 
-import capstone_project.controller.dtos.request.LoginWithoutEmailRequest;
-import capstone_project.controller.dtos.request.RefreshTokenRequest;
-import capstone_project.controller.dtos.request.RegisterUserRequest;
-import capstone_project.controller.dtos.response.ApiResponse;
-import capstone_project.controller.dtos.response.LoginResponse;
-import capstone_project.controller.dtos.response.RefreshTokenResponse;
-import capstone_project.controller.dtos.response.UserResponse;
+import capstone_project.controller.dtos.request.*;
+import capstone_project.controller.dtos.response.*;
 import capstone_project.enums.RoleType;
 import capstone_project.service.services.EmailProtocolService;
 import capstone_project.service.services.RegistersService;
@@ -35,6 +30,14 @@ public class AuthsController {
         final var register = registersService.register(registerUserRequest, roleType);
         String otp = registersService.generateOtp();
         emailProtocolService.sendOtpEmail(registerUserRequest.getEmail(), otp);
+        return ResponseEntity.ok(ApiResponse.ok(register));
+    }
+
+    @PostMapping("/register/customer")
+    public ResponseEntity<ApiResponse<CustomerResponse>> register(@RequestBody @Valid RegisterCustomerRequest registerCustomerRequest) {
+        final var register = registersService.registerCustomer(registerCustomerRequest);
+        String otp = registersService.generateOtp();
+        emailProtocolService.sendOtpEmail(registerCustomerRequest.getEmail(), otp);
         return ResponseEntity.ok(ApiResponse.ok(register));
     }
 

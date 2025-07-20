@@ -1,23 +1,16 @@
 package capstone_project.service.services.impl;
 
-import capstone_project.controller.dtos.request.LoginWithGoogleRequest;
-import capstone_project.controller.dtos.request.LoginWithoutEmailRequest;
-import capstone_project.controller.dtos.request.RefreshTokenRequest;
-import capstone_project.controller.dtos.request.RegisterUserRequest;
-import capstone_project.controller.dtos.response.LoginResponse;
-import capstone_project.controller.dtos.response.RefreshTokenResponse;
-import capstone_project.controller.dtos.response.UserResponse;
+import capstone_project.controller.dtos.request.*;
+import capstone_project.controller.dtos.response.*;
+import capstone_project.entity.*;
 import capstone_project.enums.ErrorEnum;
 import capstone_project.enums.RoleType;
 import capstone_project.exceptions.dto.BadRequestException;
 import capstone_project.exceptions.dto.InternalServerException;
 import capstone_project.exceptions.dto.NotFoundException;
-import capstone_project.entity.RefreshTokenEntity;
-import capstone_project.entity.RolesEntity;
-import capstone_project.entity.UsersEntity;
-import capstone_project.service.entityServices.RefreshTokenEntityService;
-import capstone_project.service.entityServices.RolesEntityService;
-import capstone_project.service.entityServices.UsersEntityService;
+import capstone_project.service.entityServices.*;
+import capstone_project.service.mapper.CustomersMapper;
+import capstone_project.service.mapper.DriversMapper;
 import capstone_project.service.mapper.UsersMapper;
 import capstone_project.service.services.RegistersService;
 import capstone_project.utilities.JWTUtil;
@@ -42,14 +35,21 @@ import java.util.Random;
 public class RegistersServiceImpl implements RegistersService {
 
     private final UsersEntityService usersEntityService;
+    private final CustomersEntityService customersEntityService;
+    private final DriversEntityService driversEntityService;
     private final RolesEntityService rolesEntityService;
     private final RefreshTokenEntityService refreshTokenEntityService;
+
     private final PasswordEncoder passwordEncoder;
+
     private final UsersMapper usersMapper;
+    private final CustomersMapper customersMapper;
+    private final DriversMapper driversMapper;
 
     private static final String NO_PASSWORD = "NO_PASSWORD";
     private static final String TOKEN_TYPE = "Bearer";
 
+    // just only for register staff
     @Override
     @Transactional
     public UserResponse register(final RegisterUserRequest registerUserRequest, RoleType roleType) {
@@ -91,7 +91,147 @@ public class RegistersServiceImpl implements RegistersService {
                     .build();
 
             UsersEntity savedUser = usersEntityService.createUser(user);
+
             return usersMapper.mapUserResponse(savedUser);
+
+        } catch (Exception ex) {
+            log.error("[register] Exception: ", ex);
+            throw new InternalServerException(
+                    ErrorEnum.INTERNAL_SERVER_ERROR.getMessage(),
+                    ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
+            );
+        } finally {
+            log.info("[register] End function");
+        }
+    }
+
+    @Override
+    @Transactional
+    public CustomerResponse registerCustomer(final RegisterCustomerRequest registerCustomerRequest) {
+        log.info("[register] Start function");
+
+        final String username = registerCustomerRequest.getUsername();
+        final String email = registerCustomerRequest.getEmail();
+
+        usersEntityService.getUserByUserNameOrEmail(username, email).ifPresent(user -> {
+            log.info("[register] Username or Email existed");
+            throw new BadRequestException(
+                    ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getMessage(),
+                    ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getErrorCode()
+            );
+        });
+
+        try {
+
+            RolesEntity role = rolesEntityService.findByRoleName(RoleType.CUSTOMER.name())
+                    .orElseThrow(() -> new InternalServerException(
+                            "Role CUSTOMER not found",
+                            ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
+                    ));
+
+            Date validatedDob = validateDateFormat(registerCustomerRequest.getDateOfBirth());
+
+            UsersEntity user = UsersEntity.builder()
+                    .username(username)
+                    .email(email)
+                    .password(passwordEncoder.encode(registerCustomerRequest.getPassword()))
+                    .fullName(registerCustomerRequest.getFullName())
+                    .phoneNumber(registerCustomerRequest.getPhoneNumber())
+                    .gender(registerCustomerRequest.getGender())
+                    .imageUrl(registerCustomerRequest.getImageUrl())
+                    .dateOfBirth(validatedDob)
+                    .status("active")
+                    .role(role)
+                    .createdAt(new Timestamp(System.currentTimeMillis()))
+                    .build();
+
+            UsersEntity savedUser = usersEntityService.createUser(user);
+
+            CustomersEntity customer = CustomersEntity.builder()
+                    .companyName(registerCustomerRequest.getCompanyName())
+                    .representativeName(registerCustomerRequest.getRepresentativeName())
+                    .representativePhone(registerCustomerRequest.getRepresentativePhone())
+                    .businessLicenseNumber(registerCustomerRequest.getBusinessLicenseNumber())
+                    .businessAddress(registerCustomerRequest.getBusinessAddress())
+                    .createdAt(new Timestamp(System.currentTimeMillis()))
+                    .status("active")
+                    .user(savedUser)
+                    .build();
+
+            CustomersEntity savedCustomer = customersEntityService.createCustomer(customer);
+
+            return customersMapper.mapCustomerResponse(savedCustomer);
+
+        } catch (Exception ex) {
+            log.error("[register] Exception: ", ex);
+            throw new InternalServerException(
+                    ErrorEnum.INTERNAL_SERVER_ERROR.getMessage(),
+                    ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
+            );
+        } finally {
+            log.info("[register] End function");
+        }
+    }
+
+    @Override
+    @Transactional
+    public DriverResponse registerDriver(RegisterDriverRequest registerDriverRequest) {
+        log.info("[register] Start function");
+
+        final String username = registerDriverRequest.getUsername();
+        final String email = registerDriverRequest.getEmail();
+
+        usersEntityService.getUserByUserNameOrEmail(username, email).ifPresent(user -> {
+            log.info("[register] Username or Email existed");
+            throw new BadRequestException(
+                    ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getMessage(),
+                    ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getErrorCode()
+            );
+        });
+
+        try {
+
+            RolesEntity role = rolesEntityService.findByRoleName(RoleType.DRIVER.name())
+                    .orElseThrow(() -> new InternalServerException(
+                            "Role CUSTOMER not found",
+                            ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
+                    ));
+
+            Date validatedDob = validateDateFormat(registerDriverRequest.getDateOfBirth());
+
+            UsersEntity user = UsersEntity.builder()
+                    .username(username)
+                    .email(email)
+                    .password(passwordEncoder.encode(registerDriverRequest.getPassword()))
+                    .fullName(registerDriverRequest.getFullName())
+                    .phoneNumber(registerDriverRequest.getPhoneNumber())
+                    .gender(registerDriverRequest.getGender())
+                    .imageUrl(registerDriverRequest.getImageUrl())
+                    .dateOfBirth(validatedDob)
+                    .status("active")
+                    .role(role)
+                    .createdAt(new Timestamp(System.currentTimeMillis()))
+                    .build();
+
+            UsersEntity savedUser = usersEntityService.createUser(user);
+
+            DriversEntity driversEntity = DriversEntity.builder()
+                    .driverLicenseNumber(registerDriverRequest.getDriverLicenseNumber())
+                    .identityNumber(registerDriverRequest.getIdentityNumber())
+                    .cardSerialNumber(registerDriverRequest.getCardSerialNumber())
+                    .placeOfIssue(registerDriverRequest.getPlaceOfIssue())
+                    .dateOfIssue(validateDateFormat(registerDriverRequest.getDateOfIssue()))
+                    .dateOfExpiry(validateDateFormat(registerDriverRequest.getDateOfExpiry()))
+                    .licenseClass(registerDriverRequest.getLicenseClass())
+                    .dateOfPassing(validateDateFormat(registerDriverRequest.getDateOfPassing()))
+                    .createdAt(new Timestamp(System.currentTimeMillis()))
+                    .status("active")
+                    .user(savedUser)
+                    .build();
+
+            DriversEntity savedDriver = driversEntityService.createDriver(driversEntity);
+
+            return driversMapper.mapDriverResponse(savedDriver);
 
         } catch (Exception ex) {
             log.error("[register] Exception: ", ex);
