@@ -1,7 +1,8 @@
 package capstone_project.service.entityServices;
 
-import capstone_project.entity.CustomersEntity;
+import capstone_project.entity.CustomerEntity;
 
-public interface CustomersEntityService {
-    CustomersEntity createCustomer(CustomersEntity customersEntity);
+import java.util.UUID;
+
+public interface CustomersEntityService extends BaseEntityService<CustomerEntity, UUID>{
 }

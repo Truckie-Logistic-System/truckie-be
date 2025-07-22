@@ -6,8 +6,8 @@ import capstone_project.entity.UsersEntity;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface UsersEntityService {
-    Optional<UsersEntity> getUserById(UUID id);
+public interface UsersEntityService extends BaseEntityService<UsersEntity, UUID> {
+//    Optional<UsersEntity> getUserById(UUID id);
 
     /**
      * Gets user by username.
@@ -37,7 +37,7 @@ public interface UsersEntityService {
      */
     Optional<UsersEntity> getUserByEmail(String email);
 
-    UsersEntity createUser(UsersEntity usersEntity);
+//    UsersEntity createUser(UsersEntity usersEntity);
 
     Optional<UsersEntity> getByUsernameWithRole(final String username);
 }

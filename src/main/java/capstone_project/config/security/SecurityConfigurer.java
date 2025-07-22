@@ -5,7 +5,6 @@ import capstone_project.service.auth.AuthUserService;
 import capstone_project.service.auth.JwtRequestFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -19,6 +18,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import java.util.Arrays;
+import java.util.stream.Stream;
+
 @EnableWebSecurity
 @Configuration
 @RequiredArgsConstructor
@@ -26,25 +28,31 @@ public class SecurityConfigurer {
 
     private final AuthUserService authUserService;
 
-    @Value("${auth.api.base-path}")
-    private String authApiBasePath;
+//    @Value("${auth.api.base-path}")
+//    private String authApiBasePath;
 
-    public static final String[] PUBLIC_ENDPOINTS = {
-            "/api/v1/auths/**",
-            "/api/v1/emails/**",
-//            "/api/v1/managers/**",
+    public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
+            "/swagger-ui.html",
             "/v3/api-docs/**",
             "/swagger-resources/**",
-            "/webjars/**",
-            "/swagger-ui.html",
-            "/app/**",
-            "/topic/**",
-            "/actuator/**",
-            "/actuator/health",
-            "/actuator/info",
-            "/error"
+            "/webjars/**"
     };
+
+    public static final String[] PUBLIC_ENDPOINTS = Stream.concat(
+            Stream.of(
+                    "/api/v1/auths/**",
+                    "/api/v1/emails/**",
+                    "/app/**",
+                    "/topic/**",
+                    "/actuator/**",
+                    "/actuator/health",
+                    "/actuator/info",
+                    "/error"
+            ),
+            Arrays.stream(SWAGGER_ENDPOINTS)
+    ).toArray(String[]::new);
+
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -68,6 +76,7 @@ public class SecurityConfigurer {
                         .requestMatchers(PUBLIC_ENDPOINTS
                         ).permitAll()
                         .requestMatchers("/api/v1/managers/**").hasAuthority("ADMIN")
+                        .requestMatchers("/api/v1/roles/**").hasAuthority("ADMIN")
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)
@@ -81,13 +90,13 @@ public class SecurityConfigurer {
                 )
                 // logout
                 .logout(logout -> logout
-                        .logoutUrl("/v1.0/auths/logout")
+                        .logoutUrl("/api/v1/auths/logout")
                         .logoutSuccessHandler((request, response, authentication) -> {
                             response.setStatus(HttpServletResponse.SC_OK);
                         })
                         .invalidateHttpSession(true)
                         .deleteCookies("JSESSIONID", "JWT_TOKEN")
-                        .logoutSuccessUrl("/v1.0/auths/login")
+                        .logoutSuccessUrl("/api/v1/auths/login")
                 );
         return http.build();
     }

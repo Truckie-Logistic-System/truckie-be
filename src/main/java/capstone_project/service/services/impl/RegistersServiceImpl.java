@@ -20,11 +20,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
@@ -74,7 +73,7 @@ public class RegistersServiceImpl implements RegistersService {
                             ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
                     ));
 
-            Date validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
+            LocalDateTime validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
 
             UsersEntity user = UsersEntity.builder()
                     .username(username)
@@ -84,13 +83,13 @@ public class RegistersServiceImpl implements RegistersService {
                     .phoneNumber(registerUserRequest.getPhoneNumber())
                     .gender(registerUserRequest.getGender())
                     .imageUrl(registerUserRequest.getImageUrl())
-                    .dateOfBirth(validatedDob)
+                    .dateOfBirth(validatedDob.toLocalDate())
                     .status("active")
                     .role(role)
-                    .createdAt(new Timestamp(System.currentTimeMillis()))
+                    .createdAt(LocalDateTime.now())
                     .build();
 
-            UsersEntity savedUser = usersEntityService.createUser(user);
+            UsersEntity savedUser = usersEntityService.save(user);
 
             return usersMapper.mapUserResponse(savedUser);
 
@@ -129,7 +128,7 @@ public class RegistersServiceImpl implements RegistersService {
                             ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
                     ));
 
-            Date validatedDob = validateDateFormat(registerCustomerRequest.getDateOfBirth());
+            LocalDateTime validatedDob = validateDateFormat(registerCustomerRequest.getDateOfBirth());
 
             UsersEntity user = UsersEntity.builder()
                     .username(username)
@@ -139,26 +138,26 @@ public class RegistersServiceImpl implements RegistersService {
                     .phoneNumber(registerCustomerRequest.getPhoneNumber())
                     .gender(registerCustomerRequest.getGender())
                     .imageUrl(registerCustomerRequest.getImageUrl())
-                    .dateOfBirth(validatedDob)
+                    .dateOfBirth(validatedDob.toLocalDate())
                     .status("active")
                     .role(role)
-                    .createdAt(new Timestamp(System.currentTimeMillis()))
+                    .createdAt(LocalDateTime.now())
                     .build();
 
-            UsersEntity savedUser = usersEntityService.createUser(user);
+            UsersEntity savedUser = usersEntityService.save(user);
 
-            CustomersEntity customer = CustomersEntity.builder()
+            CustomerEntity customer = CustomerEntity.builder()
                     .companyName(registerCustomerRequest.getCompanyName())
                     .representativeName(registerCustomerRequest.getRepresentativeName())
                     .representativePhone(registerCustomerRequest.getRepresentativePhone())
                     .businessLicenseNumber(registerCustomerRequest.getBusinessLicenseNumber())
                     .businessAddress(registerCustomerRequest.getBusinessAddress())
-                    .createdAt(new Timestamp(System.currentTimeMillis()))
+                    .createdAt(LocalDateTime.now())
                     .status("active")
                     .user(savedUser)
                     .build();
 
-            CustomersEntity savedCustomer = customersEntityService.createCustomer(customer);
+            CustomerEntity savedCustomer = customersEntityService.save(customer);
 
             return customersMapper.mapCustomerResponse(savedCustomer);
 
@@ -197,7 +196,7 @@ public class RegistersServiceImpl implements RegistersService {
                             ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
                     ));
 
-            Date validatedDob = validateDateFormat(registerDriverRequest.getDateOfBirth());
+            LocalDateTime validatedDob = validateDateFormat(registerDriverRequest.getDateOfBirth());
 
             UsersEntity user = UsersEntity.builder()
                     .username(username)
@@ -207,15 +206,15 @@ public class RegistersServiceImpl implements RegistersService {
                     .phoneNumber(registerDriverRequest.getPhoneNumber())
                     .gender(registerDriverRequest.getGender())
                     .imageUrl(registerDriverRequest.getImageUrl())
-                    .dateOfBirth(validatedDob)
+                    .dateOfBirth(validatedDob.toLocalDate())
                     .status("active")
                     .role(role)
-                    .createdAt(new Timestamp(System.currentTimeMillis()))
+                    .createdAt(LocalDateTime.now())
                     .build();
 
-            UsersEntity savedUser = usersEntityService.createUser(user);
+            UsersEntity savedUser = usersEntityService.save(user);
 
-            DriversEntity driversEntity = DriversEntity.builder()
+            DriverEntity driverEntity = DriverEntity.builder()
                     .driverLicenseNumber(registerDriverRequest.getDriverLicenseNumber())
                     .identityNumber(registerDriverRequest.getIdentityNumber())
                     .cardSerialNumber(registerDriverRequest.getCardSerialNumber())
@@ -224,12 +223,12 @@ public class RegistersServiceImpl implements RegistersService {
                     .dateOfExpiry(validateDateFormat(registerDriverRequest.getDateOfExpiry()))
                     .licenseClass(registerDriverRequest.getLicenseClass())
                     .dateOfPassing(validateDateFormat(registerDriverRequest.getDateOfPassing()))
-                    .createdAt(new Timestamp(System.currentTimeMillis()))
+                    .createdAt(LocalDateTime.now())
                     .status("active")
                     .user(savedUser)
                     .build();
 
-            DriversEntity savedDriver = driversEntityService.createDriver(driversEntity);
+            DriverEntity savedDriver = driversEntityService.save(driverEntity);
 
             return driversMapper.mapDriverResponse(savedDriver);
 
@@ -241,29 +240,6 @@ public class RegistersServiceImpl implements RegistersService {
             );
         } finally {
             log.info("[register] End function");
-        }
-    }
-
-    public Date validateDateFormat(String dateOfBirthStr) {
-        try {
-
-            if (dateOfBirthStr.isEmpty()) {
-                log.error("[validateDateFormat] Date of Birth is empty");
-                throw new BadRequestException(
-                        ErrorEnum.NULL.getMessage(),
-                        ErrorEnum.NULL.getErrorCode()
-                );
-            }
-
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-            LocalDate localDate = LocalDate.parse(dateOfBirthStr, formatter);
-            return java.sql.Date.valueOf(localDate);
-        } catch (DateTimeParseException e) {
-            log.error("[validateDateFormat] Invalid date format: {}", dateOfBirthStr, e);
-            throw new BadRequestException(
-                    ErrorEnum.INVALID_DATE_FORMAT.getMessage(),
-                    ErrorEnum.INVALID_DATE_FORMAT.getErrorCode()
-            );
         }
     }
 
@@ -291,12 +267,12 @@ public class RegistersServiceImpl implements RegistersService {
                 RefreshTokenEntity newRefreshToken = RefreshTokenEntity.builder()
                         .token(refreshTokenString)
                         .user(usersEntity)
-                        .createdAt(new Timestamp(System.currentTimeMillis()))
-                        .expiredAt(new Timestamp(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 30))
+                        .createdAt(LocalDateTime.now())
+                        .expiredAt(LocalDateTime.now().plusDays(30))
                         .revoked(false)
                         .build();
 
-                refreshTokenEntityService.create(newRefreshToken);
+                refreshTokenEntityService.save(newRefreshToken);
 
                 log.info("[login] Login successful");
 
@@ -352,7 +328,7 @@ public class RegistersServiceImpl implements RegistersService {
                             ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
                     ));
 
-            Date validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
+            LocalDateTime validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
 
             UsersEntity user = UsersEntity.builder()
                     .username(username)
@@ -362,13 +338,13 @@ public class RegistersServiceImpl implements RegistersService {
                     .phoneNumber(registerUserRequest.getPhoneNumber())
                     .gender(registerUserRequest.getGender())
                     .imageUrl(registerUserRequest.getImageUrl())
-                    .dateOfBirth(validatedDob)
+                    .dateOfBirth(validatedDob.toLocalDate())
                     .status("active")
                     .role(role)
-                    .createdAt(new Timestamp(System.currentTimeMillis()))
+                    .createdAt(LocalDateTime.now())
                     .build();
 
-            usersEntityService.createUser(user);
+            usersEntityService.save(user);
 
             log.info("[loginWithGoogle] Create new account & Login successful");
 
@@ -397,12 +373,12 @@ public class RegistersServiceImpl implements RegistersService {
             RefreshTokenEntity refreshTokenEntity = RefreshTokenEntity.builder()
                     .token(refreshTokenString)
                     .id(usersEntity.getId())
-                    .createdAt(new Timestamp(System.currentTimeMillis()))
-                    .expiredAt(new Timestamp(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 30))
+                    .createdAt(LocalDateTime.now())
+                    .expiredAt(LocalDateTime.now().plusDays(30))
                     .revoked(false)
                     .build();
 
-            refreshTokenEntityService.create(refreshTokenEntity);
+            refreshTokenEntityService.save(refreshTokenEntity);
             log.info("[loginWithGoogle] login successful");
             return usersMapper.mapLoginResponse(usersEntity, token, refreshTokenString);
 
@@ -416,23 +392,46 @@ public class RegistersServiceImpl implements RegistersService {
         RefreshTokenEntity tokenEntity = refreshTokenEntityService.findByToken(refreshTokenRequest.getRefreshToken())
                 .orElseThrow(() -> new RuntimeException("Refresh token not found"));
 
-        Timestamp now = new Timestamp(System.currentTimeMillis());
+        LocalDateTime now = LocalDateTime.now();
 
         if (tokenEntity.getRevoked()) {
             throw new RuntimeException("Refresh token revoked");
         }
 
-        if (now.after(tokenEntity.getExpiredAt())) {
+        if (tokenEntity.getExpiredAt().isBefore(now)) {
             throw new RuntimeException("Refresh token expired");
         }
 
-        UsersEntity user = usersEntityService.getUserById(tokenEntity.getUser().getId())
+        UsersEntity user = usersEntityService.findById(tokenEntity.getUser().getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         String newAccessToken = JWTUtil.generateToken(user);
 
         return new RefreshTokenResponse(newAccessToken, refreshTokenRequest.getRefreshToken());
     }
+
+    public LocalDateTime validateDateFormat(String dateOfBirthStr) {
+        try {
+            if (dateOfBirthStr.isEmpty()) {
+                log.error("[validateDateFormat] Date string is empty");
+                throw new BadRequestException(
+                        ErrorEnum.NULL.getMessage(),
+                        ErrorEnum.NULL.getErrorCode()
+                );
+            }
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            LocalDate localDate = LocalDate.parse(dateOfBirthStr, formatter);
+            return localDate.atStartOfDay();
+        } catch (DateTimeParseException e) {
+            log.error("[validateDateFormat] Invalid date format: {}", dateOfBirthStr, e);
+            throw new BadRequestException(
+                    ErrorEnum.INVALID_DATE_FORMAT.getMessage(),
+                    ErrorEnum.INVALID_DATE_FORMAT.getErrorCode()
+            );
+        }
+    }
+
 
     public String generateOtp() {
         return String.format("%06d", new Random().nextInt(999999));

@@ -5,8 +5,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
-import java.sql.Timestamp;
-
 @Data
 @SuperBuilder(toBuilder = true)
 @AllArgsConstructor
@@ -18,10 +16,10 @@ public class DriverResponse {
     private String driverLicenseNumber;
     private String cardSerialNumber;
     private String placeOfIssue;
-    private Timestamp dateOfIssue;
-    private Timestamp dateOfExpiry;
+    private String dateOfIssue;
+    private String dateOfExpiry;
     private String licenseClass;
-    private Timestamp dateOfPassing;
+    private String dateOfPassing;
     private String status;
 
     private UserResponse userResponse;

@@ -13,7 +13,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class CustomersEntity extends BaseEntity {
+public class CustomerEntity extends BaseEntity {
 
     @Basic
     @Column(name = "company_name")
@@ -33,6 +33,7 @@ public class CustomersEntity extends BaseEntity {
     @Basic
     @Column(name = "status")
     private String status;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonBackReference

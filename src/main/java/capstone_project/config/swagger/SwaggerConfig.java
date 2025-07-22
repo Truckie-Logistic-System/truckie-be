@@ -46,7 +46,7 @@ public class SwaggerConfig {
     @Bean
     public CommandLineRunner printSwaggerUrl() {
         return args -> {
-            String swaggerUrl = "http://localhost:8080/swagger-ui/index.html";
+            String swaggerUrl = "http://localhost:8080/swagger-ui.html";
             System.out.println("\n----------------------------------------------------------");
             System.out.println("Swagger UI is available at: " + swaggerUrl);
             System.out.println("----------------------------------------------------------\n");

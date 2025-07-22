@@ -40,7 +40,7 @@ public class OtpSchedulerService {
                 .forJob(jobDetail)
                 .withIdentity(jobDetail.getKey().getName() + "-trigger")
                 .withDescription("Expire OTP Trigger")
-                .startAt(DateBuilder.futureDate(5, DateBuilder.IntervalUnit.MINUTE))
+                .startAt(DateBuilder.futureDate(15, DateBuilder.IntervalUnit.MINUTE))
                 .build();
     }
 }

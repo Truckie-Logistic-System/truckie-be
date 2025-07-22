@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "refresh_token", schema = "public", catalog = "capstone-project")
@@ -23,7 +23,7 @@ public class RefreshTokenEntity extends BaseEntity {
 
     @Basic
     @Column(name = "expired_at")
-    private Timestamp expiredAt;
+    private LocalDateTime expiredAt;
 
     private Boolean revoked = false;
 

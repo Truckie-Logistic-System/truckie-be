@@ -1,7 +1,8 @@
 package capstone_project.service.entityServices;
 
-import capstone_project.entity.DriversEntity;
+import capstone_project.entity.DriverEntity;
 
-public interface DriversEntityService {
-    DriversEntity createDriver(DriversEntity driversEntity);
+import java.util.UUID;
+
+public interface DriversEntityService extends BaseEntityService<DriverEntity, UUID> {
 }

@@ -10,9 +10,7 @@ public enum ErrorEnum {
     LOGIN_NOT_FOUND_USER_NAME_OR_EMAIL(4, "Username and Email are not found."),
     LOGIN_WRONG_PASSWORD(5, "Wrong password."),
     INVALID_DATE_FORMAT(6, "Invalid date format. Expected format: yyyy-MM-dd."),
-    INVALID_TIME_FORMAT(7, "Invalid time format. Expected format: HH:mm."),
-    INVALID_RIGHT_TIME(8, "Invalid time format. Only full hours (HH:00) are allowed."),
-    ALREADY_EXISTED(9, "This input is already exists"),
+    ALREADY_EXISTED(9, "This is already exists"),
     NULL(13, "This field is null."),
     NOT_FOUND(15, "Not found");
     private final String message;
