@@ -32,9 +32,17 @@ public class RefreshTokenEntityServiceImpl implements RefreshTokenEntityService 
     }
 
     @Override
-    public RefreshTokenEntity create(RefreshTokenEntity entity) {
+    public RefreshTokenEntity save(RefreshTokenEntity entity) {
         return refreshTokenRepository.save(entity);
     }
 
+    @Override
+    public Optional<RefreshTokenEntity> findById(UUID uuid) {
+        return refreshTokenRepository.findById(uuid);
+    }
 
+    @Override
+    public List<RefreshTokenEntity> findAll() {
+        return refreshTokenRepository.findAll();
+    }
 }

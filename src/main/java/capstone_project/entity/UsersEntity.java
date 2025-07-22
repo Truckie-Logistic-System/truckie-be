@@ -8,8 +8,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 @Entity
@@ -39,7 +39,7 @@ public class UsersEntity extends BaseEntity {
     private Boolean gender;
     @Basic
     @Column(name = "date_of_birth")
-    private Date dateOfBirth;
+    private LocalDate dateOfBirth;
     @Basic
     @Column(name = "image_url")
     private String imageUrl;

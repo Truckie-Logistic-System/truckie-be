@@ -36,6 +36,7 @@ dependencies {
 
 	// DB
 	implementation("org.postgresql:postgresql")
+	implementation("com.azure.spring:spring-cloud-azure-starter:5.22.0")
 
 	// Swagger OpenAPI
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")

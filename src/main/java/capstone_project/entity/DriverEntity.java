@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 
 
 @Entity
@@ -16,7 +16,7 @@ import java.util.Date;
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class DriversEntity extends BaseEntity {
+public class DriverEntity extends BaseEntity {
 
     @Column(name = "identity_number")
     private String identityNumber;
@@ -30,20 +30,17 @@ public class DriversEntity extends BaseEntity {
     @Column(name = "place_of_issue")
     private String placeOfIssue;
 
-    @Temporal(TemporalType.DATE)
     @Column(name = "date_of_issue")
-    private Date dateOfIssue;
+    private LocalDateTime dateOfIssue;
 
-    @Temporal(TemporalType.DATE)
     @Column(name = "date_of_expiry")
-    private Date dateOfExpiry;
+    private LocalDateTime dateOfExpiry;
 
     @Column(name = "license_class")
     private String licenseClass;
 
-    @Temporal(TemporalType.DATE)
     @Column(name = "date_of_passing")
-    private Date dateOfPassing;
+    private LocalDateTime dateOfPassing;
 
     @Column(name = "status")
     private String status;

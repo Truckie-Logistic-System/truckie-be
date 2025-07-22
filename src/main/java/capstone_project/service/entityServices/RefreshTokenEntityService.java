@@ -7,13 +7,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface RefreshTokenEntityService {
+public interface RefreshTokenEntityService extends BaseEntityService<RefreshTokenEntity, UUID> {
 
     List<RefreshTokenEntity> findByUserIdAndRevokedFalse(UUID userId);
 
     Optional<RefreshTokenEntity> findByToken(String token);
 
     void saveAll(List<RefreshTokenEntity> tokens);
-
-    RefreshTokenEntity create(RefreshTokenEntity entity);
 }

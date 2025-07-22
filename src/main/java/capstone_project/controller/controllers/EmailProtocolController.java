@@ -18,12 +18,12 @@ public class EmailProtocolController {
     private final EmailProtocolService emailProtocolService;
 
     @GetMapping("/otp/send")
-    public void sendOtpMail(@RequestParam String email, @RequestParam String otp) {
-        emailProtocolService.sendOtpEmail(email, otp);
+    public void sendOtpMail(@RequestBody OtpVerifyRequest otpVerifyRequest) {
+        emailProtocolService.sendOtpEmail(otpVerifyRequest.getEmail(), otpVerifyRequest.getOtp());
     }
 
     @PostMapping("/otp/verify")
-    public ResponseEntity<ApiResponse<String>> verifyOtp(@RequestParam OtpVerifyRequest otpVerifyRequest) {
+    public ResponseEntity<ApiResponse<String>> verifyOtp(@RequestBody OtpVerifyRequest otpVerifyRequest) {
         log.info("Received verify request for email: {}", otpVerifyRequest.getEmail());
         boolean isVerified = emailProtocolService.verifyOtp(otpVerifyRequest.getEmail(), otpVerifyRequest.getOtp());
         if (isVerified) {
