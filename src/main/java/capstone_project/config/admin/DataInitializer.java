@@ -1,10 +1,10 @@
 package capstone_project.config.admin;
 
-import capstone_project.entity.RolesEntity;
-import capstone_project.entity.UsersEntity;
-import capstone_project.enums.RoleType;
-import capstone_project.service.entityServices.RolesEntityService;
-import capstone_project.service.entityServices.UsersEntityService;
+import capstone_project.entity.auth.RoleEntity;
+import capstone_project.entity.auth.UserEntity;
+import capstone_project.common.enums.RoleTypeEnum;
+import capstone_project.service.entityServices.auth.RoleEntityService;
+import capstone_project.service.entityServices.auth.UserEntityService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,8 +18,8 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class DataInitializer {
 
-    private final UsersEntityService usersEntityService;
-    private final RolesEntityService rolesEntityService;
+    private final UserEntityService userEntityService;
+    private final RoleEntityService roleEntityService;
     private final PasswordEncoder passwordEncoder;
     private final AdminProperties adminProperties;
 
@@ -29,19 +29,19 @@ public class DataInitializer {
         String email = adminProperties.getEmail();
         String password = adminProperties.getPassword();
 
-        Optional<UsersEntity> existing = usersEntityService.getUserByUserName(username);
+        Optional<UserEntity> existing = userEntityService.getUserByUserName(username);
         if (existing.isEmpty()) {
-            RolesEntity adminRole = rolesEntityService.findByRoleName(RoleType.ADMIN.name())
+            RoleEntity adminRole = roleEntityService.findByRoleName(RoleTypeEnum.ADMIN.name())
                     .orElseGet(() -> {
-                        RolesEntity role = RolesEntity.builder()
-                                .roleName(RoleType.ADMIN.name())
+                        RoleEntity role = RoleEntity.builder()
+                                .roleName(RoleTypeEnum.ADMIN.name())
                                 .description("Default Admin Role")
                                 .isActive(true)
                                 .build();
-                        return rolesEntityService.save(role);
+                        return roleEntityService.save(role);
                     });
 
-            UsersEntity admin = UsersEntity.builder()
+            UserEntity admin = UserEntity.builder()
                     .username(username)
                     .password(passwordEncoder.encode(password))
                     .email(email)
@@ -52,7 +52,7 @@ public class DataInitializer {
                     .role(adminRole)
                     .build();
 
-            usersEntityService.save(admin);
+            userEntityService.save(admin);
             System.out.println("Default admin account created.");
         } else {
             System.out.println("Admin account already exists.");

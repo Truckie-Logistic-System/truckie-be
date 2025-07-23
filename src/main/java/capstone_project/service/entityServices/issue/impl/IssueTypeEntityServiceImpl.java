@@ -1,0 +1,33 @@
+package capstone_project.service.entityServices.issue.impl;
+
+import capstone_project.entity.issue.IssueTypeEntity;
+import capstone_project.repository.issue.IssueTypeRepository;
+import capstone_project.service.entityServices.issue.IssueTypeEntityService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class IssueTypeEntityServiceImpl implements IssueTypeEntityService {
+
+    private final IssueTypeRepository issueTypeRepository;
+
+    @Override
+    public IssueTypeEntity save(IssueTypeEntity entity) {
+        return issueTypeRepository.save(entity);
+    }
+
+    @Override
+    public Optional<IssueTypeEntity> findById(UUID uuid) {
+        return issueTypeRepository.findById(uuid);
+    }
+
+    @Override
+    public List<IssueTypeEntity> findAll() {
+        return issueTypeRepository.findAll();
+    }
+}

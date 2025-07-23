@@ -1,8 +1,8 @@
 package capstone_project.service.auth;
 
 
-import capstone_project.entity.UsersEntity;
-import capstone_project.repository.UserRepository;
+import capstone_project.entity.auth.UserEntity;
+import capstone_project.repository.auth.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -43,7 +43,7 @@ public class AuthUserService implements UserDetailsService {
         );
     }
 
-    private Collection<? extends GrantedAuthority> getAuthorities(UsersEntity user) {
+    private Collection<? extends GrantedAuthority> getAuthorities(UserEntity user) {
         return List.of(new SimpleGrantedAuthority(user.getRole().getRoleName()));
     }
 }

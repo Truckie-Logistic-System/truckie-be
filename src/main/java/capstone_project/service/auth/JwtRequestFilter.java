@@ -1,6 +1,6 @@
 package capstone_project.service.auth;
 
-import capstone_project.utilities.JWTUtil;
+import capstone_project.common.utils.JWTUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

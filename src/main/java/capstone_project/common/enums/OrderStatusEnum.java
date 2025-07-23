@@ -1,0 +1,25 @@
+package capstone_project.common.enums;
+
+public enum OrderStatusEnum {
+    PENDING,
+    PROCESSING,
+    CANCELLED,
+    CONTRACT_DRAFT,
+    CONTRACT_DENIED,
+    CONTRACT_SIGNED,
+    ON_PLANNING,
+    ASSIGNED_TO_DRIVER,
+    DRIVER_CONFIRM,
+    PICKED_UP,
+    SEALED_COMPLETED,
+    ONGOING_DELIVERED,
+    IN_DELIVERED,
+    IN_TROUBLES,
+    RESOLVED,
+    COMPENSATION,
+    DELIVERED,
+    SUCCESSFUL,
+    REJECT_ORDER,
+    RETURNING,
+    RETURNED
+}

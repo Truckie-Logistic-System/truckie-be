@@ -1,6 +1,6 @@
 package capstone_project.config.expired;
 
-import capstone_project.service.services.EmailProtocolService;
+import capstone_project.service.services.email.EmailProtocolService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.Job;
