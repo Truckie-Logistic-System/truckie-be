@@ -42,10 +42,10 @@ public class VehicleEntity extends BaseEntity {
     @Column(name = "status", length = 20)
     private String status;
 
-    @Column(name = "current_latitude", precision = 10, scale = 8)
+    @Column(name = "current_latitude", precision = 11, scale = 8)
     private BigDecimal currentLatitude;
 
-    @Column(name = "current_longitude", precision = 10, scale = 8)
+    @Column(name = "current_longitude", precision = 11, scale = 8)
     private BigDecimal currentLongitude;
 
     @Column(name = "last_updated")

@@ -13,6 +13,7 @@ import capstone_project.service.services.auth.RoleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -105,6 +106,7 @@ public class RoleServiceImpl implements RoleService {
 
 
     @Override
+    @Transactional
     public RoleResponse createRole(RoleRequest roleRequest) {
         log.info("Starting to create role with request: {}", roleRequest);
         try {
@@ -133,6 +135,7 @@ public class RoleServiceImpl implements RoleService {
     }
 
     @Override
+    @Transactional
     public RoleResponse updateRole(UUID id, RoleRequest roleRequest) {
         log.info("Starting to update role with id: {}, request: {}", id, roleRequest);
         try {

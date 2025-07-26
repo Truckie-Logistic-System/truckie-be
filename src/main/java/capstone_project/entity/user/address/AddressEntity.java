@@ -19,25 +19,25 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AddressEntity extends BaseEntity {
-    @Size(max = 20)
+    @Size(max = 100)
     @Column(name = "province", length = 20)
     private String province;
 
-    @Size(max = 20)
+    @Size(max = 100)
     @Column(name = "ward", length = 20)
     private String ward;
 
-    @Size(max = 20)
+    @Size(max = 100)
     @Column(name = "street", length = 20)
     private String street;
 
     @Column(name = "address_type")
     private Boolean addressType;
 
-    @Column(name = "latitude", precision = 10, scale = 8)
+    @Column(name = "latitude", precision = 11, scale = 8)
     private BigDecimal latitude;
 
-    @Column(name = "longitude", precision = 10, scale = 8)
+    @Column(name = "longitude", precision = 11, scale = 8)
     private BigDecimal longitude;
 
     @ManyToOne(fetch = FetchType.LAZY)

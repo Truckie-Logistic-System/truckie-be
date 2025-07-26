@@ -37,12 +37,12 @@ public class DeviceEntity extends BaseEntity {
     @Column(name = "installed_at")
     private LocalDateTime installedAt;
 
-    @Size(max = 45)
-    @Column(name = "ip_address", length = 45)
+    @Size(max = 100)
+    @Column(name = "ip_address", length = 100)
     private String ipAddress;
 
-    @Size(max = 50)
-    @Column(name = "firmware_version", length = 50)
+    @Size(max = 100)
+    @Column(name = "firmware_version", length = 100)
     private String firmwareVersion;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -18,10 +18,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class JourneyHistoryEntity extends BaseEntity {
-    @Column(name = "start_location", precision = 10, scale = 8)
+    @Column(name = "start_location", precision = 11, scale = 8)
     private BigDecimal startLocation;
 
-    @Column(name = "end_location", precision = 10, scale = 8)
+    @Column(name = "end_location", precision = 11, scale = 8)
     private BigDecimal endLocation;
 
     @Column(name = "start_time")

@@ -4,6 +4,7 @@ import capstone_project.dtos.request.auth.RoleRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.auth.RoleResponse;
 import capstone_project.service.services.auth.RoleService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -39,14 +40,14 @@ public class RolesController {
     }
 
     @PostMapping("")
-    public ResponseEntity<ApiResponse<RoleResponse>> createRole(@RequestBody RoleRequest roleRequest) {
+    public ResponseEntity<ApiResponse<RoleResponse>> createRole(@RequestBody @Valid RoleRequest roleRequest) {
         final var result = roleService.createRole(roleRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<RoleResponse>> getAllRoles(@PathVariable("id") UUID id,
-                                                                @RequestBody RoleRequest roleRequest) {
+                                                                @RequestBody @Valid RoleRequest roleRequest) {
         final var result = roleService.updateRole(id, roleRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }

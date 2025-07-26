@@ -14,9 +14,9 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MaintenanceTypeEntity extends BaseEntity {
-    @Size(max = 50)
+    @Size(max = 100)
     @NotNull
-    @Column(name = "maintenance_type_name", nullable = false, length = 50)
+    @Column(name = "maintenance_type_name", nullable = false, length = 100)
     private String maintenanceTypeName;
 
     @Size(max = 200)

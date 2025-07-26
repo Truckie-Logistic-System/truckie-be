@@ -5,8 +5,10 @@ import capstone_project.service.auth.AuthUserService;
 import capstone_project.service.auth.JwtRequestFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -28,8 +30,20 @@ public class SecurityConfigurer {
 
     private final AuthUserService authUserService;
 
-//    @Value("${auth.api.base-path}")
-//    private String authApiBasePath;
+    @Value("${auth.api.base-path}")
+    private String authApiBasePath;
+
+    @Value("${manager.api.base-path}")
+    private String managerApiBasePath;
+
+    @Value("${email.api.base-path}")
+    private String emailApiBasePath;
+
+    @Value("${role.api.base-path}")
+    private String roleApiBasePath;
+
+    @Value("${vehicle-type.api.base-path}")
+    private String vehicleTypeApiBasePath;
 
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
@@ -41,7 +55,7 @@ public class SecurityConfigurer {
 
     public static final String[] PUBLIC_ENDPOINTS = Stream.concat(
             Stream.of(
-                    "/api/v1/auths/**",
+                    "/api/v1/auth/**",
                     "/api/v1/emails/**",
                     "/app/**",
                     "/topic/**",
@@ -52,7 +66,6 @@ public class SecurityConfigurer {
             ),
             Arrays.stream(SWAGGER_ENDPOINTS)
     ).toArray(String[]::new);
-
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -73,10 +86,12 @@ public class SecurityConfigurer {
     public SecurityFilterChain configure(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers(PUBLIC_ENDPOINTS
-                        ).permitAll()
-                        .requestMatchers("/api/v1/managers/**").hasAuthority("ADMIN")
-                        .requestMatchers("/api/v1/roles/**").hasAuthority("ADMIN")
+                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.GET, vehicleTypeApiBasePath + "/**").authenticated()
+
+                        .requestMatchers(managerApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(roleApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority("ADMIN")
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)

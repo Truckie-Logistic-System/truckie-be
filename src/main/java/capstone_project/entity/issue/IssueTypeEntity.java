@@ -14,9 +14,9 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class IssueTypeEntity extends BaseEntity {
-    @Size(max = 50)
+    @Size(max = 100)
     @NotNull
-    @Column(name = "issue_type_name", nullable = false, length = 50)
+    @Column(name = "issue_type_name", nullable = false, length = 100)
     private String issueTypeName;
 
     @Size(max = 200)

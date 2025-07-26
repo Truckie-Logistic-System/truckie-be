@@ -16,12 +16,12 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DeviceTypeEntity extends BaseEntity {
-    @Size(max = 50)
+    @Size(max = 100)
     @NotNull
-    @Column(name = "device_type_name", nullable = false, length = 50)
+    @Column(name = "device_type_name", nullable = false, length = 100)
     private String deviceTypeName;
 
-    @Column(name = "vehicle_capacity", precision = 10, scale = 8)
+    @Column(name = "vehicle_capacity", precision = 11, scale = 8)
     private BigDecimal vehicleCapacity;
 
     @Size(max = 200)

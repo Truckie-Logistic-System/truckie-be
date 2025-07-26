@@ -24,10 +24,10 @@ public class IssueEntity extends BaseEntity {
     @Column(name = "description", length = 200)
     private String description;
 
-    @Column(name = "location_latitude", precision = 10, scale = 8)
+    @Column(name = "location_latitude", precision = 11, scale = 8)
     private BigDecimal locationLatitude;
 
-    @Column(name = "location_longitude", precision = 10, scale = 8)
+    @Column(name = "location_longitude", precision = 11, scale = 8)
     private BigDecimal locationLongitude;
 
     @Size(max = 20)

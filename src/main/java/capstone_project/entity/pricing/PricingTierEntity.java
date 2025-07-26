@@ -18,14 +18,14 @@ public class PricingTierEntity extends BaseEntity {
     @Column(name = "base_price")
     private BigDecimal basePrice;
 
-    @Size(max = 50)
-    @Column(name = "description", length = 50)
+    @Size(max = 100)
+    @Column(name = "description", length = 100)
     private String description;
 
-    @Column(name = "from_km", precision = 10, scale = 8)
+    @Column(name = "from_km", precision = 11, scale = 8)
     private BigDecimal fromKm;
 
-    @Column(name = "to_km", precision = 10, scale = 8)
+    @Column(name = "to_km", precision = 11, scale = 8)
     private BigDecimal toKm;
 
     @ManyToOne(fetch = FetchType.LAZY)

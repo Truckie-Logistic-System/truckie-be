@@ -14,9 +14,9 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class VehicleTypeEntity extends BaseEntity {
-    @Size(max = 50)
+    @Size(max = 100)
     @NotNull
-    @Column(name = "vehicle_type_name", nullable = false, length = 50)
+    @Column(name = "vehicle_type_name", nullable = false, length = 100)
     private String vehicleTypeName;
 
     @Size(max = 200)

@@ -1,12 +1,13 @@
 package capstone_project.common.exceptions.handler;
 
 
-import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.InternalServerException;
+import capstone_project.dtos.response.common.ApiResponse;
 import io.jsonwebtoken.ExpiredJwtException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -40,6 +41,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(ApiResponse.fail("Access token expired. Please refresh your token.", HttpStatus.UNAUTHORIZED.value()));
+    }
+
+    @ExceptionHandler(AuthenticationCredentialsNotFoundException.class)
+    public ResponseEntity<ApiResponse<?>> handleCredentialsNotFound(AuthenticationCredentialsNotFoundException ex) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.fail("Missing or invalid Authorization header", HttpStatus.UNAUTHORIZED.value()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

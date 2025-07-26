@@ -20,8 +20,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PricingRuleEntity extends BaseEntity {
-    @Size(max = 50)
-    @Column(name = "pricing_rule_name", length = 50)
+    @Size(max = 100)
+    @Column(name = "pricing_rule_name", length = 100)
     private String pricingRuleName;
 
     @Column(name = "min_weight")
