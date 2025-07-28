@@ -3,6 +3,7 @@ package capstone_project.common.exceptions.handler;
 
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.InternalServerException;
+import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.response.common.ApiResponse;
 import io.jsonwebtoken.ExpiredJwtException;
 import lombok.extern.slf4j.Slf4j;
@@ -91,6 +92,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.fail("Missing path variable: " + ex.getVariableName(), HttpStatus.BAD_REQUEST.value()));
+    }
+
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<ApiResponse<?>> handleNotFound(NotFoundException ex) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.fail("Not found this data", HttpStatus.NOT_FOUND.value()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
