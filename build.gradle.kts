@@ -64,6 +64,14 @@ dependencies {
 	annotationProcessor("org.projectlombok:lombok:${rootProject.ext.get("lombokVersion")}")
 	annotationProcessor("org.projectlombok:lombok-mapstruct-binding:0.2.0")
 
+	// Redis
+	implementation("org.springframework.boot:spring-boot-starter-data-redis:3.5.4")
+	implementation("org.springframework.boot:spring-boot-starter-cache:3.5.4")
+	implementation("org.apache.commons:commons-pool2:2.12.1")
+
+	// Jackson
+	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.2")
+
 	// Test
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")

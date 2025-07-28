@@ -4,7 +4,6 @@ import lombok.*;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Date;
 
 @Getter
 @Setter
@@ -20,7 +19,6 @@ public class ApiResponse<T> implements Serializable {
     private String message;
     private int statusCode;
     private T data;
-    private Date timestamp;
 
     public static <T> ApiResponse<T> ok(T data) {
         return ApiResponse.<T>builder()
@@ -28,7 +26,6 @@ public class ApiResponse<T> implements Serializable {
                 .message("Success")
                 .statusCode(200)
                 .data(data)
-                .timestamp(new Date())
                 .build();
     }
 
@@ -38,7 +35,6 @@ public class ApiResponse<T> implements Serializable {
                 .message(message)
                 .statusCode(200)
                 .data(data)
-                .timestamp(new Date())
                 .build();
     }
 
@@ -47,7 +43,6 @@ public class ApiResponse<T> implements Serializable {
                 .success(false)
                 .message(message)
                 .statusCode(statusCode)
-                .timestamp(new Date())
                 .build();
     }
 }

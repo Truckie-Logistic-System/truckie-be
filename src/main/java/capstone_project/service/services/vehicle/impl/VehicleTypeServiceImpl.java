@@ -8,6 +8,7 @@ import capstone_project.dtos.response.vehicle.VehicleTypeResponse;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.service.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.vehicle.VehicleTypeMapper;
+import capstone_project.service.services.service.RedisService;
 import capstone_project.service.services.vehicle.VehicleTypeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,37 +26,49 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
 
     private final VehicleTypeEntityService vehicleTypeEntityService;
     private final VehicleTypeMapper vehicleTypeMapper;
+    private final RedisService redisService;
+
+    private static final String VEHICLE_TYPE_ALL_CACHE_KEY = "vehicleTypes:all";
+    private static final String VEHICLE_TYPE_BY_ID_CACHE_KEY_PREFIX = "vehicleType:";
 
     @Override
     public List<VehicleTypeResponse> getAllVehicleTypes() {
-        log.info("Fetching all vehicle types");
-        List<VehicleTypeEntity> vehicleTypes = vehicleTypeEntityService.findAll();
-        if (vehicleTypes.isEmpty()) {
-            log.warn("No vehicle types found");
-            throw new NotFoundException(
-                    ErrorEnum.NOT_FOUND.getMessage(),
-                    ErrorEnum.NOT_FOUND.getErrorCode()
-            );
+        List<VehicleTypeEntity> cachedEntities = redisService.getList(
+                VEHICLE_TYPE_ALL_CACHE_KEY, VehicleTypeEntity.class
+        );
+
+        List<VehicleTypeEntity> entities;
+
+        if (cachedEntities != null) {
+            entities = cachedEntities;
+        } else {
+            entities = vehicleTypeEntityService.findAll();
+            if (entities.isEmpty()) {
+                throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
+            }
+
+            redisService.save(VEHICLE_TYPE_ALL_CACHE_KEY, entities);
         }
-        return vehicleTypes.stream()
+
+        return entities.stream()
                 .map(vehicleTypeMapper::toVehicleTypeResponse)
                 .toList();
     }
 
     @Override
     public VehicleTypeResponse getVehicleTypeById(UUID id) {
-        log.info("Fetching vehicle type with ID: {}", id);
-        Optional<VehicleTypeEntity> vehicleTypeEntity = vehicleTypeEntityService.findById(id);
+        String cacheKey = VEHICLE_TYPE_BY_ID_CACHE_KEY_PREFIX + id;
 
-        return vehicleTypeEntity
-                .map(vehicleTypeMapper::toVehicleTypeResponse)
-                .orElseThrow(() -> {
-                    log.warn("Role with ID {} not found", id);
-                    return new NotFoundException(
-                            ErrorEnum.NOT_FOUND.getMessage(),
-                            ErrorEnum.NOT_FOUND.getErrorCode()
-                    );
-                });
+        VehicleTypeEntity cachedEntity = redisService.get(cacheKey, VehicleTypeEntity.class);
+        if (cachedEntity != null) {
+            return vehicleTypeMapper.toVehicleTypeResponse(cachedEntity);
+        }
+
+        VehicleTypeEntity entity = vehicleTypeEntityService.findById(id)
+                .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
+
+        redisService.save(cacheKey, entity);
+        return vehicleTypeMapper.toVehicleTypeResponse(entity);
     }
 
     @Override
@@ -73,6 +86,9 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
         }
         VehicleTypeEntity vehicleTypeEntity = vehicleTypeMapper.mapRequestToVehicleTypeEntity(vehicleTypeRequest);
         VehicleTypeEntity savedVehicleType = vehicleTypeEntityService.save(vehicleTypeEntity);
+
+        redisService.delete(VEHICLE_TYPE_ALL_CACHE_KEY);
+
         return vehicleTypeMapper.toVehicleTypeResponse(savedVehicleType);
     }
 
@@ -99,6 +115,10 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
 
         vehicleTypeMapper.toVehicleEntity(vehicleTypeRequest, existingVehicleType);
         VehicleTypeEntity updatedVehicleType = vehicleTypeEntityService.save(existingVehicleType);
+
+        redisService.delete(VEHICLE_TYPE_ALL_CACHE_KEY);
+        redisService.save(VEHICLE_TYPE_BY_ID_CACHE_KEY_PREFIX + existingVehicleType.getId(), existingVehicleType);
+
         return vehicleTypeMapper.toVehicleTypeResponse(updatedVehicleType);
     }
 
