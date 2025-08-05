@@ -9,6 +9,7 @@ import capstone_project.service.services.user.AddressService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,10 +18,12 @@ import java.util.UUID;
 @RestController
 @RequestMapping("${address.api.base-path}")
 @RequiredArgsConstructor
+@PreAuthorize("isAuthenticated()")
 public class AddressController {
     private final AddressService addressService;
 
     @PostMapping("")
+    @PreAuthorize("hasAuthority('CUSTOMER')")
     public ResponseEntity<ApiResponse<AddressResponse>> createAddress(@RequestBody @Valid AddressRequest addressRequest) {
         final var login = addressService.createAddress(addressRequest);
         return ResponseEntity.ok(ApiResponse.ok(login));
@@ -39,6 +42,7 @@ public class AddressController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('CUSTOMER')")
     public ResponseEntity<ApiResponse<AddressResponse>> updateAddress(
             @PathVariable UUID id,
             @RequestBody @Valid AddressRequest addressRequest) {
