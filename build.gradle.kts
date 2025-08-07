@@ -73,6 +73,9 @@ dependencies {
 	// PDF
 	implementation("com.itextpdf:itextpdf:5.5.13.4")
 
+	// Cloundinary
+	implementation("com.cloudinary:cloudinary-http44:1.39.0")
+
 	// Jackson
 	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.2")
 
