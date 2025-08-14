@@ -5,6 +5,7 @@ import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.InternalServerException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.response.common.ApiResponse;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import io.jsonwebtoken.ExpiredJwtException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -19,6 +20,9 @@ import org.springframework.web.bind.MissingPathVariableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 @Slf4j
@@ -67,12 +71,12 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.fail("HTTP method not supported: " + ex.getMethod(), HttpStatus.METHOD_NOT_ALLOWED.value()));
     }
 
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiResponse<?>> handleJsonParse(HttpMessageNotReadableException ex) {
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.fail("Malformed JSON request", HttpStatus.BAD_REQUEST.value()));
-    }
+//    @ExceptionHandler(HttpMessageNotReadableException.class)
+//    public ResponseEntity<ApiResponse<?>> handleJsonParse(HttpMessageNotReadableException ex) {
+//        return ResponseEntity
+//                .status(HttpStatus.BAD_REQUEST)
+//                .body(ApiResponse.fail("Malformed JSON request", HttpStatus.BAD_REQUEST.value()));
+//    }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiResponse<?>> handleMissingParams(MissingServletRequestParameterException ex) {
@@ -119,6 +123,28 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.fail(errorMessages.toString().trim(), HttpStatus.BAD_REQUEST.value()));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<?>> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+        String errorMessage = "Invalid request format";
+
+        if (ex.getRootCause() instanceof InvalidFormatException ife) {
+            if (ife.getTargetType() != null && ife.getTargetType().isEnum()) {
+                String validValues = Arrays.stream(ife.getTargetType().getEnumConstants())
+                        .map(Object::toString)
+                        .collect(Collectors.joining(", "));
+                errorMessage = "Invalid value for " + ife.getPath().get(0).getFieldName() +
+                        ". Valid values are: " + validValues;
+            } else if (ife.getTargetType() != null) {
+                errorMessage = "Invalid format for " + ife.getPath().get(0).getFieldName() +
+                        ". Expected type: " + ife.getTargetType().getSimpleName();
+            }
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.fail(errorMessage, HttpStatus.BAD_REQUEST.value()));
     }
 
 }

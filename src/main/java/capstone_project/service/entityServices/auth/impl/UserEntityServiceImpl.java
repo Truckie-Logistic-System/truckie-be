@@ -38,6 +38,11 @@ public class UserEntityServiceImpl implements UserEntityService {
     }
 
     @Override
+    public UserEntity updateUserStatus(String email, String status) {
+        return userRepository.updateUserStatus(email, status);
+    }
+
+    @Override
     public UserEntity save(UserEntity entity) {
         return userRepository.save(entity);
     }

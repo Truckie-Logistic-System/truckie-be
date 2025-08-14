@@ -2,6 +2,7 @@ package capstone_project.service.services.auth.impl;
 
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.RoleTypeEnum;
+import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.InternalServerException;
 import capstone_project.common.exceptions.dto.NotFoundException;
@@ -28,6 +29,7 @@ import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.mapper.user.UserMapper;
 import capstone_project.service.services.auth.RegisterService;
 import capstone_project.common.utils.JWTUtil;
+import capstone_project.service.services.email.EmailProtocolService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +54,7 @@ public class RegisterServiceImpl implements RegisterService {
     private final DriverEntityService driverEntityService;
     private final RoleEntityService roleEntityService;
     private final RefreshTokenEntityService refreshTokenEntityService;
+    private final EmailProtocolService emailProtocolService;
 
     private final PasswordEncoder passwordEncoder;
 
@@ -98,7 +101,7 @@ public class RegisterServiceImpl implements RegisterService {
                     .gender(registerUserRequest.getGender())
                     .imageUrl(registerUserRequest.getImageUrl())
                     .dateOfBirth(validatedDob.toLocalDate())
-                    .status("active")
+                    .status(UserStatusEnum.ACTIVE.name())
                     .role(role)
                     .createdAt(LocalDateTime.now())
                     .build();
@@ -153,7 +156,7 @@ public class RegisterServiceImpl implements RegisterService {
                     .gender(registerCustomerRequest.getGender())
                     .imageUrl(registerCustomerRequest.getImageUrl())
                     .dateOfBirth(validatedDob.toLocalDate())
-                    .status("active")
+                    .status(UserStatusEnum.OTP_PENDING.name())
                     .role(role)
                     .createdAt(LocalDateTime.now())
                     .build();
@@ -167,11 +170,24 @@ public class RegisterServiceImpl implements RegisterService {
                     .businessLicenseNumber(registerCustomerRequest.getBusinessLicenseNumber())
                     .businessAddress(registerCustomerRequest.getBusinessAddress())
                     .createdAt(LocalDateTime.now())
-                    .status("active")
+                    .status(UserStatusEnum.OTP_PENDING.name())
                     .user(savedUser)
                     .build();
 
             CustomerEntity savedCustomer = customerEntityService.save(customer);
+
+            String otp = generateOtp();
+
+            try {
+                log.info("[register] OTP sent to email: {}", savedCustomer.getUser().getEmail());
+                emailProtocolService.sendOtpEmail(savedCustomer.getUser().getEmail(), otp);
+            } catch (Exception e) {
+                log.error("Failed to send OTP email", e);
+                throw new BadRequestException(
+                        "Failed to send OTP email",
+                        ErrorEnum.INVALID_EMAIL.getErrorCode()
+                );
+            }
 
             return customerMapper.mapCustomerResponse(savedCustomer);
 
@@ -221,7 +237,7 @@ public class RegisterServiceImpl implements RegisterService {
                     .gender(registerDriverRequest.getGender())
                     .imageUrl(registerDriverRequest.getImageUrl())
                     .dateOfBirth(validatedDob.toLocalDate())
-                    .status("active")
+                    .status(UserStatusEnum.ACTIVE.name())
                     .role(role)
                     .createdAt(LocalDateTime.now())
                     .build();
@@ -238,7 +254,7 @@ public class RegisterServiceImpl implements RegisterService {
                     .licenseClass(registerDriverRequest.getLicenseClass())
                     .dateOfPassing(validateDateFormat(registerDriverRequest.getDateOfPassing()))
                     .createdAt(LocalDateTime.now())
-                    .status("active")
+                    .status(UserStatusEnum.ACTIVE.name())
                     .user(savedUser)
                     .build();
 
@@ -267,6 +283,15 @@ public class RegisterServiceImpl implements RegisterService {
             final var usersEntity = userByUserName.get();
 
             if (passwordEncoder.matches(loginRequest.getPassword(), usersEntity.getPassword())) {
+
+                if (!Objects.equals(usersEntity.getStatus(), UserStatusEnum.ACTIVE.name())) {
+                    log.info("[login] User is not in ACTIVE status, cannot login");
+                    throw new BadRequestException(
+                            ErrorEnum.USER_PERMISSION_DENIED.getMessage(),
+                            ErrorEnum.USER_PERMISSION_DENIED.getErrorCode()
+                    );
+                }
+
                 List<RefreshTokenEntity> oldTokens = refreshTokenEntityService.findByUserIdAndRevokedFalse(usersEntity.getId());
 
                 oldTokens.forEach(refreshTokenEntity -> {
@@ -353,7 +378,7 @@ public class RegisterServiceImpl implements RegisterService {
                     .gender(registerUserRequest.getGender())
                     .imageUrl(registerUserRequest.getImageUrl())
                     .dateOfBirth(validatedDob.toLocalDate())
-                    .status("active")
+                    .status(UserStatusEnum.ACTIVE.name())
                     .role(role)
                     .createdAt(LocalDateTime.now())
                     .build();

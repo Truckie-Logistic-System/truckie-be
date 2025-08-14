@@ -10,7 +10,6 @@ import capstone_project.dtos.response.auth.RefreshTokenResponse;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.user.CustomerResponse;
 import capstone_project.service.services.auth.RegisterService;
-import capstone_project.service.services.email.EmailProtocolService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthsController {
 
     private final RegisterService registerService;
-    private final EmailProtocolService emailProtocolService;
 
     /**
      * Login response entity.
@@ -54,8 +52,6 @@ public class AuthsController {
     @PostMapping("/customer/register")
     public ResponseEntity<ApiResponse<CustomerResponse>> register(@RequestBody @Valid RegisterCustomerRequest registerCustomerRequest) {
         final var register = registerService.registerCustomer(registerCustomerRequest);
-        String otp = registerService.generateOtp();
-        emailProtocolService.sendOtpEmail(registerCustomerRequest.getEmail(), otp);
         return ResponseEntity.ok(ApiResponse.ok(register));
     }
 }

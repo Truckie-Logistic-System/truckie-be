@@ -41,4 +41,6 @@ public interface UserEntityService extends BaseEntityService<UserEntity, UUID> {
 //    UsersEntity createUser(UsersEntity usersEntity);
 
     Optional<UserEntity> getByUsernameWithRole(final String username);
+
+    UserEntity updateUserStatus(String email, String status);
 }
