@@ -1,3 +1,5 @@
+import org.gradle.kotlin.dsl.implementation
+
 plugins {
 	java
 	id("org.springframework.boot") version "3.3.13"
@@ -79,9 +81,25 @@ dependencies {
 	// Jackson
 	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.2")
 
+	// Redis
+	implementation("org.springframework.boot:spring-boot-starter-data-redis:3.5.4")
+	implementation("org.springframework.boot:spring-boot-starter-cache:3.5.4")
+	implementation("org.apache.commons:commons-pool2:2.12.1")
+
+	// Jackson
+	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.2")
+
 	// Test
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+
+	implementation("org.springframework.boot:spring-boot-starter-webflux")
+
+
+	developmentOnly("org.springframework.boot:spring-boot-devtools")
+
+	implementation("com.fasterxml.jackson.datatype:jackson-datatype-hibernate6:2.17.0")
 }
 
 

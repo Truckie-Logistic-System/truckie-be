@@ -41,7 +41,7 @@ public class AddressEntity extends BaseEntity {
     private BigDecimal longitude;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "customer_id", insertable = false, updatable = false)
+    @JoinColumn(name = "customer_id")
     @JsonBackReference
     private CustomerEntity customer;
 

@@ -52,7 +52,7 @@ public class OrderEntity extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "delivery_address_id")
-    private AddressEntity deliveryAddress;
+        private AddressEntity deliveryAddress;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pickup_address_id")
