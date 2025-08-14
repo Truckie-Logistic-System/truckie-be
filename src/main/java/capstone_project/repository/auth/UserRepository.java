@@ -2,6 +2,7 @@ package capstone_project.repository.auth;
 
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.repository.common.BaseRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -35,4 +36,8 @@ public interface UserRepository extends BaseRepository<UserEntity> {
 
     @Query("SELECT u FROM UserEntity u JOIN FETCH u.role WHERE u.username = :username")
     Optional<UserEntity> findByUsernameWithRole(@Param("username") String username);
+
+    @Modifying
+    @Query("UPDATE UserEntity u SET u.status = :status WHERE u.email = :email")
+    UserEntity updateUserStatus(String email, String status);
 }

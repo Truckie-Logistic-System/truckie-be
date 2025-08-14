@@ -16,6 +16,11 @@ public class CustomerEntityServiceImpl implements CustomerEntityService {
 
     private final CustomerRepository customerRepository;
 
+    @Override
+    public Optional<CustomerEntity> findByUserId(UUID id) {
+        return customerRepository.findByUserId(id);
+    }
+
 //    @Override
 //    public CustomerEntity createCustomer(CustomerEntity customerEntity) {
 //        return customerRepository.save(customerEntity);

@@ -1,5 +1,6 @@
 package capstone_project.service.services.pricing.impl;
 
+import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.VehicleRuleEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
@@ -83,7 +84,7 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
 
         VehicleRuleEntity vehicleRuleEntity = vehicleRuleMapper.mapRequestToEntity(vehicleRuleRequest);
 
-        vehicleRuleEntity.setStatus("ACTIVE");
+        vehicleRuleEntity.setStatus(CommonStatusEnum.ACTIVE.name());
 
         VehicleRuleEntity savedEntity = vehicleRuleEntityService.save(vehicleRuleEntity);
 
