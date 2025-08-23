@@ -4,6 +4,7 @@ plugins {
 	java
 	id("org.springframework.boot") version "3.3.13"
 	id("io.spring.dependency-management") version "1.1.7"
+    id("com.microsoft.azure.azurewebapp") version "1.10.0"
 }
 
 group = "capstone-project"
