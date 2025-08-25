@@ -8,5 +8,4 @@ import java.util.UUID;
 
 public interface ContractEntityService extends BaseEntityService<ContractEntity, UUID> {
     Optional<ContractEntity> getContractByOrderId(UUID orderId);
-
 }

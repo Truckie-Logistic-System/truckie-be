@@ -1,7 +1,9 @@
 package capstone_project.entity.order.order;
 
 import capstone_project.entity.common.BaseEntity;
+import capstone_project.entity.order.contract.ContractRuleEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -66,4 +68,10 @@ public class OrderDetailEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id")
     private VehicleAssignmentEntity vehicleAssignmentEntity;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contract_rule_id")
+    @JsonBackReference
+    private ContractRuleEntity contractRuleEntity;
+
 }

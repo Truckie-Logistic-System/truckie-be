@@ -2,7 +2,8 @@ package capstone_project.controller.order;
 
 import capstone_project.dtos.request.order.ContractRuleRequest;
 import capstone_project.dtos.response.common.ApiResponse;
-import capstone_project.dtos.response.order.ContractRuleResponse;
+import capstone_project.dtos.response.order.contract.ContractRuleResponse;
+import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.service.services.order.order.ContractRuleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,13 @@ public class ContractRuleController {
     @PostMapping()
     public ResponseEntity<ApiResponse<ContractRuleResponse>> createContractRule(@Valid @RequestBody ContractRuleRequest contractRuleRequest) {
         final var result = contractRuleService.createContract(contractRuleRequest);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @PostMapping("/list")
+    public ResponseEntity<ApiResponse<ListContractRuleAssignResult>> createListContractRules(@RequestBody
+                                                                                           @Valid List<ContractRuleRequest> contractRuleRequests) {
+        final var result = contractRuleService.createListContractRules(contractRuleRequests);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 

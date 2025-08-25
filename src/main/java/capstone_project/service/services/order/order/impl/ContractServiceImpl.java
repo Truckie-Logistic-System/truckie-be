@@ -1,10 +1,12 @@
 package capstone_project.service.services.order.order.impl;
 
+import capstone_project.common.enums.ContractStatusEnum;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.ContractRequest;
-import capstone_project.dtos.response.order.ContractResponse;
+import capstone_project.dtos.response.order.contract.ContractResponse;
+import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
 import capstone_project.entity.order.order.CategoryPricingDetailEntity;
@@ -30,9 +32,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.Comparator;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -49,7 +50,6 @@ public class ContractServiceImpl implements ContractService {
     private final OrderDetailEntityService orderDetailEntityService;
 
     private final ContractMapper contractMapper;
-
 
     private static final double EARTH_RADIUS_KM = 6371.0;
 
@@ -86,13 +86,41 @@ public class ContractServiceImpl implements ContractService {
         log.info("Creating new contract");
 
         if (contractRequest.orderId() == null) {
+            throw new IllegalArgumentException("Order ID must not be null");
+        }
+
+        UUID orderUuid = UUID.fromString(contractRequest.orderId());
+
+        if (contractEntityService.getContractByOrderId(orderUuid).isPresent()) {
+            throw new BadRequestException(ErrorEnum.ALREADY_EXISTED.getMessage(),
+                    ErrorEnum.ALREADY_EXISTED.getErrorCode());
+        }
+
+        OrderEntity order = orderEntityService.findById(orderUuid)
+                .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
+
+        ContractEntity contractEntity = contractMapper.mapRequestToEntity(contractRequest);
+        contractEntity.setStatus(ContractStatusEnum.CONTRACT_DRAFT.name());
+        contractEntity.setOrderEntity(order);
+
+        ContractEntity savedContract = contractEntityService.save(contractEntity);
+
+        return contractMapper.toContractResponse(savedContract);
+    }
+
+
+    @Override
+    @Transactional
+    public ContractResponse createBothContractAndContractRule(ContractRequest contractRequest) {
+        log.info("Creating new contract");
+
+        if (contractRequest.orderId() == null) {
             log.error("Order ID is null in contract request");
             throw new IllegalArgumentException("Order ID must not be null");
         }
 
         UUID orderUuid = UUID.fromString(contractRequest.orderId());
 
-        // check nếu đã tồn tại contract cho order
         if (contractEntityService.getContractByOrderId(orderUuid).isPresent()) {
             log.error("Contract already exists for order ID: {}", orderUuid);
             throw new BadRequestException(ErrorEnum.ALREADY_EXISTED.getMessage(),
@@ -107,31 +135,36 @@ public class ContractServiceImpl implements ContractService {
 
         // 1. map request -> ContractEntity và save trước (chưa set totalValue)
         ContractEntity contractEntity = contractMapper.mapRequestToEntity(contractRequest);
-        contractEntity.setStatus("ACTIVE");
+        contractEntity.setStatus(ContractStatusEnum.CONTRACT_DRAFT.name());
         contractEntity.setOrderEntity(order); // gắn với order
 
         ContractEntity savedContract = contractEntityService.save(contractEntity);
 
-        // 2. Sinh ContractRule tự động
-        List<VehicleRuleEntity> vehicleRules = vehicleRuleEntityService.findAllByCategoryId(order.getCategory().getId());
+        List<ContractRuleAssignResponse> assignments = assignVehicles(orderUuid);
 
-        for (VehicleRuleEntity vehicleRule : vehicleRules) {
-            int numOfVehicles = calculateNumOfVehicles(order, vehicleRule);
+        Map<UUID, Integer> vehicleCountMap = assignments.stream()
+                .collect(Collectors.groupingBy(ContractRuleAssignResponse::getVehicleRuleId, Collectors.summingInt(a -> 1)));
 
-            if (numOfVehicles > 0) {
-                ContractRuleEntity rule = ContractRuleEntity.builder()
-                        .contractEntity(savedContract)
-                        .vehicleRuleEntity(vehicleRule)
-                        .numOfVehicles(numOfVehicles)
-                        .status("ACTIVE")
-                        .build();
 
-                contractRuleEntityService.save(rule);
-            }
+        for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
+            UUID vehicleRuleId = entry.getKey();
+            Integer count = entry.getValue();
+
+            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findById(vehicleRuleId)
+                    .orElseThrow(() -> new NotFoundException("Vehicle rule not found", ErrorEnum.NOT_FOUND.getErrorCode()));
+
+            ContractRuleEntity contractRule = ContractRuleEntity.builder()
+                    .contractEntity(savedContract)
+                    .vehicleRuleEntity(vehicleRule)
+                    .numOfVehicles(count.intValue())
+                    .status("ACTIVE")
+                    .build();
+
+            contractRuleEntityService.save(contractRule);
         }
 
         // 3. Tính totalPrice dựa trên contractId + distanceKm (lúc này contract đã có contractRules)
-        BigDecimal totalPrice = calculateTotalPrice(savedContract, distanceKm);
+        BigDecimal totalPrice = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
 
         // 4. cập nhật lại contract với totalValue
         savedContract.setTotalValue(totalPrice);
@@ -139,8 +172,6 @@ public class ContractServiceImpl implements ContractService {
 
         return contractMapper.toContractResponse(updatedContract);
     }
-
-
 
 
     @Override
@@ -153,17 +184,129 @@ public class ContractServiceImpl implements ContractService {
 
     }
 
-    public BigDecimal calculateTotalPrice(ContractEntity contract, BigDecimal distanceKm) {
-        log.info("Calculating total price for contract ID: {}", contract.getId());
+    public List<ContractRuleAssignResponse> assignVehicles(UUID orderId) {
+        log.info("Assigning vehicles for order ID: {}", orderId);
 
-        // 1. Lấy danh sách contractRules của contract
-        List<ContractRuleEntity> contractRules =
-                contractRuleEntityService.findContractRuleEntitiesByContractEntityId(contract.getId());
-        if (contractRules.isEmpty()) {
-            throw new RuntimeException("No contract rules defined for this contract");
+        List<OrderDetailEntity> details = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
+        if (details.isEmpty()) {
+            throw new NotFoundException("No order details found for this order", ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
-        // 2. Lấy distance rules
+        OrderEntity orderEntity = orderEntityService.findById(orderId)
+                .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
+
+        List<VehicleRuleEntity> sortedVehicleRules = vehicleRuleEntityService
+                .findAllByCategoryId(orderEntity.getCategory().getId())
+                .stream()
+                .sorted(Comparator.comparing(VehicleRuleEntity::getMaxWeight)
+                        .thenComparing(VehicleRuleEntity::getMaxLength)
+                        .thenComparing(VehicleRuleEntity::getMaxWidth)
+                        .thenComparing(VehicleRuleEntity::getMaxHeight))
+                .toList();
+
+        if (sortedVehicleRules.isEmpty()) {
+            throw new NotFoundException("No vehicle rules found for this category", ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+
+        details.sort((a, b) -> {
+            int cmp = b.getWeight().compareTo(a.getWeight());
+            if (cmp == 0) cmp = b.getLength().compareTo(a.getLength());
+            if (cmp == 0) cmp = b.getWidth().compareTo(a.getWidth());
+            if (cmp == 0) cmp = b.getHeight().compareTo(a.getHeight());
+            return cmp;
+        });
+
+        Map<Integer, VehicleRuleEntity> vehicleRuleCache = new HashMap<>();
+        for (int i = 0; i < sortedVehicleRules.size(); i++) {
+            vehicleRuleCache.put(i, sortedVehicleRules.get(i));
+        }
+
+        List<ContractRuleAssignResponse> assignments = new ArrayList<>();
+
+        // Gán kiện vào xe
+        for (OrderDetailEntity detail : details) {
+            boolean assigned = false;
+
+            for (ContractRuleAssignResponse assignment : assignments) {
+                VehicleRuleEntity currentRule = vehicleRuleCache.get(assignment.getVehicleIndex());
+
+                // thử nhét vào xe hiện tại
+                if (canFit(detail, currentRule, assignment)) {
+                    assignment.setCurrentLoad(assignment.getCurrentLoad().add(detail.getWeight()));
+                    assignment.getAssignedDetails().add(detail.getId());
+                    log.debug("Assigned {} -> Vehicle[{}] ({}), newLoad={}",
+                            detail.getId(), currentRule.getId(), currentRule.getVehicleRuleName(), assignment.getCurrentLoad());
+                    assigned = true;
+                    break;
+                }
+
+                // upgrade lên xe lớn hơn nếu cần
+                int upgradedIdx = tryUpgrade(detail, assignment, sortedVehicleRules, vehicleRuleCache);
+                if (upgradedIdx >= 0) {
+                    VehicleRuleEntity upgradedRule = vehicleRuleCache.get(upgradedIdx);
+                    assignment.setVehicleIndex(upgradedIdx);
+                    assignment.setCurrentLoad(assignment.getCurrentLoad().add(detail.getWeight()));
+                    assignment.getAssignedDetails().add(detail.getId());
+                    log.debug("🔄 Upgraded vehicle to [{}] ({}) for package {}, newLoad={}",
+                            upgradedRule.getId(), upgradedRule.getVehicleRuleName(), detail.getId(), assignment.getCurrentLoad());
+                    assigned = true;
+                    break;
+                }
+            }
+
+            // nếu chưa gán thì mở xe mới
+            if (!assigned) {
+                for (int i = 0; i < sortedVehicleRules.size(); i++) {
+                    VehicleRuleEntity rule = sortedVehicleRules.get(i);
+                    if (canFit(detail, rule)) {
+                        ContractRuleAssignResponse newAssignment = new ContractRuleAssignResponse(
+                                i,
+                                rule.getId(),
+                                rule.getVehicleRuleName(),
+                                detail.getWeight(),
+                                new ArrayList<>(List.of(detail.getId()))
+                        );
+                        assignments.add(newAssignment);
+                        log.debug("Opened new Vehicle[{}] ({}) for package {}, firstLoad={}",
+                                rule.getId(), rule.getVehicleRuleName(), detail.getId(), detail.getWeight());
+                        assigned = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!assigned) {
+                log.error("No vehicle can carry package {}", detail.getId());
+                throw new RuntimeException("Không có loại xe nào chở được kiện " + detail.getId());
+            }
+        }
+
+        log.info("Vehicle assignment completed: {} vehicles used", assignments.size());
+        return assignments;
+    }
+
+    /**
+     * Upgrade vehicle if possible
+     */
+    private int tryUpgrade(OrderDetailEntity detail,
+                           ContractRuleAssignResponse assignment,
+                           List<VehicleRuleEntity> sortedVehicleRules,
+                           Map<Integer, VehicleRuleEntity> vehicleRuleCache) {
+        int currentIdx = assignment.getVehicleIndex();
+        for (int i = currentIdx + 1; i < sortedVehicleRules.size(); i++) {
+            VehicleRuleEntity biggerRule = vehicleRuleCache.get(i);
+            if (canFitAll(assignment.getAssignedDetails(), biggerRule, detail)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public BigDecimal calculateTotalPrice(ContractEntity contract,
+                                          BigDecimal distanceKm,
+                                          Map<UUID, Integer> vehicleCountMap) {
+        log.info("🔹 Calculating total price for contract ID: {}", contract.getId());
+
         List<DistanceRuleEntity> distanceRules = distanceRuleEntityService.findAll()
                 .stream()
                 .sorted(Comparator.comparing(DistanceRuleEntity::getFromKm))
@@ -175,17 +318,19 @@ public class ContractServiceImpl implements ContractService {
 
         BigDecimal total = BigDecimal.ZERO;
 
-        for (ContractRuleEntity contractRule : contractRules) {
-            VehicleRuleEntity vehicleRule = contractRule.getVehicleRuleEntity();
-            if (vehicleRule == null) {
-                log.warn("ContractRule {} has no associated VehicleRule", contractRule.getId());
-                continue;
-            }
+        for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
+            UUID vehicleRuleId = entry.getKey();
+            int numOfVehicles = entry.getValue();
+
+            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findById(vehicleRuleId)
+                    .orElseThrow(() -> new NotFoundException("Vehicle rule not found: " + vehicleRuleId,
+                            ErrorEnum.NOT_FOUND.getErrorCode()));
+
+            log.info("VehicleRule[{}] allocating {} vehicles", vehicleRule.getId(), numOfVehicles);
 
             BigDecimal ruleTotal = BigDecimal.ZERO;
             BigDecimal remaining = distanceKm;
 
-            // 3. Tính tiền theo distanceRules + basePrice
             for (DistanceRuleEntity distanceRule : distanceRules) {
                 if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
 
@@ -198,84 +343,90 @@ public class ContractServiceImpl implements ContractService {
                         .orElseThrow(() -> new RuntimeException("No base price found for tier "
                                 + from + "-" + to + " and vehicleRule=" + vehicleRule.getId()));
 
+                log.debug("DistanceRule {}-{}, BasePrice={}",
+                        from, to, basePriceEntity.getBasePrice());
+
                 if (from.compareTo(BigDecimal.ZERO) == 0 && to.compareTo(BigDecimal.valueOf(4)) == 0) {
-                    log.debug("Tier (0-4km): price={}", basePriceEntity.getBasePrice());
+                    // 0–4km: cố định
                     ruleTotal = ruleTotal.add(basePriceEntity.getBasePrice());
-                    remaining = remaining.subtract(to); // trừ 4km đầu
+                    remaining = remaining.subtract(to);
+                    log.debug("Applied base price {} for tier 0-4km, remaining={}",
+                            basePriceEntity.getBasePrice(), remaining);
                 } else {
                     BigDecimal tierDistance = (to == null)
                             ? remaining
                             : remaining.min(to.subtract(from));
 
-                    log.debug("Tier {}-{}: applying {} km with base price {}",
-                            from, to, tierDistance, basePriceEntity.getBasePrice());
                     ruleTotal = ruleTotal.add(basePriceEntity.getBasePrice().multiply(tierDistance));
                     remaining = remaining.subtract(tierDistance);
+
+                    log.debug("Applied base price {} * {} km = {}, remaining={}",
+                            basePriceEntity.getBasePrice(), tierDistance,
+                            basePriceEntity.getBasePrice().multiply(tierDistance), remaining);
                 }
             }
 
-            // 4. Nhân với số lượng vehicle
-            if (contractRule.getNumOfVehicles() != null && contractRule.getNumOfVehicles() > 0) {
-                ruleTotal = ruleTotal.multiply(BigDecimal.valueOf(contractRule.getNumOfVehicles()));
+            if (numOfVehicles > 0) {
+                ruleTotal = ruleTotal.multiply(BigDecimal.valueOf(numOfVehicles));
+                log.info("VehicleRule[{}]: multiplied by {} vehicles => {}",
+                        vehicleRule.getId(), numOfVehicles, ruleTotal);
             }
 
             total = total.add(ruleTotal);
         }
 
-        // 5. Điều chỉnh theo Category
         CategoryPricingDetailEntity adjustment =
                 categoryPricingDetailEntityService.findByCategoryId(contract.getOrderEntity().getCategory().getId());
         if (adjustment != null) {
-            log.info("Adjustment data: multiplier={} extraFee={}",
-                    adjustment.getPriceMultiplier(), adjustment.getExtraFee());
             BigDecimal multiplier = adjustment.getPriceMultiplier() != null ? adjustment.getPriceMultiplier() : BigDecimal.ONE;
             BigDecimal extraFee = adjustment.getExtraFee() != null ? adjustment.getExtraFee() : BigDecimal.ZERO;
             total = total.multiply(multiplier).add(extraFee);
+            log.info("Category adjustment applied: multiplier={}, extraFee={}, new total={}",
+                    multiplier, extraFee, total);
         }
 
         if (total.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("Total price must not be negative");
         }
 
-        log.info("Total price calculated successfully: {}", total);
+        log.info("Final total price for Contract[{}] = {}", contract.getId(), total);
         return total;
     }
 
-    private boolean canFit(OrderDetailEntity detail, VehicleRuleEntity vehicleRule) {
-        return detail.getWeight().compareTo(vehicleRule.getMaxWeight()) <= 0
-                && detail.getLength().compareTo(vehicleRule.getMaxLength()) <= 0
-                && detail.getWidth().compareTo(vehicleRule.getMaxWidth()) <= 0
-                && detail.getHeight().compareTo(vehicleRule.getMaxHeight()) <= 0;
+
+    private boolean canFit(OrderDetailEntity detail, VehicleRuleEntity rule) {
+        return detail.getWeight().compareTo(rule.getMaxWeight()) <= 0
+                && detail.getLength().compareTo(rule.getMaxLength()) <= 0
+                && detail.getWidth().compareTo(rule.getMaxWidth()) <= 0
+                && detail.getHeight().compareTo(rule.getMaxHeight()) <= 0;
     }
 
-    public int calculateNumOfVehicles(OrderEntity order, VehicleRuleEntity vehicleRule) {
-        List<OrderDetailEntity> details = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(order.getId());
-
-        int vehicles = 0;
-        BigDecimal currentWeight = BigDecimal.ZERO;
-
-        for (OrderDetailEntity detail : details) {
-            if (!canFit(detail, vehicleRule)) {
-                // kiện này vượt quá khả năng xe -> cần xe riêng
-                vehicles++;
-                continue;
-            }
-
-            if (currentWeight.add(detail.getWeight()).compareTo(vehicleRule.getMaxWeight()) > 0) {
-                // quá tải -> mở thêm xe mới
-                vehicles++;
-                currentWeight = BigDecimal.ZERO;
-            }
-            currentWeight = currentWeight.add(detail.getWeight());
-        }
-
-        if (currentWeight.compareTo(BigDecimal.ZERO) > 0) {
-            vehicles++; // còn thừa -> thêm 1 xe
-        }
-
-        return vehicles;
+    private boolean canFit(OrderDetailEntity detail, VehicleRuleEntity rule, ContractRuleAssignResponse assignment) {
+        BigDecimal newLoad = assignment.getCurrentLoad().add(detail.getWeight());
+        return newLoad.compareTo(rule.getMaxWeight()) <= 0
+                && detail.getLength().compareTo(rule.getMaxLength()) <= 0
+                && detail.getWidth().compareTo(rule.getMaxWidth()) <= 0
+                && detail.getHeight().compareTo(rule.getMaxHeight()) <= 0;
     }
 
+    private boolean canFitAll(List<UUID> detailIds, VehicleRuleEntity newRule, OrderDetailEntity newDetail) {
+        BigDecimal totalWeight = newDetail.getWeight();
+
+        for (UUID id : detailIds) {
+            List<OrderDetailEntity> details = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(id);
+
+            for (OrderDetailEntity d : details) {
+                totalWeight = totalWeight.add(d.getWeight());
+
+                if (d.getLength().compareTo(newRule.getMaxLength()) > 0
+                        || d.getWidth().compareTo(newRule.getMaxWidth()) > 0
+                        || d.getHeight().compareTo(newRule.getMaxHeight()) > 0) {
+                    return false;
+                }
+            }
+        }
+        return totalWeight.compareTo(newRule.getMaxWeight()) <= 0;
+    }
 
     public BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to) {
         double lat1 = from.getLatitude().doubleValue();
@@ -302,35 +453,4 @@ public class ContractServiceImpl implements ContractService {
         log.info("Calculated raw distance: {} km", distanceKm);
         return BigDecimal.valueOf(distanceKm);
     }
-
-//    private String generateContractPdf(ContractEntity contract) {
-//        String folderPath = "D:/contracts/";
-//        File folder = new File(folderPath);
-//        if (!folder.exists()) {
-//            folder.mkdirs();
-//        }
-//
-//        String filePath = folderPath + "contract_" + contract.getId() + ".pdf";
-//
-//        Document document = new Document();
-//        try {
-//            PdfWriter.getInstance(document, new FileOutputStream(filePath));
-//            document.open();
-//            document.add(new Paragraph("CONTRACT INFORMATION"));
-//            document.add(new Paragraph("Contract ID: " + contract.getId()));
-//            document.add(new Paragraph("Order ID: " + contract.getOrderEntity().getId()));
-//            document.add(new Paragraph("Vehicle Rule: " + contract.getVehicleRuleEntity().getVehicleRuleName()));
-//            document.add(new Paragraph("Total Value: " + contract.getTotalValue()));
-//            document.add(new Paragraph("Status: " + contract.getStatus()));
-//            document.add(new Paragraph("Created At: " + contract.getCreatedAt()));
-//        } catch (Exception e) {
-//            log.error("Error generating PDF", e);
-//            throw new RuntimeException("Error generating PDF", e);
-//        } finally {
-//            document.close();
-//        }
-//        return filePath;
-//    }
-
-
 }
