@@ -2,7 +2,8 @@ package capstone_project.controller.order;
 
 import capstone_project.dtos.request.order.ContractRuleRequest;
 import capstone_project.dtos.response.common.ApiResponse;
-import capstone_project.dtos.response.order.ContractRuleResponse;
+import capstone_project.dtos.response.order.contract.ContractRuleResponse;
+import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.service.services.order.order.ContractRuleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,15 +34,28 @@ public class ContractRuleController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @PostMapping()
-    public ResponseEntity<ApiResponse<ContractRuleResponse>> createContractRule(@Valid @RequestBody ContractRuleRequest contractRuleRequest) {
-        final var result = contractRuleService.createContract(contractRuleRequest);
+//    /*
+//     * API này là add tay từng cái một rule vào hợp đồng đã có sẵn
+//     * */
+//    @PostMapping()
+//    public ResponseEntity<ApiResponse<ContractRuleResponse>> createContractRule(@Valid @RequestBody ContractRuleRequest contractRuleRequest) {
+//        final var result = contractRuleService.createContractRule(contractRuleRequest);
+//        return ResponseEntity.ok(ApiResponse.ok(result));
+//    }
+
+    /*
+     * API này là tạo list rule vào hợp đồng đã có sẵn
+     * */
+    @PostMapping("/list")
+    public ResponseEntity<ApiResponse<ListContractRuleAssignResult>> createListContractRules(@RequestBody
+                                                                                           @Valid List<ContractRuleRequest> contractRuleRequests) {
+        final var result = contractRuleService.createListContractRules(contractRuleRequests);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ContractRuleResponse>> updateContractRule(@PathVariable UUID id, @RequestBody @Valid ContractRuleRequest contractRuleRequest) {
-        final var result = contractRuleService.updateContract(id, contractRuleRequest);
+        final var result = contractRuleService.updateContractRule(id, contractRuleRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 

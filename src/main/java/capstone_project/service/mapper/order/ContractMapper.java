@@ -1,7 +1,7 @@
 package capstone_project.service.mapper.order;
 
 import capstone_project.dtos.request.order.ContractRequest;
-import capstone_project.dtos.response.order.ContractResponse;
+import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import org.mapstruct.*;

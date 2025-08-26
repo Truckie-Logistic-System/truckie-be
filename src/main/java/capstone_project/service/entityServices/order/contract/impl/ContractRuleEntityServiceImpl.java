@@ -28,6 +28,26 @@ public class ContractRuleEntityServiceImpl implements ContractRuleEntityService 
     }
 
     @Override
+    public Optional<ContractRuleEntity> findContractRuleEntityByContractEntityId(UUID contractId) {
+        return contractRuleRepository.findContractRuleEntityByContractEntityId(contractId);
+    }
+
+    @Override
+    public List<UUID> findAssignedOrderDetailIdsByContractRule(UUID contractRuleId) {
+        return contractRuleRepository.findAssignedOrderDetailIdsByContractRuleId(contractRuleId);
+    }
+
+    @Override
+    public void deleteById(UUID id) {
+        contractRuleRepository.deleteById(id);
+    }
+
+    @Override
+    public void deleteByContractEntityId(UUID contractId) {
+        contractRuleRepository.deleteByContractEntityId(contractId);
+    }
+
+    @Override
     public ContractRuleEntity save(ContractRuleEntity entity) {
         return contractRuleRepository.save(entity);
     }

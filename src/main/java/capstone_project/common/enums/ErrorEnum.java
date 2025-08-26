@@ -18,6 +18,7 @@ public enum ErrorEnum {
     INVALID(16, "Invalid request"),
     ENUM_INVALID(17, "Invalid enum value"),
     INVALID_EMAIL(18, "Can not parse email address"),
+    INVALID_REQUEST(19, "Invalid request"),
     ;
     private final String message;
     private final long errorCode;
