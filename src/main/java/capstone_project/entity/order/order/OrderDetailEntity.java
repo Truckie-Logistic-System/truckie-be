@@ -66,4 +66,13 @@ public class OrderDetailEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id")
     private VehicleAssignmentEntity vehicleAssignmentEntity;
+
+//    @ElementCollection
+//    @CollectionTable(
+//            name = "contract_rule_order_details",
+//            joinColumns = @JoinColumn(name = "contract_rule_id")
+//    )
+//    @Column(name = "order_detail_id")
+//    private Set<UUID> orderDetailIds = new HashSet<>();
+
 }

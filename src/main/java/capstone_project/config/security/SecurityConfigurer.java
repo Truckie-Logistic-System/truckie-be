@@ -84,6 +84,7 @@ public class SecurityConfigurer {
     public static final String[] PUBLIC_ENDPOINTS = Stream.concat(
             Stream.of(
                     "/api/v1/auths/**",
+                    "/api/loading/**",
                     "/api/v1/address/**",
                     "/api/v1/emails/**",
                     "/app/**",

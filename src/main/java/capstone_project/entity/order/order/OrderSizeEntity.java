@@ -13,7 +13,7 @@ import lombok.experimental.SuperBuilder;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "categories", schema = "public", catalog = "capstone-project")
+@Table(name = "order_sizes", schema = "public", catalog = "capstone-project")
 @Data
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
