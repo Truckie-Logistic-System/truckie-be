@@ -1,12 +1,8 @@
 package capstone_project.controller.order;
 
 import capstone_project.common.enums.OrderStatusEnum;
-import capstone_project.dtos.request.order.ContractRuleRequest;
 import capstone_project.dtos.request.order.CreateOrderAndDetailRequest;
-import capstone_project.dtos.request.order.CreateOrderDetailRequest;
-import capstone_project.dtos.request.order.CreateOrderRequest;
 import capstone_project.dtos.response.common.ApiResponse;
-import capstone_project.dtos.response.order.ContractRuleResponse;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.service.services.order.order.OrderService;
 import jakarta.validation.Valid;

@@ -259,9 +259,9 @@ public class ContractServiceImpl implements ContractService {
 
         details.sort((a, b) -> {
             int cmp = b.getWeight().compareTo(a.getWeight());
-            if (cmp == 0) cmp = b.getLength().compareTo(a.getLength());
-            if (cmp == 0) cmp = b.getWidth().compareTo(a.getWidth());
-            if (cmp == 0) cmp = b.getHeight().compareTo(a.getHeight());
+            if (cmp == 0) cmp = b.getOrderSizeEntity().getMaxLength().compareTo(a.getOrderSizeEntity().getMaxLength());
+            if (cmp == 0) cmp = b.getOrderSizeEntity().getMaxWidth().compareTo(a.getOrderSizeEntity().getMaxWidth());
+            if (cmp == 0) cmp = b.getOrderSizeEntity().getMaxHeight().compareTo(a.getOrderSizeEntity().getMaxHeight());
             return cmp;
         });
 
@@ -284,9 +284,9 @@ public class ContractServiceImpl implements ContractService {
                 );
             }
 
-            log.info("[assignVehicles] Processing detail {}/{}: id={}, weight={}, LxWxH={}x{}x{}; size.max={}kg,{}x{}x{}",
+            log.info("[assignVehicles] Processing detail {}/{}: id={}, weight={}; size.max={}kg,{}x{}x{}",
                     processed, details.size(), detail.getId(), detail.getWeight(),
-                    detail.getLength(), detail.getWidth(), detail.getHeight(),
+//                    detail.getLength(), detail.getWidth(), detail.getHeight(),
                     detail.getOrderSizeEntity().getMaxWeight(),
                     detail.getOrderSizeEntity().getMaxLength(),
                     detail.getOrderSizeEntity().getMaxWidth(),
