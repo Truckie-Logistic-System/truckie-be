@@ -34,14 +34,11 @@ public class ContractRuleController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-//    /*
-//     * API này là add tay từng cái một rule vào hợp đồng đã có sẵn
-//     * */
-//    @PostMapping()
-//    public ResponseEntity<ApiResponse<ContractRuleResponse>> createContractRule(@Valid @RequestBody ContractRuleRequest contractRuleRequest) {
-//        final var result = contractRuleService.createContractRule(contractRuleRequest);
-//        return ResponseEntity.ok(ApiResponse.ok(result));
-//    }
+    @GetMapping("/list/{contractId}")
+    public ResponseEntity<ApiResponse<ListContractRuleAssignResult>> getListAssignOrUnAssignContractRule(@PathVariable UUID contractId) {
+        final var result = contractRuleService.getListAssignOrUnAssignContractRule(contractId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 
     /*
      * API này là tạo list rule vào hợp đồng đã có sẵn
@@ -57,6 +54,16 @@ public class ContractRuleController {
     public ResponseEntity<ApiResponse<ContractRuleResponse>> updateContractRule(@PathVariable UUID id, @RequestBody @Valid ContractRuleRequest contractRuleRequest) {
         final var result = contractRuleService.updateContractRule(id, contractRuleRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteContractRuleById(@PathVariable UUID id) {
+        contractRuleService.deleteContractRule(id);
+    }
+
+    @DeleteMapping("/{contractId}/contract")
+    public void deleteContractRuleByContractId(@PathVariable UUID contractId) {
+        contractRuleService.deleteAllContractRulesByContract(contractId);
     }
 
 }

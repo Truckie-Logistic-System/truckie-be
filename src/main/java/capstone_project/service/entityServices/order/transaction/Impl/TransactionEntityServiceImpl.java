@@ -22,7 +22,7 @@ public class TransactionEntityServiceImpl implements TransactionEntityService {
     }
 
     @Override
-    public Optional<TransactionEntity> findById(UUID uuid) {
+    public Optional<TransactionEntity> findContractRuleEntitiesById(UUID uuid) {
         return transactionRepository.findById(uuid);
     }
 

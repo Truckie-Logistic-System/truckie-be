@@ -44,7 +44,7 @@ public class VehicleMaintenanceServiceImpl implements VehicleMaintenanceService 
         var key = KEY_ID + id;
         var entity = redis.get(key, VehicleMaintenanceEntity.class);
         if (entity == null) {
-            entity = entityService.findById(id).orElseThrow(() ->
+            entity = entityService.findContractRuleEntitiesById(id).orElseThrow(() ->
                     new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
             redis.save(key, entity);
         }
@@ -61,7 +61,7 @@ public class VehicleMaintenanceServiceImpl implements VehicleMaintenanceService 
 
     @Override
     public VehicleMaintenanceResponse updateMaintenance(UUID id, UpdateVehicleMaintenanceRequest req) {
-        var existing = entityService.findById(id).orElseThrow(() ->
+        var existing = entityService.findContractRuleEntitiesById(id).orElseThrow(() ->
                 new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
         mapper.toEntity(req, existing);
         var updated = entityService.save(existing);

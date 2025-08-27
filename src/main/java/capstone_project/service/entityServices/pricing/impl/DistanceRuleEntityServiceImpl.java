@@ -22,7 +22,7 @@ public class DistanceRuleEntityServiceImpl implements DistanceRuleEntityService 
     }
 
     @Override
-    public Optional<DistanceRuleEntity> findById(UUID uuid) {
+    public Optional<DistanceRuleEntity> findContractRuleEntitiesById(UUID uuid) {
         return distanceRuleRepository.findById(uuid);
     }
 

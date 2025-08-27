@@ -22,7 +22,7 @@ public class CameraTrackingEntityServiceImpl implements CameraTrackingEntityServ
     }
 
     @Override
-    public Optional<CameraTrackingEntity> findById(UUID uuid) {
+    public Optional<CameraTrackingEntity> findContractRuleEntitiesById(UUID uuid) {
         return cameraTrackingRepository.findById(uuid);
     }
 

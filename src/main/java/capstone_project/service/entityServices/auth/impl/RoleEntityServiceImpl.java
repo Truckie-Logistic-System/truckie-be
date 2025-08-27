@@ -27,7 +27,7 @@ public class RoleEntityServiceImpl implements RoleEntityService {
     }
 
     @Override
-    public Optional<RoleEntity> findById(UUID id) {
+    public Optional<RoleEntity> findContractRuleEntitiesById(UUID id) {
         return roleRepository.findById(id);
     }
 

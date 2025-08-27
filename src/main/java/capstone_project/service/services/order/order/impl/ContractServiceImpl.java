@@ -74,7 +74,7 @@ public class ContractServiceImpl implements ContractService {
     @Override
     public ContractResponse getContractById(UUID id) {
         log.info("Getting contract by ID: {}", id);
-        ContractEntity contractEntity = contractEntityService.findById(id)
+        ContractEntity contractEntity = contractEntityService.findContractRuleEntitiesById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -113,7 +113,7 @@ public class ContractServiceImpl implements ContractService {
                     ErrorEnum.ALREADY_EXISTED.getErrorCode());
         }
 
-        OrderEntity order = orderEntityService.findById(orderUuid)
+        OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderUuid)
                 .orElseThrow(() -> {
                     log.error("[createContract] Order not found: {}", orderUuid);
                     return new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode());
@@ -161,7 +161,7 @@ public class ContractServiceImpl implements ContractService {
         }
 
         // lấy order
-        OrderEntity order = orderEntityService.findById(orderUuid)
+        OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderUuid)
                 .orElseThrow(() -> {
                     log.error("[createBoth] Order not found: {}", orderUuid);
                     return new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode());
@@ -186,7 +186,7 @@ public class ContractServiceImpl implements ContractService {
             UUID vehicleRuleId = entry.getKey();
             Integer count = entry.getValue();
 
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findById(vehicleRuleId)
+            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findContractRuleEntitiesById(vehicleRuleId)
                     .orElseThrow(() -> {
                         log.error("[createBoth] Vehicle rule not found: {}", vehicleRuleId);
                         return new NotFoundException("Vehicle rule not found", ErrorEnum.NOT_FOUND.getErrorCode());
@@ -231,7 +231,7 @@ public class ContractServiceImpl implements ContractService {
             throw new NotFoundException("No order details found for this order", ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
-        OrderEntity orderEntity = orderEntityService.findById(orderId)
+        OrderEntity orderEntity = orderEntityService.findContractRuleEntitiesById(orderId)
                 .orElseThrow(() -> {
                     log.error("[assignVehicles] Order not found: {}", orderId);
                     return new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode());
@@ -411,7 +411,7 @@ public class ContractServiceImpl implements ContractService {
             UUID vehicleRuleId = entry.getKey();
             int numOfVehicles = entry.getValue();
 
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findById(vehicleRuleId)
+            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findContractRuleEntitiesById(vehicleRuleId)
                     .orElseThrow(() -> {
                         log.error("[calcTotal] Vehicle rule not found: {}", vehicleRuleId);
                         return new NotFoundException("Vehicle rule not found: " + vehicleRuleId,
@@ -510,7 +510,7 @@ public class ContractServiceImpl implements ContractService {
         BigDecimal totalWeight = newDetail.getWeight();
 
         for (UUID id : detailIds) {
-            OrderDetailEntity d = orderDetailEntityService.findById(id)
+            OrderDetailEntity d = orderDetailEntityService.findContractRuleEntitiesById(id)
                     .orElseThrow(() -> new NotFoundException("Order detail not found: " + id, ErrorEnum.NOT_FOUND.getErrorCode()));
 
             totalWeight = totalWeight.add(d.getWeight());

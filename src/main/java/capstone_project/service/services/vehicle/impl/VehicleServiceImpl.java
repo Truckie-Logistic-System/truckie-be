@@ -1,7 +1,6 @@
 package capstone_project.service.services.vehicle.impl;
 
 import capstone_project.common.enums.ErrorEnum;
-import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.UpdateVehicleRequest;
 import capstone_project.dtos.request.vehicle.VehicleRequest;
@@ -44,7 +43,7 @@ public class VehicleServiceImpl implements VehicleService {
     public VehicleResponse getVehicleById(UUID id) {
         VehicleEntity entity = redis.get(CACHE_BY_ID + id, VehicleEntity.class);
         if (entity == null)
-            entity = vehicleEntityService.findById(id)
+            entity = vehicleEntityService.findContractRuleEntitiesById(id)
                     .orElseThrow(() -> new NotFoundException(
                             ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
         redis.save(CACHE_BY_ID + id, entity);
@@ -62,7 +61,7 @@ public class VehicleServiceImpl implements VehicleService {
     @Override @Transactional
     public VehicleResponse updateVehicle(UUID id, UpdateVehicleRequest req) {
 
-        VehicleEntity existing = vehicleEntityService.findById(id)
+        VehicleEntity existing = vehicleEntityService.findContractRuleEntitiesById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 

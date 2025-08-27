@@ -22,7 +22,7 @@ public class JourneyHistoryEntityServiceImpl implements JourneyHistoryEntityServ
     }
 
     @Override
-    public Optional<JourneyHistoryEntity> findById(UUID uuid) {
+    public Optional<JourneyHistoryEntity> findContractRuleEntitiesById(UUID uuid) {
         return journeyHistoryRepository.findById(uuid);
     }
 

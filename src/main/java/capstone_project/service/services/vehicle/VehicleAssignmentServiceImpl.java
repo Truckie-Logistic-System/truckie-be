@@ -44,7 +44,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         var key = KEY_ID + id;
         var entity = redis.get(key, VehicleAssignmentEntity.class);
         if (entity == null) {
-            entity = entityService.findById(id).orElseThrow(() ->
+            entity = entityService.findContractRuleEntitiesById(id).orElseThrow(() ->
                     new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
             redis.save(key, entity);
         }
@@ -61,7 +61,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     @Override
     public VehicleAssignmentResponse updateAssignment(UUID id, UpdateVehicleAssignmentRequest req) {
-        var existing = entityService.findById(id).orElseThrow(() ->
+        var existing = entityService.findContractRuleEntitiesById(id).orElseThrow(() ->
                 new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
         mapper.toEntity(req, existing);
         var updated = entityService.save(existing);

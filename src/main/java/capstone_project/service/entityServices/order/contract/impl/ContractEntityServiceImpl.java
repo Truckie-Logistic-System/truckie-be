@@ -22,7 +22,7 @@ public class ContractEntityServiceImpl implements ContractEntityService {
     }
 
     @Override
-    public Optional<ContractEntity> findById(UUID uuid) {
+    public Optional<ContractEntity> findContractRuleEntitiesById(UUID uuid) {
         return contractRepository.findById(uuid);
     }
 

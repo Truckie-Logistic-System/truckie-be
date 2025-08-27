@@ -48,7 +48,7 @@ public class UserEntityServiceImpl implements UserEntityService {
     }
 
     @Override
-    public Optional<UserEntity> findById(UUID uuid) {
+    public Optional<UserEntity> findContractRuleEntitiesById(UUID uuid) {
         return userRepository.findById(uuid);
     }
 

@@ -22,7 +22,7 @@ public class MaintenanceTypeEntityServiceImpl implements MaintenanceTypeEntitySe
     }
 
     @Override
-    public Optional<MaintenanceTypeEntity> findById(UUID uuid) {
+    public Optional<MaintenanceTypeEntity> findContractRuleEntitiesById(UUID uuid) {
         return maintenanceTypeRepository.findById(uuid);
     }
 

@@ -66,7 +66,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
     public ContractRuleResponse getContractById(UUID id) {
         log.info("Fetching contract rule with ID: {}", id);
 
-        ContractRuleEntity contractRule = contractRuleEntityService.findById(id)
+        ContractRuleEntity contractRule = contractRuleEntityService.findContractRuleEntitiesById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -76,44 +76,59 @@ public class ContractRuleServiceImpl implements ContractRuleService {
     }
 
     @Override
-    public ContractRuleResponse createContractRule(ContractRuleRequest contractRuleRequest) {
-        log.info("Creating new contract rule with request: {}", contractRuleRequest);
+    public ListContractRuleAssignResult getListAssignOrUnAssignContractRule(UUID contractId) {
+        log.info("Fetching contract rule assignments for contract ID: {}", contractId);
 
-        if (contractRuleRequest.vehicleRuleId() == null || contractRuleRequest.contractEntityId().isEmpty()) {
-            log.error("Vehicle rule ID & Contract ID are required");
-            throw new NotFoundException(
-                    "Vehicle rule ID and Contract ID are required",
-                    ErrorEnum.NOT_FOUND.getErrorCode()
+        ContractEntity contractEntity = contractEntityService.findContractRuleEntitiesById(contractId)
+                .orElseThrow(() -> new NotFoundException("Contract not found with ID: " + contractId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()));
+
+        List<ContractRuleEntity> assignedRules =
+                contractRuleEntityService.findContractRuleEntityByContractEntityId(contractId);
+
+        List<OrderDetailEntity> orderDetails =
+                orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(contractEntity.getOrderEntity().getId());
+
+        Set<UUID> assignedDetailIds = assignedRules.stream()
+                .flatMap(r -> r.getOrderDetails().stream())
+                .map(OrderDetailEntity::getId)
+                .collect(Collectors.toSet());
+
+        List<UUID> unassignedDetails = orderDetails.stream()
+                .map(OrderDetailEntity::getId)
+                .filter(id -> !assignedDetailIds.contains(id))
+                .toList();
+
+        List<ContractRuleAssignResponse> responses = new ArrayList<>();
+        int vehicleIndex = 0;
+
+        for (ContractRuleEntity rule : assignedRules) {
+            BigDecimal currentLoad = rule.getOrderDetails().stream()
+                    .map(OrderDetailEntity::getOrderSizeEntity)
+                    .filter(Objects::nonNull)
+                    .map(OrderSizeEntity::getMaxWeight)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            List<UUID> detailIds = rule.getOrderDetails().stream()
+                    .map(OrderDetailEntity::getId)
+                    .toList();
+
+            responses.add(
+                    ContractRuleAssignResponse.builder()
+                            .vehicleIndex(vehicleIndex++)
+                            .vehicleRuleId(rule.getVehicleRuleEntity().getId())
+                            .vehicleRuleName(rule.getVehicleRuleEntity().getVehicleRuleName())
+                            .currentLoad(currentLoad)
+                            .assignedDetails(detailIds)
+                            .build()
             );
         }
 
+        return ListContractRuleAssignResult.builder()
+                .vehicleAssignments(responses)
+                .unassignedDetails(unassignedDetails)
+                .build();
 
-        if (contractRuleRequest.numOfVehicles() == null || contractRuleRequest.numOfVehicles() <= 0) {
-            log.error("Number of vehicles must be greater than zero");
-            throw new NotFoundException(
-                    "Number of vehicles must be greater than zero",
-                    ErrorEnum.INVALID.getErrorCode()
-            );
-        }
-
-        UUID contractEntityUUId = UUID.fromString(contractRuleRequest.contractEntityId());
-        UUID vehicleRuleUUId = UUID.fromString(contractRuleRequest.vehicleRuleId());
-
-        if (contractRuleEntityService.findContractRuleEntitiesByContractEntityIdAndVehicleRuleEntityId(contractEntityUUId, vehicleRuleUUId).isPresent()) {
-            log.error("Contract rule with vehicle rule ID {} and contract ID {} already exists", vehicleRuleUUId, contractEntityUUId);
-            throw new NotFoundException(
-                    "Contract rule with this vehicle rule ID and contract ID already exists",
-                    ErrorEnum.ALREADY_EXISTED.getErrorCode()
-            );
-        }
-
-        ContractRuleEntity contractRuleEntity = contractRuleMapper.mapRequestToEntity(contractRuleRequest);
-
-        contractRuleEntity.setStatus(CommonStatusEnum.ACTIVE.name());
-
-        ContractRuleEntity savedContractRule = contractRuleEntityService.save(contractRuleEntity);
-
-        return contractRuleMapper.toContractRuleResponse(savedContractRule);
     }
 
     @Override
@@ -129,7 +144,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         }
 
         UUID contractEntityId = UUID.fromString(contractRuleRequests.get(0).contractEntityId());
-        ContractEntity contractEntity = contractEntityService.findById(contractEntityId)
+        ContractEntity contractEntity = contractEntityService.findContractRuleEntitiesById(contractEntityId)
                 .orElseThrow(() -> {
                     log.error("Contract not found with ID {}", contractEntityId);
                     return new NotFoundException("Contract not found with ID: " + contractEntityId,
@@ -146,7 +161,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         }
 
         List<ContractRuleEntity> existingRules =
-                contractRuleEntityService.findContractRuleEntitiesByContractEntityId(contractEntityId);
+                contractRuleEntityService.findContractRuleEntityByContractEntityId(contractEntityId);
 
 
         Set<UUID> alreadyAssigned = existingRules.stream()
@@ -171,7 +186,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         for (ContractRuleRequest request : contractRuleRequests) {
             UUID vehicleRuleId = UUID.fromString(request.vehicleRuleId());
 
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findById(vehicleRuleId)
+            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findContractRuleEntitiesById(vehicleRuleId)
                     .orElseThrow(() -> {
                         log.error("Vehicle rule not found with ID {}", request.vehicleRuleId());
                         return new NotFoundException("Vehicle rule not found: " + request.vehicleRuleId(),
@@ -280,7 +295,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
     public ContractRuleResponse updateContractRule(UUID id, ContractRuleRequest contractRuleRequest) {
         log.info("Updating contract rule with ID: {}", id);
 
-        ContractRuleEntity existingContractRule = contractRuleEntityService.findById(id)
+        ContractRuleEntity existingContractRule = contractRuleEntityService.findContractRuleEntitiesById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -295,7 +310,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         // lấy vehicleRule mới từ request
         UUID vehicleRuleId = UUID.fromString(contractRuleRequest.vehicleRuleId());
-        VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findById(vehicleRuleId)
+        VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findContractRuleEntitiesById(vehicleRuleId)
                 .orElseThrow(() -> new NotFoundException("Vehicle rule not found: " + vehicleRuleId,
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
@@ -363,7 +378,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         // update lại tổng giá trị contract
         Map<UUID, Integer> vehicleCountMap = contractRuleEntityService
-                .findContractRuleEntitiesByContractEntityId(contractEntity.getId())
+                .findContractRuleEntityByContractEntityId(contractEntity.getId())
                 .stream()
                 .collect(Collectors.groupingBy(r -> r.getVehicleRuleEntity().getId(), Collectors.summingInt(r -> 1)));
 
@@ -383,10 +398,11 @@ public class ContractRuleServiceImpl implements ContractRuleService {
     }
 
     @Override
+    @Transactional
     public void deleteContractRule(UUID id) {
         log.info("Deleting contract rule with ID: {}", id);
 
-        ContractRuleEntity contractRule = contractRuleEntityService.findById(id)
+        ContractRuleEntity contractRule = contractRuleEntityService.findContractRuleEntitiesById(id)
                 .orElseThrow(() -> {
                     log.error("Contract rule not found with ID {}", id);
                     return new NotFoundException(
@@ -407,10 +423,11 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
 
     @Override
+    @Transactional
     public void deleteAllContractRulesByContract(UUID contractId) {
         log.info("Deleting all contract rules with contract ID: {}", contractId);
 
-        List<ContractRuleEntity> contractRules = contractRuleEntityService.findContractRuleEntitiesByContractEntityId(contractId);
+        List<ContractRuleEntity> contractRules = contractRuleEntityService.findContractRuleEntityByContractEntityId(contractId);
 
         if (contractRules.isEmpty()) {
             log.warn("No contract rules found for contract ID {}", contractId);

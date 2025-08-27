@@ -32,7 +32,7 @@ public class CustomerEntityServiceImpl implements CustomerEntityService {
     }
 
     @Override
-    public Optional<CustomerEntity> findById(UUID uuid) {
+    public Optional<CustomerEntity> findContractRuleEntitiesById(UUID uuid) {
         return customerRepository.findById(uuid);
     }
 

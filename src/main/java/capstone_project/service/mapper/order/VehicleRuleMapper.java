@@ -66,7 +66,7 @@ public abstract class VehicleRuleMapper {
 
     @Named("categoryFromId")
     protected CategoryEntity mapCategoryIdToCategoryEntity(String categoryId) {
-        return categoryService.findById(UUID.fromString(categoryId))
+        return categoryService.findContractRuleEntitiesById(UUID.fromString(categoryId))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -75,7 +75,7 @@ public abstract class VehicleRuleMapper {
 
     @Named("vehicleTypeFromId")
     protected VehicleTypeEntity mapVehicleTypeIdToVehicleTypeEntity(String vehicleTypeId) {
-        return vehicleTypeEntityService.findById(UUID.fromString(vehicleTypeId))
+        return vehicleTypeEntityService.findContractRuleEntitiesById(UUID.fromString(vehicleTypeId))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()

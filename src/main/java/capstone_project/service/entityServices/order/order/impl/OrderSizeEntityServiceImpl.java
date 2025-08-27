@@ -21,7 +21,7 @@ public class OrderSizeEntityServiceImpl implements OrderSizeEntityService {
     }
 
     @Override
-    public Optional<OrderSizeEntity> findById(UUID uuid) {
+    public Optional<OrderSizeEntity> findContractRuleEntitiesById(UUID uuid) {
         return orderSizeRepository.findById(uuid);
     }
 

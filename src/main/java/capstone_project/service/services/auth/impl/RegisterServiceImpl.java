@@ -441,7 +441,7 @@ public class RegisterServiceImpl implements RegisterService {
             throw new RuntimeException("Refresh token expired");
         }
 
-        UserEntity user = userEntityService.findById(tokenEntity.getUser().getId())
+        UserEntity user = userEntityService.findContractRuleEntitiesById(tokenEntity.getUser().getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         String newAccessToken = JWTUtil.generateToken(user);

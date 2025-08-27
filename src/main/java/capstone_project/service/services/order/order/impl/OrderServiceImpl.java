@@ -8,26 +8,21 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.CreateOrderRequest;
 import capstone_project.dtos.response.order.CreateOrderResponse;
-import capstone_project.dtos.response.order.GetOrderDetailResponse;
 import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
-import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.service.entityServices.order.order.CategoryEntityService;
 import capstone_project.service.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.service.entityServices.order.order.OrderEntityService;
 import capstone_project.service.entityServices.order.order.OrderSizeEntityService;
 import capstone_project.service.entityServices.user.AddressEntityService;
 import capstone_project.service.entityServices.user.CustomerEntityService;
-import capstone_project.service.entityServices.vehicle.VehicleAssignmentEntityService;
-import capstone_project.service.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.mapper.order.OrderDetailMapper;
 import capstone_project.service.mapper.order.OrderMapper;
 import capstone_project.service.services.order.order.OrderService;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -69,19 +64,19 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException(ErrorEnum.NOT_FOUND.getMessage(),
                     ErrorEnum.NOT_FOUND.getErrorCode());
         }
-        CustomerEntity sender = customerEntityService.findById(UUID.fromString(orderRequest.senderId()))
+        CustomerEntity sender = customerEntityService.findContractRuleEntitiesById(UUID.fromString(orderRequest.senderId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "sender not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-        AddressEntity deliveryAddress = addressEntityService.findById(UUID.fromString(orderRequest.deliveryAddressId()))
+        AddressEntity deliveryAddress = addressEntityService.findContractRuleEntitiesById(UUID.fromString(orderRequest.deliveryAddressId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "deliveryAddress not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-        AddressEntity pickupAddress = addressEntityService.findById(UUID.fromString(orderRequest.pickupAddressId()))
+        AddressEntity pickupAddress = addressEntityService.findContractRuleEntitiesById(UUID.fromString(orderRequest.pickupAddressId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "pickupAddress not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-        CategoryEntity category = categoryEntityService.findById(UUID.fromString(orderRequest.categoryId()))
+        CategoryEntity category = categoryEntityService.findContractRuleEntitiesById(UUID.fromString(orderRequest.categoryId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "category not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
@@ -122,7 +117,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public CreateOrderResponse changeAStatusOrder(UUID orderId, OrderStatusEnum newStatus) {
-        OrderEntity order = orderEntityService.findById(orderId)
+        OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " Order with ID: " + orderId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -148,7 +143,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public CreateOrderResponse changeStatusOrderWithAllOrderDetail(UUID orderId, OrderStatusEnum newStatus) {
         // Tìm Order
-        OrderEntity order = orderEntityService.findById(orderId)
+        OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " Order with ID: " + orderId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -264,7 +259,7 @@ public class OrderServiceImpl implements OrderService {
         // Build all order details in memory first
         List<OrderDetailEntity> orderDetails = requests.stream()
                 .map(request -> {
-                    OrderSizeEntity orderSizeEntity = orderSizeEntityService.findById(UUID.fromString(request.orderSizeId()))
+                    OrderSizeEntity orderSizeEntity = orderSizeEntityService.findContractRuleEntitiesById(UUID.fromString(request.orderSizeId()))
                             .orElseThrow(() -> new NotFoundException(
                                     ErrorEnum.NOT_FOUND.getMessage() + " orderSize with id: " + request.orderSizeId(),
                                     ErrorEnum.NOT_FOUND.getErrorCode()));

@@ -17,6 +17,6 @@ public class PenaltyHistoryEntityServiceImpl
     private final PenaltyHistoryRepository repository;
 
     @Override public PenaltyHistoryEntity save(PenaltyHistoryEntity e){return repository.save(e);}
-    @Override public Optional<PenaltyHistoryEntity> findById(UUID id){return repository.findById(id);}
+    @Override public Optional<PenaltyHistoryEntity> findContractRuleEntitiesById(UUID id){return repository.findById(id);}
     @Override public List<PenaltyHistoryEntity> findAll(){return repository.findAll();}
 }

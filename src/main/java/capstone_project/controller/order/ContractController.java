@@ -59,7 +59,7 @@ public class ContractController {
     /*
     * API này dùng để suggest, nếu thấy suggest hợp lý, thì sử dụng createBothContractAndContractRule (/both) để tạo hợp đồng luôn
     * */
-    @PostMapping("{orderId}/suggest-assign-vehicles")
+    @GetMapping("{orderId}/suggest-assign-vehicles")
     public ResponseEntity<ApiResponse<List<ContractRuleAssignResponse>>> assignVehicles(@PathVariable UUID orderId) {
         final var result = contractService.assignVehicles(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));

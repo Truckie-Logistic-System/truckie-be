@@ -22,7 +22,7 @@ public class BasingPriceEntityServiceImpl implements BasingPriceEntityService {
     }
 
     @Override
-    public Optional<BasingPriceEntity> findById(UUID uuid) {
+    public Optional<BasingPriceEntity> findContractRuleEntitiesById(UUID uuid) {
         return basingPriceRepository.findById(uuid);
     }
 

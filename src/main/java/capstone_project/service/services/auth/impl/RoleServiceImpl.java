@@ -59,7 +59,7 @@ public class RoleServiceImpl implements RoleService {
     public RoleResponse getRoleById(UUID id) {
         log.info("Starting to get role by ID: {}", id);
         try {
-            Optional<RoleEntity> roleEntity = roleEntityService.findById(id);
+            Optional<RoleEntity> roleEntity = roleEntityService.findContractRuleEntitiesById(id);
 
             return roleEntity.map(roleMapper::mapRoleResponse)
                     .orElseThrow(() -> {
@@ -139,7 +139,7 @@ public class RoleServiceImpl implements RoleService {
     public RoleResponse updateRole(UUID id, RoleRequest roleRequest) {
         log.info("Starting to update role with id: {}, request: {}", id, roleRequest);
         try {
-            RoleEntity existingRole = roleEntityService.findById(id)
+            RoleEntity existingRole = roleEntityService.findContractRuleEntitiesById(id)
                     .orElseThrow(() -> {
                         log.warn("Role with ID {} not found", id);
                         return new NotFoundException(

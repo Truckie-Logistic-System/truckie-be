@@ -60,7 +60,7 @@ public class DistanceServiceImpl implements DistanceService {
     }
 
     private RouteResponse callVietMapApi(UUID orderId) {
-        OrderEntity order = orderEntityService.findById(orderId)
+        OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderId)
                 .orElseThrow(() -> new NotFoundException(
                 ErrorEnum.NOT_FOUND.getMessage(),
                 ErrorEnum.NOT_FOUND.getErrorCode()

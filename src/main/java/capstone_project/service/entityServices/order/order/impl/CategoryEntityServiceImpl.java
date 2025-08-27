@@ -23,7 +23,7 @@ public class CategoryEntityServiceImpl implements CategoryEntityService {
     }
 
     @Override
-    public Optional<CategoryEntity> findById(UUID uuid) {
+    public Optional<CategoryEntity> findContractRuleEntitiesById(UUID uuid) {
         return categoryRepository.findById(uuid);
     }
 

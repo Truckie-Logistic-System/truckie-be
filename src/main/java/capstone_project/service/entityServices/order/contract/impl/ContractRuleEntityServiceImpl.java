@@ -23,12 +23,12 @@ public class ContractRuleEntityServiceImpl implements ContractRuleEntityService 
     }
 
     @Override
-    public List<ContractRuleEntity> findContractRuleEntitiesByContractEntityId(UUID contractRuleId) {
-        return  contractRuleRepository.findContractRuleEntitiesByContractEntityId(contractRuleId);
+    public Optional<ContractRuleEntity> findContractRuleEntitiesById(UUID contractRuleId) {
+        return contractRuleRepository.findContractRuleEntitiesById(contractRuleId);
     }
 
     @Override
-    public Optional<ContractRuleEntity> findContractRuleEntityByContractEntityId(UUID contractId) {
+    public List<ContractRuleEntity> findContractRuleEntityByContractEntityId(UUID contractId) {
         return contractRuleRepository.findContractRuleEntityByContractEntityId(contractId);
     }
 
@@ -52,10 +52,10 @@ public class ContractRuleEntityServiceImpl implements ContractRuleEntityService 
         return contractRuleRepository.save(entity);
     }
 
-    @Override
-    public Optional<ContractRuleEntity> findById(UUID uuid) {
-        return contractRuleRepository.findById(uuid);
-    }
+//    @Override
+//    public Optional<ContractRuleEntity> findContractRuleEntitiesById(UUID uuid) {
+//        return contractRuleRepository.findById(uuid);
+//    }
 
     @Override
     public List<ContractRuleEntity> findAll() {

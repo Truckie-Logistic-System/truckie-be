@@ -22,31 +22,31 @@ public abstract class VehicleAssignmentMapper {
     @Autowired protected DriverEntityService   driverService;
 
     @Mapping(target = "vehicleEntity", source = "vehicleId", qualifiedByName = "vehicleFromId")
-    @Mapping(target = "driverEntity",  source = "driverId",  qualifiedByName = "driverFromId")
+    @Mapping(target = "driver1", source = "driverId", qualifiedByName = "driverFromId")
     public abstract VehicleAssignmentEntity toEntity(VehicleAssignmentRequest req);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "vehicleEntity", source = "vehicleId", qualifiedByName = "vehicleFromId")
-    @Mapping(target = "driverEntity",  source = "driverId",  qualifiedByName = "driverFromId")
+    @Mapping(target = "driver2", source = "driverId", qualifiedByName = "driverFromId")
     public abstract void toEntity(UpdateVehicleAssignmentRequest req,
                                   @MappingTarget VehicleAssignmentEntity entity);
 
     @Mapping(target = "vehicleId", source = "vehicleEntity.id")
-    @Mapping(target = "driverId",  source = "driverEntity.id")
+    @Mapping(target = "driverId",  source = "driver1.id")
     public abstract VehicleAssignmentResponse toResponse(VehicleAssignmentEntity entity);
 
     /* helpers */
     @Named("vehicleFromId")
     protected VehicleEntity vehicleFromId(String id){
         if(id==null) return null;
-        return vehicleService.findById(UUID.fromString(id))
+        return vehicleService.findContractRuleEntitiesById(UUID.fromString(id))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
     }
     @Named("driverFromId")
     protected DriverEntity driverFromId(String id){
         if(id==null) return null;
-        return driverService.findById(UUID.fromString(id))
+        return driverService.findContractRuleEntitiesById(UUID.fromString(id))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
     }

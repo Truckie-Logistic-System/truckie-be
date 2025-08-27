@@ -24,7 +24,7 @@ public class OrderPdfService {
     public OrderPdfResponse generateAndUploadOrderPdf(UUID orderId) {
         try {
             // 1. Get the order
-            OrderEntity order = orderEntityService.findById(orderId)
+            OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found with id: " + orderId));
 
             // 2. Generate PDF

@@ -12,9 +12,9 @@ import java.util.UUID;
 public interface ContractRuleRepository extends BaseRepository<ContractRuleEntity> {
     Optional<ContractRuleEntity> findContractRuleEntitiesByContractEntityIdAndVehicleRuleEntityId(UUID contractEntity, UUID vehicleRuleEntity);
 
-    List<ContractRuleEntity> findContractRuleEntitiesByContractEntityId(UUID contractRuleId);
+    Optional<ContractRuleEntity> findContractRuleEntitiesById(UUID id);
 
-    Optional<ContractRuleEntity> findContractRuleEntityByContractEntityId(UUID contractId);
+    List<ContractRuleEntity> findContractRuleEntityByContractEntityId(UUID contractId);
 
     @Query(value = """
                 SELECT o.id

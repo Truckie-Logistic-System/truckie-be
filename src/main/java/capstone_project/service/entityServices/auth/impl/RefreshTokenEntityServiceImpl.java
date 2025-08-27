@@ -37,7 +37,7 @@ public class RefreshTokenEntityServiceImpl implements RefreshTokenEntityService 
     }
 
     @Override
-    public Optional<RefreshTokenEntity> findById(UUID uuid) {
+    public Optional<RefreshTokenEntity> findContractRuleEntitiesById(UUID uuid) {
         return refreshTokenRepository.findById(uuid);
     }
 

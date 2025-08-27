@@ -22,7 +22,7 @@ public class SignatureRequestEntityServiceImpl implements SignatureRequestEntity
     }
 
     @Override
-    public Optional<SignatureRequestEntity> findById(UUID uuid) {
+    public Optional<SignatureRequestEntity> findContractRuleEntitiesById(UUID uuid) {
         return signatureRequestRepository.findById(uuid);
     }
 

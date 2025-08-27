@@ -22,7 +22,7 @@ public class DeviceTypeEntityServiceImpl implements DeviceTypeEntityService {
     }
 
     @Override
-    public Optional<DeviceTypeEntity> findById(UUID uuid) {
+    public Optional<DeviceTypeEntity> findContractRuleEntitiesById(UUID uuid) {
         return deviceTypeRepository.findById(uuid);
     }
 

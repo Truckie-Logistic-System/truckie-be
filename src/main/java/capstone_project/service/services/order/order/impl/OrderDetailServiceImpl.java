@@ -25,9 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -53,7 +51,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         }
 
 
-        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findById(orderDetailId)
+        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findContractRuleEntitiesById(orderDetailId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderDetailEntity with ID: " + orderDetailId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -98,7 +96,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     @Override
     public GetOrderDetailResponse changeStatusOrderDetailForTroublesByDriver(UUID orderDetailId) {
         log.info("change status order detail trouble for driver");
-        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findById(orderDetailId)
+        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findContractRuleEntitiesById(orderDetailId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderDetailEntity with ID: " + orderDetailId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -121,7 +119,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     @Override
     public CreateOrderResponse createOrderDetailByOrderId(UUID orderId, List<CreateOrderDetailRequest> createOrderDetailRequest) {
         log.info("Create order detail by order ID: " + orderId);
-        OrderEntity orderEntity = orderEntityService.findById(orderId)
+        OrderEntity orderEntity = orderEntityService.findContractRuleEntitiesById(orderId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderEntity with ID: " + orderId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -156,7 +154,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     public List<GetOrderDetailResponse> getOrderDetailByOrderIdResponseList(UUID orderId) {
         log.info("Fetching order details for order ID: {}", orderId);
 
-        if(orderEntityService.findById(orderId).isPresent()){
+        if(orderEntityService.findContractRuleEntitiesById(orderId).isPresent()){
             throw new NotFoundException(
                     ErrorEnum.NOT_FOUND.getMessage() + " No order found for order ID: " + orderId,
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -179,7 +177,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     public GetOrderDetailResponse getOrderDetailById(UUID orderDetailId) {
         log.info("Fetching order detail by ID: {}", orderDetailId);
 
-        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findById(orderDetailId)
+        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findContractRuleEntitiesById(orderDetailId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + " OrderDetailEntity with ID: " + orderDetailId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -192,19 +190,19 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     public GetOrderDetailResponse updateOrderDetailBasic(UpdateOrderDetailRequest updateOrderDetailRequest) {
         log.info("Updating order detail with ID: {}", updateOrderDetailRequest.orderDetailId());
 
-        OrderEntity orderEntity = orderEntityService.findById(UUID.fromString(updateOrderDetailRequest.orderId()))
+        OrderEntity orderEntity = orderEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderDetailRequest.orderId()))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderEntity with ID: " + updateOrderDetailRequest.orderId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findById(UUID.fromString(updateOrderDetailRequest.orderDetailId()))
+        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderDetailRequest.orderDetailId()))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + " OrderDetailEntity with ID: " + updateOrderDetailRequest.orderDetailId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-        OrderSizeEntity orderSizeEntity = orderSizeEntityService.findById(UUID.fromString(updateOrderDetailRequest.orderSizeId()))
+        OrderSizeEntity orderSizeEntity = orderSizeEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderDetailRequest.orderSizeId()))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + " OrderSizeEntity with ID: " + updateOrderDetailRequest.orderSizeId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()

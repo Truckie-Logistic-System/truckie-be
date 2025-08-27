@@ -40,7 +40,7 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
 
     @Override
     public PenaltyHistoryResponse getById(UUID id) {
-        PenaltyHistoryEntity e = entityService.findById(id)
+        PenaltyHistoryEntity e = entityService.findContractRuleEntitiesById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
         return mapper.toPenaltyHistoryResponse(e);
@@ -56,7 +56,7 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
     @Transactional
     @Override
     public PenaltyHistoryResponse update(UUID id, PenaltyHistoryRequest req) {
-        PenaltyHistoryEntity existing = entityService.findById(id)
+        PenaltyHistoryEntity existing = entityService.findContractRuleEntitiesById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
         mapper.toEntity(req, existing);
@@ -67,7 +67,7 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
     @Transactional
     @Override
     public void delete(UUID id) {
-        PenaltyHistoryEntity existing = entityService.findById(id)
+        PenaltyHistoryEntity existing = entityService.findContractRuleEntitiesById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
         entityService.save(existing);               // or repository.delete(existing);

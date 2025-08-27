@@ -12,7 +12,7 @@ public interface ContractRuleService {
 
     ContractRuleResponse getContractById(UUID id);
 
-    ContractRuleResponse createContractRule(ContractRuleRequest contractRuleRequest);
+    ListContractRuleAssignResult getListAssignOrUnAssignContractRule(UUID contractId);
 
     ListContractRuleAssignResult createListContractRules(List<ContractRuleRequest> contractRuleRequests);
 

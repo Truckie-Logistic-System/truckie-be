@@ -74,7 +74,7 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         log.info("No cached category found for ID: {}, fetching from database", id);
-        CategoryEntity categoryEntity = categoryEntityService.findById(id)
+        CategoryEntity categoryEntity = categoryEntityService.findContractRuleEntitiesById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
         redisService.save(cacheKey, categoryEntity);
@@ -132,7 +132,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse updateCategory(UUID id, CategoryRequest categoryRequest) {
         log.info("Updating category with ID: {} and request: {}", id, categoryRequest);
 
-        CategoryEntity existingCategory = categoryEntityService.findById(id)
+        CategoryEntity existingCategory = categoryEntityService.findContractRuleEntitiesById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
         try {
