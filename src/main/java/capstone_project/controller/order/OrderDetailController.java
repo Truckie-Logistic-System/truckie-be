@@ -70,7 +70,7 @@ public class OrderDetailController {
     @PutMapping
     public ResponseEntity<ApiResponse<GetOrderDetailResponse>> updateOrderDetailBasic(
             @Valid @RequestBody UpdateOrderDetailRequest request) {
-        final var result = orderDetailService.updateOrderDetailBasic(request);
+        final var result = orderDetailService.updateOrderDetailBasicInPendingOrProcessing(request);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }

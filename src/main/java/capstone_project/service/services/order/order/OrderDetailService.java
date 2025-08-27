@@ -20,5 +20,7 @@ public interface OrderDetailService {
 
     GetOrderDetailResponse getOrderDetailById(UUID orderDetailId);
 
-    GetOrderDetailResponse updateOrderDetailBasic(UpdateOrderDetailRequest updateOrderDetailRequest);
+    GetOrderDetailResponse updateOrderDetailBasicInPendingOrProcessing(UpdateOrderDetailRequest updateOrderDetailRequest);
+
+    boolean changeStatusOrderDetailOnlyForAdmin(UUID orderId, UUID orderDetailId, OrderStatusEnum status);
 }

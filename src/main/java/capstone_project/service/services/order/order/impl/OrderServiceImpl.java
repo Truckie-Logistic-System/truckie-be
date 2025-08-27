@@ -7,6 +7,7 @@ import capstone_project.common.exceptions.dto.InternalServerException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.CreateOrderRequest;
+import capstone_project.dtos.request.order.UpdateOrderRequest;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
@@ -105,7 +106,7 @@ public class OrderServiceImpl implements OrderService {
             OrderEntity saveOrder = orderEntityService.save(newOrder);
 
 
-            saveOrder.setOrderDetailEntities(batchCreateOrderDetails(listCreateOrderDetailRequests, saveOrder));
+            saveOrder.setOrderDetailEntities(batchCreateOrderDetails(listCreateOrderDetailRequests, saveOrder, orderRequest.estimateStartTime()));
             return orderMapper.toCreateOrderResponse(saveOrder);
 
         }catch (Exception e) {
@@ -129,6 +130,13 @@ public class OrderServiceImpl implements OrderService {
         } catch (IllegalArgumentException e) {
             throw new BadRequestException(
                     ErrorEnum.INVALID.getMessage() + " Invalid current status: " + order.getStatus(),
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        if (currentStatus == null || !isValidTransition(currentStatus, newStatus)) {
+            throw new BadRequestException(
+                    ErrorEnum.INVALID.getMessage() + " Cannot change from " + order.getStatus() + " to " + newStatus,
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
@@ -175,8 +183,7 @@ public class OrderServiceImpl implements OrderService {
         orderDetailEntities.forEach(detail -> detail.setStatus(newStatus.name()));
         orderDetailEntityService.saveAllOrderDetailEntities(orderDetailEntities);
 
-        // Gắn lại vào order trước khi map sang response
-        order.setOrderDetailEntities(orderDetailEntities);
+
 
         return orderMapper.toCreateOrderResponse(order);
     }
@@ -251,11 +258,67 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.toCreateOrderResponses(orderEntities);
     }
 
+    @Override
+    public boolean changeStatusOrderOnlyForAdmin(UUID orderId, OrderStatusEnum status) {
+        return false;
+    }
+
+    @Override
+    public CreateOrderResponse updateOrderBasicInPendingOrProcessing(UpdateOrderRequest updateOrderRequest) {
+        log.info("Updating order with ID: {}", updateOrderRequest.orderId());
+
+        OrderEntity order = orderEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderRequest.orderId()))
+                .orElseThrow(() -> new BadRequestException(
+                        ErrorEnum.NOT_FOUND.getMessage() + " Order with ID: " + updateOrderRequest.orderId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+
+        if(!(order.getStatus().equals(OrderStatusEnum.PENDING.name()) || order.getStatus().equals(OrderStatusEnum.PROCESSING.name()))){
+            throw new NotFoundException(
+                    ErrorEnum.INVALID_REQUEST.getMessage() + " Cannot update order with ID: " + order.getId() +", because order status is not PENDING or PROCESSING",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        CategoryEntity categoryEntity = categoryEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderRequest.categoryId()))
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + " Cate with ID: " + updateOrderRequest.categoryId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        AddressEntity deliveryAddress = addressEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderRequest.deliveryAddressId()))
+                .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "deliveryAddress not found",
+                        ErrorEnum.NOT_FOUND.getErrorCode()));
+
+        AddressEntity pickupAddress = addressEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderRequest.pickupAddressId()))
+                .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "pickupAddress not found",
+                        ErrorEnum.NOT_FOUND.getErrorCode()));
+
+
+
+
+        order.setNotes(updateOrderRequest.notes());
+        order.setReceiverName(updateOrderRequest.receiverName());
+        order.setReceiverPhone(updateOrderRequest.receiverPhone());
+        order.setPickupAddress(pickupAddress);
+        order.setDeliveryAddress(deliveryAddress);
+        order.setCategory(categoryEntity);
+        order.setPackageDescription(updateOrderRequest.packageDescription());
+
+        orderEntityService.save(order);
+
+
+        return orderMapper.toCreateOrderResponse(order);
+    }
+
 
     @Override
     public List<OrderDetailEntity> batchCreateOrderDetails(
             List<CreateOrderDetailRequest> requests,
-            OrderEntity savedOrder) {
+            OrderEntity savedOrder, LocalDateTime estimateStartTime) {
+
+
         // Build all order details in memory first
         List<OrderDetailEntity> orderDetails = requests.stream()
                 .map(request -> {
@@ -266,9 +329,9 @@ public class OrderServiceImpl implements OrderService {
                     return OrderDetailEntity.builder()
                             .weight(request.weight())
                             .description(request.description())
-                            .status(OrderStatusEnum.PENDING.name())
+                            .status(savedOrder.getStatus())
                             .trackingCode(generateCode(prefixOrderDetailCode))
-                            .estimatedStartTime(savedOrder.getCreatedAt())
+                            .estimatedStartTime(estimateStartTime)
                             .orderEntity(savedOrder)
                             .orderSizeEntity(orderSizeEntity)
                             .build();

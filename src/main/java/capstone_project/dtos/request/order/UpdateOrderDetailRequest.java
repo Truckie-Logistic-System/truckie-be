@@ -13,10 +13,6 @@ public record UpdateOrderDetailRequest(
         @UUID
         String orderDetailId,
 
-        @NotNull
-        @UUID
-        String orderId,
-
         @NotNull(message = "Weight cannot be null")
         @Min(value = 0L, message = "Weight must be positive")
         BigDecimal weight,

@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -128,7 +129,18 @@ public class OrderDetailServiceImpl implements OrderDetailService {
             throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
-        List<OrderDetailEntity> listOrderDetail = orderService.batchCreateOrderDetails(createOrderDetailRequest,orderEntity);
+        Set<String> allowedStatuses = Set.of(
+                OrderStatusEnum.PENDING.name(),
+                OrderStatusEnum.CONTRACT_DRAFT.name(),
+                OrderStatusEnum.PROCESSING.name()
+        );
+
+        if (!allowedStatuses.contains(orderEntity.getStatus())) {
+            throw new BadRequestException(ErrorEnum.INVALID.getMessage() + " Cannot add more order detail for orderId: " + orderId +", because order only can add orderDetail when order's status is PENDING, PROCESSING or CONTRACT_DRAFT",
+                    ErrorEnum.INVALID.getErrorCode());
+        }
+
+        List<OrderDetailEntity> listOrderDetail = orderService.batchCreateOrderDetails(createOrderDetailRequest,orderEntity,orderEntity.getOrderDetailEntities().get(0).getEstimatedStartTime());
         if(listOrderDetail.isEmpty()){
             log.error("listOrderDetail empty");
             throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
@@ -187,14 +199,12 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     }
 
     @Override
-    public GetOrderDetailResponse updateOrderDetailBasic(UpdateOrderDetailRequest updateOrderDetailRequest) {
+    @Transactional
+    public GetOrderDetailResponse updateOrderDetailBasicInPendingOrProcessing(UpdateOrderDetailRequest updateOrderDetailRequest) {
         log.info("Updating order detail with ID: {}", updateOrderDetailRequest.orderDetailId());
 
-        OrderEntity orderEntity = orderEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderDetailRequest.orderId()))
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage() + " orderEntity with ID: " + updateOrderDetailRequest.orderId(),
-                        ErrorEnum.NOT_FOUND.getErrorCode()
-                ));
+
+
 
         OrderDetailEntity orderDetailEntity = orderDetailEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderDetailRequest.orderDetailId()))
                 .orElseThrow(() -> new NotFoundException(
@@ -202,13 +212,24 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
+        if(!(orderDetailEntity.getStatus().equals(OrderStatusEnum.PENDING.name()) || orderDetailEntity.getStatus().equals(OrderStatusEnum.PROCESSING.name()))){
+            throw new NotFoundException(
+                    ErrorEnum.INVALID_REQUEST.getMessage() + " Cannot update order detail with ID: " + orderDetailEntity.getId() +", because order detail status is not PENDING or PROCESSING",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        OrderEntity orderEntity = orderDetailEntity.getOrderEntity();
+
+
+
         OrderSizeEntity orderSizeEntity = orderSizeEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderDetailRequest.orderSizeId()))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + " OrderSizeEntity with ID: " + updateOrderDetailRequest.orderSizeId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-        orderDetailEntity.setWeight(updateOrderDetailRequest.weight());
+
         if(updateOrderDetailRequest.weight().compareTo(orderDetailEntity.getWeight()) != 0){
             BigDecimal totalWeight = orderEntity.getTotalWeight()
                     .subtract(orderDetailEntity.getWeight())
@@ -216,12 +237,19 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
             orderEntity.setTotalWeight(totalWeight);
         }
+        orderDetailEntity.setWeight(updateOrderDetailRequest.weight());
         orderDetailEntity.setDescription(updateOrderDetailRequest.description());
         orderDetailEntity.setOrderSizeEntity(orderSizeEntity);
 
         orderDetailEntityService.save(orderDetailEntity);
+        orderEntityService.save(orderEntity);
 
 
         return orderDetailMapper.toGetOrderDetailResponse(orderDetailEntity);
+    }
+
+    @Override
+    public boolean changeStatusOrderDetailOnlyForAdmin(UUID orderId, UUID orderDetailId, OrderStatusEnum status) {
+        return false;
     }
 }
