@@ -1,4 +1,3 @@
-// File: src/main/java/capstone_project/controller/order/OrderPdfController.java
 package capstone_project.controller.order;
 
 import capstone_project.dtos.response.common.ApiResponse;
