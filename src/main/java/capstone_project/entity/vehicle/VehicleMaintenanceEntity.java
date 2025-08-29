@@ -8,16 +8,18 @@ import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "vehicle_maintenance", schema = "public", catalog = "capstone-project")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class VehicleMaintenanceEntity extends BaseEntity {
     @Column(name = "maintenance_date")
-    private Instant maintenanceDate;
+    private LocalDateTime maintenanceDate;
 
     @Size(max = 200)
     @Column(name = "description", length = 200)
@@ -27,7 +29,7 @@ public class VehicleMaintenanceEntity extends BaseEntity {
     private BigDecimal cost;
 
     @Column(name = "next_maintenance_date")
-    private Instant nextMaintenanceDate;
+    private LocalDateTime nextMaintenanceDate;
 
     @Column(name = "odometer_reading")
     private Integer odometerReading;

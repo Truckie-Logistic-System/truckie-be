@@ -1,4 +1,3 @@
-// src/main/java/capstone_project/controller/user/DistanceController.java
 package capstone_project.controller.user;
 
 import capstone_project.dtos.response.common.ApiResponse;
@@ -16,9 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/distance")
+@RequestMapping("${distance.api.base-path}")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+//@PreAuthorize("hasRole('ADMIN')")
 public class DistanceController {
 
     private final DistanceService distanceService;
@@ -37,17 +36,17 @@ public class DistanceController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
-    @GetMapping("/order/{orderId}/meters")
-    public ResponseEntity<ApiResponse<Double>> getDistanceInMeters(
+    @GetMapping("/order/{orderId}/kilometers")
+    public ResponseEntity<ApiResponse<Double>> getDistanceInKilometers(
             @PathVariable UUID orderId) {
-        double distance = distanceService.getDistanceInMeters(orderId);
+        double distance = distanceService.getDistanceInKilometers(orderId);
         return ResponseEntity.ok(ApiResponse.ok(distance));
     }
 
     @GetMapping("/order/{orderId}/time")
-    public ResponseEntity<ApiResponse<Long>> getTravelTimeInSeconds(
+    public ResponseEntity<ApiResponse<Double>> getTravelTimeInHours(
             @PathVariable UUID orderId) {
-        long time = distanceService.getTravelTimeInSeconds(orderId);
+        double time = distanceService.getTravelTimeInHours(orderId);
         return ResponseEntity.ok(ApiResponse.ok(time));
     }
 }

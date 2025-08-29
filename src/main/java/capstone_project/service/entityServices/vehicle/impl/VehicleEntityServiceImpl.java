@@ -30,4 +30,14 @@ public class VehicleEntityServiceImpl implements VehicleEntityService {
     public List<VehicleEntity> findAll() {
         return vehicleRepository.findAll();
     }
+
+    @Override
+    public Optional<VehicleEntity> findByLicensePlateNumber(String licensePlateNumber) {
+        return vehicleRepository.findByLicensePlateNumber(licensePlateNumber);
+    }
+
+    @Override
+    public Optional<VehicleEntity> findByVehicleId(UUID vehicleId) {
+        return vehicleRepository.findById(vehicleId);
+    }
 }

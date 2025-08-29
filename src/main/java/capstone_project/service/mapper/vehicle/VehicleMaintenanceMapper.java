@@ -22,13 +22,22 @@ public abstract class VehicleMaintenanceMapper {
     @Autowired protected MaintenanceTypeEntityService maintenanceTypeEntityService;
 
     /* CREATE */
-    @Mapping(target = "vehicleEntity",        source = "vehicleId",        qualifiedByName = "vehicleFromId")
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "modifiedAt", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "modifiedBy", ignore = true)
+    @Mapping(target = "vehicleEntity", source = "vehicleId", qualifiedByName = "vehicleFromId")
     @Mapping(target = "maintenanceTypeEntity", source = "maintenanceTypeId", qualifiedByName = "maintenanceTypeFromId")
     public abstract VehicleMaintenanceEntity toEntity(VehicleMaintenanceRequest req);
 
-    /* UPDATE (null-safe) */
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    @Mapping(target = "vehicleEntity",        source = "vehicleId",        qualifiedByName = "vehicleFromId")
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "modifiedAt", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "modifiedBy", ignore = true)
+    @Mapping(target = "vehicleEntity", source = "vehicleId", qualifiedByName = "vehicleFromId")
     @Mapping(target = "maintenanceTypeEntity", source = "maintenanceTypeId", qualifiedByName = "maintenanceTypeFromId")
     public abstract void toEntity(UpdateVehicleMaintenanceRequest req,
                                   @MappingTarget VehicleMaintenanceEntity entity);

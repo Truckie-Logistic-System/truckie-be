@@ -27,6 +27,7 @@ public class VehicleMaintenanceEntityServiceImpl implements VehicleMaintenanceEn
         return vehicleMaintenanceRepository.findById(uuid);
     }
 
+
     @Override
     public List<VehicleMaintenanceEntity> findAll() {
         return vehicleMaintenanceRepository.findAll();

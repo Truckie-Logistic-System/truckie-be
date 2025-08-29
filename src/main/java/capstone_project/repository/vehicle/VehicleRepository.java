@@ -3,6 +3,10 @@ package capstone_project.repository.vehicle;
 import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.common.BaseRepository;
 
+import java.util.Optional;
+import java.util.UUID;
+
 public interface VehicleRepository extends BaseRepository<VehicleEntity> {
-    // Additional methods specific to VehicleEntity can be defined here
+    Optional<VehicleEntity> findByLicensePlateNumber(String licensePlateNumber);
+
 }
