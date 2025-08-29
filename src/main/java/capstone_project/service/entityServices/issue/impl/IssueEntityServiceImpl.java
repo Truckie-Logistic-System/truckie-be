@@ -1,6 +1,9 @@
 package capstone_project.service.entityServices.issue.impl;
 
+import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.issue.IssueEntity;
+import capstone_project.entity.issue.IssueTypeEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.issue.IssueRepository;
 import capstone_project.service.entityServices.issue.IssueEntityService;
 import lombok.RequiredArgsConstructor;
@@ -29,5 +32,25 @@ public class IssueEntityServiceImpl implements IssueEntityService {
     @Override
     public List<IssueEntity> findAll() {
         return issueRepository.findAll();
+    }
+
+    @Override
+    public IssueEntity findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignmentId) {
+        return issueRepository.findByVehicleAssignmentEntity(vehicleAssignmentId);
+    }
+
+    @Override
+    public List<IssueEntity> findByStaff(UserEntity staffId) {
+        return issueRepository.findByStaff(staffId);
+    }
+
+    @Override
+    public List<IssueEntity> findByStatus(String status) {
+        return issueRepository.findByStatus(status);
+    }
+
+    @Override
+    public List<IssueEntity> findByIssueTypeEntity(IssueTypeEntity issueType) {
+        return issueRepository.findByIssueTypeEntity(issueType);
     }
 }

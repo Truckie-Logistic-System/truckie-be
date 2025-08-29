@@ -81,6 +81,12 @@ public class SecurityConfigurer {
     @Value("${issue-type.api.base-path}")
     private String issueTypeBasePath;
 
+    @Value("${issue.api.base-path}")
+    private String issueBasePath;
+
+    @Value("${issue-image.api.base-path}")
+    private String issueImageBasePath;
+
 
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
@@ -152,6 +158,8 @@ public class SecurityConfigurer {
                         .requestMatchers(orderBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(orderDetailBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(issueTypeBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
+                        .requestMatchers(issueBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
+                        .requestMatchers(issueImageBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)

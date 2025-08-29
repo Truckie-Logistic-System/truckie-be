@@ -11,7 +11,6 @@ public record CreateBasicIssueRequest(
         BigDecimal locationLatitude,
         BigDecimal locationLongitude,
         @NotNull UUID vehicleAssignmentId,
-        @NotNull UUID staffId,
         @NotNull UUID issueTypeId
 ) { }
 

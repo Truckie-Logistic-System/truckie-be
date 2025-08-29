@@ -30,4 +30,14 @@ public class IssueImageEntityServiceImpl implements IssueImageEntityService {
     public List<IssueImageEntity> findAll() {
         return issuesImageRepository.findAll();
     }
+
+    @Override
+    public List<IssueImageEntity> findByIssueEntity_Id(UUID issueId) {
+        return issuesImageRepository.findByIssueEntity_Id(issueId);
+    }
+
+    @Override
+    public List<IssueImageEntity> saveAll(List<IssueImageEntity> issueImageEntities) {
+        return issuesImageRepository.saveAll(issueImageEntities);
+    }
 }

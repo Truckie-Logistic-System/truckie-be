@@ -15,11 +15,13 @@ public interface IssueService {
 
     List<GetBasicIssueResponse> getByStaffId(UUID staffId);
 
-    List<GetIssueTypeResponse> getByActiveStatus();
+    List<GetBasicIssueResponse> getByActiveStatus();
 
-    GetIssueTypeResponse getIssueType(UUID issueTypeId);
+    List<GetBasicIssueResponse> getIssueType(UUID issueTypeId);
 
-    GetIssueTypeResponse createIssue(CreateBasicIssueRequest request);
+    GetBasicIssueResponse createIssue(CreateBasicIssueRequest request);
 
-    GetIssueTypeResponse updateIssue(UpdateBasicIssueRequest request);
+    GetBasicIssueResponse updateIssue(UpdateBasicIssueRequest request);
+
+    GetBasicIssueResponse updateStaffForIssue(UUID staffId, UUID issueId);
 }

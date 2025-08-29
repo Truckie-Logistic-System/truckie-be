@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record UpdateBasicIssueRequest(
+        @NotNull UUID issueId,
         @NotBlank String description,
         BigDecimal locationLatitude,
         BigDecimal locationLongitude,
