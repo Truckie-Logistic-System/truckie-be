@@ -3,8 +3,8 @@ package capstone_project.dtos.response.order;
 import lombok.Builder;
 
 @Builder
-public record OrderPdfResponse(
+public record ContractPdfResponse(
         String pdfUrl,
-        String orderId,
+        String contractId,
         String message
 ) {}

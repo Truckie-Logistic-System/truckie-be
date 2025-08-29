@@ -17,6 +17,7 @@ import java.util.UUID;
 public class ContractRuleAssignResponse {
     private int vehicleIndex;
     private UUID vehicleRuleId;
+//    private Integer numOfVehicles;
     private String vehicleRuleName;
     private BigDecimal currentLoad;
     private List<UUID> assignedDetails = new ArrayList<>();

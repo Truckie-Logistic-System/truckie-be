@@ -8,6 +8,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
+import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
 import capstone_project.entity.order.order.CategoryPricingDetailEntity;
@@ -195,14 +196,28 @@ public class ContractServiceImpl implements ContractService {
             ContractRuleEntity contractRule = ContractRuleEntity.builder()
                     .contractEntity(savedContract)
                     .vehicleRuleEntity(vehicleRule)
-                    .numOfVehicles(count.intValue())
+                    .numOfVehicles(count)
                     .status(CommonStatusEnum.ACTIVE.name())
                     .build();
+
+            // 🔑 Lấy các orderDetails từ assignments
+            List<UUID> detailIds = assignments.stream()
+                    .filter(a -> a.getVehicleRuleId().equals(vehicleRuleId))
+                    .flatMap(a -> a.getAssignedDetails().stream())
+                    .toList();
+
+            if (!detailIds.isEmpty()) {
+                List<OrderDetailEntity> orderDetailEntities = orderDetailEntityService.findAllByIds(detailIds);
+                contractRule.getOrderDetails().addAll(orderDetailEntities);
+            }
 
             contractRuleEntityService.save(contractRule);
         }
 
-        BigDecimal totalPrice = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
+
+        PriceCalculationResponse totalPriceResponse = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
+
+        BigDecimal totalPrice = totalPriceResponse.getTotalPrice();
 
         savedContract.setTotalValue(totalPrice);
         ContractEntity updatedContract = contractEntityService.save(savedContract);
@@ -382,15 +397,12 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
-    public BigDecimal calculateTotalPrice(ContractEntity contract,
-                                          BigDecimal distanceKm,
-                                          Map<UUID, Integer> vehicleCountMap) {
+    public PriceCalculationResponse calculateTotalPrice(ContractEntity contract,
+                                                        BigDecimal distanceKm,
+                                                        Map<UUID, Integer> vehicleCountMap) {
         final long t0 = System.nanoTime();
-        log.info("[calcTotal] Start for contractId={}, distanceKm={}, vehicleKinds={}",
-                contract.getId(), distanceKm, vehicleCountMap.size());
 
         if (contract.getOrderEntity() == null || contract.getOrderEntity().getCategory() == null) {
-            log.error("[calcTotal] Contract missing order/category. contractId={}", contract.getId());
             throw new BadRequestException("Contract missing order/category", ErrorEnum.INVALID.getErrorCode());
         }
 
@@ -399,27 +411,21 @@ public class ContractServiceImpl implements ContractService {
                 .sorted(Comparator.comparing(DistanceRuleEntity::getFromKm))
                 .toList();
 
-        log.info("[calcTotal] Distance rules loaded: count={}", distanceRules.size());
         if (distanceRules.isEmpty()) {
-            log.error("[calcTotal] No distance rules found");
             throw new RuntimeException("No distance rules found");
         }
 
         BigDecimal total = BigDecimal.ZERO;
+        List<PriceCalculationResponse.CalculationStep> steps = new ArrayList<>();
 
+        // ✅ Tính giá theo phương tiện
         for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
             UUID vehicleRuleId = entry.getKey();
             int numOfVehicles = entry.getValue();
 
             VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findContractRuleEntitiesById(vehicleRuleId)
-                    .orElseThrow(() -> {
-                        log.error("[calcTotal] Vehicle rule not found: {}", vehicleRuleId);
-                        return new NotFoundException("Vehicle rule not found: " + vehicleRuleId,
-                                ErrorEnum.NOT_FOUND.getErrorCode());
-                    });
-
-            log.info("[calcTotal] VehicleRule id={} name={} vehicles={}",
-                    vehicleRule.getId(), vehicleRule.getVehicleRuleName(), numOfVehicles);
+                    .orElseThrow(() -> new NotFoundException("Vehicle rule not found: " + vehicleRuleId,
+                            ErrorEnum.NOT_FOUND.getErrorCode()));
 
             BigDecimal ruleTotal = BigDecimal.ZERO;
             BigDecimal remaining = distanceKm;
@@ -433,56 +439,109 @@ public class ContractServiceImpl implements ContractService {
                 BasingPriceEntity basePriceEntity = basingPriceEntityService
                         .findBasingPriceEntityByVehicleRuleEntityIdAndDistanceRuleEntityId(
                                 vehicleRule.getId(), distanceRule.getId())
-                        .orElseThrow(() -> {
-                            log.error("[calcTotal] No base price for tier {}-{} and vehicleRule={}", from, to, vehicleRule.getId());
-                            return new RuntimeException("No base price found for tier "
-                                    + from + "-" + to + " and vehicleRule=" + vehicleRule.getId());
-                        });
+                        .orElseThrow(() -> new RuntimeException("No base price found for tier "
+                                + from + "-" + to + " and vehicleRule=" + vehicleRule.getId()));
 
                 if (from.compareTo(BigDecimal.ZERO) == 0 && to.compareTo(BigDecimal.valueOf(4)) == 0) {
+                    // fixed tier
                     ruleTotal = ruleTotal.add(basePriceEntity.getBasePrice());
                     remaining = remaining.subtract(to);
-                    log.info("[calcTotal] Applied fixed tier 0-4km base={}, remaining={}",
-                            basePriceEntity.getBasePrice(), remaining);
+
+                    steps.add(PriceCalculationResponse.CalculationStep.builder()
+                            .vehicleRuleName(vehicleRule.getVehicleRuleName())
+                            .numOfVehicles(numOfVehicles)
+                            .distanceRange("0-4 km (cố định)")
+                            .unitPrice(basePriceEntity.getBasePrice())
+                            .appliedKm(BigDecimal.valueOf(4))
+                            .subtotal(basePriceEntity.getBasePrice())
+                            .build());
+
                 } else {
                     BigDecimal tierDistance = (to == null) ? remaining : remaining.min(to.subtract(from));
                     BigDecimal add = basePriceEntity.getBasePrice().multiply(tierDistance);
                     ruleTotal = ruleTotal.add(add);
                     remaining = remaining.subtract(tierDistance);
-                    log.info("[calcTotal] Applied tier {}-{}km price={} * {}km = {}, remaining={}",
-                            from, to, basePriceEntity.getBasePrice(), tierDistance, add, remaining);
+
+                    steps.add(PriceCalculationResponse.CalculationStep.builder()
+                            .vehicleRuleName(vehicleRule.getVehicleRuleName())
+                            .numOfVehicles(numOfVehicles)
+                            .distanceRange(from + "-" + (to == null ? "∞" : to) + " km")
+                            .unitPrice(basePriceEntity.getBasePrice())
+                            .appliedKm(tierDistance)
+                            .subtotal(add)
+                            .build());
                 }
             }
 
             if (numOfVehicles > 0) {
                 ruleTotal = ruleTotal.multiply(BigDecimal.valueOf(numOfVehicles));
-                log.info("[calcTotal] Multiply by vehicles={}, subtotal={}", numOfVehicles, ruleTotal);
             }
 
             total = total.add(ruleTotal);
         }
 
+        // ✅ Lưu tổng trước khi điều chỉnh
+        BigDecimal totalBeforeAdjustment = total;
+        BigDecimal categoryExtraFee = BigDecimal.ZERO;
+        BigDecimal categoryMultiplier = BigDecimal.ONE;
+        BigDecimal promotionDiscount = BigDecimal.ZERO;
+
+        // ✅ Điều chỉnh theo loại hàng
         CategoryPricingDetailEntity adjustment =
                 categoryPricingDetailEntityService.findByCategoryId(contract.getOrderEntity().getCategory().getId());
+// ✅ Điều chỉnh theo loại hàng
         if (adjustment != null) {
-            BigDecimal multiplier = adjustment.getPriceMultiplier() != null ? adjustment.getPriceMultiplier() : BigDecimal.ONE;
-            BigDecimal extraFee = adjustment.getExtraFee() != null ? adjustment.getExtraFee() : BigDecimal.ZERO;
-            total = total.multiply(multiplier).add(extraFee);
-            log.info("[calcTotal] Category adjustment applied: multiplier={}, extraFee={}, total={}",
-                    multiplier, extraFee, total);
-        } else {
-            log.info("[calcTotal] No category adjustment found");
+            categoryMultiplier = adjustment.getPriceMultiplier() != null ? adjustment.getPriceMultiplier() : BigDecimal.ONE;
+            categoryExtraFee = adjustment.getExtraFee() != null ? adjustment.getExtraFee() : BigDecimal.ZERO;
+
+            BigDecimal adjustedTotal = total.multiply(categoryMultiplier).add(categoryExtraFee);
+
+            steps.add(PriceCalculationResponse.CalculationStep.builder()
+                    .vehicleRuleName("Điều chỉnh loại hàng: " + contract.getOrderEntity().getCategory().getCategoryName())
+                    .numOfVehicles(0)
+                    .distanceRange("×" + categoryMultiplier + " + " + categoryExtraFee + " VND")
+                    .unitPrice(categoryMultiplier)
+                    .appliedKm(BigDecimal.ZERO)
+                    .subtotal(adjustedTotal.subtract(total)) // phần chênh lệch
+                    .build());
+
+            total = adjustedTotal;
         }
 
+// ✅ Promotion
+        if (promotionDiscount.compareTo(BigDecimal.ZERO) > 0) {
+            steps.add(PriceCalculationResponse.CalculationStep.builder()
+                    .vehicleRuleName("Khuyến mãi")
+                    .numOfVehicles(0)
+                    .distanceRange("N/A")
+                    .unitPrice(promotionDiscount.negate())
+                    .appliedKm(BigDecimal.ZERO)
+                    .subtotal(promotionDiscount.negate())
+                    .build());
+
+            total = total.subtract(promotionDiscount);
+        }
+
+
         if (total.compareTo(BigDecimal.ZERO) < 0) {
-            log.error("[calcTotal] Total price negative: {}", total);
             throw new IllegalArgumentException("Total price must not be negative");
         }
 
         long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
-        log.info("[calcTotal] Final total={} for contractId={}, computed in {} ms", total, contract.getId(), elapsedMs);
-        return total;
+
+        return PriceCalculationResponse.builder()
+                .totalPrice(total) // giữ để tương thích
+                .totalBeforeAdjustment(totalBeforeAdjustment)
+                .categoryExtraFee(categoryExtraFee)
+                .categoryMultiplier(categoryMultiplier)
+                .promotionDiscount(promotionDiscount)
+                .finalTotal(total)
+                .steps(steps)
+                .summary("Tổng giá trị hợp đồng: " + total + " (tính trong " + elapsedMs + " ms)")
+                .build();
     }
+
+
 
     private boolean canFit(OrderDetailEntity detail, VehicleRuleEntity rule) {
         OrderSizeEntity size = detail.getOrderSizeEntity();

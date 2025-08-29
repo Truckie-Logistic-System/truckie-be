@@ -76,7 +76,10 @@ public class SecurityConfigurer {
     private String orderBasePath;
 
     @Value("${order-detail.api.base-path}")
-    private String orderDetailBasePath;
+    private String orderDetailApiBasePath;
+
+    @Value("${order-size.api.base-path}")
+    private String orderSizeBasePath;
 
     @Value("${issue-type.api.base-path}")
     private String issueTypeBasePath;
@@ -151,15 +154,16 @@ public class SecurityConfigurer {
                         .requestMatchers(distanceRuleApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(vehicleRuleApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(basingPriceApiBasePath + "/**").hasAuthority("ADMIN")
-                        .requestMatchers(orderApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(orderApiBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(contractApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(contractRuleApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(penaltyApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(orderDetailApiBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(orderBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
-                        .requestMatchers(orderDetailBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(issueTypeBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(issueBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(issueImageBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
+                        .requestMatchers(orderSizeBasePath + "/**").hasAnyAuthority("ADMIN","STAFF")
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)

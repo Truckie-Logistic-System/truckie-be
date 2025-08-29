@@ -11,5 +11,7 @@ public interface OrderDetailEntityService extends BaseEntityService<OrderDetailE
 
     List<OrderDetailEntity> saveAllOrderDetailEntities(List<OrderDetailEntity> orderDetailEntities);
 
+    List<OrderDetailEntity> findAllByIds(List<UUID> ids);
+
 
 }

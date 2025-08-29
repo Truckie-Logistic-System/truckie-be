@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Hợp đồng vận chuyển</title>
+    <style>
+        @font-face {
+            font-family: "DejaVuSans";
+            src: url("fonts/DejaVuSans.ttf") format("truetype");
+        }
+
+        body {
+            font-family: DejaVu Sans, sans-serif;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        h1, h2, h3 {
+            text-align: center;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        table, th, td {
+            border: 1px solid black;
+            padding: 6px;
+            text-align: left;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .highlight {
+            font-weight: bold;
+            color: darkred;
+        }
+
+        .formula {
+            font-style: italic;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+<h1>HỢP ĐỒNG VẬN CHUYỂN</h1>
+<h3>Số hợp đồng: <span th:text="${contract.contractName}"></span></h3>
+
+<div class="section">
+    <p>Hôm nay, ngày
+        <b th:text="${#temporals.format(contract.createdAt, 'dd/MM/yyyy')}"></b>,
+        tại <b>TP.HCM</b>, chúng tôi gồm:
+    </p>
+
+    <!-- Thông tin Khách hàng -->
+    <p><b>Bên A (Khách hàng):</b></p>
+    <ul>
+        <li>Công ty: <span th:text="${order.sender != null ? order.sender.companyName : 'N/A'}"></span></li>
+        <li>Người đại diện: <span th:text="${order.sender != null ? order.sender.representativeName : 'N/A'}"></span>
+        </li>
+        <li>SĐT đại diện: <span th:text="${order.sender != null ? order.sender.representativePhone : 'N/A'}"></span>
+        </li>
+        <li>Người đặt hàng: <span th:text="${fullName}"></span> | SĐT: <span th:text="${phoneNumber}"></span></li>
+        <li>Email đặt hàng: <span th:text="${senderEmail}"></span></li>
+        <li>Số ĐKKD: <span th:text="${order.sender != null ? order.sender.businessLicenseNumber : 'N/A'}"></span></li>
+        <li>Địa chỉ: <span th:text="${order.sender != null ? order.sender.businessAddress : 'N/A'}"></span></li>
+    </ul>
+
+    <!-- Thông tin Công ty vận tải -->
+    <p><b>Bên B (Công ty vận chuyển):</b></p>
+    <ul>
+        <li>Tên công ty: Công ty Vận Tải ABC</li>
+        <li>Địa chỉ: 123 Lê Lợi, Quận 1, TP.HCM</li>
+        <li>Điện thoại: 0123 456 789</li>
+    </ul>
+</div>
+
+<div class="section">
+    <h3>ĐIỀU KHOẢN HỢP ĐỒNG</h3>
+    <p>1. Bên B đồng ý vận chuyển hàng hóa theo đơn hàng:
+        <b th:text="${order.orderCode}"></b>.
+    </p>
+    <p>2. Người nhận: <b th:text="${order.receiverName}"></b> |
+        SĐT: <b th:text="${order.receiverPhone}"></b></p>
+    <p>3. Ghi chú: <i th:text="${order.notes != null ? order.notes : 'Không có'}"></i></p>
+</div>
+
+<div class="section">
+    <h3>CHI TIẾT HÀNG HÓA</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>STT</th>
+            <th>Mô tả</th>
+            <th>Khối lượng (kg)</th>
+            <th>Kích thước (DxRxC)</th>
+            <th>Tracking Code</th>
+            <th>Trạng thái</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="detail, iter : ${order.orderDetailEntities}">
+            <td th:text="${iter.index + 1}"></td>
+            <td th:text="${detail.description}"></td>
+            <td th:text="${detail.weight}"></td>
+            <td th:text="${detail.orderSizeEntity != null ? detail.orderSizeEntity.getMaxLength() + 'x' + detail.orderSizeEntity.getMaxWidth() + 'x' + detail.orderSizeEntity.getMaxHeight() : 'N/A'}"></td>
+            <td th:text="${detail.trackingCode}"></td>
+            <td th:text="${detail.status}"></td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="section">
+    <h3>CHI PHÍ VẬN CHUYỂN</h3>
+
+    <p><b>Tóm tắt chi phí:</b></p>
+    <ul>
+        <li>Tổng trước điều chỉnh:
+            <b th:text="${#numbers.formatDecimal(totalBeforeAdjustment, 0, 'POINT', 0, 'COMMA')} + ' VND'"></b>
+        </li>
+        <li>Hệ số loại hàng:
+            <b th:text="${categoryMultiplier}"></b>
+        </li>
+        <li>Phụ phí loại hàng:
+            <b th:text="${#numbers.formatDecimal(categoryExtraFee, 0, 'POINT', 0, 'COMMA')} + ' VND'"></b>
+        </li>
+        <li>Giảm giá khuyến mãi:
+            <b th:text="${#numbers.formatDecimal(promotionDiscount, 0, 'POINT', 0, 'COMMA')} + ' VND'"></b>
+        </li>
+        <li class="highlight">Tổng cuối cùng:
+            <b th:text="${#numbers.formatDecimal(finalTotal, 0, 'POINT', 0, 'COMMA')} + ' VND'"></b>
+        </li>
+    </ul>
+
+    <h4>Chi tiết các bước tính giá:</h4>
+    <table>
+        <thead>
+        <tr>
+            <th>STT</th>
+            <th>Loại xe / Điều chỉnh</th>
+            <th>Số lượng xe</th>
+            <th>Khoảng cách áp dụng</th>
+            <th>Đơn giá</th>
+            <th>Số km</th>
+            <th>Thành tiền</th>
+            <th>Công thức tính</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="step, iter : ${calculationDetails}">
+            <td th:text="${iter.index + 1}"></td>
+            <td th:text="${step.vehicleRuleName}"></td>
+            <td th:text="${step.numOfVehicles > 0 ? step.numOfVehicles : '-'}"></td>
+            <td th:text="${step.distanceRange}"></td>
+            <td th:text="${#numbers.formatDecimal(step.unitPrice, 0, 'POINT', 0, 'COMMA')} + ' VND'"></td>
+            <td th:text="${step.appliedKm > 0 ? step.appliedKm : '-'}"></td>
+            <td th:text="${#numbers.formatDecimal(step.subtotal, 0, 'POINT', 0, 'COMMA')} + ' VND'"></td>
+            <td class="formula">
+                <span th:if="${step.distanceRange.contains('0-4')}">
+                    (<span th:text="${step.numOfVehicles}"></span> xe × gói cố định
+                    <span th:text="${#numbers.formatDecimal(step.unitPrice, 0, 'POINT', 0, 'COMMA')}"></span>)
+                </span>
+                <span th:if="${!step.distanceRange.contains('0-4') and step.numOfVehicles > 0}">
+                    (<span th:text="${step.numOfVehicles}"></span> xe ×
+                    <span th:text="${#numbers.formatDecimal(step.unitPrice, 0, 'POINT', 0, 'COMMA')}"></span> ×
+                    <span th:text="${step.appliedKm}"></span> km)
+                </span>
+                <span th:if="${step.numOfVehicles == 0}">
+                    Tổng trước điều chỉnh × <span th:text="${step.unitPrice}"></span>
+                    + phụ phí <span th:text="${#numbers.formatDecimal(step.subtotal, 0, 'POINT', 0, 'COMMA')}"></span>
+                </span>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="section">
+    <h3>CHỮ KÝ XÁC NHẬN</h3>
+    <table>
+        <tr>
+            <td class="text-center">
+                <b>BÊN A (Khách hàng)</b><br/><br/><br/>
+                Ký, ghi rõ họ tên
+            </td>
+            <td class="text-center">
+                <b>BÊN B (Công ty vận chuyển)</b><br/><br/><br/>
+                Ký, ghi rõ họ tên
+            </td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

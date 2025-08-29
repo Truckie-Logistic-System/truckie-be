@@ -1,11 +1,11 @@
 package capstone_project.dtos.request.vehicle;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 
 public record UpdateVehicleAssignmentRequest(
         String vehicleId,
         String driverId,
-        Instant startDate,
-        Instant endDate,
+        String description,
         String status
 ) {}

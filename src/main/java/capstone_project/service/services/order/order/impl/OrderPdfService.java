@@ -1,57 +1,88 @@
 package capstone_project.service.services.order.order.impl;
 
-import capstone_project.dtos.response.order.OrderPdfResponse;
+import capstone_project.dtos.response.order.ContractPdfResponse;
+import capstone_project.dtos.response.order.ListContractRuleAssignResult;
+import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
+import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderEntity;
-import capstone_project.service.entityServices.order.order.OrderEntityService;
+import capstone_project.service.entityServices.order.contract.ContractEntityService;
 import capstone_project.service.services.cloudinary.CloudinaryService;
+import capstone_project.service.services.order.order.ContractRuleService;
+import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.pdf.PdfGenerationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class OrderPdfService {
 
-    private final OrderEntityService orderEntityService;
+    private final ContractEntityService contractEntityService;
+    private final ContractService contractService;
+    private final ContractRuleService contractRuleAssignService;
     private final PdfGenerationService pdfGenerationService;
     private final CloudinaryService cloudinaryService;
 
-    public OrderPdfResponse generateAndUploadOrderPdf(UUID orderId) {
+    public ContractPdfResponse generateAndUploadContractPdf(UUID contractId) {
         try {
-            // 1. Get the order
-            OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderId)
-                    .orElseThrow(() -> new IllegalArgumentException("Order not found with id: " + orderId));
+            ContractEntity contract = contractEntityService.findContractRuleEntitiesById(contractId)
+                    .orElseThrow(() -> new IllegalArgumentException("Contract not found: " + contractId));
 
-            // 2. Generate PDF
-            byte[] pdfBytes = pdfGenerationService.generateOrderPdf(order);
+            OrderEntity order = contract.getOrderEntity();
+            if (order == null) {
+                throw new IllegalStateException("No order found for contract id: " + contractId);
+            }
 
-            // 3. Upload to Cloudinary
-            String fileName = "order_" + order.getOrderCode() + "_" + System.currentTimeMillis();
+            ListContractRuleAssignResult assignResult =
+                    contractRuleAssignService.getListAssignOrUnAssignContractRule(contractId);
+
+
+            Map<UUID, Integer> vehicleCountMap = assignResult.vehicleAssignments().stream()
+                    .collect(Collectors.groupingBy(ContractRuleAssignResponse::getVehicleRuleId, Collectors.summingInt(a -> 1)));
+
+
+            BigDecimal distanceKm = contractService.calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress());
+
+//            BigDecimal distanceKm = BigDecimal.valueOf(100.00);
+
+            byte[] pdfBytes = pdfGenerationService.generateContractPdf(
+                    contract,
+                    order,
+                    assignResult,
+                    distanceKm,
+                    vehicleCountMap
+            );
+
+            String fileName = "contract_" + contract.getContractName() + "_" + System.currentTimeMillis();
             Map<String, Object> uploadResult = cloudinaryService.uploadFile(
                     pdfBytes,
                     fileName,
-                    "order_pdfs"
+                    "contract_pdfs"
             );
 
-            // 4. Create and return response
-            return OrderPdfResponse.builder()
-                    .orderId(orderId.toString())
-                    .pdfUrl((String) uploadResult.get("secure_url"))
-                    .message("PDF generated and uploaded successfully")
+            String pdfUrl = (String) uploadResult.get("secure_url");
+
+            return ContractPdfResponse.builder()
+                    .contractId(contractId.toString())
+                    .pdfUrl(pdfUrl)
+                    .message("Contract PDF generated and uploaded successfully")
                     .build();
 
         } catch (Exception e) {
-            log.error("Error generating/uploading order PDF: {}", e.getMessage(), e);
-            return OrderPdfResponse.builder()
-                    .orderId(orderId.toString())
+            log.error("Error generating/uploading contract PDF: {}", e.getMessage(), e);
+            return ContractPdfResponse.builder()
+                    .contractId(contractId.toString())
                     .pdfUrl(null)
-                    .message("Failed to generate/upload PDF: " + e.getMessage())
+                    .message("Failed to generate/upload Contract PDF: " + e.getMessage())
                     .build();
         }
     }
+
 }

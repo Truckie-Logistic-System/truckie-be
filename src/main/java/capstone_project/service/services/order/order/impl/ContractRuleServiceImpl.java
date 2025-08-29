@@ -8,6 +8,7 @@ import capstone_project.dtos.request.order.ContractRuleRequest;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleResponse;
+import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
@@ -277,11 +278,13 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         OrderEntity order = contractEntity.getOrderEntity();
 
-        BigDecimal newTotal = contractService.calculateTotalPrice(contractEntity,
+        PriceCalculationResponse newTotal = contractService.calculateTotalPrice(contractEntity,
                 contractService.calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress()),
                 vehicleCountMap);
 
-        contractEntity.setTotalValue(newTotal);
+        BigDecimal newTotalValue = newTotal.getTotalPrice();
+
+        contractEntity.setTotalValue(newTotalValue);
         contractEntityService.save(contractEntity);
 
         return ListContractRuleAssignResult.builder()
@@ -383,11 +386,13 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                 .collect(Collectors.groupingBy(r -> r.getVehicleRuleEntity().getId(), Collectors.summingInt(r -> 1)));
 
         OrderEntity order = contractEntity.getOrderEntity();
-        BigDecimal newTotal = contractService.calculateTotalPrice(
+        PriceCalculationResponse newTotalResponse = contractService.calculateTotalPrice(
                 contractEntity,
                 contractService.calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress()),
                 vehicleCountMap
         );
+
+        BigDecimal newTotal = newTotalResponse.getTotalPrice();
 
         contractEntity.setTotalValue(newTotal);
         contractEntityService.save(contractEntity);

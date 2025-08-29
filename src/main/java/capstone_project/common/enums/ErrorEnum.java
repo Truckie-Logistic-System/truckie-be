@@ -19,6 +19,7 @@ public enum ErrorEnum {
     ENUM_INVALID(17, "Invalid enum value"),
     INVALID_EMAIL(18, "Can not parse email address"),
     INVALID_REQUEST(19, "Invalid request"),
+    ROLE_NOT_FOUND(20, "Role not found"),
     ;
     private final String message;
     private final long errorCode;

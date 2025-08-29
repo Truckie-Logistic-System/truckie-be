@@ -85,9 +85,9 @@ public class RegisterServiceImpl implements RegisterService {
         try {
 
             RoleEntity role = roleEntityService.findByRoleName(roleTypeEnum.name())
-                    .orElseThrow(() -> new InternalServerException(
+                    .orElseThrow(() -> new BadRequestException(
                             "Role " + roleTypeEnum.name() + " not found",
-                            ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
+                            ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
                     ));
 
             LocalDateTime validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
@@ -140,9 +140,9 @@ public class RegisterServiceImpl implements RegisterService {
         try {
 
             RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.CUSTOMER.name())
-                    .orElseThrow(() -> new InternalServerException(
-                            "Role CUSTOMER not found",
-                            ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
+                    .orElseThrow(() -> new BadRequestException(
+                            "Role " + RoleTypeEnum.CUSTOMER.name() + " not found",
+                            ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
                     ));
 
             LocalDateTime validatedDob = validateDateFormat(registerCustomerRequest.getDateOfBirth());
@@ -221,9 +221,9 @@ public class RegisterServiceImpl implements RegisterService {
         try {
 
             RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.DRIVER.name())
-                    .orElseThrow(() -> new InternalServerException(
-                            "Role CUSTOMER not found",
-                            ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
+                    .orElseThrow(() -> new BadRequestException(
+                            "Role " + RoleTypeEnum.DRIVER.name() + " not found",
+                            ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
                     ));
 
             LocalDateTime validatedDob = validateDateFormat(registerDriverRequest.getDateOfBirth());

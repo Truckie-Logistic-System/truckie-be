@@ -69,6 +69,8 @@ public class OrderEntity extends BaseEntity {
     private CategoryEntity category;
 
     @OneToMany(mappedBy = "orderEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private List<OrderDetailEntity> orderDetailEntities = new ArrayList<>();
 
 }

@@ -21,7 +21,7 @@ public interface VehicleMapper {
 
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    @Mapping(source = "vehicleTypeId", target = "vehicleTypeEntity.id")
+//    @Mapping(source = "vehicleTypeId", target = "vehicleTypeEntity.id")
     @Mapping(source = "currentLatitude",  target = "currentLatitude")
     @Mapping(source = "currentLongitude", target = "currentLongitude")
     void toVehicleEntity(UpdateVehicleRequest req,

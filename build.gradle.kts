@@ -90,6 +90,10 @@ dependencies {
 	// Jackson
 	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.2")
 
+	// Thymeleaf
+	implementation("org.springframework.boot:spring-boot-starter-thymeleaf:3.5.5")
+	implementation("org.xhtmlrenderer:flying-saucer-pdf:9.13.3")
+
 	// Test
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")

@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface UserEntityService extends BaseEntityService<UserEntity, UUID> {
-//    Optional<UsersEntity> getUserById(UUID id);
+    Optional<UserEntity> getUserById(UUID id);
 
     /**
      * Gets user by username.

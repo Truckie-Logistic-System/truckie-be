@@ -8,6 +8,6 @@ import java.util.UUID;
 public interface DistanceService {
     DistanceTimeResponse calculateDistanceAndTime(UUID orderId);
     RouteInstructionsResponse getRouteInstructions(UUID orderId);
-    double getDistanceInMeters(UUID orderId);
-    long getTravelTimeInSeconds(UUID orderId);
+    double getDistanceInKilometers(UUID orderId);
+    double getTravelTimeInHours(UUID orderId);
 }

@@ -18,6 +18,11 @@ public class UserEntityServiceImpl implements UserEntityService {
     private final UserRepository userRepository;
 
     @Override
+    public Optional<UserEntity> getUserById(UUID id) {
+        return userRepository.findById(id);
+    }
+
+    @Override
     public Optional<UserEntity> getUserByUserName(final String username) {
         return userRepository.findByUsername(username);
     }

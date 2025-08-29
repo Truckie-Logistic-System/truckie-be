@@ -4,12 +4,13 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 
 public record UpdateVehicleMaintenanceRequest(
-        Instant maintenanceDate,
+        LocalDateTime maintenanceDate,
         @Size(max = 200) String description,
         BigDecimal cost,
-        Instant nextMaintenanceDate,
+        LocalDateTime nextMaintenanceDate,
         Integer odometerReading,
         @Size(max = 200) String serviceCenter,
         String vehicleId,

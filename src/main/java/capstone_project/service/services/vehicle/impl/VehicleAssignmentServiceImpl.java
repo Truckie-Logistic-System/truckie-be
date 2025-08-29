@@ -5,7 +5,11 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
+import capstone_project.dtos.response.vehicle.VehicleResponse;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.entity.vehicle.VehicleEntity;
+import capstone_project.entity.vehicle.VehicleMaintenanceEntity;
+import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.service.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.mapper.vehicle.VehicleAssignmentMapper;
 import capstone_project.service.services.service.RedisService;
@@ -31,23 +35,40 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     @Override
     public List<VehicleAssignmentResponse> getAllAssignments() {
-        var cached = redis.getList(KEY_ALL, VehicleAssignmentEntity.class);
-        var list   = cached != null ? cached : entityService.findAll();
-        if (list.isEmpty())
+        log.info("Fetching all vehicles");
+
+        List<VehicleAssignmentResponse> cachedResponses = redis.getList(
+                KEY_ALL, VehicleAssignmentResponse.class
+        );
+
+        if (cachedResponses != null) {
+            log.info("Returning cached vehicles");
+            return cachedResponses;
+        }
+
+        log.info("No cached vehicles found, fetching from database");
+        List<VehicleAssignmentEntity> entities = entityService.findAll();
+        if (entities.isEmpty()) {
             throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
-        if (cached == null) redis.save(KEY_ALL, list);
-        return list.stream().map(mapper::toResponse).toList();
+        }
+
+        List<VehicleAssignmentResponse> responses = entities.stream()
+                .map(mapper::toResponse)
+                .toList();
+
+        redis.save(KEY_ALL, responses);
+
+        return responses;
     }
 
     @Override
     public VehicleAssignmentResponse getAssignmentById(UUID id) {
-        var key = KEY_ID + id;
-        var entity = redis.get(key, VehicleAssignmentEntity.class);
-        if (entity == null) {
-            entity = entityService.findContractRuleEntitiesById(id).orElseThrow(() ->
-                    new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
-            redis.save(key, entity);
-        }
+        log.info("Fetching vehicle assingment by ID: {}", id);
+        VehicleAssignmentEntity entity = entityService.findContractRuleEntitiesById(id)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
         return mapper.toResponse(entity);
     }
 
@@ -61,12 +82,23 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     @Override
     public VehicleAssignmentResponse updateAssignment(UUID id, UpdateVehicleAssignmentRequest req) {
+        // Fetch existing entity
         var existing = entityService.findContractRuleEntitiesById(id).orElseThrow(() ->
                 new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
+
+        // Map request into existing entity
         mapper.toEntity(req, existing);
+
+        // Save updated entity
         var updated = entityService.save(existing);
+
+        // Map to response (DTO) before caching
+        var response = mapper.toResponse(updated);
+
+        // Invalidate and refresh cache
         redis.delete(KEY_ALL);
-        redis.save(KEY_ID + updated.getId(), updated);
-        return mapper.toResponse(updated);
+        redis.save(KEY_ID + id, response);
+
+        return response;
     }
 }

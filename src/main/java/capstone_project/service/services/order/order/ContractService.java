@@ -3,6 +3,7 @@ package capstone_project.service.services.order.order;
 import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
+import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.user.address.AddressEntity;
 
@@ -24,9 +25,9 @@ public interface ContractService {
 
     List<ContractRuleAssignResponse> assignVehicles(UUID orderId);
 
-    BigDecimal calculateTotalPrice(ContractEntity contract,
-                                   BigDecimal distanceKm,
-                                   Map<UUID, Integer> vehicleCountMap);
+    PriceCalculationResponse calculateTotalPrice(ContractEntity contract,
+                                                 BigDecimal distanceKm,
+                                                 Map<UUID, Integer> vehicleCountMap);
 
     BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to);
 
