@@ -10,6 +10,7 @@ import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderDetailRequest;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
+import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
@@ -29,6 +30,7 @@ import capstone_project.service.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.order.OrderDetailMapper;
 import capstone_project.service.mapper.order.OrderMapper;
+import capstone_project.service.services.order.order.ContractRuleService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderDetailService;
 import capstone_project.service.services.order.order.OrderService;
@@ -50,6 +52,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     private final ContractEntityService contractEntityService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final VehicleRuleEntityService vehicleRuleEntityService;
+    private final ContractRuleService contractRuleService;
     private final VehicleTypeEntityService vehicleTypeEntityService;
     private final VehicleEntityService vehicleEntityService;
     private final OrderService orderService;
@@ -278,44 +281,110 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         return false;
     }
 
+//    @Override
+//    @Transactional
+//    public List<GetOrderDetailResponse> updateVehicleAssigmentForEachOrderDetails(UUID orderId) {
+//        log.info("Updating vehicle assigment for order ID: {}", orderId);
+//
+//        //Lấy list assign phan bo tung detail cho moi vehicle rule
+//        List<ContractRuleAssignResponse> assignResponses = contractService.assignVehicles(orderId);
+//        Map<UUID,List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
+//        for(ContractRuleAssignResponse contractRuleAssignResponse : assignResponses){
+//            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findContractRuleEntitiesById(vehicleRuleEntityService.findContractRuleEntitiesById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
+//            mapVehicleTypeAndOrderDetail.put(
+//                    vehicleTypeEntity.getId(),
+//                    contractRuleAssignResponse.getAssignedDetails()
+//            );
+//        }
+//
+//        List<VehicleAssignmentEntity> listVehicleAssignments = vehicleAssignmentEntityService.findByStatus(CommonStatusEnum.ACTIVE.name());
+//        if(listVehicleAssignments.isEmpty()){
+//            throw new NotFoundException(
+//                    ErrorEnum.INVALID_REQUEST.getMessage() + " listVehicleAssignments doesn't have any Active status now" ,
+//                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+//            );
+//        }
+//
+//
+//
+//        for (VehicleAssignmentEntity vehicleAssignmentEntity : listVehicleAssignments) {
+//            UUID vehicleTypeId = vehicleAssignmentEntity.getVehicleEntity().getVehicleTypeEntity().getId();
+//            List<OrderDetailEntity> toUpdate = new ArrayList<>();
+//            if (mapVehicleTypeAndOrderDetail.containsKey(vehicleTypeId)) {
+//                for (UUID orderDetailId : mapVehicleTypeAndOrderDetail.get(vehicleTypeId)) {
+//                    OrderDetailEntity detail = orderDetailEntityService.findContractRuleEntitiesById(orderDetailId)
+//                            .orElseThrow(() -> new NotFoundException(
+//                                    ErrorEnum.NOT_FOUND.getMessage() + " order detail with ID: " + orderDetailId,
+//                                    ErrorEnum.NOT_FOUND.getErrorCode()
+//                            ));
+//                    detail.setVehicleAssignmentEntity(vehicleAssignmentEntity);
+//                    detail.setStatus(OrderStatusEnum.ASSIGNED_TO_DRIVER.name());
+//                    toUpdate.add(detail);
+//                }
+//                orderDetailEntityService.saveAllOrderDetailEntities(toUpdate);
+//                vehicleAssignmentEntity.setStatus(VehicleAssignmentStatusEnum.ASSIGNED.name());
+//            }
+//        }
+//
+//
+//
+//        return orderDetailMapper.toGetOrderDetailResponseList(orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId));
+//    }
+
+
     @Override
     @Transactional
     public List<GetOrderDetailResponse> updateVehicleAssigmentForEachOrderDetails(UUID orderId) {
-        log.info("Updating vehicle assigment for order ID: {}", orderId);
+        log.info("Updating vehicle assignment for order ID: {}", orderId);
 
-        //Lấy list assign phan bo tung detail cho moi vehicle rule
-        List<ContractRuleAssignResponse> assignResponses = contractService.assignVehicles(orderId);
-        Map<UUID,List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
-        for(ContractRuleAssignResponse contractRuleAssignResponse : assignResponses){
-            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findContractRuleEntitiesById(vehicleRuleEntityService.findContractRuleEntitiesById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
-            mapVehicleTypeAndOrderDetail.put(
-                    vehicleTypeEntity.getId(),
-                    contractRuleAssignResponse.getAssignedDetails()
-            );
+        // 1. Lấy contractEntity từ orderId
+        ContractEntity contractEntity = contractEntityService.getContractByOrderId(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Contract not found for orderId=" + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // 2. Gọi service getListAssignOrUnAssignContractRule
+        ListContractRuleAssignResult assignResult =
+                contractRuleService.getListAssignOrUnAssignContractRule(contractEntity.getId());
+
+        // 3. Map VehicleTypeId -> List<OrderDetailId>
+        Map<UUID, List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
+        for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
+            UUID vehicleRuleId = response.getVehicleRuleId();
+
+            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findContractRuleEntitiesById(vehicleRuleId)
+                    .orElseThrow(() -> new NotFoundException(
+                            "Vehicle rule not found: " + vehicleRuleId,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+
+            UUID vehicleTypeId = vehicleRule.getVehicleTypeEntity().getId();
+            mapVehicleTypeAndOrderDetail.put(vehicleTypeId, response.getAssignedDetails());
         }
 
-        List<VehicleAssignmentEntity> listVehicleAssignments = vehicleAssignmentEntityService.findByStatus(CommonStatusEnum.ACTIVE.name());
-        if(listVehicleAssignments.isEmpty()){
-            throw new NotFoundException(
-                    ErrorEnum.INVALID_REQUEST.getMessage() + " listVehicleAssignments doesn't have any Active status now" ,
-                    ErrorEnum.INVALID_REQUEST.getErrorCode()
-            );
+        // 4. Lấy vehicleAssignments khả dụng
+        List<VehicleAssignmentEntity> listVehicleAssignments =
+                vehicleAssignmentEntityService.findByStatus(CommonStatusEnum.ACTIVE.name());
+
+        if (listVehicleAssignments.isEmpty()) {
+            throw new NotFoundException("No active vehicle assignments available",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode());
         }
 
-
-
+        // 5. Assign
         for (VehicleAssignmentEntity vehicleAssignmentEntity : listVehicleAssignments) {
             UUID vehicleTypeId = vehicleAssignmentEntity.getVehicleEntity().getVehicleTypeEntity().getId();
-            List<OrderDetailEntity> toUpdate = new ArrayList<>();
             if (mapVehicleTypeAndOrderDetail.containsKey(vehicleTypeId)) {
+                List<OrderDetailEntity> toUpdate = new ArrayList<>();
                 for (UUID orderDetailId : mapVehicleTypeAndOrderDetail.get(vehicleTypeId)) {
                     OrderDetailEntity detail = orderDetailEntityService.findContractRuleEntitiesById(orderDetailId)
                             .orElseThrow(() -> new NotFoundException(
-                                    ErrorEnum.NOT_FOUND.getMessage() + " order detail with ID: " + orderDetailId,
+                                    "Order detail not found: " + orderDetailId,
                                     ErrorEnum.NOT_FOUND.getErrorCode()
                             ));
                     detail.setVehicleAssignmentEntity(vehicleAssignmentEntity);
-                    detail.setStatus(OrderStatusEnum.ASSIGNED_TO_DRIVER.name());
+                    changeStatusOrderDetailExceptTroubles(detail.getId(),OrderStatusEnum.ASSIGNED_TO_DRIVER);
                     toUpdate.add(detail);
                 }
                 orderDetailEntityService.saveAllOrderDetailEntities(toUpdate);
@@ -323,10 +392,12 @@ public class OrderDetailServiceImpl implements OrderDetailService {
             }
         }
 
-
-
-        return orderDetailMapper.toGetOrderDetailResponseList(orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId));
+        // 6. Return kết quả cuối cùng
+        return orderDetailMapper.toGetOrderDetailResponseList(
+                orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId)
+        );
     }
+
 
     @Override
     public List<GetOrderDetailResponse> getAllOrderDetails() {

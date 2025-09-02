@@ -80,4 +80,11 @@ public class OrderDetailController {
         final var result = orderDetailService.getAllOrderDetails();
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    @PutMapping("update-vehicle-assignment-for-details")
+    public ResponseEntity<ApiResponse<List<GetOrderDetailResponse>>> updateVehicleAssignmentForDetailsIfContractExisted(
+            @Valid @RequestParam UUID orderId) {
+        final var result = orderDetailService.updateVehicleAssigmentForEachOrderDetails(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }
