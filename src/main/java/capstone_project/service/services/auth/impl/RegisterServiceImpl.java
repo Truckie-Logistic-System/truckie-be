@@ -4,9 +4,12 @@ import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
-import capstone_project.common.exceptions.dto.InternalServerException;
 import capstone_project.common.exceptions.dto.NotFoundException;
-import capstone_project.dtos.request.auth.*;
+import capstone_project.common.utils.JWTUtil;
+import capstone_project.dtos.request.auth.LoginWithGoogleRequest;
+import capstone_project.dtos.request.auth.LoginWithoutEmailRequest;
+import capstone_project.dtos.request.auth.RefreshTokenRequest;
+import capstone_project.dtos.request.auth.RegisterUserRequest;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
 import capstone_project.dtos.request.user.RegisterDriverRequest;
 import capstone_project.dtos.response.auth.LoginResponse;
@@ -19,16 +22,15 @@ import capstone_project.entity.auth.RoleEntity;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.entity.user.driver.DriverEntity;
+import capstone_project.service.entityServices.auth.RefreshTokenEntityService;
 import capstone_project.service.entityServices.auth.RoleEntityService;
+import capstone_project.service.entityServices.auth.UserEntityService;
 import capstone_project.service.entityServices.user.CustomerEntityService;
 import capstone_project.service.entityServices.user.DriverEntityService;
-import capstone_project.service.entityServices.auth.RefreshTokenEntityService;
-import capstone_project.service.entityServices.auth.UserEntityService;
 import capstone_project.service.mapper.user.CustomerMapper;
 import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.mapper.user.UserMapper;
 import capstone_project.service.services.auth.RegisterService;
-import capstone_project.common.utils.JWTUtil;
 import capstone_project.service.services.email.EmailProtocolService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -82,43 +84,32 @@ public class RegisterServiceImpl implements RegisterService {
             );
         });
 
-        try {
 
-            RoleEntity role = roleEntityService.findByRoleName(roleTypeEnum.name())
-                    .orElseThrow(() -> new BadRequestException(
-                            "Role " + roleTypeEnum.name() + " not found",
-                            ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
-                    ));
+        RoleEntity role = roleEntityService.findByRoleName(roleTypeEnum.name())
+                .orElseThrow(() -> new BadRequestException(
+                        "Role " + roleTypeEnum.name() + " not found",
+                        ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
+                ));
 
-            LocalDateTime validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
+        LocalDateTime validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
 
-            UserEntity user = UserEntity.builder()
-                    .username(username)
-                    .email(email)
-                    .password(passwordEncoder.encode(registerUserRequest.getPassword()))
-                    .fullName(registerUserRequest.getFullName())
-                    .phoneNumber(registerUserRequest.getPhoneNumber())
-                    .gender(registerUserRequest.getGender())
-                    .imageUrl(registerUserRequest.getImageUrl())
-                    .dateOfBirth(validatedDob.toLocalDate())
-                    .status(UserStatusEnum.ACTIVE.name())
-                    .role(role)
-                    .createdAt(LocalDateTime.now())
-                    .build();
+        UserEntity user = UserEntity.builder()
+                .username(username)
+                .email(email)
+                .password(passwordEncoder.encode(registerUserRequest.getPassword()))
+                .fullName(registerUserRequest.getFullName())
+                .phoneNumber(registerUserRequest.getPhoneNumber())
+                .gender(registerUserRequest.getGender())
+                .imageUrl(registerUserRequest.getImageUrl())
+                .dateOfBirth(validatedDob.toLocalDate())
+                .status(UserStatusEnum.ACTIVE.name())
+                .role(role)
+                .createdAt(LocalDateTime.now())
+                .build();
 
-            UserEntity savedUser = userEntityService.save(user);
+        UserEntity savedUser = userEntityService.save(user);
 
-            return userMapper.mapUserResponse(savedUser);
-
-        } catch (Exception ex) {
-            log.error("[register] Exception: ", ex);
-            throw new InternalServerException(
-                    ErrorEnum.INTERNAL_SERVER_ERROR.getMessage(),
-                    ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
-            );
-        } finally {
-            log.info("[register] End function");
-        }
+        return userMapper.mapUserResponse(savedUser);
     }
 
     @Override
@@ -137,69 +128,59 @@ public class RegisterServiceImpl implements RegisterService {
             );
         });
 
+
+        RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.CUSTOMER.name())
+                .orElseThrow(() -> new BadRequestException(
+                        "Role " + RoleTypeEnum.CUSTOMER.name() + " not found",
+                        ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
+                ));
+
+        LocalDateTime validatedDob = validateDateFormat(registerCustomerRequest.getDateOfBirth());
+
+        UserEntity user = UserEntity.builder()
+                .username(username)
+                .email(email)
+                .password(passwordEncoder.encode(registerCustomerRequest.getPassword()))
+                .fullName(registerCustomerRequest.getFullName())
+                .phoneNumber(registerCustomerRequest.getPhoneNumber())
+                .gender(registerCustomerRequest.getGender())
+                .imageUrl(registerCustomerRequest.getImageUrl())
+                .dateOfBirth(validatedDob.toLocalDate())
+                .status(UserStatusEnum.OTP_PENDING.name())
+                .role(role)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UserEntity savedUser = userEntityService.save(user);
+
+        CustomerEntity customer = CustomerEntity.builder()
+                .companyName(registerCustomerRequest.getCompanyName())
+                .representativeName(registerCustomerRequest.getRepresentativeName())
+                .representativePhone(registerCustomerRequest.getRepresentativePhone())
+                .businessLicenseNumber(registerCustomerRequest.getBusinessLicenseNumber())
+                .businessAddress(registerCustomerRequest.getBusinessAddress())
+                .createdAt(LocalDateTime.now())
+                .status(UserStatusEnum.OTP_PENDING.name())
+                .user(savedUser)
+                .build();
+
+        CustomerEntity savedCustomer = customerEntityService.save(customer);
+
+        String otp = generateOtp();
+
         try {
-
-            RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.CUSTOMER.name())
-                    .orElseThrow(() -> new BadRequestException(
-                            "Role " + RoleTypeEnum.CUSTOMER.name() + " not found",
-                            ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
-                    ));
-
-            LocalDateTime validatedDob = validateDateFormat(registerCustomerRequest.getDateOfBirth());
-
-            UserEntity user = UserEntity.builder()
-                    .username(username)
-                    .email(email)
-                    .password(passwordEncoder.encode(registerCustomerRequest.getPassword()))
-                    .fullName(registerCustomerRequest.getFullName())
-                    .phoneNumber(registerCustomerRequest.getPhoneNumber())
-                    .gender(registerCustomerRequest.getGender())
-                    .imageUrl(registerCustomerRequest.getImageUrl())
-                    .dateOfBirth(validatedDob.toLocalDate())
-                    .status(UserStatusEnum.OTP_PENDING.name())
-                    .role(role)
-                    .createdAt(LocalDateTime.now())
-                    .build();
-
-            UserEntity savedUser = userEntityService.save(user);
-
-            CustomerEntity customer = CustomerEntity.builder()
-                    .companyName(registerCustomerRequest.getCompanyName())
-                    .representativeName(registerCustomerRequest.getRepresentativeName())
-                    .representativePhone(registerCustomerRequest.getRepresentativePhone())
-                    .businessLicenseNumber(registerCustomerRequest.getBusinessLicenseNumber())
-                    .businessAddress(registerCustomerRequest.getBusinessAddress())
-                    .createdAt(LocalDateTime.now())
-                    .status(UserStatusEnum.OTP_PENDING.name())
-                    .user(savedUser)
-                    .build();
-
-            CustomerEntity savedCustomer = customerEntityService.save(customer);
-
-            String otp = generateOtp();
-
-            try {
-                log.info("[register] OTP sent to email: {}", savedCustomer.getUser().getEmail());
-                emailProtocolService.sendOtpEmail(savedCustomer.getUser().getEmail(), otp);
-            } catch (Exception e) {
-                log.error("Failed to send OTP email", e);
-                throw new BadRequestException(
-                        "Failed to send OTP email",
-                        ErrorEnum.INVALID_EMAIL.getErrorCode()
-                );
-            }
-
-            return customerMapper.mapCustomerResponse(savedCustomer);
-
-        } catch (Exception ex) {
-            log.error("[register] Exception: ", ex);
-            throw new InternalServerException(
-                    ErrorEnum.INTERNAL_SERVER_ERROR.getMessage(),
-                    ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
+            log.info("[register] OTP sent to email: {}", savedCustomer.getUser().getEmail());
+            emailProtocolService.sendOtpEmail(savedCustomer.getUser().getEmail(), otp);
+        } catch (Exception e) {
+            log.error("Failed to send OTP email", e);
+            throw new BadRequestException(
+                    "Failed to send OTP email",
+                    ErrorEnum.INVALID_EMAIL.getErrorCode()
             );
-        } finally {
-            log.info("[register] End function");
         }
+
+        return customerMapper.mapCustomerResponse(savedCustomer);
+
     }
 
     @Override
@@ -218,59 +199,47 @@ public class RegisterServiceImpl implements RegisterService {
             );
         });
 
-        try {
+        RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.DRIVER.name())
+                .orElseThrow(() -> new BadRequestException(
+                        "Role " + RoleTypeEnum.DRIVER.name() + " not found",
+                        ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
+                ));
 
-            RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.DRIVER.name())
-                    .orElseThrow(() -> new BadRequestException(
-                            "Role " + RoleTypeEnum.DRIVER.name() + " not found",
-                            ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
-                    ));
+        LocalDateTime validatedDob = validateDateFormat(registerDriverRequest.getDateOfBirth());
 
-            LocalDateTime validatedDob = validateDateFormat(registerDriverRequest.getDateOfBirth());
+        UserEntity user = UserEntity.builder()
+                .username(username)
+                .email(email)
+                .password(passwordEncoder.encode(registerDriverRequest.getPassword()))
+                .fullName(registerDriverRequest.getFullName())
+                .phoneNumber(registerDriverRequest.getPhoneNumber())
+                .gender(registerDriverRequest.getGender())
+                .imageUrl(registerDriverRequest.getImageUrl())
+                .dateOfBirth(validatedDob.toLocalDate())
+                .status(UserStatusEnum.ACTIVE.name())
+                .role(role)
+                .createdAt(LocalDateTime.now())
+                .build();
 
-            UserEntity user = UserEntity.builder()
-                    .username(username)
-                    .email(email)
-                    .password(passwordEncoder.encode(registerDriverRequest.getPassword()))
-                    .fullName(registerDriverRequest.getFullName())
-                    .phoneNumber(registerDriverRequest.getPhoneNumber())
-                    .gender(registerDriverRequest.getGender())
-                    .imageUrl(registerDriverRequest.getImageUrl())
-                    .dateOfBirth(validatedDob.toLocalDate())
-                    .status(UserStatusEnum.ACTIVE.name())
-                    .role(role)
-                    .createdAt(LocalDateTime.now())
-                    .build();
+        UserEntity savedUser = userEntityService.save(user);
 
-            UserEntity savedUser = userEntityService.save(user);
+        DriverEntity driverEntity = DriverEntity.builder()
+                .driverLicenseNumber(registerDriverRequest.getDriverLicenseNumber())
+                .identityNumber(registerDriverRequest.getIdentityNumber())
+                .cardSerialNumber(registerDriverRequest.getCardSerialNumber())
+                .placeOfIssue(registerDriverRequest.getPlaceOfIssue())
+                .dateOfIssue(validateDateFormat(registerDriverRequest.getDateOfIssue()))
+                .dateOfExpiry(validateDateFormat(registerDriverRequest.getDateOfExpiry()))
+                .licenseClass(registerDriverRequest.getLicenseClass())
+                .dateOfPassing(validateDateFormat(registerDriverRequest.getDateOfPassing()))
+                .createdAt(LocalDateTime.now())
+                .status(UserStatusEnum.ACTIVE.name())
+                .user(savedUser)
+                .build();
 
-            DriverEntity driverEntity = DriverEntity.builder()
-                    .driverLicenseNumber(registerDriverRequest.getDriverLicenseNumber())
-                    .identityNumber(registerDriverRequest.getIdentityNumber())
-                    .cardSerialNumber(registerDriverRequest.getCardSerialNumber())
-                    .placeOfIssue(registerDriverRequest.getPlaceOfIssue())
-                    .dateOfIssue(validateDateFormat(registerDriverRequest.getDateOfIssue()))
-                    .dateOfExpiry(validateDateFormat(registerDriverRequest.getDateOfExpiry()))
-                    .licenseClass(registerDriverRequest.getLicenseClass())
-                    .dateOfPassing(validateDateFormat(registerDriverRequest.getDateOfPassing()))
-                    .createdAt(LocalDateTime.now())
-                    .status(UserStatusEnum.ACTIVE.name())
-                    .user(savedUser)
-                    .build();
+        DriverEntity savedDriver = driverEntityService.save(driverEntity);
 
-            DriverEntity savedDriver = driverEntityService.save(driverEntity);
-
-            return driverMapper.mapDriverResponse(savedDriver);
-
-        } catch (Exception ex) {
-            log.error("[register] Exception: ", ex);
-            throw new InternalServerException(
-                    ErrorEnum.INTERNAL_SERVER_ERROR.getMessage(),
-                    ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
-            );
-        } finally {
-            log.info("[register] End function");
-        }
+        return driverMapper.mapDriverResponse(savedDriver);
     }
 
     @Override
@@ -359,12 +328,10 @@ public class RegisterServiceImpl implements RegisterService {
             return handlerLoginWithGoogleLogic(new LoginWithGoogleRequest(existingUser.getEmail()));
         }
 
-        log.info("[loginWithGoogle] User does not exist, creating a new account");
-        try {
             RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.CUSTOMER.name())
-                    .orElseThrow(() -> new InternalServerException(
+                    .orElseThrow(() -> new BadRequestException(
                             "Role CUSTOMER not found",
-                            ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode()
+                            ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
                     ));
 
             LocalDateTime validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
@@ -388,14 +355,6 @@ public class RegisterServiceImpl implements RegisterService {
             log.info("[loginWithGoogle] Create new account & Login successful");
 
             return handlerLoginWithGoogleLogic(new LoginWithGoogleRequest(registerUserRequest.getEmail()));
-
-        } catch (Exception ex) {
-            log.error("[loginWithGoogle] Failed: ", ex);
-            throw new InternalServerException(ErrorEnum.INTERNAL_SERVER_ERROR.getMessage(),
-                    ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode());
-        } finally {
-            log.info("[loginWithGoogle] End function");
-        }
     }
 
     private LoginResponse handlerLoginWithGoogleLogic(LoginWithGoogleRequest loginWithGoogleRequest) {
