@@ -66,7 +66,7 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException(ErrorEnum.NOT_FOUND.getMessage(),
                     ErrorEnum.NOT_FOUND.getErrorCode());
         }
-        CustomerEntity sender = customerEntityService.findContractRuleEntitiesById(UUID.fromString(orderRequest.senderId()))
+        CustomerEntity sender = customerEntityService.findEntityById(UUID.fromString(orderRequest.senderId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "sender not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
@@ -78,15 +78,15 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
-        AddressEntity deliveryAddress = addressEntityService.findContractRuleEntitiesById(UUID.fromString(orderRequest.deliveryAddressId()))
+        AddressEntity deliveryAddress = addressEntityService.findEntityById(UUID.fromString(orderRequest.deliveryAddressId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "deliveryAddress not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-        AddressEntity pickupAddress = addressEntityService.findContractRuleEntitiesById(UUID.fromString(orderRequest.pickupAddressId()))
+        AddressEntity pickupAddress = addressEntityService.findEntityById(UUID.fromString(orderRequest.pickupAddressId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "pickupAddress not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-        CategoryEntity category = categoryEntityService.findContractRuleEntitiesById(UUID.fromString(orderRequest.categoryId()))
+        CategoryEntity category = categoryEntityService.findEntityById(UUID.fromString(orderRequest.categoryId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "category not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
@@ -127,7 +127,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public CreateOrderResponse changeAStatusOrder(UUID orderId, OrderStatusEnum newStatus) {
-        OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderId)
+        OrderEntity order = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " Order with ID: " + orderId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -160,7 +160,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public CreateOrderResponse changeStatusOrderWithAllOrderDetail(UUID orderId, OrderStatusEnum newStatus) {
         // Tìm Order
-        OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderId)
+        OrderEntity order = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " Order with ID: " + orderId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -276,7 +276,7 @@ public class OrderServiceImpl implements OrderService {
     public CreateOrderResponse updateOrderBasicInPendingOrProcessing(UpdateOrderRequest updateOrderRequest) {
         log.info("Updating order with ID: {}", updateOrderRequest.orderId());
 
-        OrderEntity order = orderEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderRequest.orderId()))
+        OrderEntity order = orderEntityService.findEntityById(UUID.fromString(updateOrderRequest.orderId()))
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " Order with ID: " + updateOrderRequest.orderId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -290,17 +290,17 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
-        CategoryEntity categoryEntity = categoryEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderRequest.categoryId()))
+        CategoryEntity categoryEntity = categoryEntityService.findEntityById(UUID.fromString(updateOrderRequest.categoryId()))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + " Cate with ID: " + updateOrderRequest.categoryId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-        AddressEntity deliveryAddress = addressEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderRequest.deliveryAddressId()))
+        AddressEntity deliveryAddress = addressEntityService.findEntityById(UUID.fromString(updateOrderRequest.deliveryAddressId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "deliveryAddress not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-        AddressEntity pickupAddress = addressEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderRequest.pickupAddressId()))
+        AddressEntity pickupAddress = addressEntityService.findEntityById(UUID.fromString(updateOrderRequest.pickupAddressId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "pickupAddress not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
@@ -331,7 +331,7 @@ public class OrderServiceImpl implements OrderService {
         // Build all order details in memory first
         List<OrderDetailEntity> orderDetails = requests.stream()
                 .map(request -> {
-                    OrderSizeEntity orderSizeEntity = orderSizeEntityService.findContractRuleEntitiesById(UUID.fromString(request.orderSizeId()))
+                    OrderSizeEntity orderSizeEntity = orderSizeEntityService.findEntityById(UUID.fromString(request.orderSizeId()))
                             .orElseThrow(() -> new NotFoundException(
                                     ErrorEnum.NOT_FOUND.getMessage() + " orderSize with id: " + request.orderSizeId(),
                                     ErrorEnum.NOT_FOUND.getErrorCode()));

@@ -242,7 +242,7 @@
     <div class="decoration-corner corner-br"></div>
 
     <!-- Placeholder cho tem công ty -->
-    <div class="stamp-placeholder">Nơi đóng dấu<br />công ty</div>
+    <div class="stamp-placeholder">Nơi đóng dấu<br/>công ty</div>
 
     <div class="contract-header">
         <div class="contract-number">Số: <span th:text="${contract.contractName}"></span></div>
@@ -254,19 +254,27 @@
         <p><b>CĂN CỨ BỘ LUẬT DÂN SỰ NĂM 2015;</b></p>
         <p><b>CĂN CỨ LUẬT THƯƠNG MẠI NĂM 2005;</b></p>
         <p><b>CĂN CỨ NHU CẦU VÀ KHẢ NĂNG CỦA HAI BÊN;</b></p>
-        <p>Hôm nay, ngày <b th:text="${#temporals.format(contract.createdAt, 'dd')}"></b> tháng <b th:text="${#temporals.format(contract.createdAt, 'MM')}"></b> năm <b th:text="${#temporals.format(contract.createdAt, 'yyyy')}"></b>, tại <b>Thành phố Hồ Chí Minh</b>, chúng tôi gồm:</p>
+        <p>Hôm nay, ngày <b th:text="${#temporals.format(contract.createdAt, 'dd')}"></b> tháng <b
+                th:text="${#temporals.format(contract.createdAt, 'MM')}"></b> năm <b
+                th:text="${#temporals.format(contract.createdAt, 'yyyy')}"></b>, tại <b>Thành phố Hồ Chí Minh</b>, chúng
+            tôi gồm:</p>
     </div>
 
     <div class="section">
         <div class="subsection-title">BÊN A (BÊN GIAO HÀNG): KHÁCH HÀNG</div>
         <div class="info-box">
-            <div class="info-item"><b>Tên công ty:</b> <span th:text="${order.sender != null ? order.sender.companyName : 'N/A'}"></span></div>
-            <div class="info-item"><b>Người đại diện:</b> <span th:text="${order.sender != null ? order.sender.representativeName : 'N/A'}"></span></div>
-<!--            <div class="info-item"><b>Chức vụ:</b> <span th:text="${order.sender != null ? order.sender.representativePosition : 'N/A'}"></span></div>-->
-            <div class="info-item"><b>SĐT đại diện:</b> <span th:text="${order.sender != null ? order.sender.representativePhone : 'N/A'}"></span></div>
-<!--            <div class="info-item"><b>Mã số thuế:</b> <span th:text="${order.sender != null ? order.sender.taxCode : 'N/A'}"></span></div>-->
-            <div class="info-item"><b>Địa chỉ:</b> <span th:text="${order.sender != null ? order.sender.businessAddress : 'N/A'}"></span></div>
-            <div class="info-item"><b>Người đặt hàng:</b> <span th:text="${fullName}"></span> | <b>SĐT:</b> <span th:text="${phoneNumber}"></span></div>
+            <div class="info-item"><b>Tên công ty:</b> <span
+                    th:text="${order.sender != null ? order.sender.companyName : 'N/A'}"></span></div>
+            <div class="info-item"><b>Người đại diện:</b> <span
+                    th:text="${order.sender != null ? order.sender.representativeName : 'N/A'}"></span></div>
+            <!--            <div class="info-item"><b>Chức vụ:</b> <span th:text="${order.sender != null ? order.sender.representativePosition : 'N/A'}"></span></div>-->
+            <div class="info-item"><b>SĐT đại diện:</b> <span
+                    th:text="${order.sender != null ? order.sender.representativePhone : 'N/A'}"></span></div>
+            <!--            <div class="info-item"><b>Mã số thuế:</b> <span th:text="${order.sender != null ? order.sender.taxCode : 'N/A'}"></span></div>-->
+            <div class="info-item"><b>Địa chỉ:</b> <span
+                    th:text="${order.sender != null ? order.sender.businessAddress : 'N/A'}"></span></div>
+            <div class="info-item"><b>Người đặt hàng:</b> <span th:text="${fullName}"></span> | <b>SĐT:</b> <span
+                    th:text="${phoneNumber}"></span></div>
             <div class="info-item"><b>Email:</b> <span th:text="${senderEmail}"></span></div>
         </div>
     </div>
@@ -295,9 +303,9 @@
         <ul>
             <li><b>Họ tên:</b> <span th:text="${order.receiverName}"></span></li>
             <li><b>Số điện thoại:</b> <span th:text="${order.receiverPhone}"></span></li>
-<!--            <li><b>Địa chỉ nhận hàng:</b> <span th:text="${order.receiverAddress}"></span></li>-->
+            <!--            <li><b>Địa chỉ nhận hàng:</b> <span th:text="${order.receiverAddress}"></span></li>-->
         </ul>
-<!--        <p>3. Thời gian vận chuyển dự kiến: Từ ngày <b th:text="${#temporals.format(contract.createdAt, 'dd/MM/yyyy')}"></b> đến ngày <b th:text="${#temporals.format(contract.estimatedDelivery, 'dd/MM/yyyy')}"></b></p>-->
+        <!--        <p>3. Thời gian vận chuyển dự kiến: Từ ngày <b th:text="${#temporals.format(contract.createdAt, 'dd/MM/yyyy')}"></b> đến ngày <b th:text="${#temporals.format(contract.estimatedDelivery, 'dd/MM/yyyy')}"></b></p>-->
         <p>4. Ghi chú: <i th:text="${order.notes != null ? order.notes : 'Không có ghi chú'}"></i></p>
     </div>
 
@@ -306,9 +314,17 @@
         <table>
             <thead>
             <tr>
+                <th width="5%">Tổng km</th>
+            </tr>
+            <tbody>
+            <tr>
+                <td class="text-center" th:text="${distanceKm}"></td>
+            </tr>
+            </tbody>
+
+            <tr>
                 <th width="5%">STT</th>
                 <th width="30%">Mô tả hàng hóa</th>
-                <th width="10%">Số lượng</th>
                 <th width="10%">Khối lượng (kg)</th>
                 <th width="15%">Kích thước (DxRxC)</th>
                 <th width="15%">Tracking Code</th>
@@ -316,12 +332,13 @@
             </tr>
             </thead>
             <tbody>
+
             <tr th:each="detail, iter : ${order.orderDetailEntities}">
                 <td class="text-center" th:text="${iter.index + 1}"></td>
                 <td th:text="${detail.description}"></td>
-<!--                <td class="text-center" th:text="${detail.get}"></td>-->
                 <td class="text-center" th:text="${detail.weight}"></td>
-                <td class="text-center" th:text="${detail.orderSizeEntity != null ? detail.orderSizeEntity.getMaxLength() + 'x' + detail.orderSizeEntity.getMaxWidth() + 'x' + detail.orderSizeEntity.getMaxHeight() : 'N/A'}"></td>
+                <td class="text-center"
+                    th:text="${detail.orderSizeEntity != null ? detail.orderSizeEntity.getMaxLength() + 'x' + detail.orderSizeEntity.getMaxWidth() + 'x' + detail.orderSizeEntity.getMaxHeight() : 'N/A'}"></td>
                 <td class="text-center" th:text="${detail.trackingCode}"></td>
                 <td class="text-center" th:text="${detail.status}"></td>
             </tr>
@@ -376,22 +393,32 @@
         <table>
             <tr>
                 <td width="70%">Tổng cước vận chuyển trước điều chỉnh:</td>
-                <td class="text-right" width="30%"><b th:text="${#numbers.formatDecimal(totalBeforeAdjustment, 0, 'POINT', 0, 'COMMA')}"></b> VND</td>
+                <td class="text-right" width="30%"><b
+                        th:text="${#numbers.formatDecimal(totalBeforeAdjustment, 0, 'POINT', 0, 'COMMA')}"></b> VND
+                </td>
             </tr>
             <tr>
                 <td>Hệ số loại hàng (x<span th:text="${categoryMultiplier}"></span>):</td>
-                <td class="text-right"><b th:text="${#numbers.formatDecimal(categoryExtraFee, 0, 'POINT', 0, 'COMMA')}"></b> VND</td>
+                <td class="text-right"><b
+                        th:text="${#numbers.formatDecimal(categoryExtraFee, 0, 'POINT', 0, 'COMMA')}"></b> VND
+                </td>
             </tr>
             <tr>
                 <td>Giảm giá khuyến mãi:</td>
-                <td class="text-right">- <b th:text="${#numbers.formatDecimal(promotionDiscount, 0, 'POINT', 0, 'COMMA')}"></b> VND</td>
+                <td class="text-right">- <b
+                        th:text="${#numbers.formatDecimal(promotionDiscount, 0, 'POINT', 0, 'COMMA')}"></b> VND
+                </td>
             </tr>
             <tr class="highlight">
                 <td><b>TỔNG CƯỚC PHÍ PHẢI THANH TOÁN:</b></td>
-                <td class="text-right"><b th:text="${#numbers.formatDecimal(finalTotal, 0, 'POINT', 0, 'COMMA')}"></b> VND</td>
+                <td class="text-right"><b th:text="${#numbers.formatDecimal(finalTotal, 0, 'POINT', 0, 'COMMA')}"></b>
+                    VND
+                </td>
             </tr>
             <tr>
-                <td colspan="2"><i>(Bằng chữ: <span th:text="${#numbers.formatDecimal(finalTotal, 0, 'POINT', 0, 'COMMA')}"></span> đồng./.)</i></td>
+                <td colspan="2"><i>(Bằng chữ: <span
+                        th:text="${#numbers.formatDecimal(finalTotal, 0, 'POINT', 0, 'COMMA')}"></span> đồng./.)</i>
+                </td>
             </tr>
         </table>
 
@@ -425,8 +452,10 @@
 
     <div class="section">
         <div class="section-title">Điều 5: Điều khoản chung</div>
-        <p>Hợp đồng này có hiệu lực kể từ ngày ký và được lập thành 02 (hai) bản có giá trị pháp lý như nhau, mỗi bên giữ 01 (một) bản.</p>
-        <p>Mọi tranh chấp phát sinh từ hợp đồng này sẽ được giải quyết thông qua thương lượng. Trường hợp không thương lượng được, tranh chấp sẽ được giải quyết tại Tòa án có thẩm quyền tại TP.HCM.</p>
+        <p>Hợp đồng này có hiệu lực kể từ ngày ký và được lập thành 02 (hai) bản có giá trị pháp lý như nhau, mỗi bên
+            giữ 01 (một) bản.</p>
+        <p>Mọi tranh chấp phát sinh từ hợp đồng này sẽ được giải quyết thông qua thương lượng. Trường hợp không thương
+            lượng được, tranh chấp sẽ được giải quyết tại Tòa án có thẩm quyền tại TP.HCM.</p>
     </div>
 
     <div class="signature-area">

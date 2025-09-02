@@ -6,13 +6,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Getter
 public enum DistanceRuleEnum {
-    TIER_1(0, 4),
-    TIER_2(5, 15),
-    TIER_3(16, 100),
-    TIER_4(101, 99999999);
+    TIER_1(0.00, 3.99),
+    TIER_2(4.0, 14.99),
+    TIER_3(15.0, 99.99),
+    TIER_4(100.0, 99999999.0);
 
-    private final Integer fromKm;
-    private final Integer toKm;
+    private final Double fromKm;
+    private final Double toKm;
 
     public static DistanceRuleEnum fromDistance(int distance) {
         for (DistanceRuleEnum tier : values()) {

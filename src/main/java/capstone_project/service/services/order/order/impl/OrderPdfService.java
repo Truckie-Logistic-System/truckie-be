@@ -10,6 +10,7 @@ import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.ContractRuleService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.pdf.PdfGenerationService;
+import capstone_project.service.services.user.DistanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,10 +30,11 @@ public class OrderPdfService {
     private final ContractRuleService contractRuleAssignService;
     private final PdfGenerationService pdfGenerationService;
     private final CloudinaryService cloudinaryService;
+    private final DistanceService distanceService;
 
     public ContractPdfResponse generateAndUploadContractPdf(UUID contractId) {
         try {
-            ContractEntity contract = contractEntityService.findContractRuleEntitiesById(contractId)
+            ContractEntity contract = contractEntityService.findEntityById(contractId)
                     .orElseThrow(() -> new IllegalArgumentException("Contract not found: " + contractId));
 
             OrderEntity order = contract.getOrderEntity();
@@ -48,9 +50,9 @@ public class OrderPdfService {
                     .collect(Collectors.groupingBy(ContractRuleAssignResponse::getVehicleRuleId, Collectors.summingInt(a -> 1)));
 
 
-            BigDecimal distanceKm = contractService.calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress());
+            BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
 
-//            BigDecimal distanceKm = BigDecimal.valueOf(100.00);
+//            BigDecimal distanceKm = BigDecimal.valueOf(101.00);
 
             byte[] pdfBytes = pdfGenerationService.generateContractPdf(
                     contract,

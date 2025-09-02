@@ -22,7 +22,7 @@ public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEnti
     }
 
     @Override
-    public Optional<VehicleAssignmentEntity> findContractRuleEntitiesById(UUID uuid) {
+    public Optional<VehicleAssignmentEntity> findEntityById(UUID uuid) {
         return vehicleAssignmentRepository.findById(uuid);
     }
 

@@ -26,7 +26,7 @@ public class IssueImageServiceImpl implements IssueImageService {
 
     @Override
     public GetIssueImageResponse createImage(CreateIssueImageRequest request) {
-        IssueEntity issue = issueEntityService.findContractRuleEntitiesById(request.issueId())
+        IssueEntity issue = issueEntityService.findEntityById(request.issueId())
                 .orElseThrow(() -> new RuntimeException("Issue not found with id " + request.issueId()));
 
         List<IssueImageEntity> images = new ArrayList<>();
@@ -67,7 +67,7 @@ public class IssueImageServiceImpl implements IssueImageService {
     @Override
     public GetIssueImageResponse getImage(UUID issueId) {
         List<IssueImageEntity> images = issueImageEntityService.findByIssueEntity_Id(issueId);
-        IssueEntity issue = issueEntityService.findContractRuleEntitiesById(issueId).get();
+        IssueEntity issue = issueEntityService.findEntityById(issueId).get();
         return new GetIssueImageResponse(issue,images);
     }
 }

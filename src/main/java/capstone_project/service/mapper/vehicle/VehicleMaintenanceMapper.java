@@ -51,7 +51,7 @@ public abstract class VehicleMaintenanceMapper {
     @Named("vehicleFromId")
     protected VehicleEntity vehicleFromId(String id) {
         if (id == null) return null;
-        return vehicleEntityService.findContractRuleEntitiesById(UUID.fromString(id))
+        return vehicleEntityService.findEntityById(UUID.fromString(id))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
     }
@@ -59,7 +59,7 @@ public abstract class VehicleMaintenanceMapper {
     @Named("maintenanceTypeFromId")
     protected MaintenanceTypeEntity maintenanceTypeFromId(String id) {
         if (id == null) return null;
-        return maintenanceTypeEntityService.findContractRuleEntitiesById(UUID.fromString(id))
+        return maintenanceTypeEntityService.findEntityById(UUID.fromString(id))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
     }

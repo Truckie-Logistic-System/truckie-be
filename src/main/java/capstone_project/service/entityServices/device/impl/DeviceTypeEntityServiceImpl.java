@@ -22,12 +22,22 @@ public class DeviceTypeEntityServiceImpl implements DeviceTypeEntityService {
     }
 
     @Override
-    public Optional<DeviceTypeEntity> findContractRuleEntitiesById(UUID uuid) {
+    public Optional<DeviceTypeEntity> findEntityById(UUID uuid) {
         return deviceTypeRepository.findById(uuid);
     }
 
     @Override
     public List<DeviceTypeEntity> findAll() {
         return deviceTypeRepository.findAll();
+    }
+
+    @Override
+    public Optional<DeviceTypeEntity> findByDeviceTypeName(String deviceTypeName) {
+        return deviceTypeRepository.findByDeviceTypeName(deviceTypeName);
+    }
+
+    @Override
+    public List<DeviceTypeEntity> getAllDeviceTypesByNameLike(String name) {
+        return deviceTypeRepository.findAllByDeviceTypeNameContainingIgnoreCase(name);
     }
 }

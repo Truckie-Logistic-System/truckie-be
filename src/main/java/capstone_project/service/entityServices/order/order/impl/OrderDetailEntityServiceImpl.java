@@ -23,7 +23,7 @@ public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
     }
 
     @Override
-    public Optional<OrderDetailEntity> findContractRuleEntitiesById(UUID uuid) {
+    public Optional<OrderDetailEntity> findEntityById(UUID uuid) {
         return orderDetailRepository.findById(uuid);
     }
 

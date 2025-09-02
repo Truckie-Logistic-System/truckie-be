@@ -25,7 +25,7 @@ public class IssueEntityServiceImpl implements IssueEntityService {
     }
 
     @Override
-    public Optional<IssueEntity> findContractRuleEntitiesById(UUID uuid) {
+    public Optional<IssueEntity> findEntityById(UUID uuid) {
         return issueRepository.findById(uuid);
     }
 

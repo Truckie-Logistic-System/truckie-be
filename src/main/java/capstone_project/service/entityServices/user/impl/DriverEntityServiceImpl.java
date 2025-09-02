@@ -22,7 +22,7 @@ public class DriverEntityServiceImpl implements DriverEntityService {
     }
 
     @Override
-    public Optional<DriverEntity> findContractRuleEntitiesById(UUID uuid) {
+    public Optional<DriverEntity> findEntityById(UUID uuid) {
         return driverRepository.findById(uuid);
     }
 

@@ -6,10 +6,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.UpdateVehicleMaintenanceRequest;
 import capstone_project.dtos.request.vehicle.VehicleMaintenanceRequest;
 import capstone_project.dtos.response.vehicle.VehicleMaintenanceResponse;
-import capstone_project.entity.pricing.VehicleRuleEntity;
-import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleMaintenanceEntity;
-import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.service.entityServices.vehicle.VehicleMaintenanceEntityService;
 import capstone_project.service.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.mapper.vehicle.VehicleMaintenanceMapper;
@@ -58,7 +55,7 @@ public class VehicleMaintenanceServiceImpl implements VehicleMaintenanceService 
     @Override
     public VehicleMaintenanceResponse getMaintenanceById(UUID id) {
         log.info("Fetching vehicle rule by ID: {}", id);
-        VehicleMaintenanceEntity vehicleRuleEntity = entityService.findContractRuleEntitiesById(id)
+        VehicleMaintenanceEntity vehicleRuleEntity = entityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -90,7 +87,7 @@ public class VehicleMaintenanceServiceImpl implements VehicleMaintenanceService 
     @Transactional
     public VehicleMaintenanceResponse updateMaintenance(UUID id, UpdateVehicleMaintenanceRequest req) {
         // Fetch existing entity
-        var existing = entityService.findContractRuleEntitiesById(id).orElseThrow(() ->
+        var existing = entityService.findEntityById(id).orElseThrow(() ->
                 new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
         // Map request into existing entity

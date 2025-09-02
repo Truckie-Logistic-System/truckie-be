@@ -1,7 +1,9 @@
 package capstone_project.dtos.response.user;
 
+import java.math.BigDecimal;
+
 public record DistanceTimeResponse(
-        double distance,
+        BigDecimal distance,
         double time
 ) {
     private static final double METERS_TO_KM = 0.001;
@@ -9,16 +11,16 @@ public record DistanceTimeResponse(
 
     public static DistanceTimeResponse fromRouteResponse(RouteResponse routeResponse) {
         if (routeResponse.paths() == null || routeResponse.paths().isEmpty()) {
-            return new DistanceTimeResponse(0, 0);
+            return new DistanceTimeResponse(BigDecimal.ZERO, 0.0);
         }
         RouteResponse.Path path = routeResponse.paths().get(0);
         return new DistanceTimeResponse(
-                path.distance() * METERS_TO_KM,
+                BigDecimal.valueOf(path.distance() * METERS_TO_KM),
                 path.time() * MS_TO_HOURS
         );
     }
 
-    public double getDistanceInKm() {
+    public BigDecimal getDistanceInKm() {
         return distance;
     }
 
@@ -26,8 +28,8 @@ public record DistanceTimeResponse(
         return time;
     }
 
-    public double getDistanceInMeters() {
-        return distance * 1000;
+    public BigDecimal getDistanceInMeters() {
+        return distance.multiply(BigDecimal.valueOf(1000));
     }
 
     public long getTimeInSeconds() {

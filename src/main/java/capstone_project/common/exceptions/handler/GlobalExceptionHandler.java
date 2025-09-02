@@ -60,6 +60,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AuthenticationCredentialsNotFoundException.class)
     public ResponseEntity<ApiResponse<?>> handleCredentialsNotFound(AuthenticationCredentialsNotFoundException ex) {
+        log.error(ex.getMessage(), ex);
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(ApiResponse.fail("Missing or invalid Authorization header", HttpStatus.UNAUTHORIZED.value()));

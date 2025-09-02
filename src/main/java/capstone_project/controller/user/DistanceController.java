@@ -6,12 +6,12 @@ import capstone_project.dtos.response.user.RouteInstructionsResponse;
 import capstone_project.service.services.user.DistanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @RestController
@@ -37,9 +37,9 @@ public class DistanceController {
     }
 
     @GetMapping("/order/{orderId}/kilometers")
-    public ResponseEntity<ApiResponse<Double>> getDistanceInKilometers(
+    public ResponseEntity<ApiResponse<BigDecimal>> getDistanceInKilometers(
             @PathVariable UUID orderId) {
-        double distance = distanceService.getDistanceInKilometers(orderId);
+        BigDecimal distance = distanceService.getDistanceInKilometers(orderId);
         return ResponseEntity.ok(ApiResponse.ok(distance));
     }
 

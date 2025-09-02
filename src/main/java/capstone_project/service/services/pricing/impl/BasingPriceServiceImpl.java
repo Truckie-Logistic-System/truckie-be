@@ -47,7 +47,7 @@ public class BasingPriceServiceImpl implements BasingPriceService {
     @Override
     public GetBasingPriceResponse getBasingPriceById(UUID id) {
         log.info("Fetching a basing price by id {}", id);
-        BasingPriceEntity basingPriceEntity = basingPriceEntityService.findContractRuleEntitiesById(id)
+        BasingPriceEntity basingPriceEntity = basingPriceEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         "Basing price not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -110,7 +110,7 @@ public class BasingPriceServiceImpl implements BasingPriceService {
             );
         }
 
-        BasingPriceEntity existingEntity = basingPriceEntityService.findContractRuleEntitiesById(id)
+        BasingPriceEntity existingEntity = basingPriceEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         "Basing price not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()

@@ -5,11 +5,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
-import capstone_project.dtos.response.vehicle.VehicleResponse;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
-import capstone_project.entity.vehicle.VehicleEntity;
-import capstone_project.entity.vehicle.VehicleMaintenanceEntity;
-import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.service.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.mapper.vehicle.VehicleAssignmentMapper;
 import capstone_project.service.services.service.RedisService;
@@ -64,7 +60,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     @Override
     public VehicleAssignmentResponse getAssignmentById(UUID id) {
         log.info("Fetching vehicle assingment by ID: {}", id);
-        VehicleAssignmentEntity entity = entityService.findContractRuleEntitiesById(id)
+        VehicleAssignmentEntity entity = entityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -83,7 +79,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     @Override
     public VehicleAssignmentResponse updateAssignment(UUID id, UpdateVehicleAssignmentRequest req) {
         // Fetch existing entity
-        var existing = entityService.findContractRuleEntitiesById(id).orElseThrow(() ->
+        var existing = entityService.findEntityById(id).orElseThrow(() ->
                 new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
         // Map request into existing entity

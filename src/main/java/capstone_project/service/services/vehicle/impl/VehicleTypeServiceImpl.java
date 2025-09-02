@@ -68,7 +68,7 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
             return vehicleTypeMapper.toVehicleTypeResponse(cachedEntity);
         }
 
-        VehicleTypeEntity entity = vehicleTypeEntityService.findContractRuleEntitiesById(id)
+        VehicleTypeEntity entity = vehicleTypeEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
         redisService.save(cacheKey, entity);
@@ -101,7 +101,7 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
     public VehicleTypeResponse updateVehicleType(UUID id, VehicleTypeRequest vehicleTypeRequest) {
         log.info("Updating vehicle type with ID: {}", id);
 
-        VehicleTypeEntity existingVehicleType = vehicleTypeEntityService.findContractRuleEntitiesById(id)
+        VehicleTypeEntity existingVehicleType = vehicleTypeEntityService.findEntityById(id)
                 .orElseThrow(() -> {
                     log.warn("Vehicle type with ID {} not found", id);
                     return new NotFoundException(

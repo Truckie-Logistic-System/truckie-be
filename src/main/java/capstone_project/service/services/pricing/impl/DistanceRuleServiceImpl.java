@@ -48,7 +48,7 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
     @Override
     public DistanceRuleResponse getDistanceRuleById(UUID id) {
         log.info("Fetching pricing tier by ID: {}", id);
-        DistanceRuleEntity distanceRuleEntity = distanceRuleEntityService.findContractRuleEntitiesById(id)
+        DistanceRuleEntity distanceRuleEntity = distanceRuleEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -87,7 +87,7 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
             throw new BadRequestException("Pricing tier ID is required", ErrorEnum.REQUIRED.getErrorCode());
         }
 
-        DistanceRuleEntity existingEntity = distanceRuleEntityService.findContractRuleEntitiesById(id)
+        DistanceRuleEntity existingEntity = distanceRuleEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()

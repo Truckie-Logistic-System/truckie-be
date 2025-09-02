@@ -71,7 +71,7 @@ public class VehicleServiceImpl implements VehicleService {
             return cachedResponse;
         }
 
-        VehicleEntity entity = vehicleEntityService.findContractRuleEntitiesById(id)
+        VehicleEntity entity = vehicleEntityService.findEntityById(id)
                 .orElseThrow(() -> {
                     log.warn("Vehicle with ID {} not found", id);
                     return new NotFoundException(

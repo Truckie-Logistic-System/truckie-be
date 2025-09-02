@@ -43,7 +43,7 @@ public class IssueTypeServiceImpl implements IssueTypeService {
     @Override
     public GetIssueTypeResponse getIssueTypeById(UUID id) {
         log.info("getIssueTypeById");
-        Optional<IssueTypeEntity> issueTypeEntitie = issueTypeEntityService.findContractRuleEntitiesById(id);
+        Optional<IssueTypeEntity> issueTypeEntitie = issueTypeEntityService.findEntityById(id);
         if (issueTypeEntitie.isEmpty()) {
             throw new NotFoundException(
                     ErrorEnum.NOT_FOUND.getMessage() + " issueTypeEntities",
@@ -114,7 +114,7 @@ public class IssueTypeServiceImpl implements IssueTypeService {
         }
 
         // Lấy entity hiện tại từ DB
-        IssueTypeEntity current = issueTypeEntityService.findContractRuleEntitiesById(UUID.fromString(updateIssueTypeRequest.id()))
+        IssueTypeEntity current = issueTypeEntityService.findEntityById(UUID.fromString(updateIssueTypeRequest.id()))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + " IssueTypeEntity with ID: " + updateIssueTypeRequest.id(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
