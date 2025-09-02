@@ -93,6 +93,9 @@ public class SecurityConfigurer {
     @Value("${distance.api.base-path}}")
     private String distanceBasePath;
 
+    @Value("${photo-completion.api.base-path}}")
+    private String photoCompletionBasePath;
+
 
 
 
@@ -170,6 +173,7 @@ public class SecurityConfigurer {
                         .requestMatchers(issueImageBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(orderSizeBasePath + "/**").hasAnyAuthority("ADMIN","STAFF")
                         .requestMatchers(distanceBasePath + "/**").hasAnyAuthority("CUSTOMER","DRIVER","ADMIN","STAFF")
+                        .requestMatchers(photoCompletionBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)
