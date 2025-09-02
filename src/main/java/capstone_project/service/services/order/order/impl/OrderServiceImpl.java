@@ -352,6 +352,11 @@ public class OrderServiceImpl implements OrderService {
         return orderDetailEntityService.saveAllOrderDetailEntities(orderDetails);
     }
 
+    @Override
+    public List<CreateOrderResponse> getAllOrders() {
+        return orderMapper.toCreateOrderResponses(orderEntityService.findAll());
+    }
+
 
     private boolean checkTotalWeight(BigDecimal totalWeight, List<CreateOrderDetailRequest> listCreateOrderDetailRequests) {
         BigDecimal totalWeightTest = BigDecimal.ZERO;

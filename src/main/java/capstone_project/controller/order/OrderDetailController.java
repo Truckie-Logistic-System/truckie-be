@@ -73,4 +73,11 @@ public class OrderDetailController {
         final var result = orderDetailService.updateOrderDetailBasicInPendingOrProcessing(request);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    @GetMapping("/get-all")
+    public ResponseEntity<ApiResponse<List<GetOrderDetailResponse>>> getAllOrderDetails(
+    ) {
+        final var result = orderDetailService.getAllOrderDetails();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }

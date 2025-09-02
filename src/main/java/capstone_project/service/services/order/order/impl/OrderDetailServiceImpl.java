@@ -327,4 +327,9 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
         return orderDetailMapper.toGetOrderDetailResponseList(orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId));
     }
+
+    @Override
+    public List<GetOrderDetailResponse> getAllOrderDetails() {
+        return orderDetailMapper.toGetOrderDetailResponseList(orderDetailEntityService.findAll());
+    }
 }

@@ -168,4 +168,18 @@ public class IssueServiceImpl implements IssueService {
         return issueMapper.toIssueBasicResponse(updated);
     }
 
+    @Override
+    public List<GetBasicIssueResponse> getInactiveStatus() {
+        List<IssueEntity> list = issueEntityService.findByStatus(IssueEnum.RESOLVED.name());
+        if(list.isEmpty()) {
+            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(),ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+        return issueMapper.toIssueBasicResponses(list);
+    }
+
+    @Override
+    public List<GetBasicIssueResponse> getAllIssues() {
+        return issueMapper.toIssueBasicResponses(issueEntityService.findAll());
+    }
+
 }

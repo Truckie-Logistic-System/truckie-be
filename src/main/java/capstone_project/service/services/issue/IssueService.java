@@ -24,4 +24,8 @@ public interface IssueService {
     GetBasicIssueResponse updateIssue(UpdateBasicIssueRequest request);
 
     GetBasicIssueResponse updateStaffForIssue(UUID staffId, UUID issueId);
+
+    List<GetBasicIssueResponse> getInactiveStatus();
+
+    List<GetBasicIssueResponse> getAllIssues();
 }

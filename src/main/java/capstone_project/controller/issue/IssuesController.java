@@ -76,4 +76,16 @@ public class IssuesController {
         final var result = issueService.updateStaffForIssue(request.staffId(),request.issueId());
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    @GetMapping("/inactive")
+    public ResponseEntity<ApiResponse<List<GetBasicIssueResponse>>> getInactiveIssues() {
+        final var result = issueService.getInactiveStatus();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/get-all")
+    public ResponseEntity<ApiResponse<List<GetBasicIssueResponse>>> getAll() {
+        final var result = issueService.getAllIssues();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }

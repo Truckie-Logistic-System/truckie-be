@@ -70,4 +70,12 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    // Lấy order theo deliveryAddressId
+    @GetMapping("/get-all")
+    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getAllOrders(
+           ) {
+        final var result = orderService.getAllOrders();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
 }

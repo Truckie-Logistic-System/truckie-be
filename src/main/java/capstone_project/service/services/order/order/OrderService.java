@@ -32,4 +32,6 @@ public interface OrderService {
 
     List<OrderDetailEntity> batchCreateOrderDetails(
             List<CreateOrderDetailRequest> requests, OrderEntity savedOrder, LocalDateTime estimateStartTime);
+
+    List<CreateOrderResponse> getAllOrders();
 }
