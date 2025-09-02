@@ -22,7 +22,7 @@ public class VehicleTypeEntityServiceImpl implements VehicleTypeEntityService {
     }
 
     @Override
-    public Optional<VehicleTypeEntity> findContractRuleEntitiesById(UUID uuid) {
+    public Optional<VehicleTypeEntity> findEntityById(UUID uuid) {
         return vehicleTypeRepository.findById(uuid);
     }
 

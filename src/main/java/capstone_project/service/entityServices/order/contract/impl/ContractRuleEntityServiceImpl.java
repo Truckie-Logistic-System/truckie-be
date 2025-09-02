@@ -23,7 +23,7 @@ public class ContractRuleEntityServiceImpl implements ContractRuleEntityService 
     }
 
     @Override
-    public Optional<ContractRuleEntity> findContractRuleEntitiesById(UUID contractRuleId) {
+    public Optional<ContractRuleEntity> findEntityById(UUID contractRuleId) {
         return contractRuleRepository.findContractRuleEntitiesById(contractRuleId);
     }
 
@@ -53,8 +53,8 @@ public class ContractRuleEntityServiceImpl implements ContractRuleEntityService 
     }
 
 //    @Override
-//    public Optional<ContractRuleEntity> findContractRuleEntitiesById(UUID uuid) {
-//        return contractRuleRepository.findById(uuid);
+//    public Optional<ContractRuleEntity> findEntityById(UUID uuid) {
+//        return contractRuleRepository.findEntityById(uuid);
 //    }
 
     @Override

@@ -11,7 +11,7 @@ public interface ContractRuleEntityService extends BaseEntityService<ContractRul
 
     Optional<ContractRuleEntity> findContractRuleEntitiesByContractEntityIdAndVehicleRuleEntityId(UUID vehicleRuleEntityId, UUID contractRuleId);
 
-    Optional<ContractRuleEntity> findContractRuleEntitiesById(UUID contractRuleId);
+    Optional<ContractRuleEntity> findEntityById(UUID contractRuleId);
 
     List<ContractRuleEntity> findContractRuleEntityByContractEntityId(UUID contractId);
 

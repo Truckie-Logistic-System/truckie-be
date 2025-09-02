@@ -26,7 +26,7 @@ public class AddressEntityServiceImpl implements AddressEntityService {
     }
 
     @Override
-    public Optional<AddressEntity> findContractRuleEntitiesById(UUID uuid) {
+    public Optional<AddressEntity> findEntityById(UUID uuid) {
         return addressRepository.findById(uuid);
 
     }

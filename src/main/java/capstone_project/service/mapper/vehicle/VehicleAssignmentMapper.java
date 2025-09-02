@@ -39,14 +39,14 @@ public abstract class VehicleAssignmentMapper {
     @Named("vehicleFromId")
     protected VehicleEntity vehicleFromId(String id){
         if(id==null) return null;
-        return vehicleService.findContractRuleEntitiesById(UUID.fromString(id))
+        return vehicleService.findEntityById(UUID.fromString(id))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
     }
     @Named("driverFromId")
     protected DriverEntity driverFromId(String id){
         if(id==null) return null;
-        return driverService.findContractRuleEntitiesById(UUID.fromString(id))
+        return driverService.findEntityById(UUID.fromString(id))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
     }

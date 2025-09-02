@@ -50,7 +50,7 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
     @Override
     public VehicleRuleResponse getVehicleRuleById(UUID id) {
         log.info("Fetching vehicle rule by ID: {}", id);
-        VehicleRuleEntity vehicleRuleEntity = vehicleRuleEntityService.findContractRuleEntitiesById(id)
+        VehicleRuleEntity vehicleRuleEntity = vehicleRuleEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -76,7 +76,7 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
         UUID categoryUuid = UUID.fromString(vehicleRuleRequest.categoryId());
         UUID vehicleTypeUuid = UUID.fromString(vehicleRuleRequest.vehicleTypeId());
 
-        VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findContractRuleEntitiesById(vehicleTypeUuid)
+        VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findEntityById(vehicleTypeUuid)
                 .orElseThrow(() -> {
                     log.error("Vehicle type with ID {} not found", vehicleTypeUuid);
                     return new NotFoundException("Vehicle type not found", ErrorEnum.NOT_FOUND.getErrorCode());
@@ -123,7 +123,7 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
     public VehicleRuleResponse updateVehicleRule(UUID id, UpdateVehicleRuleRequest updateVehicleRuleRequest) {
         log.info("Updating vehicle rule with ID: {}", id);
 
-        VehicleRuleEntity existingEntity = vehicleRuleEntityService.findContractRuleEntitiesById(id)
+        VehicleRuleEntity existingEntity = vehicleRuleEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()

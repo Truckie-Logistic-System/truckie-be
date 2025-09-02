@@ -22,7 +22,7 @@ public class PhotoCompletionEntityServiceImpl implements PhotoCompletionEntitySe
     }
 
     @Override
-    public Optional<PhotoCompletionEntity> findContractRuleEntitiesById(UUID uuid) {
+    public Optional<PhotoCompletionEntity> findEntityById(UUID uuid) {
         return photoCompletionRepository.findById(uuid);
     }
 

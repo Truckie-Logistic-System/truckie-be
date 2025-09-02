@@ -6,23 +6,19 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.issue.CreateBasicIssueRequest;
 import capstone_project.dtos.request.issue.UpdateBasicIssueRequest;
 import capstone_project.dtos.response.issue.GetBasicIssueResponse;
-import capstone_project.dtos.response.issue.GetIssueTypeResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.issue.IssueEntity;
-import capstone_project.entity.issue.IssueTypeEntity;
 import capstone_project.service.entityServices.auth.UserEntityService;
 import capstone_project.service.entityServices.issue.IssueEntityService;
 import capstone_project.service.entityServices.issue.IssueTypeEntityService;
 import capstone_project.service.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.mapper.issue.IssueMapper;
 import capstone_project.service.services.issue.IssueService;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -38,14 +34,14 @@ public class IssueServiceImpl implements IssueService {
 
     @Override
     public GetBasicIssueResponse getBasicIssue(UUID issueId) {
-        IssueEntity getIssue = issueEntityService.findContractRuleEntitiesById(issueId).get();
+        IssueEntity getIssue = issueEntityService.findEntityById(issueId).get();
         return issueMapper.toIssueBasicResponse(getIssue);
     }
 
     @Override
     public GetBasicIssueResponse getByVehicleAssignment(UUID vehicleAssignmentId) {
         IssueEntity entity = issueEntityService.findByVehicleAssignmentEntity(
-                vehicleAssignmentEntityService.findContractRuleEntitiesById(vehicleAssignmentId).get()
+                vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId).get()
         );
 
         return issueMapper.toIssueBasicResponse(entity);
@@ -54,7 +50,7 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public List<GetBasicIssueResponse> getByStaffId(UUID staffId) {
         List<IssueEntity> entity = issueEntityService.findByStaff(
-                userEntityService.findContractRuleEntitiesById(staffId).get()
+                userEntityService.findEntityById(staffId).get()
         );
         return issueMapper.toIssueBasicResponses(entity);
     }
@@ -70,7 +66,7 @@ public class IssueServiceImpl implements IssueService {
 
     @Override
     public List<GetBasicIssueResponse> getIssueType(UUID issueTypeId) {
-        List<IssueEntity> issueType = issueEntityService.findByIssueTypeEntity(issueTypeEntityService.findContractRuleEntitiesById(issueTypeId).get());
+        List<IssueEntity> issueType = issueEntityService.findByIssueTypeEntity(issueTypeEntityService.findEntityById(issueTypeId).get());
         if(issueType.isEmpty()) {
             throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(),ErrorEnum.NOT_FOUND.getErrorCode());
         }
@@ -80,7 +76,7 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public GetBasicIssueResponse createIssue(CreateBasicIssueRequest request) {
         // Lấy VehicleAssignment
-        var vehicleAssignment = vehicleAssignmentEntityService.findContractRuleEntitiesById(request.vehicleAssignmentId())
+        var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(request.vehicleAssignmentId())
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + request.vehicleAssignmentId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -88,7 +84,7 @@ public class IssueServiceImpl implements IssueService {
 
 
         // Lấy IssueType
-        var issueType = issueTypeEntityService.findContractRuleEntitiesById(request.issueTypeId())
+        var issueType = issueTypeEntityService.findEntityById(request.issueTypeId())
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + request.issueTypeId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -117,14 +113,14 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public GetBasicIssueResponse updateIssue(UpdateBasicIssueRequest request) {
         // Tìm Issue cũ
-        IssueEntity existing = issueEntityService.findContractRuleEntitiesById(request.issueId())
+        IssueEntity existing = issueEntityService.findEntityById(request.issueId())
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + request.issueId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
         // Lấy IssueType mới
-        var issueType = issueTypeEntityService.findContractRuleEntitiesById(request.issueTypeId())
+        var issueType = issueTypeEntityService.findEntityById(request.issueTypeId())
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + request.issueTypeId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -146,13 +142,13 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public GetBasicIssueResponse updateStaffForIssue(UUID staffId, UUID issueId) {
         // Tìm Issue cũ
-        IssueEntity existing = issueEntityService.findContractRuleEntitiesById(issueId)
+        IssueEntity existing = issueEntityService.findEntityById(issueId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + issueId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-        UserEntity staff = userEntityService.findContractRuleEntitiesById(staffId)
+        UserEntity staff = userEntityService.findEntityById(staffId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + staffId,
                         ErrorEnum.NOT_FOUND.getErrorCode()

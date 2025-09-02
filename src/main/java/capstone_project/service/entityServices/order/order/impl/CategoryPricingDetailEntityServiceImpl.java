@@ -22,7 +22,7 @@ public class CategoryPricingDetailEntityServiceImpl implements CategoryPricingDe
     }
 
     @Override
-    public Optional<CategoryPricingDetailEntity> findContractRuleEntitiesById(UUID uuid) {
+    public Optional<CategoryPricingDetailEntity> findEntityById(UUID uuid) {
         return categoryPricingDetailRepository.findById(uuid);
     }
 

@@ -17,6 +17,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -51,7 +52,7 @@ public class DistanceServiceImpl implements DistanceService {
     }
 
     @Override
-    public double getDistanceInKilometers(UUID orderId) {
+    public BigDecimal getDistanceInKilometers(UUID orderId) {
         return calculateDistanceAndTime(orderId).distance();
     }
 
@@ -62,7 +63,7 @@ public class DistanceServiceImpl implements DistanceService {
 
     private RouteResponse callVietMapApi(UUID orderId) {
         log.info("Fetching order with ID: {}", orderId);
-        OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderId)
+        OrderEntity order = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()

@@ -134,7 +134,7 @@ public class AddressServiceImpl implements AddressService {
             LocalDateTime now = LocalDateTime.now();
             addressEntity.setCreatedAt(now);
 
-            CustomerEntity customer = customerEntityService.findContractRuleEntitiesById(UUID.fromString(request.customerId()))
+            CustomerEntity customer = customerEntityService.findEntityById(UUID.fromString(request.customerId()))
                     .orElseThrow(() -> new NotFoundException(
                             ErrorEnum.NOT_FOUND.getMessage(),
                             ErrorEnum.NOT_FOUND.getErrorCode()
@@ -170,7 +170,7 @@ public class AddressServiceImpl implements AddressService {
         log.info("Updating address with ID: {}", id);
 
         // 1. Find the existing address
-        AddressEntity existing = addressEntityService.findContractRuleEntitiesById(id)
+        AddressEntity existing = addressEntityService.findEntityById(id)
                 .orElseThrow(() -> {
                     log.warn("Address with ID {} not found", id);
                     return new NotFoundException(
@@ -230,7 +230,7 @@ public class AddressServiceImpl implements AddressService {
             log.warn("Error retrieving address from cache for ID: {}", id, e);
         }
 
-        Optional<AddressEntity> addressEntity = addressEntityService.findContractRuleEntitiesById(id);
+        Optional<AddressEntity> addressEntity = addressEntityService.findEntityById(id);
 
         return addressEntity
                 .map(entity -> {

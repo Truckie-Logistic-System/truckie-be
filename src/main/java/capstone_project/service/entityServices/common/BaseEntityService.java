@@ -7,7 +7,7 @@ public interface BaseEntityService<T, ID> {
 
     T save(T entity);
 
-    Optional<T> findContractRuleEntitiesById(ID id);
+    Optional<T> findEntityById(ID id);
 
     List<T> findAll();
 //    void deleteById(ID id);

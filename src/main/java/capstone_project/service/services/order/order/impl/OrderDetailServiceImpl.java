@@ -11,13 +11,10 @@ import capstone_project.dtos.request.order.UpdateOrderDetailRequest;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
-import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
-import capstone_project.entity.pricing.VehicleRuleEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
-import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.service.entityServices.order.contract.ContractEntityService;
 import capstone_project.service.entityServices.order.order.OrderDetailEntityService;
@@ -70,7 +67,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         }
 
 
-        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findContractRuleEntitiesById(orderDetailId)
+        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findEntityById(orderDetailId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderDetailEntity with ID: " + orderDetailId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -115,7 +112,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     @Override
     public GetOrderDetailResponse changeStatusOrderDetailForTroublesByDriver(UUID orderDetailId) {
         log.info("change status order detail trouble for driver");
-        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findContractRuleEntitiesById(orderDetailId)
+        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findEntityById(orderDetailId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderDetailEntity with ID: " + orderDetailId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -138,7 +135,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     @Override
     public CreateOrderResponse createOrderDetailByOrderId(UUID orderId, List<CreateOrderDetailRequest> createOrderDetailRequest) {
         log.info("Create order detail by order ID: " + orderId);
-        OrderEntity orderEntity = orderEntityService.findContractRuleEntitiesById(orderId)
+        OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderEntity with ID: " + orderId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -191,7 +188,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     public List<GetOrderDetailResponse> getOrderDetailByOrderIdResponseList(UUID orderId) {
         log.info("Fetching order details for order ID: {}", orderId);
 
-        if(orderEntityService.findContractRuleEntitiesById(orderId).isPresent()){
+        if(orderEntityService.findEntityById(orderId).isPresent()){
             throw new NotFoundException(
                     ErrorEnum.NOT_FOUND.getMessage() + " No order found for order ID: " + orderId,
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -214,7 +211,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     public GetOrderDetailResponse getOrderDetailById(UUID orderDetailId) {
         log.info("Fetching order detail by ID: {}", orderDetailId);
 
-        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findContractRuleEntitiesById(orderDetailId)
+        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findEntityById(orderDetailId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + " OrderDetailEntity with ID: " + orderDetailId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -231,7 +228,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
 
 
-        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderDetailRequest.orderDetailId()))
+        OrderDetailEntity orderDetailEntity = orderDetailEntityService.findEntityById(UUID.fromString(updateOrderDetailRequest.orderDetailId()))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + " OrderDetailEntity with ID: " + updateOrderDetailRequest.orderDetailId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -248,7 +245,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
 
 
-        OrderSizeEntity orderSizeEntity = orderSizeEntityService.findContractRuleEntitiesById(UUID.fromString(updateOrderDetailRequest.orderSizeId()))
+        OrderSizeEntity orderSizeEntity = orderSizeEntityService.findEntityById(UUID.fromString(updateOrderDetailRequest.orderSizeId()))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + " OrderSizeEntity with ID: " + updateOrderDetailRequest.orderSizeId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -287,7 +284,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         List<ContractRuleAssignResponse> assignResponses = contractService.assignVehicles(orderId);
         Map<UUID,List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
         for(ContractRuleAssignResponse contractRuleAssignResponse : assignResponses){
-            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findContractRuleEntitiesById(vehicleRuleEntityService.findContractRuleEntitiesById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
+            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findEntityById(vehicleRuleEntityService.findEntityById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
             mapVehicleTypeAndOrderDetail.put(
                     vehicleTypeEntity.getId(),
                     contractRuleAssignResponse.getAssignedDetails()
@@ -309,7 +306,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
             List<OrderDetailEntity> toUpdate = new ArrayList<>();
             if (mapVehicleTypeAndOrderDetail.containsKey(vehicleTypeId)) {
                 for (UUID orderDetailId : mapVehicleTypeAndOrderDetail.get(vehicleTypeId)) {
-                    OrderDetailEntity detail = orderDetailEntityService.findContractRuleEntitiesById(orderDetailId)
+                    OrderDetailEntity detail = orderDetailEntityService.findEntityById(orderDetailId)
                             .orElseThrow(() -> new NotFoundException(
                                     ErrorEnum.NOT_FOUND.getMessage() + " order detail with ID: " + orderDetailId,
                                     ErrorEnum.NOT_FOUND.getErrorCode()

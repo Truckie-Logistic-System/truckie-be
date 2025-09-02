@@ -29,6 +29,7 @@ import capstone_project.service.entityServices.pricing.DistanceRuleEntityService
 import capstone_project.service.entityServices.pricing.VehicleRuleEntityService;
 import capstone_project.service.mapper.order.ContractMapper;
 import capstone_project.service.services.order.order.ContractService;
+import capstone_project.service.services.user.DistanceService;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,7 @@ public class ContractServiceImpl implements ContractService {
     private final DistanceRuleEntityService distanceRuleEntityService;
     private final BasingPriceEntityService basingPriceEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
+    private final DistanceService distanceService;
 
     private final ContractMapper contractMapper;
 
@@ -75,7 +77,7 @@ public class ContractServiceImpl implements ContractService {
     @Override
     public ContractResponse getContractById(UUID id) {
         log.info("Getting contract by ID: {}", id);
-        ContractEntity contractEntity = contractEntityService.findContractRuleEntitiesById(id)
+        ContractEntity contractEntity = contractEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -114,7 +116,7 @@ public class ContractServiceImpl implements ContractService {
                     ErrorEnum.ALREADY_EXISTED.getErrorCode());
         }
 
-        OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderUuid)
+        OrderEntity order = orderEntityService.findEntityById(orderUuid)
                 .orElseThrow(() -> {
                     log.error("[createContract] Order not found: {}", orderUuid);
                     return new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode());
@@ -162,13 +164,16 @@ public class ContractServiceImpl implements ContractService {
         }
 
         // lấy order
-        OrderEntity order = orderEntityService.findContractRuleEntitiesById(orderUuid)
+        OrderEntity order = orderEntityService.findEntityById(orderUuid)
                 .orElseThrow(() -> {
                     log.error("[createBoth] Order not found: {}", orderUuid);
                     return new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode());
                 });
 
-        BigDecimal distanceKm = calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress());
+//        BigDecimal distanceKm = calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress());
+
+        BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
+
 
         // 1. map request -> ContractEntity và save trước (chưa set totalValue)
         ContractEntity contractEntity = contractMapper.mapRequestToEntity(contractRequest);
@@ -187,7 +192,7 @@ public class ContractServiceImpl implements ContractService {
             UUID vehicleRuleId = entry.getKey();
             Integer count = entry.getValue();
 
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findContractRuleEntitiesById(vehicleRuleId)
+            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> {
                         log.error("[createBoth] Vehicle rule not found: {}", vehicleRuleId);
                         return new NotFoundException("Vehicle rule not found", ErrorEnum.NOT_FOUND.getErrorCode());
@@ -246,7 +251,7 @@ public class ContractServiceImpl implements ContractService {
             throw new NotFoundException("No order details found for this order", ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
-        OrderEntity orderEntity = orderEntityService.findContractRuleEntitiesById(orderId)
+        OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> {
                     log.error("[assignVehicles] Order not found: {}", orderId);
                     return new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode());
@@ -418,12 +423,11 @@ public class ContractServiceImpl implements ContractService {
         BigDecimal total = BigDecimal.ZERO;
         List<PriceCalculationResponse.CalculationStep> steps = new ArrayList<>();
 
-        // ✅ Tính giá theo phương tiện
         for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
             UUID vehicleRuleId = entry.getKey();
             int numOfVehicles = entry.getValue();
 
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findContractRuleEntitiesById(vehicleRuleId)
+            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException("Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()));
 
@@ -450,7 +454,7 @@ public class ContractServiceImpl implements ContractService {
                     steps.add(PriceCalculationResponse.CalculationStep.builder()
                             .vehicleRuleName(vehicleRule.getVehicleRuleName())
                             .numOfVehicles(numOfVehicles)
-                            .distanceRange("0-4 km (cố định)")
+                            .distanceRange("0-4 km")
                             .unitPrice(basePriceEntity.getBasePrice())
                             .appliedKm(BigDecimal.valueOf(4))
                             .subtotal(basePriceEntity.getBasePrice())
@@ -480,16 +484,12 @@ public class ContractServiceImpl implements ContractService {
             total = total.add(ruleTotal);
         }
 
-        // ✅ Lưu tổng trước khi điều chỉnh
         BigDecimal totalBeforeAdjustment = total;
         BigDecimal categoryExtraFee = BigDecimal.ZERO;
         BigDecimal categoryMultiplier = BigDecimal.ONE;
         BigDecimal promotionDiscount = BigDecimal.ZERO;
 
-        // ✅ Điều chỉnh theo loại hàng
-        CategoryPricingDetailEntity adjustment =
-                categoryPricingDetailEntityService.findByCategoryId(contract.getOrderEntity().getCategory().getId());
-// ✅ Điều chỉnh theo loại hàng
+        CategoryPricingDetailEntity adjustment = categoryPricingDetailEntityService.findByCategoryId(contract.getOrderEntity().getCategory().getId());
         if (adjustment != null) {
             categoryMultiplier = adjustment.getPriceMultiplier() != null ? adjustment.getPriceMultiplier() : BigDecimal.ONE;
             categoryExtraFee = adjustment.getExtraFee() != null ? adjustment.getExtraFee() : BigDecimal.ZERO;
@@ -508,7 +508,6 @@ public class ContractServiceImpl implements ContractService {
             total = adjustedTotal;
         }
 
-// ✅ Promotion
         if (promotionDiscount.compareTo(BigDecimal.ZERO) > 0) {
             steps.add(PriceCalculationResponse.CalculationStep.builder()
                     .vehicleRuleName("Khuyến mãi")
@@ -565,11 +564,11 @@ public class ContractServiceImpl implements ContractService {
     }
 
     private boolean canFitAll(List<UUID> detailIds, VehicleRuleEntity newRule, OrderDetailEntity newDetail) {
-        // Sửa bug: detailIds là ID của OrderDetail, cần findById từng detail
+        // Sửa bug: detailIds là ID của OrderDetail, cần findEntityById từng detail
         BigDecimal totalWeight = newDetail.getWeight();
 
         for (UUID id : detailIds) {
-            OrderDetailEntity d = orderDetailEntityService.findContractRuleEntitiesById(id)
+            OrderDetailEntity d = orderDetailEntityService.findEntityById(id)
                     .orElseThrow(() -> new NotFoundException("Order detail not found: " + id, ErrorEnum.NOT_FOUND.getErrorCode()));
 
             totalWeight = totalWeight.add(d.getWeight());

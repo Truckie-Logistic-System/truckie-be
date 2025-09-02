@@ -22,7 +22,7 @@ public class IssueImageEntityServiceImpl implements IssueImageEntityService {
     }
 
     @Override
-    public Optional<IssueImageEntity> findContractRuleEntitiesById(UUID uuid) {
+    public Optional<IssueImageEntity> findEntityById(UUID uuid) {
         return issuesImageRepository.findById(uuid);
     }
 

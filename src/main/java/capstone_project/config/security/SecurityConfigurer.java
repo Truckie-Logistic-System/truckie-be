@@ -1,6 +1,7 @@
 package capstone_project.config.security;
 
 
+import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.service.auth.AuthUserService;
 import capstone_project.service.auth.JwtRequestFilter;
 import jakarta.servlet.http.HttpServletResponse;
@@ -90,11 +91,14 @@ public class SecurityConfigurer {
     @Value("${issue-image.api.base-path}")
     private String issueImageBasePath;
 
-    @Value("${distance.api.base-path}}")
+    @Value("${distance.api.base-path}")
     private String distanceBasePath;
 
+    @Value("${device-type.api.base-path}")
+    private String deviceTypeBasePath;
 
-
+    @Value("${device.api.base-path}")
+    private String deviceBasePath;
 
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
@@ -150,8 +154,11 @@ public class SecurityConfigurer {
                         .requestMatchers(HttpMethod.GET, contractApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, contractRuleApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, penaltyApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, deviceTypeBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, deviceBasePath + "/**").authenticated()
 
-                        .requestMatchers(managerApiBasePath + "/**").hasAuthority("ADMIN")
+
+                        .requestMatchers(managerApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(roleApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(categoryApiBasePath + "/**").hasAuthority("ADMIN")
@@ -170,6 +177,8 @@ public class SecurityConfigurer {
                         .requestMatchers(issueImageBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(orderSizeBasePath + "/**").hasAnyAuthority("ADMIN","STAFF")
                         .requestMatchers(distanceBasePath + "/**").hasAnyAuthority("CUSTOMER","DRIVER","ADMIN","STAFF")
+                        .requestMatchers(deviceTypeBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(deviceBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)

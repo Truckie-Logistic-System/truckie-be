@@ -7,7 +7,6 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreateOrderSizeRequest;
 import capstone_project.dtos.request.order.UpdateOrderSizeRequest;
 import capstone_project.dtos.response.order.GetOrderSizeResponse;
-import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.service.entityServices.order.order.OrderSizeEntityService;
 import capstone_project.service.mapper.order.OrderSizeMapper;
@@ -16,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -77,7 +75,7 @@ public class OrderSizeServiceImpl implements OrderSizeService {
             );
         }
 
-        OrderSizeEntity orderSizeEntity = orderSizeEntityService.findContractRuleEntitiesById(UUID.fromString(request.id()))
+        OrderSizeEntity orderSizeEntity = orderSizeEntityService.findEntityById(UUID.fromString(request.id()))
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderSizeEntity with ID: " + request.id(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -116,7 +114,7 @@ public class OrderSizeServiceImpl implements OrderSizeService {
 
     @Override
     public boolean deleteOrderSize(UUID id) {
-        var entity = orderSizeEntityService.findContractRuleEntitiesById(id)
+        var entity = orderSizeEntityService.findEntityById(id)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderSizeEntity with ID: " + id,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -127,7 +125,7 @@ public class OrderSizeServiceImpl implements OrderSizeService {
 
     @Override
     public GetOrderSizeResponse getOrderSizeById(UUID id) {
-        var entity = orderSizeEntityService.findContractRuleEntitiesById(id)
+        var entity = orderSizeEntityService.findEntityById(id)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderSizeEntity with ID: " + id,
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -144,7 +142,7 @@ public class OrderSizeServiceImpl implements OrderSizeService {
 
     @Override
     public boolean activeOrderSize(UUID id) {
-        var entity = orderSizeEntityService.findContractRuleEntitiesById(id)
+        var entity = orderSizeEntityService.findEntityById(id)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderSizeEntity with ID: " + id,
                         ErrorEnum.NOT_FOUND.getErrorCode()

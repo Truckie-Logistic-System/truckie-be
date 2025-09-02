@@ -43,7 +43,7 @@ public class CategoryPricingDetailServiceImpl implements CategoryPricingDetailSe
     @Override
     public CategoryPricingDetailResponse getCategoryPricingDetailById(UUID id) {
         log.info("Fetching category pricing detail by ID: {}", id);
-        CategoryPricingDetailEntity categoryPricingDetailEntity = categoryPricingDetailEntityService.findContractRuleEntitiesById(id)
+        CategoryPricingDetailEntity categoryPricingDetailEntity = categoryPricingDetailEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -78,7 +78,7 @@ public class CategoryPricingDetailServiceImpl implements CategoryPricingDetailSe
     @Override
     public CategoryPricingDetailResponse updateCategoryPricingDetail(UUID id, CategoryPricingDetailRequest categoryPricingDetailRequest) {
         log.info("Updating category pricing detail with ID: {}", id);
-        CategoryPricingDetailEntity existingEntity = categoryPricingDetailEntityService.findContractRuleEntitiesById(id)
+        CategoryPricingDetailEntity existingEntity = categoryPricingDetailEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()

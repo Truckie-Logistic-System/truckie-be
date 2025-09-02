@@ -91,6 +91,7 @@ public class PdfGenerationService {
             context.setVariable("finalTotal", result.getFinalTotal());
             context.setVariable("calculationDetails", result.getSteps());
             context.setVariable("summary", result.getSummary());
+            context.setVariable("distanceKm", distanceKm);
 
             String htmlContent = templateEngine.process("contract-pdf", context);
 
