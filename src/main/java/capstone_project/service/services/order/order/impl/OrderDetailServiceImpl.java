@@ -12,9 +12,11 @@ import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
+import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
+import capstone_project.entity.pricing.VehicleRuleEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.service.entityServices.order.contract.ContractEntityService;
@@ -357,11 +359,10 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                 contractRuleService.getListAssignOrUnAssignContractRule(contractEntity.getId());
 
         // 3. Map VehicleTypeId -> List<OrderDetailId>
-        Map<UUID, List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
             UUID vehicleRuleId = response.getVehicleRuleId();
 
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findContractRuleEntitiesById(vehicleRuleId)
+            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()

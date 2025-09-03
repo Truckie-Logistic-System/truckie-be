@@ -44,10 +44,10 @@ public class PhotoCompletionServiceImpl implements PhotoCompletionService {
         String imageUrl = uploadResult.get("secure_url").toString();
 
         // load relationships
-        VehicleAssignmentEntity vehicleAssignment = vehicleAssignmentEntityService.findContractRuleEntitiesById(request.vehicleAssignmentId())
+        VehicleAssignmentEntity vehicleAssignment = vehicleAssignmentEntityService.findEntityById(request.vehicleAssignmentId())
                 .orElseThrow(() -> new RuntimeException("VehicleAssignment not found"));
 
-        DeviceEntity device = deviceEntityService.findContractRuleEntitiesById(request.deviceId())
+        DeviceEntity device = deviceEntityService.findEntityById(request.deviceId())
                 .orElseThrow(() -> new RuntimeException("Device not found"));
 
         // save DB
@@ -64,7 +64,7 @@ public class PhotoCompletionServiceImpl implements PhotoCompletionService {
 
     @Override
     public PhotoCompletionResponse updatePhoto(UpdatePhotoCompletionRequest request) {
-        PhotoCompletionEntity entity = photoCompletionEntityService.findContractRuleEntitiesById(request.id())
+        PhotoCompletionEntity entity = photoCompletionEntityService.findEntityById(request.id())
                 .orElseThrow(() -> new RuntimeException("Photo not found"));
 
         entity.setDescription(request.description());
@@ -84,7 +84,7 @@ public class PhotoCompletionServiceImpl implements PhotoCompletionService {
 
     @Override
     public PhotoCompletionResponse getPhoto(UUID id) {
-        return photoCompletionMapper.toPhotoCompletionResponse(photoCompletionEntityService.findContractRuleEntitiesById(id).get());
+        return photoCompletionMapper.toPhotoCompletionResponse(photoCompletionEntityService.findEntityById(id).get());
     }
 
     @Override

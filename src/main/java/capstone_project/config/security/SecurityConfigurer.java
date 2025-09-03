@@ -94,7 +94,7 @@ public class SecurityConfigurer {
     @Value("${distance.api.base-path}")
     private String distanceBasePath;
 
-    @Value("${photo-completion.api.base-path}}")
+    @Value("${photo-completion.api.base-path}")
     private String photoCompletionBasePath;
 
     @Value("${device-type.api.base-path}")
