@@ -8,8 +8,8 @@ import capstone_project.dtos.response.vehicle.VehicleMaintenanceResponse;
 import capstone_project.entity.vehicle.MaintenanceTypeEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.entity.vehicle.VehicleMaintenanceEntity;
-import capstone_project.service.entityServices.vehicle.MaintenanceTypeEntityService;
-import capstone_project.service.entityServices.vehicle.VehicleEntityService;
+import capstone_project.repository.entityServices.vehicle.MaintenanceTypeEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import org.mapstruct.*;
 import org.springframework.beans.factory.annotation.Autowired;
 

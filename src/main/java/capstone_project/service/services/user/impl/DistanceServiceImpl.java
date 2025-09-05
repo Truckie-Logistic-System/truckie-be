@@ -7,7 +7,7 @@ import capstone_project.dtos.response.user.RouteResponse;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.common.exceptions.dto.NotFoundException;
-import capstone_project.service.entityServices.order.order.OrderEntityService;
+import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.service.services.user.DistanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

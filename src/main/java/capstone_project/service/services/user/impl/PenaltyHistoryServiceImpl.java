@@ -5,7 +5,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.user.PenaltyHistoryRequest;
 import capstone_project.dtos.response.user.PenaltyHistoryResponse;
 import capstone_project.entity.user.driver.PenaltyHistoryEntity;
-import capstone_project.service.entityServices.user.PenaltyHistoryEntityService;
+import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
 import capstone_project.service.mapper.user.PenaltyHistoryMapper;
 import capstone_project.service.services.service.RedisService;
 import capstone_project.service.services.user.PenaltyHistoryService;

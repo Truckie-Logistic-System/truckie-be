@@ -7,7 +7,7 @@ import capstone_project.dtos.request.issue.CreateIssueTypeRequest;
 import capstone_project.dtos.request.issue.UpdateIssueTypeRequest;
 import capstone_project.dtos.response.issue.GetIssueTypeResponse;
 import capstone_project.entity.issue.IssueTypeEntity;
-import capstone_project.service.entityServices.issue.IssueTypeEntityService;
+import capstone_project.repository.entityServices.issue.IssueTypeEntityService;
 import capstone_project.service.mapper.issue.IssueMapper;
 import capstone_project.service.services.issue.IssueTypeService;
 import lombok.RequiredArgsConstructor;

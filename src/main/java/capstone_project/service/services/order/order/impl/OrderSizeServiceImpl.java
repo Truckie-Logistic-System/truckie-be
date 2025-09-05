@@ -8,7 +8,7 @@ import capstone_project.dtos.request.order.CreateOrderSizeRequest;
 import capstone_project.dtos.request.order.UpdateOrderSizeRequest;
 import capstone_project.dtos.response.order.GetOrderSizeResponse;
 import capstone_project.entity.order.order.OrderSizeEntity;
-import capstone_project.service.entityServices.order.order.OrderSizeEntityService;
+import capstone_project.repository.entityServices.order.order.OrderSizeEntityService;
 import capstone_project.service.mapper.order.OrderSizeMapper;
 import capstone_project.service.services.order.order.OrderSizeService;
 import lombok.RequiredArgsConstructor;

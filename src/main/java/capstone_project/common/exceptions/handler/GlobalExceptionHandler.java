@@ -21,6 +21,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.reactive.resource.NoResourceFoundException;
+import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;
@@ -120,6 +121,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.fail("The requested URL does not exist: " + ex.getMessage(), HttpStatus.NOT_FOUND.value()));
+    }
+
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity<ApiResponse<?>> handleNoHandlerFound(NoHandlerFoundException ex) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.fail("The requested URL does not exist: " + ex.getRequestURL(), HttpStatus.NOT_FOUND.value()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

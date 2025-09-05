@@ -6,7 +6,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.VehicleTypeRequest;
 import capstone_project.dtos.response.vehicle.VehicleTypeResponse;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
-import capstone_project.service.entityServices.vehicle.VehicleTypeEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.vehicle.VehicleTypeMapper;
 import capstone_project.service.services.service.RedisService;
 import capstone_project.service.services.vehicle.VehicleTypeService;
