@@ -6,7 +6,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CategoryRequest;
 import capstone_project.dtos.response.order.CategoryResponse;
 import capstone_project.entity.order.order.CategoryEntity;
-import capstone_project.service.entityServices.order.order.CategoryEntityService;
+import capstone_project.repository.entityServices.order.order.CategoryEntityService;
 import capstone_project.service.mapper.order.CategoryMapper;
 import capstone_project.service.services.order.category.CategoryService;
 import capstone_project.service.services.service.RedisService;

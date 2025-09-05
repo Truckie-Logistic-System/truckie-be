@@ -6,7 +6,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.auth.RoleRequest;
 import capstone_project.dtos.response.auth.RoleResponse;
 import capstone_project.entity.auth.RoleEntity;
-import capstone_project.service.entityServices.auth.RoleEntityService;
+import capstone_project.repository.entityServices.auth.RoleEntityService;
 import capstone_project.service.mapper.role.RoleMapper;
 import capstone_project.service.services.auth.RoleService;
 import lombok.RequiredArgsConstructor;

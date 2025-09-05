@@ -4,7 +4,7 @@ import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.template.OtpEmailTemplate;
 import capstone_project.config.expired.OtpSchedulerService;
 import capstone_project.dtos.response.auth.OTPResponse;
-import capstone_project.service.entityServices.auth.UserEntityService;
+import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.service.services.email.EmailProtocolService;
 import capstone_project.service.services.user.CustomerService;
 import capstone_project.service.services.user.UserService;

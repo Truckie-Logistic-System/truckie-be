@@ -7,7 +7,7 @@ import capstone_project.dtos.request.vehicle.UpdateVehicleRequest;
 import capstone_project.dtos.request.vehicle.VehicleRequest;
 import capstone_project.dtos.response.vehicle.VehicleResponse;
 import capstone_project.entity.vehicle.VehicleEntity;
-import capstone_project.service.entityServices.vehicle.VehicleEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.mapper.vehicle.VehicleMapper;
 import capstone_project.service.services.service.RedisService;
 import capstone_project.service.services.vehicle.VehicleService;

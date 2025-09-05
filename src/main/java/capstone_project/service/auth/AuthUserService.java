@@ -2,7 +2,7 @@ package capstone_project.service.auth;
 
 
 import capstone_project.entity.auth.UserEntity;
-import capstone_project.repository.auth.UserRepository;
+import capstone_project.repository.repositories.auth.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;

@@ -5,7 +5,7 @@ import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderEntity;
-import capstone_project.service.entityServices.order.contract.ContractEntityService;
+import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.ContractRuleService;
 import capstone_project.service.services.order.order.ContractService;

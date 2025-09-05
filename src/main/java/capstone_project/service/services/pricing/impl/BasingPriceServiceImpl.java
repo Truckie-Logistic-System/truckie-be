@@ -8,7 +8,7 @@ import capstone_project.dtos.request.pricing.UpdateBasingPriceRequest;
 import capstone_project.dtos.response.pricing.BasingPriceResponse;
 import capstone_project.dtos.response.pricing.GetBasingPriceResponse;
 import capstone_project.entity.pricing.BasingPriceEntity;
-import capstone_project.service.entityServices.pricing.BasingPriceEntityService;
+import capstone_project.repository.entityServices.pricing.BasingPriceEntityService;
 import capstone_project.service.mapper.order.BasingPriceMapper;
 import capstone_project.service.services.pricing.BasingPriceService;
 import lombok.RequiredArgsConstructor;

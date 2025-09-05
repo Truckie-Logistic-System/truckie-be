@@ -7,7 +7,7 @@ import capstone_project.dtos.request.device.DeviceTypeRequest;
 import capstone_project.dtos.request.device.UpdateDeviceTypeRequest;
 import capstone_project.dtos.response.device.DeviceTypeResponse;
 import capstone_project.entity.device.DeviceTypeEntity;
-import capstone_project.service.entityServices.device.DeviceTypeEntityService;
+import capstone_project.repository.entityServices.device.DeviceTypeEntityService;
 import capstone_project.service.mapper.device.DeviceTypeMapper;
 import capstone_project.service.services.device.DeviceTypeService;
 import lombok.RequiredArgsConstructor;

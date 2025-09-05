@@ -103,6 +103,9 @@ public class SecurityConfigurer {
     @Value("${device.api.base-path}")
     private String deviceBasePath;
 
+    @Value("${user.api.base-path}")
+    private String userApiBasePath;
+
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -147,6 +150,7 @@ public class SecurityConfigurer {
         http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(userApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, vehicleTypeApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, categoryApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, categoryPricingDetailApiBasePath + "/**").authenticated()
@@ -159,7 +163,6 @@ public class SecurityConfigurer {
                         .requestMatchers(HttpMethod.GET, penaltyApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, deviceTypeBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, deviceBasePath + "/**").authenticated()
-
 
                         .requestMatchers(managerApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(roleApiBasePath + "/**").hasAuthority("ADMIN")

@@ -6,7 +6,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CategoryPricingDetailRequest;
 import capstone_project.dtos.response.order.CategoryPricingDetailResponse;
 import capstone_project.entity.order.order.CategoryPricingDetailEntity;
-import capstone_project.service.entityServices.order.order.CategoryPricingDetailEntityService;
+import capstone_project.repository.entityServices.order.order.CategoryPricingDetailEntityService;
 import capstone_project.service.mapper.order.CategoryPricingDetailMapper;
 import capstone_project.service.services.order.category.CategoryPricingDetailService;
 import lombok.RequiredArgsConstructor;

@@ -1,6 +1,6 @@
 package capstone_project.service.services.user.impl;
 
-import capstone_project.service.entityServices.user.CustomerEntityService;
+import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.user.CustomerMapper;
 import capstone_project.service.services.user.CustomerService;
 import lombok.RequiredArgsConstructor;

@@ -6,12 +6,10 @@ import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.common.utils.JWTUtil;
-import capstone_project.dtos.request.auth.LoginWithGoogleRequest;
-import capstone_project.dtos.request.auth.LoginWithoutEmailRequest;
-import capstone_project.dtos.request.auth.RefreshTokenRequest;
-import capstone_project.dtos.request.auth.RegisterUserRequest;
+import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
 import capstone_project.dtos.request.user.RegisterDriverRequest;
+import capstone_project.dtos.response.auth.ChangePasswordResponse;
 import capstone_project.dtos.response.auth.LoginResponse;
 import capstone_project.dtos.response.auth.RefreshTokenResponse;
 import capstone_project.dtos.response.auth.UserResponse;
@@ -22,11 +20,11 @@ import capstone_project.entity.auth.RoleEntity;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.entity.user.driver.DriverEntity;
-import capstone_project.service.entityServices.auth.RefreshTokenEntityService;
-import capstone_project.service.entityServices.auth.RoleEntityService;
-import capstone_project.service.entityServices.auth.UserEntityService;
-import capstone_project.service.entityServices.user.CustomerEntityService;
-import capstone_project.service.entityServices.user.DriverEntityService;
+import capstone_project.repository.entityServices.auth.RefreshTokenEntityService;
+import capstone_project.repository.entityServices.auth.RoleEntityService;
+import capstone_project.repository.entityServices.auth.UserEntityService;
+import capstone_project.repository.entityServices.user.CustomerEntityService;
+import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.service.mapper.user.CustomerMapper;
 import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.mapper.user.UserMapper;
@@ -406,6 +404,98 @@ public class RegisterServiceImpl implements RegisterService {
         String newAccessToken = JWTUtil.generateToken(user);
 
         return new RefreshTokenResponse(newAccessToken, refreshTokenRequest.getRefreshToken());
+    }
+
+    @Override
+    @Transactional
+    public ChangePasswordResponse changePassword(ChangePasswordRequest changePasswordRequest) {
+        log.info("[changePassword] Start function");
+
+        UserEntity user = validationForChangePassword(changePasswordRequest);
+
+        user.setPassword(passwordEncoder.encode(changePasswordRequest.newPassword()));
+        userEntityService.save(user);
+
+        return new ChangePasswordResponse("Change password successful");
+    }
+
+    @Override
+    @Transactional
+    public ChangePasswordResponse changePasswordForForgetPassword(ChangePasswordForForgetPassRequest changePasswordForForgetPassRequest) {
+        log.info("[changePasswordForForgetPassword] Start function");
+
+        UserEntity user = validationForChangePasswordForForgetPassword(changePasswordForForgetPassRequest);
+
+        user.setPassword(passwordEncoder.encode(changePasswordForForgetPassRequest.newPassword()));
+        userEntityService.save(user);
+
+        return new ChangePasswordResponse("Change password successful");
+    }
+
+    private UserEntity validationForChangePasswordForForgetPassword(ChangePasswordForForgetPassRequest changePasswordForForgetPassRequest) {
+        if (changePasswordForForgetPassRequest == null) {
+            log.error("[changePasswordForForgetPassword] ChangePasswordForForgetPassRequest is null");
+            throw new BadRequestException(
+                    ErrorEnum.NULL.getMessage(),
+                    ErrorEnum.NULL.getErrorCode()
+            );
+        }
+
+        UserEntity user = userEntityService.getUserByUserName(changePasswordForForgetPassRequest.username())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        if (!Objects.equals(changePasswordForForgetPassRequest.newPassword(), changePasswordForForgetPassRequest.confirmNewPassword())) {
+            log.error("[changePasswordForForgetPassword] New password and confirm new password do not match");
+            throw new BadRequestException(
+                    ErrorEnum.PASSWORD_CONFIRM_NOT_MATCH.getMessage(),
+                    ErrorEnum.PASSWORD_CONFIRM_NOT_MATCH.getErrorCode()
+            );
+        }
+        return user;
+    }
+
+    private UserEntity validationForChangePassword(ChangePasswordRequest changePasswordRequest) {
+        if (changePasswordRequest == null) {
+            log.error("[changePassword] ChangePasswordRequest is null");
+            throw new BadRequestException(
+                    ErrorEnum.NULL.getMessage(),
+                    ErrorEnum.NULL.getErrorCode()
+            );
+        }
+
+        UserEntity user = userEntityService.getUserByUserName(changePasswordRequest.username())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        if (!passwordEncoder.matches(changePasswordRequest.oldPassword(), user.getPassword())) {
+            log.error("[changePassword] Current password is incorrect");
+            throw new BadRequestException(
+                    ErrorEnum.OLD_PASSWORD_IS_INCORRECT.getMessage(),
+                    ErrorEnum.OLD_PASSWORD_IS_INCORRECT.getErrorCode()
+            );
+        }
+
+        if (Objects.equals(changePasswordRequest.oldPassword(), changePasswordRequest.newPassword())) {
+            log.error("[changePassword] New password must be different from old password");
+            throw new BadRequestException(
+                    ErrorEnum.NEW_PASSWORD_MUST_BE_DIFFERENT_OLD_PASSWORD.getMessage(),
+                    ErrorEnum.NEW_PASSWORD_MUST_BE_DIFFERENT_OLD_PASSWORD.getErrorCode()
+            );
+        }
+
+        if (!Objects.equals(changePasswordRequest.newPassword(), changePasswordRequest.confirmNewPassword())) {
+            log.error("[changePassword] New password and confirm new password do not match");
+            throw new BadRequestException(
+                    ErrorEnum.PASSWORD_CONFIRM_NOT_MATCH.getMessage(),
+                    ErrorEnum.PASSWORD_CONFIRM_NOT_MATCH.getErrorCode()
+            );
+        }
+        return user;
     }
 
     public LocalDateTime validateDateFormat(String dateOfBirthStr) {
