@@ -53,6 +53,11 @@ public class UserEntityServiceImpl implements UserEntityService {
     }
 
     @Override
+    public List<UserEntity> getUserEntitiesByRoleRoleName(String roleName) {
+        return userRepository.findUserEntitiesByRoleRoleName(roleName);
+    }
+
+    @Override
     public UserEntity save(UserEntity entity) {
         return userRepository.save(entity);
     }

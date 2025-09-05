@@ -21,10 +21,20 @@ public class CustomerEntityServiceImpl implements CustomerEntityService {
         return customerRepository.findByUserId(id);
     }
 
-//    @Override
-//    public CustomerEntity createCustomer(CustomerEntity customerEntity) {
-//        return customerRepository.save(customerEntity);
-//    }
+    @Override
+    public List<CustomerEntity> findAllByRepresentativeNameLike(String name) {
+        return customerRepository.findByRepresentativeNameContainingIgnoreCase(name);
+    }
+
+    @Override
+    public List<CustomerEntity> findAllByCompanyNameLike(String companyName) {
+        return customerRepository.findByCompanyNameContainingIgnoreCase(companyName);
+    }
+
+    @Override
+    public List<CustomerEntity> findByUser_Role_RoleName(String userRoleRoleName) {
+        return customerRepository.findByUser_Role_RoleName(userRoleRoleName);
+    }
 
     @Override
     public CustomerEntity save(CustomerEntity entity) {
@@ -40,5 +50,7 @@ public class CustomerEntityServiceImpl implements CustomerEntityService {
     public List<CustomerEntity> findAll() {
         return customerRepository.findAll();
     }
+
+
 }
 

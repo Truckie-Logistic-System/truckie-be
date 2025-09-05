@@ -43,4 +43,6 @@ public interface UserRepository extends BaseRepository<UserEntity> {
     UserEntity updateUserStatus(String email, String status);
 
     List<UserEntity> findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(String username, String email);
+
+    List<UserEntity> findUserEntitiesByRoleRoleName(String roleName);
 }

@@ -106,6 +106,12 @@ public class SecurityConfigurer {
     @Value("${user.api.base-path}")
     private String userApiBasePath;
 
+    @Value("${customer.api.base-path}")
+    private String customerApiBasePath;
+
+    @Value("${driver.api.base-path}")
+    private String driverApiBasePath;
+
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -163,18 +169,21 @@ public class SecurityConfigurer {
                         .requestMatchers(HttpMethod.GET, penaltyApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, deviceTypeBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, deviceBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, customerApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, driverApiBasePath + "/**").authenticated()
+
 
                         .requestMatchers(managerApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(roleApiBasePath + "/**").hasAuthority("ADMIN")
-                        .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority("ADMIN")
-                        .requestMatchers(categoryApiBasePath + "/**").hasAuthority("ADMIN")
-                        .requestMatchers(categoryPricingDetailApiBasePath + "/**").hasAuthority("ADMIN")
-                        .requestMatchers(distanceRuleApiBasePath + "/**").hasAuthority("ADMIN")
-                        .requestMatchers(vehicleRuleApiBasePath + "/**").hasAuthority("ADMIN")
-                        .requestMatchers(basingPriceApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(roleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(categoryApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(categoryPricingDetailApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(distanceRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(vehicleRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(basingPriceApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(orderApiBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
-                        .requestMatchers(contractApiBasePath + "/**").hasAuthority("ADMIN")
-                        .requestMatchers(contractRuleApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(contractApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(contractRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(penaltyApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(orderDetailApiBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(orderBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
@@ -186,6 +195,9 @@ public class SecurityConfigurer {
                         .requestMatchers(photoCompletionBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(deviceTypeBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(deviceBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(customerApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.CUSTOMER.name())
+                        .requestMatchers(driverApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.DRIVER.name())
+
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)

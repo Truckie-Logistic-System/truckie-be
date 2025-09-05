@@ -46,4 +46,6 @@ public interface UserEntityService extends BaseEntityService<UserEntity, UUID> {
     UserEntity updateUserStatus(String email, String status);
 
     List<UserEntity> getUserByUserNameOrEmailLike(final String username, final String email);
+
+    List<UserEntity> getUserEntitiesByRoleRoleName(String roleName);
 }

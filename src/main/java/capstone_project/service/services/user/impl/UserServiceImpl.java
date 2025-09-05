@@ -240,4 +240,30 @@ public class UserServiceImpl implements UserService {
                 .map(userMapper::mapUserResponse)
                 .toList();
     }
+
+    @Override
+    public List<UserResponse> getUserByRoleRoleName(String roleName) {
+        log.info("[getUserByRoleRoleName] - Start - roleName: {}", roleName);
+
+        if (roleName == null || roleName.isEmpty()) {
+            log.error("[getUserByRoleRoleName] - Invalid roleName: {}", roleName);
+            throw new BadRequestException(
+                    "Invalid roleName: " + roleName,
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        List<UserEntity> userEntities = userEntityService.getUserEntitiesByRoleRoleName(roleName);
+        if (userEntities.isEmpty()) {
+            log.warn("[getUserByRoleRoleName] - No users found with roleName: {}", roleName);
+            throw new BadRequestException(
+                    "No users found with roleName: " + roleName,
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+
+        return userEntities.stream()
+                .map(userMapper::mapUserResponse)
+                .toList();
+    }
 }

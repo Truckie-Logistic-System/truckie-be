@@ -24,4 +24,6 @@ public interface UserService {
 
     List<UserResponse> getUserByUserNameOrEmailLike(final String username, final String email);
 
+    List<UserResponse> getUserByRoleRoleName(final String roleName);
+
 }

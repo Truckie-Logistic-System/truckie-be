@@ -44,13 +44,19 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.ok(userById));
     }
 
+    @GetMapping("/search/role")
+    public ResponseEntity<ApiResponse<List<UserResponse>>> getUserByRoleRoleName(@RequestParam String roleName) {
+        final var userById = userService.getUserByRoleRoleName(roleName);
+        return ResponseEntity.ok(ApiResponse.ok(userById));
+    }
+
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getUserByUserNameOrEmailLike(@RequestParam(required = false) final String username, @RequestParam(required = false) final String email) {
         final var users = userService.getUserByUserNameOrEmailLike(username, email);
         return ResponseEntity.ok(ApiResponse.ok(users));
     }
 
-    @PutMapping("/status/{id}")
+    @PatchMapping("/status/{id}")
     public ResponseEntity<ApiResponse<UserResponse>> updateUserStatusById(@PathVariable UUID id, @RequestParam String status) {
         final var user = userService.updateUserStatusById(id, status);
         return ResponseEntity.ok(ApiResponse.ok(user));
