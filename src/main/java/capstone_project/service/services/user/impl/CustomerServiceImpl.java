@@ -242,8 +242,8 @@ public class CustomerServiceImpl implements CustomerService {
                     );
                 });
 
+        customerMapper.toCustomerEntity(updateCustomerRequest, customerEntity);
         CustomerEntity updatedCustomer = customerEntityService.save(customerEntity);
-        customerMapper.toCustomerEntity(updateCustomerRequest, updatedCustomer);
 
         return customerMapper.mapCustomerResponse(updatedCustomer);
     }
