@@ -35,4 +35,9 @@ public class DriverEntityServiceImpl implements DriverEntityService {
     public List<DriverEntity> findByUser_Role_RoleName(String userRoleRoleName) {
         return driverRepository.findByUser_Role_RoleName(userRoleRoleName);
     }
+
+    @Override
+    public Optional<DriverEntity> findByUserId(UUID userId) {
+        return driverRepository.findByUserId(userId);
+    }
 }

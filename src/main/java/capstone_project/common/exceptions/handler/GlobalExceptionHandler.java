@@ -20,6 +20,7 @@ import org.springframework.web.bind.MissingPathVariableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.resource.NoResourceFoundException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
@@ -102,11 +103,25 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.fail("Missing path variable: " + ex.getVariableName(), HttpStatus.BAD_REQUEST.value()));
     }
 
+    @ExceptionHandler(HttpClientErrorException.class)
+    public ResponseEntity<ApiResponse<?>> handleHttpClientError(HttpClientErrorException ex) {
+        return ResponseEntity
+                .status(ex.getStatusCode())
+                .body(ApiResponse.fail("HTTP Client Error: " + ex.getStatusText(), ex.getStatusCode().value()));
+    }
+
+    @ExceptionHandler(HttpClientErrorException.Unauthorized.class)
+    public ResponseEntity<ApiResponse<?>> handleHttpClientUnauthorized(HttpClientErrorException.Unauthorized ex) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.fail("Unauthorized: " + ex.getStatusText(), HttpStatus.UNAUTHORIZED.value()));
+    }
+
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ApiResponse<?>> handleNotFound(NotFoundException ex) {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.fail("Not found this data", HttpStatus.NOT_FOUND.value()));
+                .body(new ApiResponse<>(false, ex.getMessage(), 404, null));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

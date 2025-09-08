@@ -67,6 +67,30 @@ public class DriverServiceImpl implements DriverService {
     }
 
     @Override
+    public DriverResponse getDriverByUserId(UUID userId) {
+        log.info("Getting driver by User ID: {}", userId);
+
+        if (userId == null) {
+            log.error("User ID is null");
+            throw new BadRequestException(
+                    "User ID cannot be null",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        DriverEntity driverEntity = driverEntityService.findByUserId(userId)
+                .orElseThrow(() -> {
+                    log.error("Driver not found with User ID: {}", userId);
+                    return new BadRequestException(
+                            "Driver not found with User ID: " + userId,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    );
+                });
+
+        return driverMapper.mapDriverResponse(driverEntity);
+    }
+
+    @Override
     public DriverResponse updateDriver(UUID driverId, UpdateDriverRequest updateDriverRequest) {
         log.info("Updating driver: {}", driverId);
         if (driverId == null) {
