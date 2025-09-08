@@ -10,6 +10,7 @@ import capstone_project.entity.device.DeviceTypeEntity;
 import capstone_project.repository.entityServices.device.DeviceTypeEntityService;
 import capstone_project.service.mapper.device.DeviceTypeMapper;
 import capstone_project.service.services.device.DeviceTypeService;
+import capstone_project.service.services.service.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,12 +25,27 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
 
     private final DeviceTypeEntityService deviceTypeEntityService;
     private final DeviceTypeMapper deviceTypeMapper;
+    private final RedisService redisService;
+
+    private static final String DEVICE_TYPE_ALL_CACHE_KEY = "device-types:all";
+    private static final String DEVICE_TYPE_ALL_BY_NAME_CACHE_KEY = "device-types:all:name:";
+    private static final String DEVICE_TYPE_BY_ID_CACHE_KEY_PREFIX = "device-type:";
+    private static final String DEVICE_TYPE_BY_NAME_CACHE_KEY_PREFIX = "device-type:name:";
+
 
     @Override
     public List<DeviceTypeResponse> getAllDeviceTypes() {
         log.info("getAllDeviceTypes()");
-        List<DeviceTypeEntity> deviceTypeEntities = deviceTypeEntityService.findAll();
 
+        List<DeviceTypeEntity> cachedDeviceTypes = redisService.getList(DEVICE_TYPE_ALL_CACHE_KEY, DeviceTypeEntity.class);
+        if (cachedDeviceTypes != null && !cachedDeviceTypes.isEmpty()) {
+            log.info("Returning {} device types from cache", cachedDeviceTypes.size());
+            return cachedDeviceTypes.stream()
+                    .map(deviceTypeMapper::toDeviceTypeResponse)
+                    .toList();
+        }
+
+        List<DeviceTypeEntity> deviceTypeEntities = deviceTypeEntityService.findAll();
         if (deviceTypeEntities.isEmpty()) {
             log.warn("No device types found");
             throw new NotFoundException(
@@ -37,6 +53,8 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
                     ErrorEnum.NOT_FOUND.getErrorCode()
             );
         }
+
+        redisService.save(DEVICE_TYPE_ALL_CACHE_KEY, deviceTypeEntities);
 
         return deviceTypeEntities.stream()
                 .map(deviceTypeMapper::toDeviceTypeResponse)
@@ -55,6 +73,16 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
             );
         }
 
+        String cacheKey = DEVICE_TYPE_ALL_BY_NAME_CACHE_KEY + name;
+        List<DeviceTypeEntity> cachedDeviceTypes = redisService.getList(cacheKey, DeviceTypeEntity.class);
+
+        if (cachedDeviceTypes != null && !cachedDeviceTypes.isEmpty()) {
+            log.info("Returning {} device types from cache for name like: {}", cachedDeviceTypes.size(), name);
+            return cachedDeviceTypes.stream()
+                    .map(deviceTypeMapper::toDeviceTypeResponse)
+                    .toList();
+        }
+
         List<DeviceTypeEntity> deviceTypeEntities = deviceTypeEntityService.getAllDeviceTypesByNameLike(name);
 
         if (deviceTypeEntities.isEmpty()) {
@@ -65,6 +93,8 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
             );
         }
 
+        redisService.save(cacheKey, deviceTypeEntities);
+
         return deviceTypeEntities.stream()
                 .map(deviceTypeMapper::toDeviceTypeResponse)
                 .toList();
@@ -74,6 +104,21 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
     public DeviceTypeResponse getDeviceTypeById(UUID id) {
         log.info("getDeviceTypeById() - id: {}", id);
 
+        if (id == null) {
+            log.warn("Device type ID is null");
+            throw new BadRequestException(
+                    ErrorEnum.REQUIRED.getMessage(),
+                    ErrorEnum.REQUIRED.getErrorCode()
+            );
+        }
+
+        String cacheKey = DEVICE_TYPE_BY_ID_CACHE_KEY_PREFIX + id;
+        DeviceTypeEntity cachedEntity = redisService.get(cacheKey, DeviceTypeEntity.class);
+        if (cachedEntity != null) {
+            log.info("Returning cached device type for ID: {}", id);
+            return deviceTypeMapper.toDeviceTypeResponse(cachedEntity);
+        }
+
         DeviceTypeEntity deviceTypeEntity = deviceTypeEntityService.findEntityById(id)
                 .orElseThrow(() -> {
                     log.warn("Device type not found - id: {}", id);
@@ -82,6 +127,8 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     );
                 });
+
+        redisService.save(cacheKey, deviceTypeEntity);
 
         return deviceTypeMapper.toDeviceTypeResponse(deviceTypeEntity);
     }
@@ -94,7 +141,10 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
 
         DeviceTypeEntity deviceTypeEntity = deviceTypeMapper.mapRequestToEntity(request);
         deviceTypeEntity.setIsActive(Boolean.TRUE);
+
         DeviceTypeEntity savedEntity = deviceTypeEntityService.save(deviceTypeEntity);
+
+        redisService.delete(DEVICE_TYPE_ALL_CACHE_KEY);
 
         return deviceTypeMapper.toDeviceTypeResponse(savedEntity);
     }
@@ -116,6 +166,10 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
 
         deviceTypeMapper.toDeviceTypeEntity(request, existingEntity);
         DeviceTypeEntity updatedEntity = deviceTypeEntityService.save(existingEntity);
+
+        redisService.delete(DEVICE_TYPE_ALL_CACHE_KEY);
+        redisService.delete(DEVICE_TYPE_BY_ID_CACHE_KEY_PREFIX + id);
+
         return deviceTypeMapper.toDeviceTypeResponse(updatedEntity);
     }
 

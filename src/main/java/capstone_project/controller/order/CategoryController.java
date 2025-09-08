@@ -27,6 +27,12 @@ public class CategoryController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    @GetMapping("/{categoryName}/list")
+    public ResponseEntity<ApiResponse<List<CategoryResponse>>> getAllCategoriesByName(@PathVariable String categoryName) {
+        final var result = categoryService.getAllCategoriesByCategoryName(categoryName);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<CategoryResponse>> getCategoryById(@PathVariable("id") UUID id) {
         final var result = categoryService.getCategoryById(id);

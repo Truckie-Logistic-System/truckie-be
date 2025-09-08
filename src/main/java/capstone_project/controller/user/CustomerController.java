@@ -50,7 +50,7 @@ public class CustomerController {
         return ResponseEntity.ok(ApiResponse.ok(cus));
     }
 
-    @GetMapping("/{userId}")
+    @GetMapping("/{userId}/user")
     public ResponseEntity<ApiResponse<CustomerResponse>> getCustomerByUserId(@PathVariable UUID userId) {
         final var cus = customerService.getCustomerByUserId(userId);
         return ResponseEntity.ok(ApiResponse.ok(cus));

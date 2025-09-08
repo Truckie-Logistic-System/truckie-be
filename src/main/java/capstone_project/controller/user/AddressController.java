@@ -1,8 +1,6 @@
 package capstone_project.controller.user;
 
-import capstone_project.dtos.request.auth.LoginWithoutEmailRequest;
 import capstone_project.dtos.request.user.AddressRequest;
-import capstone_project.dtos.response.auth.LoginResponse;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.user.AddressResponse;
 import capstone_project.service.services.user.AddressService;
@@ -32,6 +30,12 @@ public class AddressController {
     @GetMapping("")
     public ResponseEntity<ApiResponse<List<AddressResponse>>> getAllAddresses() {
         final var addresses = addressService.getAllAddresses();
+        return ResponseEntity.ok(ApiResponse.ok(addresses));
+    }
+
+    @GetMapping("/{customerId}/list")
+    public ResponseEntity<ApiResponse<List<AddressResponse>>> getAllAddressesByCustomerId(@PathVariable UUID customerId) {
+        final var addresses = addressService.getAddressesByCustomerId(customerId);
         return ResponseEntity.ok(ApiResponse.ok(addresses));
     }
 

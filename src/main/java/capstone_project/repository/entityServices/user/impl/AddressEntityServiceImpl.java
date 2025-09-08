@@ -33,4 +33,9 @@ public class AddressEntityServiceImpl implements AddressEntityService {
         return addressRepository.findAll();
 
     }
+
+    @Override
+    public List<AddressEntity> getAddressesByCustomerId(UUID customerId) {
+        return addressRepository.findByCustomerId(customerId);
+    }
 }

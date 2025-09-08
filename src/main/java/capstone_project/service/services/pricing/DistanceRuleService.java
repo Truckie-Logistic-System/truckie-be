@@ -11,6 +11,7 @@ public interface DistanceRuleService {
     List<DistanceRuleResponse> getAllDistanceRules();
 
     DistanceRuleResponse getDistanceRuleById(UUID id);
+
     DistanceRuleResponse createDistanceRule(DistanceRuleRequest distanceRuleRequest);
 
     DistanceRuleResponse updateDistanceRule(UUID id, UpdateDistanceRuleRequest distanceRuleRequest);

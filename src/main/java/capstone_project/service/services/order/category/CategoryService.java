@@ -10,6 +10,8 @@ public interface CategoryService {
 
     List<CategoryResponse> getAllCategories();
 
+    List<CategoryResponse> getAllCategoriesByCategoryName(String categoryName);
+
     CategoryResponse getCategoryById(UUID id);
 
     CategoryResponse getCategoryByName(String categoryName);
