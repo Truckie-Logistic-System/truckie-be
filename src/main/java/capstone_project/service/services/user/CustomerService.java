@@ -12,6 +12,8 @@ public interface CustomerService {
 
     CustomerResponse getCustomerById(UUID id);
 
+    CustomerResponse getCustomerByUserId(UUID userId);
+
     List<CustomerResponse> getAllCustomersByRepresentativeNameLike(String name);
 
     List<CustomerResponse> getAllCustomersByCompanyNameLike(String companyName);

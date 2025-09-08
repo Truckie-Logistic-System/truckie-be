@@ -50,6 +50,12 @@ public class CustomerController {
         return ResponseEntity.ok(ApiResponse.ok(cus));
     }
 
+    @GetMapping("/{userId}")
+    public ResponseEntity<ApiResponse<CustomerResponse>> getCustomerByUserId(@PathVariable UUID userId) {
+        final var cus = customerService.getCustomerByUserId(userId);
+        return ResponseEntity.ok(ApiResponse.ok(cus));
+    }
+
     @PatchMapping("/{customerId}/status")
     public ResponseEntity<ApiResponse<CustomerResponse>> updateCustomerStatusByCustomerId(@PathVariable UUID customerId, @RequestParam String status) {
         final var cus = customerService.updateCustomerStatusByCustomerId(customerId, status);

@@ -38,6 +38,12 @@ public class DriverController {
         return ResponseEntity.ok(ApiResponse.ok(driver));
     }
 
+    @GetMapping("/{userId}")
+    public ResponseEntity<ApiResponse<DriverResponse>> getDriverByUserId(@PathVariable UUID userId) {
+        final var driver = driverService.getDriverByUserId(userId);
+        return ResponseEntity.ok(ApiResponse.ok(driver));
+    }
+
     @PatchMapping("/{id}/status")
     public ResponseEntity<ApiResponse<DriverResponse>> updateDriverStatus(@PathVariable UUID id, @RequestParam String status) {
         final var driver = driverService.updateDriverStatus(id, status);

@@ -14,6 +14,8 @@ public interface DriverService {
 
     DriverResponse getDriverById(UUID id);
 
+    DriverResponse getDriverByUserId(UUID userId);
+
     DriverResponse updateDriver(UUID driverId, UpdateDriverRequest updateDriverRequest);
 
     DriverResponse updateDriverStatus(UUID driverId, String status);

@@ -68,6 +68,30 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    public CustomerResponse getCustomerByUserId(UUID userId) {
+        log.info("Getting customer by user ID: {}", userId);
+
+        if (userId == null) {
+            log.error("User ID is null");
+            throw new BadRequestException(
+                    "User ID cannot be null",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        CustomerEntity customerEntity = customerEntityService.findByUserId(userId)
+                .orElseThrow(() -> {
+                    log.error("Customer not found with user ID: {}", userId);
+                    return new BadRequestException(
+                            "Customer not found with user ID: " + userId,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    );
+                });
+
+        return customerMapper.mapCustomerResponse(customerEntity);
+    }
+
+    @Override
     public List<CustomerResponse> getAllCustomersByRepresentativeNameLike(String name) {
         log.info("Getting all customers by name like {}", name);
 
