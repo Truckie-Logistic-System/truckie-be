@@ -9,6 +9,8 @@ import java.util.UUID;
 public interface AddressService {
     List<AddressResponse> getAllAddresses();
 
+    List<AddressResponse> getAddressesByCustomerId(UUID customerId);
+
     AddressResponse calculateLatLong(String address);
 
     AddressResponse createAddress(AddressRequest request);

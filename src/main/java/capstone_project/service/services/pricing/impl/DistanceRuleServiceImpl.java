@@ -9,9 +9,9 @@ import capstone_project.dtos.request.pricing.UpdateDistanceRuleRequest;
 import capstone_project.dtos.response.pricing.DistanceRuleResponse;
 import capstone_project.entity.pricing.DistanceRuleEntity;
 import capstone_project.repository.entityServices.pricing.DistanceRuleEntityService;
-import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
 import capstone_project.service.mapper.order.DistanceRuleMapper;
 import capstone_project.service.services.pricing.DistanceRuleService;
+import capstone_project.service.services.service.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,33 +27,65 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
 
     private final DistanceRuleEntityService distanceRuleEntityService;
     private final DistanceRuleMapper distanceRuleMapper;
-    private final VehicleRuleEntityService vehicleRuleEntityService;
+    private final RedisService redisService;
+
+    private static final String DISTANCE_RULE_ALL_CACHE_KEY = "distances:all";
+    private static final String DISTANCE_RULE_BY_ID_CACHE_KEY_PREFIX = "distance:";
 
     @Override
     public List<DistanceRuleResponse> getAllDistanceRules() {
-        log.info("Fetching all pricing tiers");
-        List<DistanceRuleEntity> pricingTierEntities = distanceRuleEntityService.findAll();
-        if (pricingTierEntities.isEmpty()) {
-            log.warn("No pricing tiers found");
+        log.info("[getAllDistanceRules] Fetching distance rules");
+
+        List<DistanceRuleEntity> cachedDistanceRules = redisService.getList(DISTANCE_RULE_ALL_CACHE_KEY, DistanceRuleEntity.class);
+        if (cachedDistanceRules != null && !cachedDistanceRules.isEmpty()) {
+            log.info("[getAllDistanceRules] Returning {} rules from cache", cachedDistanceRules.size());
+            return cachedDistanceRules.stream()
+                    .map(distanceRuleMapper::toDistanceRuleResponse)
+                    .toList();
+        }
+
+        List<DistanceRuleEntity> distanceRuleEntities = distanceRuleEntityService.findAll();
+        if (distanceRuleEntities.isEmpty()) {
+            log.warn("[getAllDistanceRules] No distance rules found");
             throw new NotFoundException(
                     ErrorEnum.NOT_FOUND.getMessage(),
                     ErrorEnum.NOT_FOUND.getErrorCode()
             );
         }
-        return pricingTierEntities.stream()
+
+        redisService.save(DISTANCE_RULE_ALL_CACHE_KEY, distanceRuleEntities);
+
+        return distanceRuleEntities.stream()
                 .map(distanceRuleMapper::toDistanceRuleResponse)
                 .toList();
     }
 
+
     @Override
     public DistanceRuleResponse getDistanceRuleById(UUID id) {
         log.info("Fetching pricing tier by ID: {}", id);
-        DistanceRuleEntity distanceRuleEntity = distanceRuleEntityService.findEntityById(id)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage(),
-                        ErrorEnum.NOT_FOUND.getErrorCode()
-                ));
-        return distanceRuleMapper.toDistanceRuleResponse(distanceRuleEntity);
+        if (id == null) {
+            log.error("Pricing tier ID is required");
+            throw new BadRequestException("Pricing tier ID is required", ErrorEnum.REQUIRED.getErrorCode());
+        }
+
+        String cacheKey = DISTANCE_RULE_BY_ID_CACHE_KEY_PREFIX + id;
+        DistanceRuleEntity cachedEntity = redisService.get(cacheKey, DistanceRuleEntity.class);
+
+        if (cachedEntity != null) {
+            log.info("Returning cached pricing tier for ID: {}", id);
+            return distanceRuleMapper.toDistanceRuleResponse(cachedEntity);
+        } else {
+            DistanceRuleEntity entity = distanceRuleEntityService.findEntityById(id)
+                    .orElseThrow(() -> new NotFoundException(
+                            ErrorEnum.NOT_FOUND.getMessage(),
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+
+            redisService.save(cacheKey, entity);
+
+            return distanceRuleMapper.toDistanceRuleResponse(entity);
+        }
     }
 
     @Override
@@ -74,7 +106,8 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
 
         DistanceRuleEntity savedEntity = distanceRuleEntityService.save(distanceRuleEntity);
 
-        log.info("Created pricing tier with ID: {}", savedEntity.getId());
+        redisService.delete(DISTANCE_RULE_ALL_CACHE_KEY);
+
         return distanceRuleMapper.toDistanceRuleResponse(savedEntity);
     }
 
@@ -97,7 +130,9 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
 
         DistanceRuleEntity savedEntity = distanceRuleEntityService.save(existingEntity);
 
-        log.info("Updated pricing tier with ID: {}", savedEntity.getId());
+        redisService.delete(DISTANCE_RULE_ALL_CACHE_KEY);
+        redisService.delete(DISTANCE_RULE_BY_ID_CACHE_KEY_PREFIX + id);
+
         return distanceRuleMapper.toDistanceRuleResponse(savedEntity);
     }
 
@@ -105,7 +140,7 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
     public void deleteDistanceRule(UUID id) {
 
     }
-    
+
     private void applyPricingTierEnum(DistanceRuleEntity entity, DistanceRuleEnum tierEnum) {
         try {
             entity.setToKm(BigDecimal.valueOf(tierEnum.getToKm()));

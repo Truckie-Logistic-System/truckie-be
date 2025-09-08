@@ -28,6 +28,7 @@ public class CategoryServiceImpl implements CategoryService {
     private final RedisService redisService;
 
     private static final String CATEGORY_ALL_CACHE_KEY = "categories:all";
+    private static final String CATEGORY_ALL_BY_NAME_CACHE_KEY = "categories:all:name:";
     private static final String CATEGORY_BY_ID_CACHE_KEY_PREFIX = "category:";
     private static final String CATEGORY_BY_NAME_CACHE_KEY_PREFIX = "category:name:";
 
@@ -57,6 +58,40 @@ public class CategoryServiceImpl implements CategoryService {
             redisService.save(CATEGORY_ALL_CACHE_KEY, categories);
         }
         return categories.stream()
+                .map(categoryMapper::toCategoryResponse)
+                .toList();
+    }
+
+    @Override
+    public List<CategoryResponse> getAllCategoriesByCategoryName(String categoryName) {
+        log.info("Fetching categories by categoryName: {}", categoryName);
+
+        if (categoryName == null || categoryName.isBlank()) {
+            log.warn("Category name is null or blank");
+            throw new NotFoundException(ErrorEnum.INVALID.getMessage(), ErrorEnum.INVALID.getErrorCode());
+        }
+
+        List<CategoryEntity> cachedCategories = redisService.getList(
+                CATEGORY_ALL_BY_NAME_CACHE_KEY + categoryName, CategoryEntity.class
+        );
+
+        if (cachedCategories != null) {
+            log.info("Returning cached categories for categoryName: {}", categoryName);
+            return cachedCategories.stream()
+                    .map(categoryMapper::toCategoryResponse)
+                    .toList();
+        }
+
+        List<CategoryEntity> categoryEntities = categoryEntityService.findByCategoryNameLikeIgnoreCase(categoryName);
+
+        if (categoryEntities.isEmpty()) {
+            log.warn("No categories found with categoryName containing: {}", categoryName);
+            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+
+        redisService.save(CATEGORY_ALL_BY_NAME_CACHE_KEY + categoryName, categoryEntities);
+
+        return categoryEntities.stream()
                 .map(categoryMapper::toCategoryResponse)
                 .toList();
     }

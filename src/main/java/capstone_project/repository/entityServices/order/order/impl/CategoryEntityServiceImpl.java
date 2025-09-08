@@ -36,4 +36,9 @@ public class CategoryEntityServiceImpl implements CategoryEntityService {
     public Optional<CategoryEntity> findByCategoryName(String categoryName) {
         return categoryRepository.findByCategoryName(categoryName);
     }
+
+    @Override
+    public List<CategoryEntity> findByCategoryNameLikeIgnoreCase(String categoryName) {
+        return categoryRepository.findByCategoryNameLikeIgnoreCase(categoryName);
+    }
 }

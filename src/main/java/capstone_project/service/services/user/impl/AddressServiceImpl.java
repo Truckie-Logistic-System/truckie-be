@@ -84,6 +84,25 @@ public class AddressServiceImpl implements AddressService {
     }
 
     @Override
+    public List<AddressResponse> getAddressesByCustomerId(UUID customerId) {
+        log.info("Fetching addresses for customer ID: {}", customerId);
+
+        List<AddressEntity> entities = addressEntityService.getAddressesByCustomerId(customerId);
+
+        if (entities.isEmpty()) {
+            log.warn("No addresses found for customer ID: {}", customerId);
+            throw new NotFoundException(
+                    ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+
+        return entities.stream()
+                .map(this::safeMapToResponse)
+                .toList();
+    }
+
+    @Override
     public AddressResponse calculateLatLong(String address) {
         log.info("Calculating lat/long for address: {}", address);
 
