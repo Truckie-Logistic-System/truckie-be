@@ -1,4 +1,4 @@
-package capstone_project.dtos.response.order;
+package capstone_project.dtos.response.order.contract;
 
 import lombok.Builder;
 

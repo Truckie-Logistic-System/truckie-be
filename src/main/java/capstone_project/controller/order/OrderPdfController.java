@@ -1,7 +1,7 @@
 package capstone_project.controller.order;
 
 import capstone_project.dtos.response.common.ApiResponse;
-import capstone_project.dtos.response.order.ContractPdfResponse;
+import capstone_project.dtos.response.order.contract.ContractPdfResponse;
 import capstone_project.service.services.order.order.impl.OrderPdfService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

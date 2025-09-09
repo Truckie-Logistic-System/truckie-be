@@ -33,6 +33,9 @@ public class TransactionEntity extends BaseEntity {
     @Column(name = "gateway_response", length = Integer.MAX_VALUE)
     private String gatewayResponse;
 
+    @Column(name = "gateway_order_code")
+    private Long gatewayOrderCode;
+
     @Size(max = 20)
     @Column(name = "status", length = 20)
     private String status;
