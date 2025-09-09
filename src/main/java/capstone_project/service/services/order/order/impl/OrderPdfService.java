@@ -1,6 +1,6 @@
 package capstone_project.service.services.order.order.impl;
 
-import capstone_project.dtos.response.order.ContractPdfResponse;
+import capstone_project.dtos.response.order.contract.ContractPdfResponse;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.entity.order.contract.ContractEntity;

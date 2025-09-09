@@ -76,7 +76,7 @@ dependencies {
 	// PDF
 	implementation("com.itextpdf:itextpdf:5.5.13.4")
 
-	// Cloundinary
+	// Cloudinary
 	implementation("com.cloudinary:cloudinary-http44:1.39.0")
 
 	// Jackson
@@ -93,6 +93,9 @@ dependencies {
 	// Thymeleaf
 	implementation("org.springframework.boot:spring-boot-starter-thymeleaf:3.5.5")
 	implementation("org.xhtmlrenderer:flying-saucer-pdf:9.13.3")
+
+	// Payos
+	implementation("vn.payos:payos-java:1.0.3")
 
 	// Test
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
