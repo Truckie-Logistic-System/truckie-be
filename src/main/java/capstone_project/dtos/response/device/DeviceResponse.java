@@ -1,5 +1,7 @@
 package capstone_project.dtos.response.device;
 
+import capstone_project.dtos.response.vehicle.VehicleResponse;
+
 import java.time.LocalDateTime;
 
 public record DeviceResponse(
@@ -12,7 +14,7 @@ public record DeviceResponse(
         String ipAddress,
         String firmwareVersion,
 
-        String deviceTypeId,
-        String vehicleId
+        DeviceTypeResponse deviceTypeEntity,
+        VehicleResponse vehicleEntity
         ) {
 }

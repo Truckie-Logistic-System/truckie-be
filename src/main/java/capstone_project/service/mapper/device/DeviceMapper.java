@@ -13,8 +13,8 @@ import java.util.UUID;
 
 @Mapper(componentModel = "spring")
 public interface DeviceMapper {
-    @Mapping(source = "deviceTypeEntity.id", target = "deviceTypeId")
-    @Mapping(source = "vehicleEntity.id", target = "vehicleId")
+//    @Mapping(source = "deviceEntity.deviceTypeEntity.id", target = "deviceTypeResponse.id")
+//    @Mapping(source = "vehicleEntity.id", target = "vehicleId")
     DeviceResponse toDeviceResponse(final DeviceEntity deviceEntity);
 
     @Mapping(target = "deviceTypeEntity", source = "deviceTypeId", qualifiedByName = "deviceTypeFromId")
@@ -32,7 +32,6 @@ public interface DeviceMapper {
         entity.setId(UUID.fromString(deviceTypeId));
         return entity;
     }
-
 
     @Named("vehicleFromId")
     default VehicleEntity mapVehicleFromId(String vehicleId) {

@@ -28,13 +28,13 @@ public class DeviceController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<DeviceResponse>> getDeviceById(@PathVariable UUID id) {
         final var result = deviceService.getDeviceById(id);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @GetMapping("{deviceCode}")
+    @GetMapping("/{deviceCode}/code")
     public ResponseEntity<ApiResponse<DeviceResponse>> getDeviceByDeviceCode(@PathVariable String deviceCode) {
         final var result = deviceService.getDeviceByDeviceCode(deviceCode);
         return ResponseEntity.ok(ApiResponse.ok(result));
@@ -46,7 +46,7 @@ public class DeviceController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @PutMapping("{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<DeviceResponse>> updateDevice(
             @PathVariable UUID id,
             @RequestBody @Valid UpdateDeviceRequest deviceRequest) {
