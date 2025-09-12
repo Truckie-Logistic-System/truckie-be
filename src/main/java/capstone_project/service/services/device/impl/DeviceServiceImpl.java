@@ -108,7 +108,7 @@ public class DeviceServiceImpl implements DeviceService {
     public DeviceResponse updateDevice(UUID id, UpdateDeviceRequest request) {
         log.info("updateDevice() - id: {}, request: {}", id, request);
 
-        checkValidationForUpdate(request);
+        checkValidationForUpdate(request, id);
 
         DeviceEntity existingDevice = deviceEntityService.findEntityById(id)
                 .orElseThrow(() -> {
@@ -126,7 +126,7 @@ public class DeviceServiceImpl implements DeviceService {
 
     }
 
-    private void checkValidationForUpdate(UpdateDeviceRequest request) {
+    private void checkValidationForUpdate(UpdateDeviceRequest request, UUID id) {
         if (request == null) {
             log.warn("Request is null");
             throw new BadRequestException(
@@ -135,31 +135,40 @@ public class DeviceServiceImpl implements DeviceService {
             );
         }
 
-        deviceEntityService.findByDeviceCode(request.deviceCode())
-                .ifPresent(device -> {
-                    log.warn("Device code already exists - deviceCode: {}", request.deviceCode());
-                    throw new BadRequestException(
-                            "Device code already exists",
-                            ErrorEnum.ALREADY_EXISTED.getErrorCode()
-                    );
-                });
+        // Check deviceCode nếu có truyền
+        if (request.deviceCode() != null && !request.deviceCode().isBlank()) {
+            deviceEntityService.findByDeviceCode(request.deviceCode())
+                    .ifPresent(device -> {
+                        if (!device.getId().equals(id)) { // exclude chính nó
+                            log.warn("Device code already exists - deviceCode: {}", request.deviceCode());
+                            throw new BadRequestException(
+                                    "Device code already exists",
+                                    ErrorEnum.ALREADY_EXISTED.getErrorCode()
+                            );
+                        }
+                    });
+        }
 
-        UUID deviceTypeId = UUID.fromString(request.deviceTypeId());
-        UUID vehicleId = UUID.fromString(request.vehicleId());
+        // Check cặp deviceTypeId + vehicleId nếu có truyền
+        if (request.deviceTypeId() != null && request.vehicleId() != null
+                && !request.deviceTypeId().isBlank() && !request.vehicleId().isBlank()) {
+            UUID deviceTypeId = UUID.fromString(request.deviceTypeId());
+            UUID vehicleId = UUID.fromString(request.vehicleId());
 
-        deviceEntityService.findByDeviceTypeAndVehicle(
-                        deviceTypeId,
-                        vehicleId
-                )
-                .ifPresent(device -> {
-                    log.warn("Device with the same type and vehicle already exists - deviceTypeId: {}, vehicleId: {}",
-                            request.deviceTypeId(), request.vehicleId());
-                    throw new BadRequestException(
-                            "Device with the same type and vehicle already exists",
-                            ErrorEnum.ALREADY_EXISTED.getErrorCode()
-                    );
-                });
+            deviceEntityService.findByDeviceTypeAndVehicle(deviceTypeId, vehicleId)
+                    .ifPresent(device -> {
+                        if (!device.getId().equals(id)) {
+                            log.warn("Device with the same type and vehicle already exists - deviceTypeId: {}, vehicleId: {}",
+                                    request.deviceTypeId(), request.vehicleId());
+                            throw new BadRequestException(
+                                    "Device with the same type and vehicle already exists",
+                                    ErrorEnum.ALREADY_EXISTED.getErrorCode()
+                            );
+                        }
+                    });
+        }
     }
+
 
     private void checkValidationForCreate(DeviceRequest request) {
         if (request == null) {

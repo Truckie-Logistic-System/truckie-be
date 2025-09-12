@@ -129,11 +129,15 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-        try {
-            VehicleRuleEnum.valueOf(updateVehicleRuleRequest.vehicleRuleName());
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Invalid vehicle rule type: " + updateVehicleRuleRequest.vehicleRuleName(),
-                    ErrorEnum.ENUM_INVALID.getErrorCode());
+        if (updateVehicleRuleRequest.vehicleRuleName() != null) {
+            try {
+                VehicleRuleEnum.valueOf(updateVehicleRuleRequest.vehicleRuleName());
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException(
+                        "Invalid vehicle rule type: " + updateVehicleRuleRequest.vehicleRuleName(),
+                        ErrorEnum.ENUM_INVALID.getErrorCode()
+                );
+            }
         }
 
         vehicleRuleMapper.toVehicleRuleEntity(updateVehicleRuleRequest, existingEntity);

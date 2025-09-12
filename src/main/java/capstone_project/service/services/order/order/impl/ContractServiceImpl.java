@@ -257,12 +257,12 @@ public class ContractServiceImpl implements ContractService {
                     return new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode());
                 });
 
-        // tu tu chua sure
         if (orderEntity.getCategory() == null) {
             log.error("[assignVehicles] Order category is null for orderId={}", orderId);
             throw new BadRequestException("Order category is required", ErrorEnum.INVALID.getErrorCode());
         }
 
+        // sort vehicleRules by theo khối lượng tăng dần -> size tăng dần (xe nhỏ nhất trước)
         List<VehicleRuleEntity> sortedVehicleRules = vehicleRuleEntityService
                 .findAllByCategoryId(orderEntity.getCategory().getId())
                 .stream()
@@ -277,6 +277,9 @@ public class ContractServiceImpl implements ContractService {
             throw new NotFoundException("No vehicle rules found for this category", ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
+        // 1. SẮP XẾP - FFD Preparation
+
+        // sort details theo khối lượng giảm dần -> size giảm dần (từ kiện to nhất trước)
         details.sort((a, b) -> {
             int cmp = b.getWeight().compareTo(a.getWeight());
             if (cmp == 0) cmp = b.getOrderSizeEntity().getMaxLength().compareTo(a.getOrderSizeEntity().getMaxLength());
@@ -306,7 +309,6 @@ public class ContractServiceImpl implements ContractService {
 
             log.info("[assignVehicles] Processing detail {}/{}: id={}, weight={}; size.max={}kg,{}x{}x{}",
                     processed, details.size(), detail.getId(), detail.getWeight(),
-//                    detail.getLength(), detail.getWidth(), detail.getHeight(),
                     detail.getOrderSizeEntity().getMaxWeight(),
                     detail.getOrderSizeEntity().getMaxLength(),
                     detail.getOrderSizeEntity().getMaxWidth(),
@@ -322,6 +324,7 @@ public class ContractServiceImpl implements ContractService {
                     continue;
                 }
 
+                // check xem có vừa hay không, nếu vừa thì gán vào
                 if (canFit(detail, currentRule, assignment)) {
                     assignment.setCurrentLoad(assignment.getCurrentLoad().add(detail.getWeight()));
                     assignment.getAssignedDetails().add(detail.getId());
@@ -331,6 +334,7 @@ public class ContractServiceImpl implements ContractService {
                     break;
                 }
 
+                // nếu không vừa thì thử update lên xe mới
                 int upgradedIdx = tryUpgrade(detail, assignment, sortedVehicleRules, vehicleRuleCache);
                 if (upgradedIdx >= 0) {
                     VehicleRuleEntity upgradedRule = vehicleRuleCache.get(upgradedIdx);

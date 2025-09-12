@@ -47,8 +47,8 @@ public abstract class VehicleRuleMapper {
                 ));
     }
 
-    @Mapping(source = "category", target = "categoryResponse")
-    @Mapping(source = "vehicleTypeEntity", target = "vehicleTypeResponse")
+//    @Mapping(source = "category", target = "categoryResponse")
+//    @Mapping(source = "vehicleTypeEntity", target = "vehicleTypeResponse")
     public abstract VehicleRuleResponse toVehicleRuleResponse(final VehicleRuleEntity vehicleRuleEntity);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

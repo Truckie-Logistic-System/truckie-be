@@ -1,5 +1,6 @@
 package capstone_project.dtos.request.pricing;
 
+import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.VehicleRuleEnum;
 import capstone_project.common.enums.enumValidator.EnumValidator;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -43,6 +44,7 @@ public record UpdateVehicleRuleRequest(
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime effectiveTo,
 
+        @EnumValidator(enumClass = CommonStatusEnum.class, message = "Status must be one of: ACTIVE, INACTIVE, DELETED")
         String status,
 
         String vehicleTypeId,

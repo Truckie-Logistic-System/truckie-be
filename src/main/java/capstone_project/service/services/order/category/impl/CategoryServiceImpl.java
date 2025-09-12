@@ -170,12 +170,14 @@ public class CategoryServiceImpl implements CategoryService {
         CategoryEntity existingCategory = categoryEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
-        try {
-            CategoryEnum.valueOf(categoryRequest.categoryName());
-        } catch (NotFoundException e) {
-            log.error("Invalid category type: {}", categoryRequest.categoryName());
-            throw new NotFoundException("Invalid category type: " + categoryRequest.categoryName(), ErrorEnum.ENUM_INVALID.getErrorCode());
-        }
+//        if (categoryRequest.categoryName() != null) {
+//            try {
+//                CategoryEnum.valueOf(categoryRequest.categoryName());
+//            } catch (NotFoundException e) {
+//                log.error("Invalid category type: {}", categoryRequest.categoryName());
+//                throw new NotFoundException("Invalid category type: " + categoryRequest.categoryName(), ErrorEnum.ENUM_INVALID.getErrorCode());
+//            }
+//        }
 
         categoryMapper.toCategoryEntity(categoryRequest, existingCategory);
         CategoryEntity updatedCategory = categoryEntityService.save(existingCategory);
