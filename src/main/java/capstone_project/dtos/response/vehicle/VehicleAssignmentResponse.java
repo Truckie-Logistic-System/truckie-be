@@ -7,7 +7,8 @@ import java.util.UUID;
 public record VehicleAssignmentResponse(
         UUID id,
         UUID vehicleId,
-        UUID driverId,
+        UUID driverId_1,
+        UUID driverId_2,
         String description,
         String status
 ) {}

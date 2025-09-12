@@ -32,7 +32,8 @@ public abstract class VehicleAssignmentMapper {
                                   @MappingTarget VehicleAssignmentEntity entity);
 
     @Mapping(target = "vehicleId", source = "vehicleEntity.id")
-    @Mapping(target = "driverId",  source = "driver1.id")
+    @Mapping(target = "driverId_1",  source = "driver1.id")
+    @Mapping(target = "driverId_2",  source = "driver2.id")
     public abstract VehicleAssignmentResponse toResponse(VehicleAssignmentEntity entity);
 
     /* helpers */
