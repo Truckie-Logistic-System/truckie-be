@@ -194,6 +194,14 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                                 ErrorEnum.NOT_FOUND.getErrorCode());
                     });
 
+            if (vehicleRule.getStatus() == null || !vehicleRule.getStatus().equals(CommonStatusEnum.ACTIVE.name())) {
+                log.error("Vehicle rule {} is not active", vehicleRule.getVehicleRuleName());
+                throw new BadRequestException(
+                        String.format("Vehicle rule %s is not active", vehicleRule.getVehicleRuleName()),
+                        ErrorEnum.INVALID.getErrorCode()
+                );
+            }
+
             boolean exists = existingRules.stream()
                     .anyMatch(r -> r.getVehicleRuleEntity().getId().equals(vehicleRuleId));
             if (exists) {
