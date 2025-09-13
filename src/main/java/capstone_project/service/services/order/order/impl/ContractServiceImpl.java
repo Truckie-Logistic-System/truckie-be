@@ -266,6 +266,7 @@ public class ContractServiceImpl implements ContractService {
         List<VehicleRuleEntity> sortedVehicleRules = vehicleRuleEntityService
                 .findAllByCategoryId(orderEntity.getCategory().getId())
                 .stream()
+                .filter(rule -> CommonStatusEnum.ACTIVE.name().equals(rule.getStatus()))
                 .sorted(Comparator.comparing(VehicleRuleEntity::getMaxWeight)
                         .thenComparing(VehicleRuleEntity::getMaxLength)
                         .thenComparing(VehicleRuleEntity::getMaxWidth)

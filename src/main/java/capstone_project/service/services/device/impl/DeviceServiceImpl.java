@@ -8,7 +8,11 @@ import capstone_project.dtos.request.device.DeviceRequest;
 import capstone_project.dtos.request.device.UpdateDeviceRequest;
 import capstone_project.dtos.response.device.DeviceResponse;
 import capstone_project.entity.device.DeviceEntity;
+import capstone_project.entity.device.DeviceTypeEntity;
+import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.entityServices.device.DeviceEntityService;
+import capstone_project.repository.entityServices.device.DeviceTypeEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.mapper.device.DeviceMapper;
 import capstone_project.service.services.device.DeviceService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +28,8 @@ import java.util.UUID;
 public class DeviceServiceImpl implements DeviceService {
 
     private final DeviceEntityService deviceEntityService;
+    private final VehicleEntityService vehicleEntityService;
+    private final DeviceTypeEntityService deviceTypeEntityService;
     private final DeviceMapper deviceMapper;
 
     @Override
@@ -192,6 +198,40 @@ public class DeviceServiceImpl implements DeviceService {
 
         UUID deviceTypeId = UUID.fromString(request.deviceTypeId());
         UUID vehicleId = UUID.fromString(request.vehicleId());
+
+        VehicleEntity vehicleEntity = vehicleEntityService.findEntityById(vehicleId)
+                .orElseThrow(() -> {
+                    log.warn("Vehicle not found - vehicleId: {}", request.vehicleId());
+                    return new NotFoundException(
+                            "Vehicle not found",
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    );
+                });
+
+        if (!CommonStatusEnum.ACTIVE.name().equals(vehicleEntity.getStatus())) {
+            log.warn("Vehicle is not active - vehicleId: {}, status: {}", request.vehicleId(), vehicleEntity.getStatus());
+            throw new BadRequestException(
+                    "Vehicle is not active",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        DeviceTypeEntity deviceTypeEntity =  deviceTypeEntityService.findEntityById(deviceTypeId)
+                .orElseThrow(() -> {
+                    log.warn("Device type not found - deviceTypeId: {}", request.deviceTypeId());
+                    return new NotFoundException(
+                            "Device type not found",
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    );
+                });
+
+        if (deviceTypeEntity.getIsActive() != true) {
+            log.warn("Device type is not active - deviceTypeId: {}", request.deviceTypeId());
+            throw new BadRequestException(
+                    "Device type is not active",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
 
         deviceEntityService.findByDeviceTypeAndVehicle(
                         deviceTypeId,
