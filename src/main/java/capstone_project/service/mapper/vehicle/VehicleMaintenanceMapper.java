@@ -43,8 +43,8 @@ public abstract class VehicleMaintenanceMapper {
                                   @MappingTarget VehicleMaintenanceEntity entity);
 
     /* RESPONSE */
-    @Mapping(target = "vehicleId",         source = "vehicleEntity.id")
-    @Mapping(target = "maintenanceTypeId", source = "maintenanceTypeEntity.id")
+    @Mapping(target = "vehicleEntity.id",         source = "vehicleEntity.id")
+    @Mapping(target = "maintenanceTypeEntity.id", source = "maintenanceTypeEntity.id")
     public abstract VehicleMaintenanceResponse toResponse(VehicleMaintenanceEntity entity);
 
     /* Helpers */
