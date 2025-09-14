@@ -176,10 +176,6 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
         orderEntity.setTotalQuantity(orderEntity.getTotalQuantity() + listOrderDetail.size());
 
-        BigDecimal totalWeight = BigDecimal.ZERO;
-        for(OrderDetailEntity orderDetailEntity : listOrderDetail){
-            totalWeight = totalWeight.add(orderDetailEntity.getWeight());
-        }
 //        orderEntity.setTotalWeight(orderEntity.getTotalWeight().add(totalWeight));
 
 

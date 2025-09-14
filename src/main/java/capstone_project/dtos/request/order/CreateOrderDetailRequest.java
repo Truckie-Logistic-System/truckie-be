@@ -12,6 +12,9 @@ public record CreateOrderDetailRequest(
         @Min(value = 0L, message = "Weight must be positive")
         BigDecimal weight,
 
+        @NotBlank(message = "Unit cannot be blank")
+        String unit,
+
         @NotBlank(message = "Description cannot be blank")
         String description,
 

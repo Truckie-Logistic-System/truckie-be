@@ -3,6 +3,7 @@ package capstone_project.service.services.order.order.impl;
 import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.OrderStatusEnum;
+import capstone_project.common.enums.UnitEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.InternalServerException;
 import capstone_project.common.exceptions.dto.NotFoundException;
@@ -91,10 +92,6 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "category not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-       if(!checkTotalWeight(orderRequest.totalWeight(),listCreateOrderDetailRequests)){
-           log.error("Total weight is wrong, it have to be smaller than total weight");
-           throw new BadRequestException(ErrorEnum.INVALID.getMessage() + "Total weight is wrong, it have to be smaller than total weight",ErrorEnum.INVALID.getErrorCode());
-       }
 
 
         try {
@@ -340,7 +337,9 @@ public class OrderServiceImpl implements OrderService {
 //                        throw new BadRequestException(ErrorEnum.INVALID_REQUEST.getMessage() + "orderSize's max weight have to be more than detail's weight", ErrorEnum.NOT_FOUND.getErrorCode());
 //                    }
                     return OrderDetailEntity.builder()
-                            .weight(request.weight())
+                            .weightBaseUnit(request.weight())
+                            .unit(request.unit())
+                            .weight(convertToTon(request.weight(),request.unit()))
                             .description(request.description())
                             .status(savedOrder.getStatus())
                             .trackingCode(generateCode(prefixOrderDetailCode))
@@ -379,6 +378,11 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.toGetOrderResponse(order.get());
     }
 
+        @Override
+        public List<UnitEnum> responseListUnitEnum() {
+            return Arrays.asList(UnitEnum.values());
+        }
+
 
     private boolean checkTotalWeight(BigDecimal totalWeight, List<CreateOrderDetailRequest> listCreateOrderDetailRequests) {
         BigDecimal totalWeightTest = BigDecimal.ZERO;
@@ -392,5 +396,21 @@ public class OrderServiceImpl implements OrderService {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
         String randomPart = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
         return prefix + timestamp + "-" + randomPart;
+    }
+
+    @Override
+    public BigDecimal convertToTon(BigDecimal weightBaseUnit, String unit) {
+        if (weightBaseUnit == null || unit == null) {
+            throw new IllegalArgumentException("weightBaseUnit và unit không được null");
+        }
+
+        UnitEnum unitEnum;
+        try {
+            unitEnum = UnitEnum.valueOf(unit);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Đơn vị không hợp lệ: " + unit);
+        }
+
+        return weightBaseUnit.multiply(unitEnum.toTon());
     }
 }
