@@ -22,7 +22,8 @@ public abstract class VehicleAssignmentMapper {
     @Autowired protected DriverEntityService   driverService;
 
     @Mapping(target = "vehicleEntity", source = "vehicleId", qualifiedByName = "vehicleFromId")
-    @Mapping(target = "driver1", source = "driverId", qualifiedByName = "driverFromId")
+    @Mapping(target = "driver1", source = "driverId_1", qualifiedByName = "driverFromId")
+    @Mapping(target = "driver2", source = "driverId_2", qualifiedByName = "driverFromId")
     public abstract VehicleAssignmentEntity toEntity(VehicleAssignmentRequest req);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

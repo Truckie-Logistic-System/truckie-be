@@ -15,6 +15,11 @@ public enum ErrorEnum {
     NULL(13, "This field is null."),
     REQUIRED(14, "This field is required."),
     NOT_FOUND(15, "Not found"),
+    // VEHICLE BASED ERROR
+    VEHICLE_TYPE_NOT_FOUND(15, "Vehicle Type Not Found!"),
+    NO_VEHICLE_AVAILABLE(24, "No Vehicle Available For This!"),
+    VEHICLE_NOT_FOUND(25, "Vehicle Not Found!"),
+    //
     INVALID(16, "Invalid request"),
     ENUM_INVALID(17, "Invalid enum value"),
     INVALID_EMAIL(18, "Can not parse email address"),
