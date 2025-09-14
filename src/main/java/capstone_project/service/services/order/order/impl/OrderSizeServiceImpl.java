@@ -36,7 +36,7 @@ public class OrderSizeServiceImpl implements OrderSizeService {
         }
 
         if (request.maxHeight().compareTo(request.minHeight()) < 0
-                || request.maxWeight().compareTo(request.minWeight()) < 0
+//                || request.maxWeight().compareTo(request.minWeight()) < 0
                 || request.maxLength().compareTo(request.minLength()) < 0
                 || request.maxWidth().compareTo(request.minWidth()) < 0) {
             throw new BadRequestException(
@@ -49,9 +49,9 @@ public class OrderSizeServiceImpl implements OrderSizeService {
                     .description(request.description())
                     .status(CommonStatusEnum.ACTIVE.name())
                     .minHeight(request.minHeight())
-                    .minWeight(request.minWeight())
+//                    .minWeight(request.minWeight())
                     .maxHeight(request.maxHeight())
-                    .maxWeight(request.maxWeight())
+//                    .maxWeight(request.maxWeight())
                     .maxLength(request.maxLength())
                     .minLength(request.minLength())
                     .maxWidth(request.maxWidth())
@@ -82,7 +82,7 @@ public class OrderSizeServiceImpl implements OrderSizeService {
                 ));
 
         if (request.maxHeight().compareTo(request.minHeight()) < 0
-                || request.maxWeight().compareTo(request.minWeight()) < 0
+//                || request.maxWeight().compareTo(request.minWeight()) < 0
                 || request.maxLength().compareTo(request.minLength()) < 0
                 || request.maxWidth().compareTo(request.minWidth()) < 0) {
             throw new BadRequestException(
@@ -96,9 +96,9 @@ public class OrderSizeServiceImpl implements OrderSizeService {
                     .description(request.description())
                     .status(orderSizeEntity.getStatus())
                     .minHeight(request.minHeight())
-                    .minWeight(request.minWeight())
+//                    .minWeight(request.minWeight())
                     .maxHeight(request.maxHeight())
-                    .maxWeight(request.maxWeight())
+//                    .maxWeight(request.maxWeight())
                     .maxLength(request.maxLength())
                     .minLength(request.minLength())
                     .maxWidth(request.maxWidth())

@@ -105,9 +105,8 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         for (ContractRuleEntity rule : assignedRules) {
             BigDecimal currentLoad = rule.getOrderDetails().stream()
-                    .map(OrderDetailEntity::getOrderSizeEntity)
+                    .map(OrderDetailEntity::getWeight)
                     .filter(Objects::nonNull)
-                    .map(OrderSizeEntity::getMaxWeight)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             List<UUID> detailIds = rule.getOrderDetails().stream()

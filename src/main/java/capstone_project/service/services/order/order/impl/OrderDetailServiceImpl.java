@@ -180,7 +180,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         for(OrderDetailEntity orderDetailEntity : listOrderDetail){
             totalWeight = totalWeight.add(orderDetailEntity.getWeight());
         }
-        orderEntity.setTotalWeight(orderEntity.getTotalWeight().add(totalWeight));
+//        orderEntity.setTotalWeight(orderEntity.getTotalWeight().add(totalWeight));
 
 
         orderEntityService.save(orderEntity);
@@ -258,13 +258,13 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                 ));
 
 
-        if(updateOrderDetailRequest.weight().compareTo(orderDetailEntity.getWeight()) != 0){
-            BigDecimal totalWeight = orderEntity.getTotalWeight()
-                    .subtract(orderDetailEntity.getWeight())
-                    .add(updateOrderDetailRequest.weight());
-
-            orderEntity.setTotalWeight(totalWeight);
-        }
+//        if(updateOrderDetailRequest.weight().compareTo(orderDetailEntity.getWeight()) != 0){
+//            BigDecimal totalWeight = orderEntity.getTotalWeight()
+//                    .subtract(orderDetailEntity.getWeight())
+//                    .add(updateOrderDetailRequest.weight());
+//
+//            orderEntity.setTotalWeight(totalWeight);
+//        }
         orderDetailEntity.setWeight(updateOrderDetailRequest.weight());
         orderDetailEntity.setDescription(updateOrderDetailRequest.description());
         orderDetailEntity.setOrderSizeEntity(orderSizeEntity);

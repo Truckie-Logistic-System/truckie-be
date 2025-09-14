@@ -102,7 +102,7 @@ public class OrderServiceImpl implements OrderService {
             OrderEntity newOrder = OrderEntity.builder()
                     .notes(orderRequest.notes())
                     .totalQuantity(listCreateOrderDetailRequests.size())
-                    .totalWeight(orderRequest.totalWeight())
+//                    .totalWeight(orderRequest.totalWeight())
                     .orderCode(generateCode(prefixOrderCode))
                     .receiverName(orderRequest.receiverName())
                     .receiverPhone(orderRequest.receiverPhone())

@@ -60,9 +60,9 @@ public class TransactionServiceImpl implements TransactionService {
 
         PaymentData paymentData = PaymentData.builder()
                 .orderCode(payOsOrderCode)
-                .amount(4000)
+                .amount(amountForPayOS)
                 .description("Create transaction")
-                //                .items(List.of(item))
+//                                .items(List.of(item))
                 .cancelUrl(properties.getCancelUrl())
                 .returnUrl(properties.getReturnUrl())
                 .build();
@@ -72,7 +72,7 @@ public class TransactionServiceImpl implements TransactionService {
 
             TransactionEntity transaction = TransactionEntity.builder()
                     .id(UUID.randomUUID())
-                    .amount(BigDecimal.valueOf(4000))
+                    .amount(BigDecimal.valueOf(amountForPayOS))
                     .status(TransactionEnum.PENDING.name())
                     .currencyCode("VND")
                     .paymentProvider("PayOS")
@@ -94,6 +94,11 @@ public class TransactionServiceImpl implements TransactionService {
 
     private static BigDecimal validationTotalValue(UUID contractId, ContractEntity contractEntity) {
         BigDecimal totalValue = contractEntity.getTotalValue();
+        BigDecimal supportedValue = contractEntity.getSupportedValue();
+
+        if (supportedValue != null) {
+            totalValue = supportedValue;
+        }
 
         if (totalValue == null || totalValue.compareTo(BigDecimal.ZERO) <= 0) {
             log.error("Contract {} has invalid total value: {}", contractId, totalValue);
