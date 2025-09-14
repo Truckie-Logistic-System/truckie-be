@@ -6,9 +6,9 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.VehicleTypeRequest;
 import capstone_project.dtos.response.vehicle.VehicleTypeResponse;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
-import capstone_project.service.entityServices.vehicle.VehicleTypeEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.vehicle.VehicleTypeMapper;
-import capstone_project.service.services.service.RedisService;
+import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.vehicle.VehicleTypeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -68,7 +68,7 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
             return vehicleTypeMapper.toVehicleTypeResponse(cachedEntity);
         }
 
-        VehicleTypeEntity entity = vehicleTypeEntityService.findById(id)
+        VehicleTypeEntity entity = vehicleTypeEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
         redisService.save(cacheKey, entity);
@@ -101,7 +101,7 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
     public VehicleTypeResponse updateVehicleType(UUID id, VehicleTypeRequest vehicleTypeRequest) {
         log.info("Updating vehicle type with ID: {}", id);
 
-        VehicleTypeEntity existingVehicleType = vehicleTypeEntityService.findById(id)
+        VehicleTypeEntity existingVehicleType = vehicleTypeEntityService.findEntityById(id)
                 .orElseThrow(() -> {
                     log.warn("Vehicle type with ID {} not found", id);
                     return new NotFoundException(

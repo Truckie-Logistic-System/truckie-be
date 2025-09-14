@@ -4,9 +4,7 @@ import capstone_project.entity.common.BaseEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
@@ -46,17 +44,10 @@ public class OrderDetailEntity extends BaseEntity {
     @Column(name = "end_time")
     private LocalDateTime endTime;
 
-    @Column(name = "height")
-    private BigDecimal height;
-
-    @Column(name = "width")
-    private BigDecimal width;
-
-    @Column(name = "length")
-    private BigDecimal length;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private OrderEntity orderEntity;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -66,4 +57,13 @@ public class OrderDetailEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id")
     private VehicleAssignmentEntity vehicleAssignmentEntity;
+
+//    @ElementCollection
+//    @CollectionTable(
+//            name = "contract_rule_order_details",
+//            joinColumns = @JoinColumn(name = "contract_rule_id")
+//    )
+//    @Column(name = "order_detail_id")
+//    private Set<UUID> orderDetailIds = new HashSet<>();
+
 }

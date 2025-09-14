@@ -18,6 +18,11 @@ public enum ErrorEnum {
     INVALID(16, "Invalid request"),
     ENUM_INVALID(17, "Invalid enum value"),
     INVALID_EMAIL(18, "Can not parse email address"),
+    INVALID_REQUEST(19, "Invalid request"),
+    ROLE_NOT_FOUND(20, "Role not found"),
+    NEW_PASSWORD_MUST_BE_DIFFERENT_OLD_PASSWORD(21, "New password must be different from old password"),
+    OLD_PASSWORD_IS_INCORRECT(22, "Old password is incorrect"),
+    PASSWORD_CONFIRM_NOT_MATCH(23, "Password confirm not match"),
     ;
     private final String message;
     private final long errorCode;

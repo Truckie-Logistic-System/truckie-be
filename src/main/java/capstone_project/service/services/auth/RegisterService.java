@@ -4,6 +4,7 @@ import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
 import capstone_project.dtos.request.user.RegisterDriverRequest;
+import capstone_project.dtos.response.auth.ChangePasswordResponse;
 import capstone_project.dtos.response.auth.LoginResponse;
 import capstone_project.dtos.response.auth.RefreshTokenResponse;
 import capstone_project.dtos.response.auth.UserResponse;
@@ -40,6 +41,8 @@ public interface RegisterService {
 
     String generateOtp();
 
+    ChangePasswordResponse changePassword(ChangePasswordRequest changePasswordRequest);
 
+    ChangePasswordResponse changePasswordForForgetPassword(ChangePasswordForForgetPassRequest changePasswordForForgetPassRequest);
 
 }

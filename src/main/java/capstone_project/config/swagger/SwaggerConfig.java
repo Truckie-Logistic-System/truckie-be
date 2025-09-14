@@ -50,6 +50,8 @@ public class SwaggerConfig {
             System.out.println("\n----------------------------------------------------------");
             System.out.println("Swagger UI is available at: " + swaggerUrl);
             System.out.println("----------------------------------------------------------\n");
+            System.out.println("Swagger UI on Render is available at: " +  "https://truckiesep2025.onrender.com/swagger-ui.html");
+            System.out.println("----------------------------------------------------------\n");
         };
     }
 }

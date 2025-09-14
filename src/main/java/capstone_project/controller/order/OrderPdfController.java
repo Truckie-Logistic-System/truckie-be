@@ -1,15 +1,15 @@
-// File: src/main/java/capstone_project/controller/order/OrderPdfController.java
 package capstone_project.controller.order;
 
 import capstone_project.dtos.response.common.ApiResponse;
-import capstone_project.dtos.response.order.OrderPdfResponse;
+import capstone_project.dtos.response.order.contract.ContractPdfResponse;
 import capstone_project.service.services.order.order.impl.OrderPdfService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
@@ -21,9 +21,9 @@ public class OrderPdfController {
 
     private final OrderPdfService orderPdfService;
 
-    @PostMapping("/{orderId}/generate-pdf")
-    public ResponseEntity<ApiResponse<OrderPdfResponse>> generateOrderPdf(@PathVariable UUID orderId) {
-        OrderPdfResponse response = orderPdfService.generateAndUploadOrderPdf(orderId);
+    @PostMapping("/{contractId}/generate-pdf")
+    public ResponseEntity<ApiResponse<ContractPdfResponse>> generateOrderPdf(@PathVariable UUID contractId) {
+        ContractPdfResponse response = orderPdfService.generateAndUploadContractPdf(contractId);
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 }

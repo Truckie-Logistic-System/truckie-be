@@ -12,6 +12,7 @@ public enum OrderStatusEnum {
     DRIVER_CONFIRM,
     PICKED_UP,
     SEALED_COMPLETED,
+    ON_DELIVERED,
     ONGOING_DELIVERED,
     IN_DELIVERED,
     IN_TROUBLES,

@@ -5,9 +5,9 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.user.PenaltyHistoryRequest;
 import capstone_project.dtos.response.user.PenaltyHistoryResponse;
 import capstone_project.entity.user.driver.PenaltyHistoryEntity;
-import capstone_project.service.entityServices.user.PenaltyHistoryEntityService;
+import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
 import capstone_project.service.mapper.user.PenaltyHistoryMapper;
-import capstone_project.service.services.service.RedisService;
+import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.user.PenaltyHistoryService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +40,7 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
 
     @Override
     public PenaltyHistoryResponse getById(UUID id) {
-        PenaltyHistoryEntity e = entityService.findById(id)
+        PenaltyHistoryEntity e = entityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
         return mapper.toPenaltyHistoryResponse(e);
@@ -56,7 +56,7 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
     @Transactional
     @Override
     public PenaltyHistoryResponse update(UUID id, PenaltyHistoryRequest req) {
-        PenaltyHistoryEntity existing = entityService.findById(id)
+        PenaltyHistoryEntity existing = entityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
         mapper.toEntity(req, existing);
@@ -67,7 +67,7 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
     @Transactional
     @Override
     public void delete(UUID id) {
-        PenaltyHistoryEntity existing = entityService.findById(id)
+        PenaltyHistoryEntity existing = entityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
         entityService.save(existing);               // or repository.delete(existing);

@@ -23,5 +23,4 @@ public class CategoryEntity extends BaseEntity {
     @Size(max = 200)
     @Column(name = "description", length = 200)
     private String description;
-
 }

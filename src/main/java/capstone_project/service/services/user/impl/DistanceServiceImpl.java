@@ -7,7 +7,7 @@ import capstone_project.dtos.response.user.RouteResponse;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.common.exceptions.dto.NotFoundException;
-import capstone_project.service.entityServices.order.order.OrderEntityService;
+import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.service.services.user.DistanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +17,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -50,27 +52,41 @@ public class DistanceServiceImpl implements DistanceService {
     }
 
     @Override
-    public double getDistanceInMeters(UUID orderId) {
+    public BigDecimal getDistanceInKilometers(UUID orderId) {
         return calculateDistanceAndTime(orderId).distance();
     }
 
     @Override
-    public long getTravelTimeInSeconds(UUID orderId) {
+    public double getTravelTimeInHours(UUID orderId) {
         return calculateDistanceAndTime(orderId).time();
     }
 
     private RouteResponse callVietMapApi(UUID orderId) {
-        OrderEntity order = orderEntityService.findById(orderId)
+        log.info("Fetching order with ID: {}", orderId);
+        OrderEntity order = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new NotFoundException(
-                ErrorEnum.NOT_FOUND.getMessage(),
-                ErrorEnum.NOT_FOUND.getErrorCode()
-        ));
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
 
         AddressEntity pickup = order.getPickupAddress();
         AddressEntity delivery = order.getDeliveryAddress();
 
+        log.info("Pickup address: {}", pickup);
+        log.info("Delivery address: {}", delivery);
+
         if (pickup == null || delivery == null) {
+            log.error("Order {} is missing pickup or delivery address", orderId);
             throw new IllegalStateException("Order is missing pickup or delivery address");
+        }
+
+        if (pickup.getLatitude() == null || pickup.getLongitude() == null ||
+                delivery.getLatitude() == null || delivery.getLongitude() == null) {
+            log.error("Order {} has null coordinates. Pickup: lat={}, lng={}, Delivery: lat={}, lng={}",
+                    orderId,
+                    pickup.getLatitude(), pickup.getLongitude(),
+                    delivery.getLatitude(), delivery.getLongitude());
+            throw new IllegalStateException("Order has invalid coordinates");
         }
 
         String uri = buildRouteUri(
@@ -80,34 +96,53 @@ public class DistanceServiceImpl implements DistanceService {
                 delivery.getLongitude().doubleValue()
         );
 
-        return webClient.get()
-                .uri(uri)
-                .retrieve()
-                .bodyToMono(RouteResponse.class)
-                .onErrorResume(e -> {
-                    log.error("Error calling VietMap API: {}", e.getMessage(), e);
-                    return Mono.just(new RouteResponse(
-                            List.of(new RouteResponse.Path(
-                                    0.0, 0, 0.0,
-                                    false,
-                                    List.of(),
-                                    List.of()
-                            )),
-                            "ERROR",
-                            "Failed to calculate distance: " + e.getMessage()
-                    ));
-                })
-                .block();
+        log.info("Calling VietMap API with URI: {}", uri);
+
+        try {
+            RouteResponse response = webClient.get()
+                    .uri(uri)
+                    .retrieve()
+                    .bodyToMono(RouteResponse.class)
+                    .onErrorResume(e -> {
+                        log.error("Error calling VietMap API: {}", e.getMessage(), e);
+                        return Mono.just(new RouteResponse(
+                                List.of(new RouteResponse.Path(
+                                        0.0, 0, 0.0,
+                                        false,
+                                        List.of(),
+                                        List.of()
+                                )),
+                                "ERROR",
+                                "Failed to calculate distance: " + e.getMessage()
+                        ));
+                    })
+                    .block();
+
+            log.info("VietMap API response: {}", response);
+            return response;
+        } catch (Exception e) {
+            log.error("Unexpected error calling VietMap API: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     private String buildRouteUri(double startLat, double startLng, double endLat, double endLng) {
-        return UriComponentsBuilder.fromHttpUrl(baseUrl + routeEndpoint)
+        // Format coordinates with US locale to ensure dot as decimal separator
+        String startPoint = String.format(Locale.US, "%f,%f", startLat, startLng);
+        String endPoint = String.format(Locale.US, "%f,%f", endLat, endLng);
+
+        log.debug("Building route URI with points: {} to {}", startPoint, endPoint);
+
+        String uri = UriComponentsBuilder.fromHttpUrl(baseUrl + routeEndpoint)
                 .queryParam("api-version", "1.1")
                 .queryParam("apikey", apiKey)
-                .queryParam("point", String.format("%f,%f", startLat, startLng))
-                .queryParam("point", String.format("%f,%f", endLat, endLng))
+                .queryParam("point", startPoint)
+                .queryParam("point", endPoint)
                 .queryParam("vehicle", "car")
                 .build()
                 .toUriString();
+
+        log.debug("Built URI: {}", uri);
+        return uri;
     }
 }

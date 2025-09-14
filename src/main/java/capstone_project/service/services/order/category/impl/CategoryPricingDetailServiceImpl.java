@@ -6,7 +6,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CategoryPricingDetailRequest;
 import capstone_project.dtos.response.order.CategoryPricingDetailResponse;
 import capstone_project.entity.order.order.CategoryPricingDetailEntity;
-import capstone_project.service.entityServices.order.order.CategoryPricingDetailEntityService;
+import capstone_project.repository.entityServices.order.order.CategoryPricingDetailEntityService;
 import capstone_project.service.mapper.order.CategoryPricingDetailMapper;
 import capstone_project.service.services.order.category.CategoryPricingDetailService;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +43,7 @@ public class CategoryPricingDetailServiceImpl implements CategoryPricingDetailSe
     @Override
     public CategoryPricingDetailResponse getCategoryPricingDetailById(UUID id) {
         log.info("Fetching category pricing detail by ID: {}", id);
-        CategoryPricingDetailEntity categoryPricingDetailEntity = categoryPricingDetailEntityService.findById(id)
+        CategoryPricingDetailEntity categoryPricingDetailEntity = categoryPricingDetailEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -78,7 +78,7 @@ public class CategoryPricingDetailServiceImpl implements CategoryPricingDetailSe
     @Override
     public CategoryPricingDetailResponse updateCategoryPricingDetail(UUID id, CategoryPricingDetailRequest categoryPricingDetailRequest) {
         log.info("Updating category pricing detail with ID: {}", id);
-        CategoryPricingDetailEntity existingEntity = categoryPricingDetailEntityService.findById(id)
+        CategoryPricingDetailEntity existingEntity = categoryPricingDetailEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()

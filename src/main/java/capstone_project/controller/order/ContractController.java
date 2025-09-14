@@ -2,7 +2,8 @@ package capstone_project.controller.order;
 
 import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.response.common.ApiResponse;
-import capstone_project.dtos.response.order.ContractResponse;
+import capstone_project.dtos.response.order.contract.ContractResponse;
+import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.service.services.order.order.ContractService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,9 +34,19 @@ public class ContractController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    /*
+    * API này chỉ tạo hợp đồng rỗng (trong đó chưa có rule nào được áp dụng) --> chưa tính được tiền
+    * qua sử dụng API createListContractRules
+    * */
     @PostMapping()
     public ResponseEntity<ApiResponse<ContractResponse>> createContract(@RequestBody @Valid ContractRequest contractRequest) {
         final var result = contractService.createContract(contractRequest);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @PostMapping("/both")
+    public ResponseEntity<ApiResponse<ContractResponse>> createBothContractAndContractRule(@RequestBody @Valid ContractRequest contractRequest) {
+        final var result = contractService.createBothContractAndContractRule(contractRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
@@ -44,4 +55,14 @@ public class ContractController {
         final var result = contractService.updateContract(id, contractRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    /*
+    * API này dùng để suggest, nếu thấy suggest hợp lý, thì sử dụng createBothContractAndContractRule (/both) để tạo hợp đồng luôn
+    * */
+    @GetMapping("{orderId}/suggest-assign-vehicles")
+    public ResponseEntity<ApiResponse<List<ContractRuleAssignResponse>>> assignVehicles(@PathVariable UUID orderId) {
+        final var result = contractService.assignVehicles(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
 }

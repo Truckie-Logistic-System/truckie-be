@@ -1,11 +1,11 @@
 package capstone_project.dtos.request.order;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 public record ContractRequest(
         @NotBlank(message = "Contract name must not be blank")
@@ -16,6 +16,9 @@ public record ContractRequest(
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime expirationDate,
+
+        @Min(value = 0L, message = "The num of supported value must be positive")
+        BigDecimal supportedValue,
 
 //        @NotNull(message = "Total value must not be blank")
 //        @DecimalMin(value = "0.0", inclusive = true, message = "Total value must be >= 0")
@@ -29,7 +32,7 @@ public record ContractRequest(
         @NotBlank(message = "Order ID must not be blank")
         String orderId,
 
-        @NotNull(message = "Contract rules must not be null")
-        List<ContractRuleRequest> contractRules
+        @NotBlank(message = "Staff ID must not be blank")
+        String staffId
 ) {
 }

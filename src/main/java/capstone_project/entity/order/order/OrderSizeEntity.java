@@ -13,18 +13,18 @@ import lombok.experimental.SuperBuilder;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "categories", schema = "public", catalog = "capstone-project")
+@Table(name = "order_sizes", schema = "public", catalog = "capstone-project")
 @Data
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderSizeEntity extends BaseEntity {
 
-    @Column(name = "min_weight")
-    private BigDecimal minWeight;
-
-    @Column(name = "max_weight")
-    private BigDecimal maxWeight;
+//    @Column(name = "min_weight")
+//    private BigDecimal minWeight;
+//
+//    @Column(name = "max_weight")
+//    private BigDecimal maxWeight;
 
     @Column(name = "min_length")
     private BigDecimal minLength;

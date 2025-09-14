@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Hợp đồng vận chuyển</title>
+    <style>
+        @font-face {
+            font-family: "DejaVuSans";
+            src: url("fonts/DejaVuSans.ttf") format("truetype");
+        }
+
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+
+        body {
+            font-family: DejaVu Sans, Times New Roman, serif;
+            font-size: 13.5px;
+            line-height: 1.5;
+            color: #000;
+            background-color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+
+        .contract-container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 15px;
+            border: 2px double #000;
+            position: relative;
+        }
+
+        .contract-header {
+            text-align: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #000;
+            position: relative;
+        }
+
+        .contract-header h1 {
+            text-transform: uppercase;
+            font-size: 22px;
+            font-weight: bold;
+            margin: 0;
+            letter-spacing: 1px;
+            color: #9D0000;
+        }
+
+        .contract-header h3 {
+            font-size: 16px;
+            margin: 8px 0 0;
+            font-weight: bold;
+        }
+
+        .contract-number {
+            position: absolute;
+            top: 0;
+            right: 0;
+            font-style: italic;
+            font-size: 13px;
+        }
+
+        .section {
+            margin-bottom: 25px;
+            text-align: justify;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            padding: 5px;
+            background-color: #f2f2f2;
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+        }
+
+        .subsection-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 14px;
+            text-decoration: underline;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            page-break-inside: avoid;
+        }
+
+        table, th, td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .highlight {
+            font-weight: bold;
+            color: #9D0000;
+        }
+
+        .formula {
+            font-style: italic;
+            color: #333;
+            font-size: 12px;
+        }
+
+        .signature-area {
+            margin-top: 40px;
+        }
+
+        .signature-table {
+            margin-top: 20px;
+        }
+
+        .signature-table td {
+            height: 80px;
+            vertical-align: bottom;
+            border: none;
+            position: relative;
+        }
+
+        .signature-label {
+            font-weight: bold;
+            text-align: center;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            left: 0;
+            padding: 5px;
+        }
+
+        .stamp-placeholder {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 120px;
+            height: 120px;
+            border: 2px dashed #999;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .info-box {
+            border: 1px solid #000;
+            padding: 12px;
+            margin: 10px 0;
+            background-color: #f9f9f9;
+        }
+
+        .info-item {
+            margin-bottom: 5px;
+        }
+
+        ul {
+            padding-left: 20px;
+            margin: 8px 0;
+        }
+
+        li {
+            margin-bottom: 5px;
+        }
+
+        .footer-note {
+            font-style: italic;
+            text-align: center;
+            margin-top: 30px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+
+        .decoration-corner {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+        }
+
+        .corner-tl {
+            top: 0;
+            left: 0;
+            border-top: 2px solid #9D0000;
+            border-left: 2px solid #9D0000;
+        }
+
+        .corner-tr {
+            top: 0;
+            right: 0;
+            border-top: 2px solid #9D0000;
+            border-right: 2px solid #9D0000;
+        }
+
+        .corner-bl {
+            bottom: 0;
+            left: 0;
+            border-bottom: 2px solid #9D0000;
+            border-left: 2px solid #9D0000;
+        }
+
+        .corner-br {
+            bottom: 0;
+            right: 0;
+            border-bottom: 2px solid #9D0000;
+            border-right: 2px solid #9D0000;
+        }
+    </style>
+</head>
+<body>
+<div class="contract-container">
+    <!-- Trang trí góc -->
+    <div class="decoration-corner corner-tl"></div>
+    <div class="decoration-corner corner-tr"></div>
+    <div class="decoration-corner corner-bl"></div>
+    <div class="decoration-corner corner-br"></div>
+
+    <!-- Placeholder cho tem công ty -->
+    <div class="stamp-placeholder">Nơi đóng dấu<br/>công ty</div>
+
+    <div class="contract-header">
+        <div class="contract-number">Số: <span th:text="${contract.contractName}"></span></div>
+        <h1>HỢP ĐỒNG VẬN CHUYỂN</h1>
+        <h3>(Hàng hóa đường bộ)</h3>
+    </div>
+
+    <div class="section">
+        <p><b>CĂN CỨ BỘ LUẬT DÂN SỰ NĂM 2015;</b></p>
+        <p><b>CĂN CỨ LUẬT THƯƠNG MẠI NĂM 2005;</b></p>
+        <p><b>CĂN CỨ NHU CẦU VÀ KHẢ NĂNG CỦA HAI BÊN;</b></p>
+        <p>Hôm nay, ngày <b th:text="${#temporals.format(contract.createdAt, 'dd')}"></b> tháng <b
+                th:text="${#temporals.format(contract.createdAt, 'MM')}"></b> năm <b
+                th:text="${#temporals.format(contract.createdAt, 'yyyy')}"></b>, tại <b>Thành phố Hồ Chí Minh</b>, chúng
+            tôi gồm:</p>
+    </div>
+
+    <div class="section">
+        <div class="subsection-title">BÊN A (BÊN GIAO HÀNG): KHÁCH HÀNG</div>
+        <div class="info-box">
+            <div class="info-item"><b>Tên công ty:</b> <span
+                    th:text="${order.sender != null ? order.sender.companyName : 'N/A'}"></span></div>
+            <div class="info-item"><b>Người đại diện:</b> <span
+                    th:text="${order.sender != null ? order.sender.representativeName : 'N/A'}"></span></div>
+            <!--            <div class="info-item"><b>Chức vụ:</b> <span th:text="${order.sender != null ? order.sender.representativePosition : 'N/A'}"></span></div>-->
+            <div class="info-item"><b>SĐT đại diện:</b> <span
+                    th:text="${order.sender != null ? order.sender.representativePhone : 'N/A'}"></span></div>
+            <!--            <div class="info-item"><b>Mã số thuế:</b> <span th:text="${order.sender != null ? order.sender.taxCode : 'N/A'}"></span></div>-->
+            <div class="info-item"><b>Địa chỉ:</b> <span
+                    th:text="${order.sender != null ? order.sender.businessAddress : 'N/A'}"></span></div>
+            <div class="info-item"><b>Người đặt hàng:</b> <span th:text="${fullName}"></span> | <b>SĐT:</b> <span
+                    th:text="${phoneNumber}"></span></div>
+            <div class="info-item"><b>Email:</b> <span th:text="${senderEmail}"></span></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="subsection-title">BÊN B (BÊN VẬN CHUYỂN): CÔNG TY VẬN TẢI ABC</div>
+        <div class="info-box">
+            <div class="info-item"><b>Tên công ty:</b> Công ty Cổ phần Vận tải và Dịch vụ ABC</div>
+            <div class="info-item"><b>Mã số thuế:</b> 0312345678</div>
+            <div class="info-item"><b>Địa chỉ trụ sở:</b> 123 Lê Lợi, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh</div>
+            <div class="info-item"><b>Điện thoại:</b> (028) 3823 4567</div>
+            <div class="info-item"><b>Fax:</b> (028) 3823 4568</div>
+            <div class="info-item"><b>Người đại diện:</b> Ông Nguyễn Văn A</div>
+            <div class="info-item"><b>Chức vụ:</b> Giám đốc</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <p>Sau khi bàn bạc, hai bên cùng thống nhất ký kết Hợp đồng vận chuyển hàng hóa với các điều khoản sau:</p>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Điều 1: Nội dung công việc</div>
+        <p>1. Bên B đồng ý vận chuyển cho Bên A lô hàng theo đơn hàng số: <b th:text="${order.orderCode}"></b></p>
+        <p>2. Thông tin người nhận:</p>
+        <ul>
+            <li><b>Họ tên:</b> <span th:text="${order.receiverName}"></span></li>
+            <li><b>Số điện thoại:</b> <span th:text="${order.receiverPhone}"></span></li>
+            <!--            <li><b>Địa chỉ nhận hàng:</b> <span th:text="${order.receiverAddress}"></span></li>-->
+        </ul>
+        <!--        <p>3. Thời gian vận chuyển dự kiến: Từ ngày <b th:text="${#temporals.format(contract.createdAt, 'dd/MM/yyyy')}"></b> đến ngày <b th:text="${#temporals.format(contract.estimatedDelivery, 'dd/MM/yyyy')}"></b></p>-->
+        <p>4. Ghi chú: <i th:text="${order.notes != null ? order.notes : 'Không có ghi chú'}"></i></p>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Điều 2: Thông tin hàng hóa vận chuyển</div>
+        <table>
+            <thead>
+            <tr>
+                <th width="5%">Tổng km</th>
+            </tr>
+            <tbody>
+            <tr>
+                <td class="text-center" th:text="${distanceKm}"></td>
+            </tr>
+            </tbody>
+
+            <tr>
+                <th width="5%">STT</th>
+                <th width="30%">Mô tả hàng hóa</th>
+                <th width="10%">Khối lượng (kg)</th>
+                <th width="15%">Kích thước (DxRxC)</th>
+                <th width="15%">Tracking Code</th>
+                <th width="15%">Trạng thái</th>
+            </tr>
+            </thead>
+            <tbody>
+
+            <tr th:each="detail, iter : ${order.orderDetailEntities}">
+                <td class="text-center" th:text="${iter.index + 1}"></td>
+                <td th:text="${detail.description}"></td>
+                <td class="text-center" th:text="${detail.weight}"></td>
+                <td class="text-center"
+                    th:text="${detail.orderSizeEntity != null ? detail.orderSizeEntity.getMaxLength() + 'x' + detail.orderSizeEntity.getMaxWidth() + 'x' + detail.orderSizeEntity.getMaxHeight() : 'N/A'}"></td>
+                <td class="text-center" th:text="${detail.trackingCode}"></td>
+                <td class="text-center" th:text="${detail.status}"></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Điều 3: Giá cả và phương thức thanh toán</div>
+
+        <div class="subsection-title">3.1. Bảng tính chi phí vận chuyển</div>
+        <table>
+            <thead>
+            <tr>
+                <th width="5%">STT</th>
+                <th width="25%">Loại xe / Điều chỉnh</th>
+                <th width="10%">Số lượng xe</th>
+                <th width="15%">Khoảng cách áp dụng</th>
+                <th width="10%">Đơn giá</th>
+                <th width="10%">Số km</th>
+                <th width="15%">Thành tiền (VND)</th>
+                <th width="15%">Công thức tính</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="step, iter : ${calculationDetails}">
+                <td class="text-center" th:text="${iter.index + 1}"></td>
+                <td th:text="${step.vehicleRuleName}"></td>
+                <td class="text-center" th:text="${step.numOfVehicles > 0 ? step.numOfVehicles : '-'}"></td>
+                <td class="text-center" th:text="${step.distanceRange}"></td>
+                <td class="text-right" th:text="${#numbers.formatDecimal(step.unitPrice, 0, 'POINT', 0, 'COMMA')}"></td>
+                <td class="text-center" th:text="${step.appliedKm > 0 ? step.appliedKm : '-'}"></td>
+                <td class="text-right" th:text="${#numbers.formatDecimal(step.subtotal, 0, 'POINT', 0, 'COMMA')}"></td>
+                <td class="formula">
+                            <span th:if="${step.distanceRange.contains('0-4')}">
+                                (<span th:text="${step.numOfVehicles}"></span> xe × gói cố định)
+                            </span>
+                    <span th:if="${!step.distanceRange.contains('0-4') and step.numOfVehicles > 0}">
+                                (<span th:text="${step.numOfVehicles}"></span> xe ×
+                                <span th:text="${#numbers.formatDecimal(step.unitPrice, 0, 'POINT', 0, 'COMMA')}"></span> ×
+                                <span th:text="${step.appliedKm}"></span> km)
+                            </span>
+                    <span th:if="${step.numOfVehicles == 0}">
+                                (Tổng trước điều chỉnh × hệ số <span th:text="${step.unitPrice}"></span>)
+                            </span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="subsection-title">3.2. Tổng hợp chi phí</div>
+        <table>
+            <tr>
+                <td width="70%">Tổng cước vận chuyển trước điều chỉnh:</td>
+                <td class="text-right" width="30%"><b
+                        th:text="${#numbers.formatDecimal(totalBeforeAdjustment, 0, 'POINT', 0, 'COMMA')}"></b> VND
+                </td>
+            </tr>
+            <tr>
+                <td>Hệ số loại hàng (x<span th:text="${categoryMultiplier}"></span>):</td>
+                <td class="text-right"><b
+                        th:text="${#numbers.formatDecimal(categoryExtraFee, 0, 'POINT', 0, 'COMMA')}"></b> VND
+                </td>
+            </tr>
+            <tr>
+                <td>Giảm giá khuyến mãi:</td>
+                <td class="text-right">- <b
+                        th:text="${#numbers.formatDecimal(promotionDiscount, 0, 'POINT', 0, 'COMMA')}"></b> VND
+                </td>
+            </tr>
+            <tr class="highlight">
+                <td><b>TỔNG CƯỚC PHÍ PHẢI THANH TOÁN:</b></td>
+                <td class="text-right"><b th:text="${#numbers.formatDecimal(finalTotal, 0, 'POINT', 0, 'COMMA')}"></b>
+                    VND
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2"><i>(Bằng chữ: <span
+                        th:text="${#numbers.formatDecimal(finalTotal, 0, 'POINT', 0, 'COMMA')}"></span> đồng./.)</i>
+                </td>
+            </tr>
+        </table>
+
+        <div class="subsection-title">3.3. Phương thức thanh toán</div>
+        <p>Bên A thanh toán cho Bên B 100% giá trị hợp đồng trong vòng 07 ngày làm việc kể từ ngày ký kết hợp đồng.</p>
+        <p>Thông tin tài khoản:</p>
+        <ul>
+            <li><b>Ngân hàng:</b> Ngân hàng TMCP Ngoại thương Việt Nam (Vietcombank)</li>
+            <li><b>Chi nhánh:</b> Chi nhánh TP.HCM</li>
+            <li><b>Chủ tài khoản:</b> Công ty Cổ phần Vận tải và Dịch vụ ABC</li>
+            <li><b>Số tài khoản:</b> 123456789012</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Điều 4: Quyền và nghĩa vụ của các bên</div>
+        <p><b>4.1. Quyền và nghĩa vụ của Bên A:</b></p>
+        <ul>
+            <li>Cung cấp đầy đủ thông tin về hàng hóa, địa chỉ giao nhận cho Bên B</li>
+            <li>Thanh toán đầy đủ và đúng hạn các khoản phí theo thỏa thuận</li>
+            <li>Đóng gói hàng hóa đảm bảo an toàn trong quá trình vận chuyển</li>
+        </ul>
+
+        <p><b>4.2. Quyền và nghĩa vụ của Bên B:</b></p>
+        <ul>
+            <li>Vận chuyển hàng hóa đúng thời hạn, địa điểm đã thỏa thuận</li>
+            <li>Bảo quản hàng hóa trong quá trình vận chuyển</li>
+            <li>Bồi thường thiệt hại nếu để mất mát, hư hỏng hàng hóa do lỗi của mình</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Điều 5: Điều khoản chung</div>
+        <p>Hợp đồng này có hiệu lực kể từ ngày ký và được lập thành 02 (hai) bản có giá trị pháp lý như nhau, mỗi bên
+            giữ 01 (một) bản.</p>
+        <p>Mọi tranh chấp phát sinh từ hợp đồng này sẽ được giải quyết thông qua thương lượng. Trường hợp không thương
+            lượng được, tranh chấp sẽ được giải quyết tại Tòa án có thẩm quyền tại TP.HCM.</p>
+    </div>
+
+    <div class="signature-area">
+        <div class="section-title">ĐẠI DIỆN BÊN A</div>
+        <div class="section-title">ĐẠI DIỆN BÊN B</div>
+
+        <table class="signature-table">
+            <tr>
+                <td width="50%">
+                    <div class="signature-label">Ký, ghi rõ họ tên và đóng dấu</div>
+                </td>
+                <td width="50%">
+                    <div class="signature-label">Ký, ghi rõ họ tên và đóng dấu</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="footer-note">
+        Hợp đồng có hiệu lực từ ngày ký • Lưu VT: Hồ sơ hợp đồng
+    </div>
+</div>
+</body>
+</html>

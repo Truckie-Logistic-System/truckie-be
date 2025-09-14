@@ -1,29 +1,97 @@
-//package capstone_project.controller.order;
-//
-//import capstone_project.dtos.response.common.ApiResponse;
-//import capstone_project.dtos.response.pricing.PricingRuleResponse;
-//import capstone_project.service.services.order.order.OrderService;
-//import capstone_project.service.services.pricing.PricingRuleService;
-//import lombok.RequiredArgsConstructor;
-//import org.springframework.http.ResponseEntity;
-//import org.springframework.security.access.prepost.PreAuthorize;
-//import org.springframework.web.bind.annotation.GetMapping;
-//import org.springframework.web.bind.annotation.RequestMapping;
-//import org.springframework.web.bind.annotation.RestController;
-//
-//import java.util.List;
-//
-//@RestController
-//@RequestMapping("${order.api.base-path}")
-//@RequiredArgsConstructor
-//@PreAuthorize("isAuthenticated()")
-//public class OrderController {
-//
-//    private final OrderService orderService;
-//
-//    @GetMapping()
-//    public ResponseEntity<ApiResponse<List<PricingRuleResponse>>> getAllPricingRules() {
-//        final var result = orderService.getAllPricingRules();
-//        return ResponseEntity.ok(ApiResponse.ok(result));
-//    }
-//}
+package capstone_project.controller.order;
+
+import capstone_project.common.enums.OrderStatusEnum;
+import capstone_project.dtos.request.order.CreateOrderAndDetailRequest;
+import capstone_project.dtos.request.order.UpdateOrderRequest;
+import capstone_project.dtos.response.common.ApiResponse;
+import capstone_project.dtos.response.order.CreateOrderResponse;
+import capstone_project.dtos.response.order.GetOrderResponse;
+import capstone_project.service.services.order.order.OrderService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("${order.api.base-path}")
+@RequiredArgsConstructor
+@PreAuthorize("isAuthenticated()")
+public class OrderController {
+
+    private final OrderService orderService;
+
+    @PostMapping()
+    public ResponseEntity<ApiResponse<CreateOrderResponse>> createOrderAndOrderDetail(@Valid @RequestBody CreateOrderAndDetailRequest request) {
+        final var result = orderService.createOrder(request.orderRequest(), request.orderDetails());
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // Change status cho Order (một status)
+    @PutMapping("/{orderId}/status")
+    public ResponseEntity<ApiResponse<CreateOrderResponse>> changeAStatusOrder(
+            @PathVariable UUID orderId,
+            @RequestParam OrderStatusEnum status) {
+        final var result = orderService.changeAStatusOrder(orderId, status);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // Change status cho Order và toàn bộ OrderDetail
+    @PutMapping("/{orderId}/status/all")
+    public ResponseEntity<ApiResponse<CreateOrderResponse>> changeStatusOrderWithAllOrderDetail(
+            @PathVariable UUID orderId,
+            @RequestParam OrderStatusEnum status) {
+        final var result = orderService.changeStatusOrderWithAllOrderDetail(orderId, status);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // Lấy order theo senderId
+    @GetMapping("/sender/{senderId}")
+    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getOrdersBySenderId(
+            @PathVariable UUID senderId) {
+        final var result = orderService.getCreateOrderRequestsBySenderId(senderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // Lấy order theo deliveryAddressId
+    @GetMapping("/delivery-address/{deliveryAddressId}")
+    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getOrdersByDeliveryAddressId(
+            @PathVariable UUID deliveryAddressId) {
+        final var result = orderService.getCreateOrderRequestsByDeliveryAddressId(deliveryAddressId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @PutMapping()
+    public ResponseEntity<ApiResponse<CreateOrderResponse>> updateOrderBasicInPendingOrProcessing(
+            @RequestBody UpdateOrderRequest request) {
+        final var result = orderService.updateOrderBasicInPendingOrProcessing(request);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // Lấy order theo deliveryAddressId
+    @GetMapping("/get-all")
+    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getAllOrders(
+           ) {
+        final var result = orderService.getAllOrders();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/get-orders-for-cus-by-user-id/{userId}")
+    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getAllOrdersForCusByUserId(@PathVariable UUID userId
+    ) {
+        final var result = orderService.getOrdersForCusByUserId(userId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/get-by-id/{orderId}")
+    public ResponseEntity<ApiResponse<GetOrderResponse>> getOrderById(@PathVariable UUID orderId
+    ) {
+        final var result = orderService.getOrderById(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+
+}

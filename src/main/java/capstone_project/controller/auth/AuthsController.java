@@ -1,10 +1,9 @@
 package capstone_project.controller.auth;
 
 
-import capstone_project.dtos.request.auth.LoginWithoutEmailRequest;
-import capstone_project.dtos.request.auth.RefreshTokenRequest;
-import capstone_project.dtos.request.auth.RegisterUserRequest;
+import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
+import capstone_project.dtos.response.auth.ChangePasswordResponse;
 import capstone_project.dtos.response.auth.LoginResponse;
 import capstone_project.dtos.response.auth.RefreshTokenResponse;
 import capstone_project.dtos.response.common.ApiResponse;
@@ -13,10 +12,7 @@ import capstone_project.service.services.auth.RegisterService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("${auth.api.base-path}")
@@ -54,4 +50,17 @@ public class AuthsController {
         final var register = registerService.registerCustomer(registerCustomerRequest);
         return ResponseEntity.ok(ApiResponse.ok(register));
     }
+
+    @PutMapping("/change-password")
+    public ResponseEntity<ApiResponse<ChangePasswordResponse>> changePassword(@RequestBody final ChangePasswordRequest changePasswordRequest) {
+        final var changePasswordResponse = registerService.changePassword(changePasswordRequest);
+        return ResponseEntity.ok(ApiResponse.ok(changePasswordResponse));
+    }
+
+    @PutMapping("/change-password-for-forget-password")
+    public ResponseEntity<ApiResponse<ChangePasswordResponse>> changePasswordForForgetPassword(@RequestBody final ChangePasswordForForgetPassRequest changePasswordForForgetPassRequest) {
+        final var changePasswordResponse = registerService.changePasswordForForgetPassword(changePasswordForForgetPassRequest);
+        return ResponseEntity.ok(ApiResponse.ok(changePasswordResponse));
+    }
+
 }

@@ -1,7 +1,7 @@
 package capstone_project.service.mapper.order;
 
 import capstone_project.dtos.request.order.ContractRuleRequest;
-import capstone_project.dtos.response.order.ContractRuleResponse;
+import capstone_project.dtos.response.order.contract.ContractRuleResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
 import capstone_project.entity.pricing.VehicleRuleEntity;

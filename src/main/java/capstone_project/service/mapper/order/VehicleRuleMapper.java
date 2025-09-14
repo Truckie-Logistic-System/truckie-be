@@ -1,40 +1,5 @@
 package capstone_project.service.mapper.order;
 
-//@Mapper(componentModel = "spring")
-//public interface PricingRuleMapper {
-//
-//    @Mapping(source = "category", target = "categoryResponse")
-//    @Mapping(source = "vehicleTypeEntity", target = "vehicleTypeResponse")
-//    PricingRuleResponse toPricingRuleResponse(final PricingRuleEntity pricingRuleEntity);
-//
-//
-//    @Mapping(target = "category", source = "categoryId", qualifiedByName = "categoryFromId")
-//    @Mapping(target = "vehicleTypeEntity", source = "vehicleTypeId", qualifiedByName = "vehicleTypeFromId")
-//    PricingRuleEntity mapRequestToEntity(final PricingRuleRequest pricingRuleRequest);
-//
-//    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-//    @Mapping(target = "category", source = "categoryId", qualifiedByName = "categoryFromId")
-//    @Mapping(target = "vehicleTypeEntity", source = "vehicleTypeId", qualifiedByName = "vehicleTypeFromId")
-//    void toPricingRuleEntity(PricingRuleRequest request, @MappingTarget PricingRuleEntity entity);
-//
-//
-//    @Named("categoryFromId")
-//    default CategoryEntity categoryFromId(String id) {
-//        if (id == null) return null;
-//        CategoryEntity entity = new CategoryEntity();
-//        entity.setId(UUID.fromString(id));
-//        return entity;
-//    }
-//
-//    @Named("vehicleTypeFromId")
-//    default VehicleTypeEntity vehicleTypeFromId(String id) {
-//        if (id == null) return null;
-//        VehicleTypeEntity entity = new VehicleTypeEntity();
-//        entity.setId(UUID.fromString(id));
-//        return entity;
-//    }
-//}
-
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.pricing.UpdateVehicleRuleRequest;
@@ -43,8 +8,8 @@ import capstone_project.dtos.response.pricing.VehicleRuleResponse;
 import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.entity.pricing.VehicleRuleEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
-import capstone_project.service.entityServices.order.order.CategoryEntityService;
-import capstone_project.service.entityServices.vehicle.VehicleTypeEntityService;
+import capstone_project.repository.entityServices.order.order.CategoryEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.vehicle.VehicleTypeMapper;
 import org.mapstruct.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,7 +31,7 @@ public abstract class VehicleRuleMapper {
 
     @Named("categoryFromId")
     protected CategoryEntity mapCategoryIdToCategoryEntity(String categoryId) {
-        return categoryService.findById(UUID.fromString(categoryId))
+        return categoryService.findEntityById(UUID.fromString(categoryId))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -75,15 +40,15 @@ public abstract class VehicleRuleMapper {
 
     @Named("vehicleTypeFromId")
     protected VehicleTypeEntity mapVehicleTypeIdToVehicleTypeEntity(String vehicleTypeId) {
-        return vehicleTypeEntityService.findById(UUID.fromString(vehicleTypeId))
+        return vehicleTypeEntityService.findEntityById(UUID.fromString(vehicleTypeId))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
     }
 
-    @Mapping(source = "category", target = "categoryResponse")
-    @Mapping(source = "vehicleTypeEntity", target = "vehicleTypeResponse")
+//    @Mapping(source = "category", target = "categoryResponse")
+//    @Mapping(source = "vehicleTypeEntity", target = "vehicleTypeResponse")
     public abstract VehicleRuleResponse toVehicleRuleResponse(final VehicleRuleEntity vehicleRuleEntity);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

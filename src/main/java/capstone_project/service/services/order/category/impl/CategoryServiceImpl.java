@@ -6,10 +6,10 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CategoryRequest;
 import capstone_project.dtos.response.order.CategoryResponse;
 import capstone_project.entity.order.order.CategoryEntity;
-import capstone_project.service.entityServices.order.order.CategoryEntityService;
+import capstone_project.repository.entityServices.order.order.CategoryEntityService;
 import capstone_project.service.mapper.order.CategoryMapper;
 import capstone_project.service.services.order.category.CategoryService;
-import capstone_project.service.services.service.RedisService;
+import capstone_project.service.services.redis.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,6 +28,7 @@ public class CategoryServiceImpl implements CategoryService {
     private final RedisService redisService;
 
     private static final String CATEGORY_ALL_CACHE_KEY = "categories:all";
+    private static final String CATEGORY_ALL_BY_NAME_CACHE_KEY = "categories:all:name:";
     private static final String CATEGORY_BY_ID_CACHE_KEY_PREFIX = "category:";
     private static final String CATEGORY_BY_NAME_CACHE_KEY_PREFIX = "category:name:";
 
@@ -62,6 +63,40 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    public List<CategoryResponse> getAllCategoriesByCategoryName(String categoryName) {
+        log.info("Fetching categories by categoryName: {}", categoryName);
+
+        if (categoryName == null || categoryName.isBlank()) {
+            log.warn("Category name is null or blank");
+            throw new NotFoundException(ErrorEnum.INVALID.getMessage(), ErrorEnum.INVALID.getErrorCode());
+        }
+
+        List<CategoryEntity> cachedCategories = redisService.getList(
+                CATEGORY_ALL_BY_NAME_CACHE_KEY + categoryName, CategoryEntity.class
+        );
+
+        if (cachedCategories != null) {
+            log.info("Returning cached categories for categoryName: {}", categoryName);
+            return cachedCategories.stream()
+                    .map(categoryMapper::toCategoryResponse)
+                    .toList();
+        }
+
+        List<CategoryEntity> categoryEntities = categoryEntityService.findByCategoryNameLikeIgnoreCase(categoryName);
+
+        if (categoryEntities.isEmpty()) {
+            log.warn("No categories found with categoryName containing: {}", categoryName);
+            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+
+        redisService.save(CATEGORY_ALL_BY_NAME_CACHE_KEY + categoryName, categoryEntities);
+
+        return categoryEntities.stream()
+                .map(categoryMapper::toCategoryResponse)
+                .toList();
+    }
+
+    @Override
     public CategoryResponse getCategoryById(UUID id) {
         log.info("Fetching category by ID: {}", id);
 
@@ -74,7 +109,7 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         log.info("No cached category found for ID: {}, fetching from database", id);
-        CategoryEntity categoryEntity = categoryEntityService.findById(id)
+        CategoryEntity categoryEntity = categoryEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
         redisService.save(cacheKey, categoryEntity);
@@ -132,15 +167,17 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse updateCategory(UUID id, CategoryRequest categoryRequest) {
         log.info("Updating category with ID: {} and request: {}", id, categoryRequest);
 
-        CategoryEntity existingCategory = categoryEntityService.findById(id)
+        CategoryEntity existingCategory = categoryEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
-        try {
-            CategoryEnum.valueOf(categoryRequest.categoryName());
-        } catch (NotFoundException e) {
-            log.error("Invalid category type: {}", categoryRequest.categoryName());
-            throw new NotFoundException("Invalid category type: " + categoryRequest.categoryName(), ErrorEnum.ENUM_INVALID.getErrorCode());
-        }
+//        if (categoryRequest.categoryName() != null) {
+//            try {
+//                CategoryEnum.valueOf(categoryRequest.categoryName());
+//            } catch (NotFoundException e) {
+//                log.error("Invalid category type: {}", categoryRequest.categoryName());
+//                throw new NotFoundException("Invalid category type: " + categoryRequest.categoryName(), ErrorEnum.ENUM_INVALID.getErrorCode());
+//            }
+//        }
 
         categoryMapper.toCategoryEntity(categoryRequest, existingCategory);
         CategoryEntity updatedCategory = categoryEntityService.save(existingCategory);

@@ -10,8 +10,8 @@ import capstone_project.dtos.request.pricing.VehicleRuleRequest;
 import capstone_project.dtos.response.pricing.VehicleRuleResponse;
 import capstone_project.entity.pricing.VehicleRuleEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
-import capstone_project.service.entityServices.pricing.VehicleRuleEntityService;
-import capstone_project.service.entityServices.vehicle.VehicleTypeEntityService;
+import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.order.VehicleRuleMapper;
 import capstone_project.service.services.pricing.VehicleRuleService;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +50,7 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
     @Override
     public VehicleRuleResponse getVehicleRuleById(UUID id) {
         log.info("Fetching vehicle rule by ID: {}", id);
-        VehicleRuleEntity vehicleRuleEntity = vehicleRuleEntityService.findById(id)
+        VehicleRuleEntity vehicleRuleEntity = vehicleRuleEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
@@ -76,7 +76,7 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
         UUID categoryUuid = UUID.fromString(vehicleRuleRequest.categoryId());
         UUID vehicleTypeUuid = UUID.fromString(vehicleRuleRequest.vehicleTypeId());
 
-        VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findById(vehicleTypeUuid)
+        VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findEntityById(vehicleTypeUuid)
                 .orElseThrow(() -> {
                     log.error("Vehicle type with ID {} not found", vehicleTypeUuid);
                     return new NotFoundException("Vehicle type not found", ErrorEnum.NOT_FOUND.getErrorCode());
@@ -123,17 +123,21 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
     public VehicleRuleResponse updateVehicleRule(UUID id, UpdateVehicleRuleRequest updateVehicleRuleRequest) {
         log.info("Updating vehicle rule with ID: {}", id);
 
-        VehicleRuleEntity existingEntity = vehicleRuleEntityService.findById(id)
+        VehicleRuleEntity existingEntity = vehicleRuleEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-        try {
-            VehicleRuleEnum.valueOf(updateVehicleRuleRequest.vehicleRuleName());
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Invalid vehicle rule type: " + updateVehicleRuleRequest.vehicleRuleName(),
-                    ErrorEnum.ENUM_INVALID.getErrorCode());
+        if (updateVehicleRuleRequest.vehicleRuleName() != null) {
+            try {
+                VehicleRuleEnum.valueOf(updateVehicleRuleRequest.vehicleRuleName());
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException(
+                        "Invalid vehicle rule type: " + updateVehicleRuleRequest.vehicleRuleName(),
+                        ErrorEnum.ENUM_INVALID.getErrorCode()
+                );
+            }
         }
 
         vehicleRuleMapper.toVehicleRuleEntity(updateVehicleRuleRequest, existingEntity);

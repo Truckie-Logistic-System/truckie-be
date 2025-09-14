@@ -4,6 +4,7 @@ plugins {
 	java
 	id("org.springframework.boot") version "3.3.13"
 	id("io.spring.dependency-management") version "1.1.7"
+    id("com.microsoft.azure.azurewebapp") version "1.10.0"
 }
 
 group = "capstone-project"
@@ -75,7 +76,7 @@ dependencies {
 	// PDF
 	implementation("com.itextpdf:itextpdf:5.5.13.4")
 
-	// Cloundinary
+	// Cloudinary
 	implementation("com.cloudinary:cloudinary-http44:1.39.0")
 
 	// Jackson
@@ -88,6 +89,13 @@ dependencies {
 
 	// Jackson
 	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.2")
+
+	// Thymeleaf
+	implementation("org.springframework.boot:spring-boot-starter-thymeleaf:3.5.5")
+	implementation("org.xhtmlrenderer:flying-saucer-pdf:9.13.3")
+
+	// Payos
+	implementation("vn.payos:payos-java:1.0.3")
 
 	// Test
 	testImplementation("org.springframework.boot:spring-boot-starter-test")

@@ -8,10 +8,10 @@ import capstone_project.dtos.response.user.GeocodingResponse;
 import capstone_project.dtos.response.user.AddressResponse;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
-import capstone_project.service.entityServices.user.AddressEntityService;
-import capstone_project.service.entityServices.user.CustomerEntityService;
+import capstone_project.repository.entityServices.user.AddressEntityService;
+import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.user.AddressMapper;
-import capstone_project.service.services.service.RedisService;
+import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.user.AddressService;
 import capstone_project.common.utils.AddressUtil;
 import lombok.RequiredArgsConstructor;
@@ -84,6 +84,25 @@ public class AddressServiceImpl implements AddressService {
     }
 
     @Override
+    public List<AddressResponse> getAddressesByCustomerId(UUID customerId) {
+        log.info("Fetching addresses for customer ID: {}", customerId);
+
+        List<AddressEntity> entities = addressEntityService.getAddressesByCustomerId(customerId);
+
+        if (entities.isEmpty()) {
+            log.warn("No addresses found for customer ID: {}", customerId);
+            throw new NotFoundException(
+                    ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+
+        return entities.stream()
+                .map(this::safeMapToResponse)
+                .toList();
+    }
+
+    @Override
     public AddressResponse calculateLatLong(String address) {
         log.info("Calculating lat/long for address: {}", address);
 
@@ -134,7 +153,7 @@ public class AddressServiceImpl implements AddressService {
             LocalDateTime now = LocalDateTime.now();
             addressEntity.setCreatedAt(now);
 
-            CustomerEntity customer = customerEntityService.findById(UUID.fromString(request.customerId()))
+            CustomerEntity customer = customerEntityService.findEntityById(UUID.fromString(request.customerId()))
                     .orElseThrow(() -> new NotFoundException(
                             ErrorEnum.NOT_FOUND.getMessage(),
                             ErrorEnum.NOT_FOUND.getErrorCode()
@@ -170,7 +189,7 @@ public class AddressServiceImpl implements AddressService {
         log.info("Updating address with ID: {}", id);
 
         // 1. Find the existing address
-        AddressEntity existing = addressEntityService.findById(id)
+        AddressEntity existing = addressEntityService.findEntityById(id)
                 .orElseThrow(() -> {
                     log.warn("Address with ID {} not found", id);
                     return new NotFoundException(
@@ -230,7 +249,7 @@ public class AddressServiceImpl implements AddressService {
             log.warn("Error retrieving address from cache for ID: {}", id, e);
         }
 
-        Optional<AddressEntity> addressEntity = addressEntityService.findById(id);
+        Optional<AddressEntity> addressEntity = addressEntityService.findEntityById(id);
 
         return addressEntity
                 .map(entity -> {

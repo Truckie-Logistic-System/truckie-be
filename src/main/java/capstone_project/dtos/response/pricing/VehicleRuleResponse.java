@@ -21,7 +21,7 @@ public record VehicleRuleResponse(
         LocalDateTime effectiveFrom,
         LocalDateTime effectiveTo,
 
-        CategoryResponse categoryResponse,
-        VehicleTypeResponse vehicleTypeResponse
+        CategoryResponse category,
+        VehicleTypeResponse vehicleTypeEntity
 ) {
 }
