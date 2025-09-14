@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface UserRepository extends BaseRepository<UserEntity> {
     /**
@@ -45,4 +46,6 @@ public interface UserRepository extends BaseRepository<UserEntity> {
     List<UserEntity> findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(String username, String email);
 
     List<UserEntity> findUserEntitiesByRoleRoleName(String roleName);
+
+    List<UserEntity> findAllByIdIn(List<UUID> ids);
 }

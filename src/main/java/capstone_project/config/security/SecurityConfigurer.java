@@ -110,6 +110,12 @@ public class SecurityConfigurer {
     @Value("${driver.api.base-path}")
     private String driverApiBasePath;
 
+    @Value("${room.api.base-path}")
+    private String roomApiBasePath;
+
+    @Value("${chat.api.base-path}")
+    private String chatApiBasePath;
+
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -132,7 +138,8 @@ public class SecurityConfigurer {
                     "/actuator/**",
                     "/actuator/health",
                     "/actuator/info",
-                    "/error"
+                    "/error",
+                    "/chat/**"
             ),
             Arrays.stream(SWAGGER_ENDPOINTS)
     ).toArray(String[]::new);
@@ -223,8 +230,9 @@ public class SecurityConfigurer {
                         .requestMatchers(managerApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(roleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
-
-
+                        // ================= ROOM & CHAT =================
+                        .requestMatchers(roomApiBasePath + "/**").authenticated()
+                        .requestMatchers(chatApiBasePath + "/**").authenticated()
 
 
 

@@ -108,6 +108,13 @@ dependencies {
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 
 	implementation("com.fasterxml.jackson.datatype:jackson-datatype-hibernate6:2.17.0")
+
+	//firebase
+	implementation ("com.google.firebase:firebase-admin:9.3.0")
+
+	//socket
+	implementation("org.springframework:spring-websocket:6.2.3")
+	implementation("org.springframework:spring-messaging:6.1.6")
 }
 
 

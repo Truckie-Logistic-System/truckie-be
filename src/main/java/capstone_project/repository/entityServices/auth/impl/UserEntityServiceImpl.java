@@ -58,6 +58,11 @@ public class UserEntityServiceImpl implements UserEntityService {
     }
 
     @Override
+    public List<UserEntity> findAllByIdIn(List<UUID> ids) {
+        return userRepository.findAllByIdIn(ids);
+    }
+
+    @Override
     public UserEntity save(UserEntity entity) {
         return userRepository.save(entity);
     }
