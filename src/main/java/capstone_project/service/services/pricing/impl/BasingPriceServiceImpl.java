@@ -11,7 +11,7 @@ import capstone_project.entity.pricing.BasingPriceEntity;
 import capstone_project.repository.entityServices.pricing.BasingPriceEntityService;
 import capstone_project.service.mapper.order.BasingPriceMapper;
 import capstone_project.service.services.pricing.BasingPriceService;
-import capstone_project.service.services.service.RedisService;
+import capstone_project.service.services.redis.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

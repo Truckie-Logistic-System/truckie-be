@@ -10,6 +10,7 @@ import capstone_project.entity.vehicle.VehicleMaintenanceEntity;
 import capstone_project.repository.entityServices.vehicle.VehicleMaintenanceEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.mapper.vehicle.VehicleMaintenanceMapper;
+import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.vehicle.VehicleMaintenanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

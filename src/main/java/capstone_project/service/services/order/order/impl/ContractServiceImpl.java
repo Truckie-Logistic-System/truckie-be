@@ -310,7 +310,7 @@ public class ContractServiceImpl implements ContractService {
 
             log.info("[assignVehicles] Processing detail {}/{}: id={}, weight={}; size.max={}kg,{}x{}x{}",
                     processed, details.size(), detail.getId(), detail.getWeight(),
-                    detail.getOrderSizeEntity().getMaxWeight(),
+                    detail.getWeight(),
                     detail.getOrderSizeEntity().getMaxLength(),
                     detail.getOrderSizeEntity().getMaxWidth(),
                     detail.getOrderSizeEntity().getMaxHeight());
@@ -546,12 +546,11 @@ public class ContractServiceImpl implements ContractService {
     }
 
 
-
     private boolean canFit(OrderDetailEntity detail, VehicleRuleEntity rule) {
         OrderSizeEntity size = detail.getOrderSizeEntity();
         if (size == null) return false;
 
-        return size.getMaxWeight().compareTo(rule.getMaxWeight()) <= 0
+        return detail.getWeight().compareTo(rule.getMaxWeight()) <= 0
                 && size.getMaxLength().compareTo(rule.getMaxLength()) <= 0
                 && size.getMaxWidth().compareTo(rule.getMaxWidth()) <= 0
                 && size.getMaxHeight().compareTo(rule.getMaxHeight()) <= 0;

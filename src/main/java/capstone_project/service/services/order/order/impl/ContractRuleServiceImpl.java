@@ -237,14 +237,14 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                                 ErrorEnum.INVALID.getErrorCode());
                     }
 
-                    boolean canFit = size.getMaxWeight().compareTo(vehicleRule.getMaxWeight()) <= 0
+                    boolean canFit = detail.getWeight().compareTo(vehicleRule.getMaxWeight()) <= 0
                             && size.getMaxLength().compareTo(vehicleRule.getMaxLength()) <= 0
                             && size.getMaxWidth().compareTo(vehicleRule.getMaxWidth()) <= 0
                             && size.getMaxHeight().compareTo(vehicleRule.getMaxHeight()) <= 0
-                            && currentLoad.add(size.getMaxWeight()).compareTo(vehicleRule.getMaxWeight()) <= 0;
+                            && currentLoad.add(detail.getWeight()).compareTo(vehicleRule.getMaxWeight()) <= 0;
 
                     if (canFit) {
-                        currentLoad = currentLoad.add(size.getMaxWeight());
+                        currentLoad = currentLoad.add(detail.getWeight());
                         assignedDetails.add(detail.getId());
                         newlyAssigned.add(detail.getId());
                         contractRule.getOrderDetails().add(detail);
@@ -357,14 +357,14 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                 continue; // hoặc throw error tùy yêu cầu
             }
 
-            boolean canFit = size.getMaxWeight().compareTo(vehicleRule.getMaxWeight()) <= 0
+            boolean canFit = detail.getWeight().compareTo(vehicleRule.getMaxWeight()) <= 0
                     && size.getMaxLength().compareTo(vehicleRule.getMaxLength()) <= 0
                     && size.getMaxWidth().compareTo(vehicleRule.getMaxWidth()) <= 0
                     && size.getMaxHeight().compareTo(vehicleRule.getMaxHeight()) <= 0
-                    && currentLoad.add(size.getMaxWeight()).compareTo(vehicleRule.getMaxWeight()) <= 0;
+                    && currentLoad.add(detail.getWeight()).compareTo(vehicleRule.getMaxWeight()) <= 0;
 
             if (canFit) {
-                currentLoad = currentLoad.add(size.getMaxWeight());
+                currentLoad = currentLoad.add(detail.getWeight());
                 assignedDetails.add(detail);
             }
         }

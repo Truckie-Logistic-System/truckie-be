@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "contract_settings", schema = "public", catalog = "capstone-project")
@@ -23,7 +24,7 @@ public class ContractSettingEntity extends BaseEntity {
     private BigDecimal depositPercent;
 
     @Column(name = "expired_deposit_date")
-    private BigDecimal expiredDepositDate;
+    private LocalDateTime expiredDepositDate;
 
     @Column(name = "insurance_rate")
     private BigDecimal insuranceRate;

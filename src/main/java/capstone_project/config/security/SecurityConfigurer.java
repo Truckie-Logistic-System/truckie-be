@@ -110,6 +110,15 @@ public class SecurityConfigurer {
     @Value("${driver.api.base-path}")
     private String driverApiBasePath;
 
+//    @Value("${system-setting.api.base-path}")
+//    private String systemSettingApiBasePath;
+
+    @Value("${contract-setting.api.base-path}")
+    private String contractSettingApiBasePath;
+
+    @Value("${weight-unit-setting.api.base-path}")
+    private String weightUnitSettingApiBasePath;
+
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -223,11 +232,9 @@ public class SecurityConfigurer {
                         .requestMatchers(managerApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(roleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
-
-
-
-
-
+                        // ================= SETTING =================
+                        .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(weightUnitSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
