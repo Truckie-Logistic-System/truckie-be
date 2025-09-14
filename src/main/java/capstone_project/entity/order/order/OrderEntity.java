@@ -29,8 +29,8 @@ public class OrderEntity extends BaseEntity {
     @Column(name = "total_quantity")
     private Integer totalQuantity;
 
-    @Column(name = "total_weight")
-    private BigDecimal totalWeight;
+//    @Column(name = "total_weight")
+//    private BigDecimal totalWeight;
 
     @Size(max = 100)
     @Column(name = "order_code", length = 100)

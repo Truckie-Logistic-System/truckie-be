@@ -20,11 +20,11 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class OrderSizeEntity extends BaseEntity {
 
-    @Column(name = "min_weight")
-    private BigDecimal minWeight;
-
-    @Column(name = "max_weight")
-    private BigDecimal maxWeight;
+//    @Column(name = "min_weight")
+//    private BigDecimal minWeight;
+//
+//    @Column(name = "max_weight")
+//    private BigDecimal maxWeight;
 
     @Column(name = "min_length")
     private BigDecimal minLength;
