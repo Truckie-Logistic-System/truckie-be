@@ -10,4 +10,6 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
     List<VehicleAssignmentEntity> findByStatus(String status);
 
     List<VehicleAssignmentEntity> findByVehicleEntityId(UUID vehicleEntityId);
+
+    List<VehicleAssignmentEntity> findByVehicleEntityId(String vehicleType);
 }

@@ -64,4 +64,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         var updated = entityService.save(existing);
         return mapper.toResponse(updated);
     }
+
+    @Override
+    public List<VehicleAssignmentResponse> getAllAssignmentsWithOrder() {
+        return List.of();
+    }
 }
