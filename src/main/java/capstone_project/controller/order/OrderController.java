@@ -6,6 +6,7 @@ import capstone_project.dtos.request.order.CreateOrderAndDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.CreateOrderResponse;
+import capstone_project.dtos.response.order.GetOrderForCustomerResponse;
 import capstone_project.dtos.response.order.GetOrderResponse;
 import capstone_project.service.services.order.order.OrderService;
 import jakarta.validation.Valid;
@@ -100,6 +101,14 @@ public class OrderController {
         final var result = orderService.responseListUnitEnum();
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    @GetMapping("/get-order-for-customer-by-order-id/{orderId}")
+    public ResponseEntity<ApiResponse<GetOrderForCustomerResponse>> getOrderForCustomerByOrderId(@PathVariable UUID orderId) {
+        final var result = orderService.getOrderForCustomerByOrderId(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+
 
 
 }

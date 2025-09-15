@@ -6,7 +6,7 @@ import capstone_project.entity.issue.IssueImageEntity;
 import java.util.List;
 
 public record GetIssueImageResponse(
-        IssueEntity issue,
-        List<IssueImageEntity> imageUrl
+        GetBasicIssueResponse issue,
+        List<String> imageUrl
 ) {
 }

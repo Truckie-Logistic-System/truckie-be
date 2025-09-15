@@ -10,4 +10,6 @@ public interface IssueImageService {
     GetIssueImageResponse createImage(CreateIssueImageRequest request);
 
     GetIssueImageResponse getImage(UUID issueId);
+
+    GetIssueImageResponse getByVehicleAssignment(UUID vehicleAssignmentId);
 }

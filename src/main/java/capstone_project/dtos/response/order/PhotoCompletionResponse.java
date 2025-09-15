@@ -1,5 +1,7 @@
 package capstone_project.dtos.response.order;
 
+import capstone_project.dtos.response.device.DeviceResponse;
+
 import java.util.UUID;
 
 public record PhotoCompletionResponse(
@@ -7,6 +9,6 @@ public record PhotoCompletionResponse(
         String imageUrl,
         String description,
         UUID vehicleAssignmentId,
-        UUID deviceId
+        DeviceResponse device
 ) {
 }

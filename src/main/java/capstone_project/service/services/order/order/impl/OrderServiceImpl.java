@@ -10,14 +10,21 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.CreateOrderRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
-import capstone_project.dtos.response.order.CreateOrderResponse;
-import capstone_project.dtos.response.order.GetOrderResponse;
+import capstone_project.dtos.response.issue.GetIssueImageResponse;
+import capstone_project.dtos.response.order.*;
+import capstone_project.dtos.response.order.contract.ContractResponse;
+import capstone_project.dtos.response.order.transaction.TransactionResponse;
+import capstone_project.entity.auth.UserEntity;
+import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
+import capstone_project.repository.entityServices.auth.UserEntityService;
+import capstone_project.repository.entityServices.order.conformation.PhotoCompletionEntityService;
+import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
@@ -26,7 +33,11 @@ import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.order.OrderDetailMapper;
 import capstone_project.service.mapper.order.OrderMapper;
+import capstone_project.service.services.issue.IssueImageService;
+import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.order.order.PhotoCompletionService;
+import capstone_project.service.services.order.transaction.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,6 +60,11 @@ public class OrderServiceImpl implements OrderService {
     private final AddressEntityService addressEntityService;
     private final OrderSizeEntityService orderSizeEntityService;
     private final CategoryEntityService categoryEntityService;
+    private final IssueImageService issueImageService;
+    private final ContractEntityService contractEntityService;
+    private final ContractService contractService;
+    private final TransactionService transactionService;
+    private final PhotoCompletionService photoCompletionService;
     private final OrderMapper orderMapper;
     private final OrderDetailMapper orderDetailMapper;
 
@@ -412,5 +428,39 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return weightBaseUnit.multiply(unitEnum.toTon());
+    }
+
+    @Override
+    public GetOrderForCustomerResponse getOrderForCustomerByOrderId(UUID orderId) {
+        GetOrderResponse getOrderResponse = getOrderById(orderId);
+
+        List<GetIssueImageResponse> getIssueImageResponses = new ArrayList<>();
+        Map<UUID,List<PhotoCompletionResponse>> photoCompletionResponses = new HashMap<>();
+        for (GetOrderDetailResponse detail : getOrderResponse.orderDetails()) {
+            if(detail.vehicleAssignmentId() != null){
+                UUID vehicleAssignmentId = detail.vehicleAssignmentId().id(); // lấy id
+                getIssueImageResponses.add(
+                        issueImageService.getByVehicleAssignment(vehicleAssignmentId)
+                );
+                photoCompletionResponses.put(vehicleAssignmentId,photoCompletionService.getByVehicleAssignment(vehicleAssignmentId));
+            }
+        }
+
+        ContractResponse contractResponse = null;
+        List<TransactionResponse> transactionResponses = new ArrayList<>();
+
+        Optional<ContractEntity> contractEntity = contractEntityService.getContractByOrderId(orderId);
+        if (contractEntity.isPresent()) {
+            contractResponse = contractService.getContractById(contractEntity.get().getId());
+            transactionResponses = transactionService.getTransactionsByContractId(contractEntity.get().getId());
+        }
+
+        return new GetOrderForCustomerResponse(
+                getOrderResponse,
+                getIssueImageResponses,
+                photoCompletionResponses,
+                contractResponse,
+                transactionResponses
+        );
     }
 }
