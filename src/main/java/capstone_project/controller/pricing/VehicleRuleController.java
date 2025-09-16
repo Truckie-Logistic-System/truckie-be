@@ -30,6 +30,12 @@ public class VehicleRuleController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    @GetMapping("/full")
+    public ResponseEntity<ApiResponse<List<FullVehicleRuleResponse>>> getAllFullVehicleRules() {
+        final var result = vehicleRuleService.getAllFullVehicleRules();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<VehicleRuleResponse>> getVehicleRuleById(@PathVariable("id") UUID id) {
         final var result = vehicleRuleService.getVehicleRuleById(id);
