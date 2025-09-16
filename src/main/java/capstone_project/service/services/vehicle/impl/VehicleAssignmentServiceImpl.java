@@ -35,13 +35,12 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     @Override
     public List<VehicleAssignmentResponse> getAllAssignments() {
         log.info("Fetching all vehicles");
-        List<VehicleAssignmentEntity> entities = entityService.findAll();
-        if (entities.isEmpty()) {
-            throw new NotFoundException(
-                    "There are no vehicle assignments available.",
-                    ErrorEnum.NOT_FOUND.getErrorCode());
-        }
-        return entities.stream()
+        return Optional.of(entityService.findAll())
+                .filter(list -> !list.isEmpty())
+                .orElseThrow(() -> new NotFoundException(
+                        "There are no vehicle assignments available.",
+                        ErrorEnum.NOT_FOUND.getErrorCode()))
+                .stream()
                 .map(mapper::toResponse)
                 .toList();
     }
