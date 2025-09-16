@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Year;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -38,14 +39,10 @@ public class SealServiceImpl implements SealService {
     }
 
     @Override
-    public GetSealResponse cancelSeal(String sealId) {
-        Optional<SealEntity> sealEntity = sealEntityService.findEntityById(UUID.fromString(sealId));
-        if(sealEntity.isEmpty()){
-            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "Seal không tìm thấy với seal ID này: "+sealId,ErrorEnum.NOT_FOUND.getErrorCode());
-        }
-        sealEntity.get().setStatus(CommonStatusEnum.INACTIVE.name());
-        return sealMapper.toGetSealResponse(sealEntity.get());
+    public List<GetSealResponse> getAllSeals() {
+        return sealMapper.toGetSealResponseList(sealEntityService.findAll());
     }
+
 
     private String generateUniqueSealCode() {
         int maxAttempts = 10;

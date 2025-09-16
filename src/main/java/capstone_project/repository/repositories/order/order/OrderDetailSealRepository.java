@@ -10,5 +10,5 @@ import java.util.List;
 public interface OrderDetailSealRepository extends BaseRepository<OrderDetailSealEntity> {
     List<OrderDetailSealEntity> findBySeal(SealEntity seal);
 
-    OrderDetailSealEntity findByOrderDetail(OrderDetailEntity orderDetail);
+    OrderDetailSealEntity findByOrderDetailAndStatus(OrderDetailEntity orderDetail, String status);
 }

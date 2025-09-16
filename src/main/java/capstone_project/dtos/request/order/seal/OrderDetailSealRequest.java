@@ -10,6 +10,6 @@ public record OrderDetailSealRequest(
         @NotBlank(message ="Mô tả không được bỏ trống")
     String description,
     LocalDateTime sealDate,
-    List<UUID> orderDetailSealIds
+    List<UUID> orderDetails
 ) {
 }
