@@ -22,4 +22,6 @@ public interface VehicleRuleRepository extends BaseRepository<VehicleRuleEntity>
     List<VehicleRuleEntity> findSuitableVehicleRules(BigDecimal weight);
 
     List<VehicleRuleEntity> findAllByCategoryId(UUID categoryId);
+
+    List<VehicleRuleEntity> findAllByVehicleTypeEntityId(UUID vehicleTypeId);
 }

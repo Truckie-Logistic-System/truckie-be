@@ -247,7 +247,7 @@ public class ContractServiceImpl implements ContractService {
 
         List<OrderDetailEntity> details = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
         if (details.isEmpty()) {
-            log.error("[assignVehicles] Order not found: {}", orderId);
+            log.error("[assignVehicles] Order details not found for orderId={}", orderId);
             throw new NotFoundException("No order details found for this order", ErrorEnum.NOT_FOUND.getErrorCode());
         }
 

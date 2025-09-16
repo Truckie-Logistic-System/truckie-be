@@ -35,4 +35,9 @@ public class BasingPriceEntityServiceImpl implements BasingPriceEntityService {
     public Optional<BasingPriceEntity> findBasingPriceEntityByVehicleRuleEntityIdAndDistanceRuleEntityId(UUID vehicleRuleEntityId, UUID distanceRuleEntityId) {
         return basingPriceRepository.findBasingPriceEntityByVehicleRuleEntityIdAndDistanceRuleEntityId(vehicleRuleEntityId, distanceRuleEntityId);
     }
+
+    @Override
+    public List<BasingPriceEntity> findAllByVehicleRuleEntityId(UUID vehicleRuleEntityId) {
+        return basingPriceRepository.findAllByVehicleRuleEntityId(vehicleRuleEntityId);
+    }
 }
