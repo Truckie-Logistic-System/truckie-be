@@ -1,6 +1,6 @@
 package capstone_project.service.services.pdf;
 
-import capstone_project.dtos.response.order.ListContractRuleAssignResult;
+import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
@@ -19,6 +19,7 @@ import org.xhtmlrenderer.pdf.ITextRenderer;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,7 +38,7 @@ public class PdfGenerationService {
 
     public byte[] generateContractPdf(ContractEntity contract,
                                       OrderEntity order,
-                                      ListContractRuleAssignResult assignResult,
+                                      List<ContractRuleAssignResponse> assignResult,
                                       BigDecimal distanceKm,
                                       Map<UUID, Integer> vehicleCountMap) {
         try {

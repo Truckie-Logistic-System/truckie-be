@@ -117,7 +117,7 @@ public class TransactionServiceImpl implements TransactionService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-        OrderEntity orderEntity = orderEntityService.findEntityById(contractEntity.getId())
+        OrderEntity orderEntity = orderEntityService.findEntityById(contractEntity.getOrderEntity().getId())
                 .orElseThrow(() -> new NotFoundException(
                         "Order not found for contract",
                         ErrorEnum.NOT_FOUND.getErrorCode()

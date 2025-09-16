@@ -4,6 +4,7 @@ import capstone_project.dtos.request.order.ContractRuleRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleResponse;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
+import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.service.services.order.order.ContractRuleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,9 +35,15 @@ public class ContractRuleController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @GetMapping("/list/{contractId}")
+    @GetMapping("/{contractId}/list")
     public ResponseEntity<ApiResponse<ListContractRuleAssignResult>> getListAssignOrUnAssignContractRule(@PathVariable UUID contractId) {
         final var result = contractRuleService.getListAssignOrUnAssignContractRule(contractId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/{contractId}/price_calculation")
+    public ResponseEntity<ApiResponse<PriceCalculationResponse>> calculatePriceAPI(@PathVariable UUID contractId) {
+        final var result = contractRuleService.calculatePriceAPI(contractId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 

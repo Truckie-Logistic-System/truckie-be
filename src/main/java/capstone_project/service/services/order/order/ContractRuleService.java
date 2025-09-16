@@ -3,6 +3,7 @@ package capstone_project.service.services.order.order;
 import capstone_project.dtos.request.order.ContractRuleRequest;
 import capstone_project.dtos.response.order.contract.ContractRuleResponse;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
+import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 
 import java.util.List;
 import java.util.UUID;
@@ -17,6 +18,8 @@ public interface ContractRuleService {
     ListContractRuleAssignResult createListContractRules(List<ContractRuleRequest> contractRuleRequests);
 
     ContractRuleResponse updateContractRule(UUID id, ContractRuleRequest contractRuleRequest);
+
+    PriceCalculationResponse calculatePriceAPI(UUID contractId);
 
     void deleteContractRule(UUID id);
 

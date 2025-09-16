@@ -3,6 +3,7 @@ package capstone_project.controller.pricing;
 import capstone_project.dtos.request.pricing.UpdateVehicleRuleRequest;
 import capstone_project.dtos.request.pricing.VehicleRuleRequest;
 import capstone_project.dtos.response.common.ApiResponse;
+import capstone_project.dtos.response.pricing.FullVehicleRuleResponse;
 import capstone_project.dtos.response.pricing.VehicleRuleResponse;
 import capstone_project.service.services.pricing.VehicleRuleService;
 import jakarta.validation.Valid;
@@ -32,6 +33,12 @@ public class VehicleRuleController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<VehicleRuleResponse>> getVehicleRuleById(@PathVariable("id") UUID id) {
         final var result = vehicleRuleService.getVehicleRuleById(id);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/{id}/full")
+    public ResponseEntity<ApiResponse<FullVehicleRuleResponse>> getFullVehicleRuleById(@PathVariable("id") UUID id) {
+        final var result = vehicleRuleService.getFullVehicleRuleById(id);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 

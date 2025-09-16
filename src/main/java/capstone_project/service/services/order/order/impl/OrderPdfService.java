@@ -1,7 +1,6 @@
 package capstone_project.service.services.order.order.impl;
 
 import capstone_project.dtos.response.order.contract.ContractPdfResponse;
-import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderEntity;
@@ -16,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -39,16 +39,24 @@ public class OrderPdfService {
 
             OrderEntity order = contract.getOrderEntity();
             if (order == null) {
-                throw new IllegalStateException("No order found for contract id: " + contractId);
+                throw new IllegalStateException("Contract has no associated order: " + contractId);
             }
 
-            ListContractRuleAssignResult assignResult =
-                    contractRuleAssignService.getListAssignOrUnAssignContractRule(contractId);
+            List<ContractRuleAssignResponse> assignResult = contractService.assignVehicles(order.getId());
 
+            log.info("Assignments total: {}", assignResult.size());
+            assignResult.forEach(a ->
+                    log.info("Assignment => ruleId={}, ruleName={}, index={}, load={}",
+                            a.getVehicleRuleId(), a.getVehicleRuleName(), a.getVehicleIndex(), a.getCurrentLoad())
+            );
 
-            Map<UUID, Integer> vehicleCountMap = assignResult.vehicleAssignments().stream()
-                    .collect(Collectors.groupingBy(ContractRuleAssignResponse::getVehicleRuleId, Collectors.summingInt(a -> 1)));
+            Map<UUID, Integer> vehicleCountMap = assignResult.stream()
+                    .collect(Collectors.groupingBy(
+                            ContractRuleAssignResponse::getVehicleRuleId,
+                            Collectors.summingInt(a -> 1)
+                    ));
 
+            log.info("VehicleCountMap: {}", vehicleCountMap);
 
             BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
 
