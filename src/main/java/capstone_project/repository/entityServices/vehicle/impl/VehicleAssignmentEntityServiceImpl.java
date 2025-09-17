@@ -46,5 +46,10 @@ public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEnti
         return vehicleAssignmentRepository.findAssignmentsOrderByActiveCountAscAndVehicleType(vehicleType);
     }
 
+    @Override
+    public List<VehicleAssignmentEntity> findVehicleAssignmentsWithOrderID(UUID orderID) {
+        return vehicleAssignmentRepository.findVehicleAssignmentsWithOrderID(orderID);
+    }
+
 
 }
