@@ -5,6 +5,7 @@ import capstone_project.dtos.response.vehicle.VehicleTypeResponse;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record FullVehicleRuleResponse (
         String id,
@@ -24,7 +25,7 @@ public record FullVehicleRuleResponse (
         CategoryResponse category,
         VehicleTypeResponse vehicleTypeEntity,
 
-        GetBasingPriceNoVehicleRuleResponse basingPrice
+        List<GetBasingPriceNoVehicleRuleResponse> basingPrices
 //        DistanceRuleResponse distanceRule
 ) {
 }

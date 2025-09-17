@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -48,15 +49,13 @@ public class VehicleServiceImpl implements VehicleService {
     @Override
     public List<VehicleResponse> getAllVehicles() {
         log.info("Fetching all vehicles");
-
-        List<VehicleEntity> entities = vehicleEntityService.findAll();
-        if (entities.isEmpty()) {
-            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(),
-                    ErrorEnum.NOT_FOUND.getErrorCode());
-        }
-
-        return entities.stream()
-                .map(vehicleMapper::toVehicleResponse)
+        return Optional.of(vehicleEntityService.findAll())
+                .filter(list -> !list.isEmpty())
+                .orElseThrow(() -> new NotFoundException(
+                        "There are no vehicles available.",
+                        ErrorEnum.NOT_FOUND.getErrorCode()))
+                .stream()
+                .map(vehicleMapper::toResponse)
                 .toList();
     }
 
@@ -104,7 +103,7 @@ public class VehicleServiceImpl implements VehicleService {
         VehicleEntity vehicleEntity = vehicleMapper.toVehicleEntity(request);
         VehicleEntity savedVehicle = vehicleEntityService.save(vehicleEntity);
 
-        return vehicleMapper.toVehicleResponse(savedVehicle);
+        return vehicleMapper.toResponse(savedVehicle);
     }
 
     @Override
@@ -137,7 +136,7 @@ public class VehicleServiceImpl implements VehicleService {
 
         VehicleEntity updatedVehicle = vehicleEntityService.save(existingVehicle);
 
-        return vehicleMapper.toVehicleResponse(updatedVehicle);
+        return vehicleMapper.toResponse(updatedVehicle);
     }
 
 }

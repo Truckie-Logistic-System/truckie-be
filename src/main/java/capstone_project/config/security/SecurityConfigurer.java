@@ -110,6 +110,12 @@ public class SecurityConfigurer {
     @Value("${driver.api.base-path}")
     private String driverApiBasePath;
 
+    @Value("${seal.api.base-path}")
+    private String sealApiBasePath;
+
+    @Value("${order-detail-seal.api.base-path}")
+    private String orderDetailSealApiBasePath;
+
 //    @Value("${system-setting.api.base-path}")
 //    private String systemSettingApiBasePath;
 
@@ -235,6 +241,10 @@ public class SecurityConfigurer {
                         // ================= SETTING =================
                         .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(weightUnitSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+
+                        // ================= SEAL =================
+                        .requestMatchers(sealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())
+                        .requestMatchers(orderDetailSealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())
 
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())

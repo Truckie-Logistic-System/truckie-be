@@ -31,5 +31,17 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
 """, nativeQuery = true)
     List<VehicleAssignmentEntity> findAssignmentsOrderByActiveCountAscAndVehicleType(@Param("vehicleTypeId") UUID vehicleTypeId);
 
+    @Query(
+            value = """
+            SELECT va.* 
+            FROM vehicle_assignments va
+            JOIN order_details od ON od.vehicle_assignment_id = va.id 
+            JOIN orders o ON o.id = od.order_id 
+            WHERE o.id = :orderId
+            """,
+            nativeQuery = true
+    )
+    List<VehicleAssignmentEntity> findVehicleAssignmentsWithOrderID(@Param("orderId") UUID orderID);
+
 
 }

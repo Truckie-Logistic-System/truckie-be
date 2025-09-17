@@ -6,7 +6,8 @@ import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
-import capstone_project.entity.vehicle.VehicleTypeEntity;
+import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
+import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
@@ -30,18 +31,18 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final VehicleTypeEntityService vehicleTypeEntityService;
     private final DriverEntityService driverEntityService;
     private final VehicleEntityService vehicleEntityService;
+    private final OrderEntityService orderEntityService;
     private final VehicleAssignmentMapper mapper;
 
     @Override
     public List<VehicleAssignmentResponse> getAllAssignments() {
         log.info("Fetching all vehicles");
-        List<VehicleAssignmentEntity> entities = entityService.findAll();
-        if (entities.isEmpty()) {
-            throw new NotFoundException(
-                    "There are no vehicle assignments available.",
-                    ErrorEnum.NOT_FOUND.getErrorCode());
-        }
-        return entities.stream()
+        return Optional.of(entityService.findAll())
+                .filter(list -> !list.isEmpty())
+                .orElseThrow(() -> new NotFoundException(
+                        "There are no vehicle assignments available.",
+                        ErrorEnum.NOT_FOUND.getErrorCode()))
+                .stream()
                 .map(mapper::toResponse)
                 .toList();
     }
@@ -108,6 +109,27 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
 
         List<VehicleAssignmentEntity> entity = entityService.findVehicleWithOrder(vehicleType);
+        if (entity.isEmpty()) {
+            throw new NotFoundException(ErrorEnum.NO_VEHICLE_AVAILABLE.getMessage(),
+                    ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode());
+        }
+        return entity.stream()
+                .map(mapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    public List<VehicleAssignmentResponse> getListVehicleAssignmentByOrderID(UUID orderID) {
+        log.info("Fetching vehicle assignment by vehicle type ID: {}", orderID);
+
+        orderEntityService.findEntityById(orderID)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+
+        List<VehicleAssignmentEntity> entity = entityService.findVehicleAssignmentsWithOrderID(orderID);
         if (entity.isEmpty()) {
             throw new NotFoundException(ErrorEnum.NO_VEHICLE_AVAILABLE.getMessage(),
                     ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode());

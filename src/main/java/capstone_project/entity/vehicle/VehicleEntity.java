@@ -56,4 +56,4 @@ public class VehicleEntity extends BaseEntity {
     @JoinColumn(name = "vehicle_type_id")
     private VehicleTypeEntity vehicleTypeEntity;
 
-}
+}  
