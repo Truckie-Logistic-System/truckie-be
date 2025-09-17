@@ -369,8 +369,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public List<CreateOrderResponse> getAllOrders() {
-        return orderMapper.toCreateOrderResponses(orderEntityService.findAll());
+    public List<GetOrderForGetAllResponse> getAllOrders() {
+        return orderMapper.toGetOrderForGetAllResponses(orderEntityService.findAll());
     }
 
     @Override

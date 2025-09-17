@@ -20,6 +20,7 @@ public record GetOrderResponse(
     String receiverPhone,
     String packageDescription,
     LocalDateTime createdAt,
+    String status,
     AddressResponse deliveryAddress,
     AddressResponse pickupAddress,
     CustomerResponse sender,

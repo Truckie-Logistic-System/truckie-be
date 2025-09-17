@@ -11,6 +11,8 @@ import java.util.UUID;
 public interface VehicleRuleService {
     List<VehicleRuleResponse> getAllVehicleRules();
 
+    List<FullVehicleRuleResponse> getAllFullVehicleRules();
+
     VehicleRuleResponse getVehicleRuleById(UUID id);
 
     FullVehicleRuleResponse getFullVehicleRuleById(UUID id);

@@ -7,6 +7,7 @@ import capstone_project.dtos.request.order.UpdateOrderRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.dtos.response.order.GetOrderForCustomerResponse;
+import capstone_project.dtos.response.order.GetOrderForGetAllResponse;
 import capstone_project.dtos.response.order.GetOrderResponse;
 import capstone_project.service.services.order.order.OrderService;
 import jakarta.validation.Valid;
@@ -76,7 +77,7 @@ public class OrderController {
 
     // Lấy order theo deliveryAddressId
     @GetMapping("/get-all")
-    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getAllOrders(
+    public ResponseEntity<ApiResponse<List<GetOrderForGetAllResponse>>> getAllOrders(
            ) {
         final var result = orderService.getAllOrders();
         return ResponseEntity.ok(ApiResponse.ok(result));

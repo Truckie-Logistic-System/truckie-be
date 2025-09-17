@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -32,15 +33,12 @@ public class VehicleMaintenanceServiceImpl implements VehicleMaintenanceService 
     @Override
     public List<VehicleMaintenanceResponse> getAllMaintenance() {
         log.info("Fetching all vehicle maintenances");
-        List<VehicleMaintenanceEntity> entities = entityService.findAll();
-        if (entities.isEmpty()) {
-            log.warn("No vehicle maintenance found");
-            throw new NotFoundException(
-                    ErrorEnum.NOT_FOUND.getMessage(),
-                    ErrorEnum.NOT_FOUND.getErrorCode()
-            );
-        }
-        return entities.stream()
+        return Optional.of(entityService.findAll())
+                .filter(list -> !list.isEmpty())
+                .orElseThrow(() -> new NotFoundException(
+                        "There are no vehicle maintenances available.",
+                        ErrorEnum.NOT_FOUND.getErrorCode()))
+                .stream()
                 .map(mapper::toResponse)
                 .toList();
     }
@@ -60,6 +58,7 @@ public class VehicleMaintenanceServiceImpl implements VehicleMaintenanceService 
     @Override
     @Transactional
     public VehicleMaintenanceResponse createMaintenance(VehicleMaintenanceRequest req) {
+        log.info("Creating new vehicle maintenance");
         var maintenance = mapper.toEntity(req);
 
         var vehicleId = UUID.fromString(req.vehicleId());
@@ -77,6 +76,7 @@ public class VehicleMaintenanceServiceImpl implements VehicleMaintenanceService 
     @Override
     @Transactional
     public VehicleMaintenanceResponse updateMaintenance(UUID id, UpdateVehicleMaintenanceRequest req) {
+        log.info("Updating vehicle maintenance with ID: {}", id);
         var existing = entityService.findEntityById(id).orElseThrow(() ->
                 new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()));

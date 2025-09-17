@@ -16,6 +16,7 @@ import capstone_project.service.mapper.vehicle.VehicleTypeMapper;
 import org.mapstruct.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.List;
 import java.util.UUID;
 
 //@Mapper(componentModel = "spring", uses = {CategoryMapper.class, VehicleTypeMapper.class})
@@ -55,10 +56,10 @@ public abstract class VehicleRuleMapper {
     public abstract VehicleRuleResponse toVehicleRuleResponse(final VehicleRuleEntity vehicleRuleEntity);
 
     @Mapping(target = "id", source = "entity.id")
-    @Mapping(target = "basingPrice", expression = "java(getBasingPriceNoVehicleRuleResponse)")
+    @Mapping(target = "basingPrices", expression = "java(basingPriceResponses)")
     public abstract FullVehicleRuleResponse toFullVehicleRuleResponse(
             VehicleRuleEntity entity,
-            GetBasingPriceNoVehicleRuleResponse getBasingPriceNoVehicleRuleResponse
+            List<GetBasingPriceNoVehicleRuleResponse> basingPriceResponses
     );
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
