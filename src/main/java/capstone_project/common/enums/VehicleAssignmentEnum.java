@@ -8,6 +8,7 @@ public enum VehicleAssignmentEnum {
     IN_TRANSIT,         // Currently on an active trip
     ON_STANDBY,         // Idle but ready for assignment
     MAINTENANCE_HOLD,   // Blocked due to maintenance
-    DECOMMISSIONED,      // Permanently retired, cannot be reassigned
+    DECOMMISSIONED,
+    ASSIGNED,// Permanently retired, cannot be reassigned
     COMPLETE
 }

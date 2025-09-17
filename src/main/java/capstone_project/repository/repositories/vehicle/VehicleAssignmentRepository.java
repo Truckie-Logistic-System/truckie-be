@@ -22,7 +22,7 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
         SELECT v.id AS vehicle_id, COUNT(va.id) AS active_count
         FROM vehicles v
         JOIN vehicle_assignments va ON v.id = va.vehicle_id
-        WHERE va.status = 'ACTIVE'
+        WHERE va.status = 'ASSIGNED'
         GROUP BY v.id
     ) sub ON va.vehicle_id = sub.vehicle_id
     WHERE va.status = 'ASSIGNED'
