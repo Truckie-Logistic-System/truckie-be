@@ -54,4 +54,11 @@ public class VehicleAssignmentController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
+    @GetMapping("/{orderId}/get-all-by-order-id")
+    public ResponseEntity<ApiResponse<List<VehicleAssignmentResponse>>> getByOrderId(
+            @PathVariable UUID orderId) {
+
+        List<VehicleAssignmentResponse> response = service.getListVehicleAssignmentByOrderID(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
 }
