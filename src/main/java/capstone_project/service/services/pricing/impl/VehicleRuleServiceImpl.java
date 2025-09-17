@@ -74,11 +74,13 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
                     List<BasingPriceEntity> basingPriceEntities =
                             basingPriceEntityService.findAllByVehicleRuleEntityId(vehicleRuleEntity.getId());
 
-                    GetBasingPriceNoVehicleRuleResponse basingPriceResponse = basingPriceEntities.isEmpty()
-                            ? null
-                            : basingPriceMapper.toGetBasingPriceNoVehicleRuleResponse(basingPriceEntities.get(0));
+                    List<GetBasingPriceNoVehicleRuleResponse> basingPriceResponses = basingPriceEntities.isEmpty()
+                            ? List.of()
+                            : basingPriceEntities.stream()
+                                .map(basingPriceMapper::toGetBasingPriceNoVehicleRuleResponse)
+                                .toList();
 
-                    return vehicleRuleMapper.toFullVehicleRuleResponse(vehicleRuleEntity, basingPriceResponse);
+                    return vehicleRuleMapper.toFullVehicleRuleResponse(vehicleRuleEntity, basingPriceResponses);
                 })
                 .toList();
     }
@@ -105,11 +107,13 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
 
         List<BasingPriceEntity> basingPriceEntities = basingPriceEntityService.findAllByVehicleRuleEntityId(id);
 
-        GetBasingPriceNoVehicleRuleResponse basingPriceResponse = basingPriceEntities.isEmpty()
-                ? null
-                : basingPriceMapper.toGetBasingPriceNoVehicleRuleResponse(basingPriceEntities.get(0));
+        List<GetBasingPriceNoVehicleRuleResponse> basingPriceResponses = basingPriceEntities.isEmpty()
+                ? List.of()
+                : basingPriceEntities.stream()
+                    .map(basingPriceMapper::toGetBasingPriceNoVehicleRuleResponse)
+                    .toList();
 
-        return vehicleRuleMapper.toFullVehicleRuleResponse(vehicleRuleEntity, basingPriceResponse);
+        return vehicleRuleMapper.toFullVehicleRuleResponse(vehicleRuleEntity, basingPriceResponses);
     }
 
 
