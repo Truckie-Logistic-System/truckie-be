@@ -31,6 +31,9 @@ public class VehicleMaintenanceEntity extends BaseEntity {
     @Column(name = "next_maintenance_date")
     private LocalDateTime nextMaintenanceDate;
 
+    @Column(name = "expire_maintenance_date")
+    private LocalDateTime expiredMaintenanceDate;
+
     @Column(name = "odometer_reading")
     private Integer odometerReading;
 

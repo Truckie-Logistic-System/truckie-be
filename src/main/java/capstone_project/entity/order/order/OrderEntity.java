@@ -37,6 +37,10 @@ public class OrderEntity extends BaseEntity {
     private String orderCode;
 
     @Size(max = 100)
+    @Column(name = "receiver_identity", length = 100)
+    private String receiverIdentity;
+
+    @Size(max = 100)
     @Column(name = "receiver_name", length = 100)
     private String receiverName;
 
