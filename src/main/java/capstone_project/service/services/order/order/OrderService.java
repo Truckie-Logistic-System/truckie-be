@@ -5,10 +5,7 @@ import capstone_project.common.enums.UnitEnum;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.CreateOrderRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
-import capstone_project.dtos.response.order.CreateOrderResponse;
-import capstone_project.dtos.response.order.GetOrderForCustomerResponse;
-import capstone_project.dtos.response.order.GetOrderForGetAllResponse;
-import capstone_project.dtos.response.order.GetOrderResponse;
+import capstone_project.dtos.response.order.*;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 
@@ -49,4 +46,5 @@ public interface OrderService {
 
     GetOrderForCustomerResponse getOrderForCustomerByOrderId(UUID orderId);
 
+    List<OrderForCustomerListResponse> getOrdersForCurrentCustomer();
 }

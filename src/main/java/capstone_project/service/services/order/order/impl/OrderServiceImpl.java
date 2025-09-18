@@ -38,6 +38,7 @@ import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
 import capstone_project.service.services.order.transaction.TransactionService;
+import capstone_project.utils.UserContextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -67,13 +68,19 @@ public class OrderServiceImpl implements OrderService {
     private final PhotoCompletionService photoCompletionService;
     private final OrderMapper orderMapper;
     private final OrderDetailMapper orderDetailMapper;
+    private  final UserContextUtils userContextUtils;
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
     @Value("${prefix.order.detail.code}")
     private String prefixOrderDetailCode;
 
-
+    @Override
+    public List<OrderForCustomerListResponse> getOrdersForCurrentCustomer() {
+        UUID customerId = userContextUtils.getCurrentCustomerId();
+        List<OrderEntity> orderEntities = orderEntityService.findBySenderId(customerId);
+        return orderMapper.toOrderForCustomerListResponses(orderEntities);
+    }
 
     @Override
     @Transactional
