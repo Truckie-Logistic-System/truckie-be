@@ -16,5 +16,6 @@ public record OrderForCustomerListResponse(
         String receiverPhone,
         String pickupAddress,
         String deliveryAddress,
+        UUID deliveryAddressId,
         LocalDateTime createdAt
 ) {}
