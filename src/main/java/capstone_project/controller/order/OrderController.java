@@ -5,10 +5,8 @@ import capstone_project.common.enums.UnitEnum;
 import capstone_project.dtos.request.order.CreateOrderAndDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
 import capstone_project.dtos.response.common.ApiResponse;
-import capstone_project.dtos.response.order.CreateOrderResponse;
-import capstone_project.dtos.response.order.GetOrderForCustomerResponse;
-import capstone_project.dtos.response.order.GetOrderForGetAllResponse;
-import capstone_project.dtos.response.order.GetOrderResponse;
+import capstone_project.dtos.response.order.*;
+import capstone_project.dtos.response.order.OrderForCustomerListResponse;
 import capstone_project.service.services.order.order.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +25,12 @@ import java.util.UUID;
 public class OrderController {
 
     private final OrderService orderService;
+
+    @GetMapping("/get-my-orders")
+    public ResponseEntity<ApiResponse<List<OrderForCustomerListResponse>>> getMyOrders() {
+        final var result = orderService.getOrdersForCurrentCustomer();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 
     @PostMapping()
     public ResponseEntity<ApiResponse<CreateOrderResponse>> createOrderAndOrderDetail(@Valid @RequestBody CreateOrderAndDetailRequest request) {
@@ -108,8 +112,4 @@ public class OrderController {
         final var result = orderService.getOrderForCustomerByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
-
-
-
-
 }
