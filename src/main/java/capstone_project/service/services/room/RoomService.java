@@ -13,6 +13,10 @@ public interface RoomService {
 
     List<CreateRoomResponse> listRoomActiveByUserId(UUID userId);
 
+    List<CreateRoomResponse> getListSupportRoomsForStaff();
+
+    boolean joinRoom(String roomId, UUID staffId);
+
     boolean activeRoomByOrderId(UUID orderId);
 
     boolean deleteRoomByOrderId(UUID orderId);

@@ -1,17 +1,17 @@
 package capstone_project.service.services.room.impl;
 
-import capstone_project.common.enums.CommonStatusEnum;
-import capstone_project.common.enums.ErrorEnum;
-import capstone_project.common.enums.OrderStatusEnum;
-import capstone_project.common.enums.RoomEnum;
+import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
+import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.room.CreateRoomRequest;
 import capstone_project.dtos.response.room.CreateRoomResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.chat.ParticipantInfo;
 import capstone_project.entity.chat.RoomEntity;
+import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
+import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.service.mapper.room.RoomMapper;
 import capstone_project.service.services.room.RoomService;
@@ -34,6 +34,7 @@ public class RoomServiceImpl implements RoomService {
     private final RoomMapper roomMapper;
     private final UserEntityService userEntityService;
     private final OrderEntityService orderEntityService;
+    private final ContractEntityService contractEntityService;
 
 
     @Override
@@ -46,46 +47,75 @@ public class RoomServiceImpl implements RoomService {
                     ErrorEnum.NOT_FOUND.getErrorCode()
             );
         }
-        Optional<OrderEntity> getOrder = orderEntityService.findEntityById(UUID.fromString(request.orderId()));
-//        if(getOrder.isEmpty() || !getOrder.get().getStatus().equals(OrderStatusEnum.SEALED_COMPLETED.name())){
-//            log.warn("Order not found or Order's status is not SEALED_COMPLETED");
-//            throw new BadRequestException(
-//                    ErrorEnum.NOT_FOUND.getMessage() + "Không thể tạo chat room với đơn hàng này bởi vì đơn hàng này chưa có status “SEALED_COMPLETED”",
-//                    ErrorEnum.NOT_FOUND.getErrorCode()
-//            );
-//        }
 
-
-        List<UUID> uuidList = request.userIds().stream()
-                .map(UUID::fromString).toList();
-        Map<UUID, UserEntity> userMap = userEntityService.findAllByIdIn(uuidList)
-                .stream().collect(Collectors.toMap(UserEntity::getId, Function.identity()));
+        String roomType;
         List<ParticipantInfo> participantInfoList = new ArrayList<>();
-        for(String userId : request.userIds()) {
-            ParticipantInfo participantInfo = new ParticipantInfo();
-            participantInfo.setUserId(userId);
-            UserEntity user = userMap.get(UUID.fromString(userId));
-            if (user != null) {
-                participantInfo.setRoleName(user.getRole().getRoleName());
-            }
-            participantInfoList.add(participantInfo);
-        }
 
+        if (request.orderId() == null || request.orderId().isBlank()) {
+            // -------- TH1: Customer chủ động tạo ----------
+            roomType = RoomEnum.SUPPORT.name(); // hoặc FREE_CHAT
+
+            // Chỉ có customerId trong participants
+            UUID customerUuid = UUID.fromString(request.userIds().get(0));
+            UserEntity customer = userEntityService.findEntityById(customerUuid)
+                    .orElseThrow(() -> new BadRequestException("Customer not found", ErrorEnum.NOT_FOUND.getErrorCode()));
+
+            ParticipantInfo cus = new ParticipantInfo();
+            cus.setUserId(customer.getId().toString());
+            cus.setRoleName(customer.getRole().getRoleName());
+            participantInfoList.add(cus);
+
+        }else {
+            // -------- TH2: Chat theo Order ----------
+            UUID orderUuid = UUID.fromString(request.orderId());
+            OrderEntity order = orderEntityService.findEntityById(orderUuid)
+                    .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
+            Optional<ContractEntity> contract = contractEntityService.getContractByOrderId(orderUuid);
+            if(contract.isEmpty()){
+                throw new NotFoundException("Contract not found", ErrorEnum.NOT_FOUND.getErrorCode());
+            }
+
+            if (!order.getStatus().equals(OrderStatusEnum.ON_PLANNING.name())) {
+                throw new BadRequestException("Order status must be ON_PLANNING", ErrorEnum.INVALID_REQUEST.getErrorCode());
+            }
+
+            roomType = RoomEnum.ORDER_TYPE.name();
+
+            // Lấy customer + staff trong order để đưa vào participants
+            UUID customerId = order.getSender().getId();
+            UUID staffId = contract.get().getStaff().getId();
+
+            List<UUID> uuidList = Arrays.asList(customerId, staffId);
+            Map<UUID, UserEntity> userMap = userEntityService.findAllByIdIn(uuidList)
+                    .stream().collect(Collectors.toMap(UserEntity::getId, Function.identity()));
+
+            for (UUID uid : uuidList) {
+                UserEntity user = userMap.get(uid);
+                ParticipantInfo p = new ParticipantInfo();
+                p.setUserId(uid.toString());
+                p.setRoleName(user.getRole().getRoleName());
+                participantInfoList.add(p);
+            }
+        }
+        // -------- Lưu vào Firestore ----------
         CollectionReference rooms = firestore.collection("Rooms");
         DocumentReference roomDoc = rooms.document();
+
         RoomEntity room = RoomEntity.builder()
                 .roomId(roomDoc.getId())
                 .orderId(request.orderId())
                 .status(CommonStatusEnum.ACTIVE.name())
-                .type(RoomEnum.PRIVATE.name())
+                .type(roomType)
                 .participants(participantInfoList)
                 .build();
+
         try {
             roomDoc.set(room);
             log.info("Room created with id: {}", room.getRoomId());
         } catch (Exception e) {
             throw new RuntimeException("Failed to create room in Firestore", e);
         }
+
         return roomMapper.toCreateRoomResponse(room);
     }
 
@@ -149,6 +179,80 @@ public class RoomServiceImpl implements RoomService {
             throw new RuntimeException("Failed to fetch room by orderId from Firestore", e);
         }
     }
+
+    @Override
+    public List<CreateRoomResponse> getListSupportRoomsForStaff() {
+        try {
+            ApiFuture<QuerySnapshot> future = firestore.collection("Rooms")
+                    .whereEqualTo("type", RoomEnum.SUPPORT.name())
+                    .whereEqualTo("status", CommonStatusEnum.ACTIVE.name())
+                    .get();
+
+            List<QueryDocumentSnapshot> docs = future.get().getDocuments();
+
+            List<RoomEntity> supportRooms = docs.stream()
+                    .map(doc -> doc.toObject(RoomEntity.class))
+                    .filter(room -> room.getParticipants() != null && room.getParticipants().size() == 1)
+                    .toList();
+
+            return roomMapper.toCreateRoomResponseList(supportRooms);
+
+        } catch (Exception e) {
+            log.error("Failed to get support rooms", e);
+            throw new RuntimeException("Cannot get support rooms", e);
+        }
+    }
+
+
+    @Override
+    @Transactional
+    public boolean joinRoom(String roomId, UUID staffId) {
+        try {
+            firestore.runTransaction(transaction -> {
+                DocumentReference roomRef = firestore.collection("Rooms").document(roomId);
+                DocumentSnapshot snapshot = transaction.get(roomRef).get();
+
+                if (!snapshot.exists()) {
+                    throw new BadRequestException("Room not found", ErrorEnum.NOT_FOUND.getErrorCode());
+                }
+
+                RoomEntity room = snapshot.toObject(RoomEntity.class);
+                if (!RoomEnum.SUPPORT.name().equals(room.getType())) {
+                    throw new BadRequestException("Room is not in SUPPORT state", ErrorEnum.INVALID_REQUEST.getErrorCode());
+                }
+
+                // Load staff info
+                UserEntity staff = userEntityService.findEntityById(staffId)
+                        .orElseThrow(() -> new BadRequestException("Staff not found", ErrorEnum.NOT_FOUND.getErrorCode()));
+
+
+                ParticipantInfo staffParticipant = new ParticipantInfo();
+                staffParticipant.setUserId(staff.getId().toString());
+                staffParticipant.setRoleName(RoleTypeEnum.STAFF.name());
+
+                List<ParticipantInfo> updatedParticipants = new ArrayList<>(room.getParticipants());
+                updatedParticipants.add(staffParticipant);
+
+                Map<String, Object> updates = new HashMap<>();
+                updates.put("participants", updatedParticipants);
+                updates.put("type", RoomEnum.SUPPORTED.name());
+
+                transaction.update(roomRef, updates);
+
+                return null; // Firestore transaction requires return
+            }).get();
+
+            log.info("Staff {} joined room {}", staffId, roomId);
+            return true;
+
+        } catch (BadRequestException e) {
+            throw e; // rethrow domain exceptions
+        } catch (Exception e) {
+            log.error("Failed to join room", e);
+            throw new RuntimeException("Cannot join room", e);
+        }
+    }
+
 
     @Override
     public boolean activeRoomByOrderId(UUID orderId) {

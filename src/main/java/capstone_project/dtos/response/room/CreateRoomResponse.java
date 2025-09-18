@@ -12,6 +12,7 @@ public record CreateRoomResponse(
         @NotNull(message = "Participants is required")
         List<ParticipantResponse> participants,
         @NotNull(message = "status is required")
-        String status
+        String status,
+        String type
 ) {
 }

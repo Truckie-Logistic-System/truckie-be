@@ -1,6 +1,8 @@
 package capstone_project.common.enums;
 
 public enum RoomEnum {
-    PRIVATE,
-    PUBLIC
+    ORDER_TYPE,
+    PUBLIC,
+    SUPPORT,
+    SUPPORTED
 }

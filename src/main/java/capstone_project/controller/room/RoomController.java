@@ -30,15 +30,36 @@ public class RoomController {
         return ResponseEntity.ok(ApiResponse.ok(getAllRoomsByUserId));
     }
 
-    @PutMapping("active/{orderId}")
+    @PutMapping("/active/{orderId}")
     public ResponseEntity<ApiResponse<Boolean>> activeRoomsByOrderId(@PathVariable @Valid UUID orderId) {
         final var activeRoomsByOrderId = roomService.activeRoomByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(activeRoomsByOrderId));
     }
 
-    @PutMapping("in-active/{orderId}")
+    @PutMapping("/in-active/{orderId}")
     public ResponseEntity<ApiResponse<Boolean>> inactiveRoomsByOrderId(@PathVariable @Valid UUID orderId) {
         final var inactiveRoomsByOrderId = roomService.cancelRoomByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(inactiveRoomsByOrderId));
+    }
+
+    /**
+     * Staff join a support room
+     */
+    @PutMapping("/join/{roomId}/{staffId}")
+    public ResponseEntity<ApiResponse<Boolean>> joinRoom(
+            @PathVariable @Valid String roomId,
+            @PathVariable @Valid UUID staffId) {
+
+        final var joined = roomService.joinRoom(roomId, staffId);
+        return ResponseEntity.ok(ApiResponse.ok(joined));
+    }
+
+    /**
+     * Get list of rooms (you can apply filter params later if needed)
+     */
+    @GetMapping("/get-list-room-support-for-staff")
+    public ResponseEntity<ApiResponse<List<CreateRoomResponse>>> getRooms() {
+        final var rooms = roomService.getListSupportRoomsForStaff();
+        return ResponseEntity.ok(ApiResponse.ok(rooms));
     }
 }
