@@ -32,6 +32,7 @@ public interface OrderMapper {
 
     @Mapping(target = "pickupAddress", expression = "java(formatAddress(entity.getPickupAddress()))")
     @Mapping(target = "deliveryAddress", expression = "java(formatAddress(entity.getDeliveryAddress()))")
+    @Mapping(source = "deliveryAddress.id", target = "deliveryAddressId")
     OrderForCustomerListResponse toOrderForCustomerListResponse(OrderEntity entity);
 
     List<OrderForCustomerListResponse> toOrderForCustomerListResponses(List<OrderEntity> orderEntities);
