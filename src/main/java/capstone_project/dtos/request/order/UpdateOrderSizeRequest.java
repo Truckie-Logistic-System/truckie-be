@@ -1,11 +1,8 @@
 package capstone_project.dtos.request.order;
 
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.hibernate.validator.constraints.UUID;
-
 
 import java.math.BigDecimal;
 
@@ -15,12 +12,12 @@ public record UpdateOrderSizeRequest (
         @NotNull
         String id,
 
-        @NotNull(message = "Min weight is required")
-        @DecimalMin(value = "0.0", inclusive = false, message = "Min weight must be greater than 0")
-        BigDecimal minWeight,
-
-        @NotNull(message = "Max weight is required")
-        BigDecimal maxWeight,
+//        @NotNull(message = "Min weight is required")
+//        @DecimalMin(value = "0.0", inclusive = false, message = "Min weight must be greater than 0")
+//        BigDecimal minWeight,
+//
+//        @NotNull(message = "Max weight is required")
+//        BigDecimal maxWeight,
 
         @NotNull(message = "Min length is required")
         BigDecimal minLength,

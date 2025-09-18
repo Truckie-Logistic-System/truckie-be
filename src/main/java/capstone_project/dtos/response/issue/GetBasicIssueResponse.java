@@ -1,5 +1,6 @@
 package capstone_project.dtos.response.issue;
 
+import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.issue.IssueTypeEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -15,8 +16,8 @@ public record GetBasicIssueResponse (
         BigDecimal locationLatitude,
         BigDecimal locationLongitude,
         String status,
-        VehicleAssignmentEntity vehicleAssignmentEntity,
+        VehicleAssignmentResponse vehicleAssignmentEntity,
         UserEntity staff,
-        IssueTypeEntity issueTypeEntity
+        GetIssueTypeResponse issueTypeEntity
 ) {
 }

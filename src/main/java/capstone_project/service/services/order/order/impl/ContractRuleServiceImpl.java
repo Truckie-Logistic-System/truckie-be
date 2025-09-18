@@ -17,12 +17,16 @@ import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.pricing.VehicleRuleEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractRuleEntityService;
+import capstone_project.repository.entityServices.order.order.CategoryPricingDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
+import capstone_project.repository.entityServices.pricing.BasingPriceEntityService;
+import capstone_project.repository.entityServices.pricing.DistanceRuleEntityService;
 import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
 import capstone_project.service.mapper.order.ContractRuleMapper;
 import capstone_project.service.services.order.order.ContractRuleService;
 import capstone_project.service.services.order.order.ContractService;
+import capstone_project.service.services.user.DistanceService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +48,10 @@ public class ContractRuleServiceImpl implements ContractRuleService {
     private final VehicleRuleEntityService vehicleRuleEntityService;
     private final ContractService contractService;
     private final OrderEntityService orderEntityService;
+    private final DistanceService distanceService;
+    private final DistanceRuleEntityService distanceRuleEntityService;
+    private final BasingPriceEntityService basingPriceEntityService;
+    private final CategoryPricingDetailEntityService categoryPricingDetailEntityService;
 
     @Override
     public List<ContractRuleResponse> getContracts() {
@@ -105,9 +113,8 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         for (ContractRuleEntity rule : assignedRules) {
             BigDecimal currentLoad = rule.getOrderDetails().stream()
-                    .map(OrderDetailEntity::getOrderSizeEntity)
+                    .map(OrderDetailEntity::getWeight)
                     .filter(Objects::nonNull)
-                    .map(OrderSizeEntity::getMaxWeight)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             List<UUID> detailIds = rule.getOrderDetails().stream()
@@ -194,6 +201,14 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                                 ErrorEnum.NOT_FOUND.getErrorCode());
                     });
 
+            if (vehicleRule.getStatus() == null || !vehicleRule.getStatus().equals(CommonStatusEnum.ACTIVE.name())) {
+                log.error("Vehicle rule {} is not active", vehicleRule.getVehicleRuleName());
+                throw new BadRequestException(
+                        String.format("Vehicle rule %s is not active", vehicleRule.getVehicleRuleName()),
+                        ErrorEnum.INVALID.getErrorCode()
+                );
+            }
+
             boolean exists = existingRules.stream()
                     .anyMatch(r -> r.getVehicleRuleEntity().getId().equals(vehicleRuleId));
             if (exists) {
@@ -229,14 +244,14 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                                 ErrorEnum.INVALID.getErrorCode());
                     }
 
-                    boolean canFit = size.getMaxWeight().compareTo(vehicleRule.getMaxWeight()) <= 0
+                    boolean canFit = detail.getWeight().compareTo(vehicleRule.getMaxWeight()) <= 0
                             && size.getMaxLength().compareTo(vehicleRule.getMaxLength()) <= 0
                             && size.getMaxWidth().compareTo(vehicleRule.getMaxWidth()) <= 0
                             && size.getMaxHeight().compareTo(vehicleRule.getMaxHeight()) <= 0
-                            && currentLoad.add(size.getMaxWeight()).compareTo(vehicleRule.getMaxWeight()) <= 0;
+                            && currentLoad.add(detail.getWeight()).compareTo(vehicleRule.getMaxWeight()) <= 0;
 
                     if (canFit) {
-                        currentLoad = currentLoad.add(size.getMaxWeight());
+                        currentLoad = currentLoad.add(detail.getWeight());
                         assignedDetails.add(detail.getId());
                         newlyAssigned.add(detail.getId());
                         contractRule.getOrderDetails().add(detail);
@@ -349,14 +364,14 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                 continue; // hoặc throw error tùy yêu cầu
             }
 
-            boolean canFit = size.getMaxWeight().compareTo(vehicleRule.getMaxWeight()) <= 0
+            boolean canFit = detail.getWeight().compareTo(vehicleRule.getMaxWeight()) <= 0
                     && size.getMaxLength().compareTo(vehicleRule.getMaxLength()) <= 0
                     && size.getMaxWidth().compareTo(vehicleRule.getMaxWidth()) <= 0
                     && size.getMaxHeight().compareTo(vehicleRule.getMaxHeight()) <= 0
-                    && currentLoad.add(size.getMaxWeight()).compareTo(vehicleRule.getMaxWeight()) <= 0;
+                    && currentLoad.add(detail.getWeight()).compareTo(vehicleRule.getMaxWeight()) <= 0;
 
             if (canFit) {
-                currentLoad = currentLoad.add(size.getMaxWeight());
+                currentLoad = currentLoad.add(detail.getWeight());
                 assignedDetails.add(detail);
             }
         }
@@ -400,6 +415,45 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         log.info("Updated contractRule {} with {} assigned details", saved.getId(), saved.getOrderDetails().size());
 
         return contractRuleMapper.toContractRuleResponse(saved);
+    }
+
+    @Override
+    public PriceCalculationResponse calculatePriceAPI(UUID contractId) {
+        log.info("Calculating price for contract ID: {}", contractId);
+
+        ContractEntity contract = contractEntityService.findEntityById(contractId)
+                .orElseThrow(() -> new IllegalArgumentException("Contract not found: " + contractId));
+
+        OrderEntity order = contract.getOrderEntity();
+        if (order == null) {
+            throw new IllegalStateException("Contract has no associated order: " + contractId);
+        }
+
+        List<ContractRuleAssignResponse> assignResult = contractService.assignVehicles(order.getId());
+
+        log.info("Assignments total: {}", assignResult.size());
+        assignResult.forEach(a ->
+                log.info("Assignment => ruleId={}, ruleName={}, index={}, load={}",
+                        a.getVehicleRuleId(), a.getVehicleRuleName(), a.getVehicleIndex(), a.getCurrentLoad())
+        );
+
+        Map<UUID, Integer> vehicleCountMap = assignResult.stream()
+                .collect(Collectors.groupingBy(
+                        ContractRuleAssignResponse::getVehicleRuleId,
+                        Collectors.summingInt(a -> 1)
+                ));
+
+        log.info("VehicleCountMap: {}", vehicleCountMap);
+
+        BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
+
+        PriceCalculationResponse priceResponse =
+                contractService.calculateTotalPrice(contract, distanceKm, vehicleCountMap);
+
+        log.info("Calculated price for contract {}: Total = {}, Distance = {} km",
+                contractId, priceResponse.getTotalPrice(), distanceKm);
+
+        return priceResponse;
     }
 
     @Override

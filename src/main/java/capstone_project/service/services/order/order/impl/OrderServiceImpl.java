@@ -3,20 +3,28 @@ package capstone_project.service.services.order.order.impl;
 import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.OrderStatusEnum;
+import capstone_project.common.enums.UnitEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.InternalServerException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.CreateOrderRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
-import capstone_project.dtos.response.order.CreateOrderResponse;
-import capstone_project.dtos.response.order.GetOrderResponse;
+import capstone_project.dtos.response.issue.GetIssueImageResponse;
+import capstone_project.dtos.response.order.*;
+import capstone_project.dtos.response.order.contract.ContractResponse;
+import capstone_project.dtos.response.order.transaction.TransactionResponse;
+import capstone_project.entity.auth.UserEntity;
+import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
+import capstone_project.repository.entityServices.auth.UserEntityService;
+import capstone_project.repository.entityServices.order.conformation.PhotoCompletionEntityService;
+import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
@@ -25,7 +33,11 @@ import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.order.OrderDetailMapper;
 import capstone_project.service.mapper.order.OrderMapper;
+import capstone_project.service.services.issue.IssueImageService;
+import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.order.order.PhotoCompletionService;
+import capstone_project.service.services.order.transaction.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,6 +60,11 @@ public class OrderServiceImpl implements OrderService {
     private final AddressEntityService addressEntityService;
     private final OrderSizeEntityService orderSizeEntityService;
     private final CategoryEntityService categoryEntityService;
+    private final IssueImageService issueImageService;
+    private final ContractEntityService contractEntityService;
+    private final ContractService contractService;
+    private final TransactionService transactionService;
+    private final PhotoCompletionService photoCompletionService;
     private final OrderMapper orderMapper;
     private final OrderDetailMapper orderDetailMapper;
 
@@ -91,10 +108,6 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "category not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-       if(!checkTotalWeight(orderRequest.totalWeight(),listCreateOrderDetailRequests)){
-           log.error("Total weight is wrong, it have to be smaller than total weight");
-           throw new BadRequestException(ErrorEnum.INVALID.getMessage() + "Total weight is wrong, it have to be smaller than total weight",ErrorEnum.INVALID.getErrorCode());
-       }
 
 
         try {
@@ -102,7 +115,7 @@ public class OrderServiceImpl implements OrderService {
             OrderEntity newOrder = OrderEntity.builder()
                     .notes(orderRequest.notes())
                     .totalQuantity(listCreateOrderDetailRequests.size())
-                    .totalWeight(orderRequest.totalWeight())
+//                    .totalWeight(orderRequest.totalWeight())
                     .orderCode(generateCode(prefixOrderCode))
                     .receiverName(orderRequest.receiverName())
                     .receiverPhone(orderRequest.receiverPhone())
@@ -340,7 +353,9 @@ public class OrderServiceImpl implements OrderService {
 //                        throw new BadRequestException(ErrorEnum.INVALID_REQUEST.getMessage() + "orderSize's max weight have to be more than detail's weight", ErrorEnum.NOT_FOUND.getErrorCode());
 //                    }
                     return OrderDetailEntity.builder()
-                            .weight(request.weight())
+                            .weightBaseUnit(request.weight())
+                            .unit(request.unit())
+                            .weight(convertToTon(request.weight(),request.unit()))
                             .description(request.description())
                             .status(savedOrder.getStatus())
                             .trackingCode(generateCode(prefixOrderDetailCode))
@@ -354,8 +369,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public List<CreateOrderResponse> getAllOrders() {
-        return orderMapper.toCreateOrderResponses(orderEntityService.findAll());
+    public List<GetOrderForGetAllResponse> getAllOrders() {
+        return orderMapper.toGetOrderForGetAllResponses(orderEntityService.findAll());
     }
 
     @Override
@@ -379,6 +394,11 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.toGetOrderResponse(order.get());
     }
 
+        @Override
+        public List<UnitEnum> responseListUnitEnum() {
+            return Arrays.asList(UnitEnum.values());
+        }
+
 
     private boolean checkTotalWeight(BigDecimal totalWeight, List<CreateOrderDetailRequest> listCreateOrderDetailRequests) {
         BigDecimal totalWeightTest = BigDecimal.ZERO;
@@ -392,5 +412,55 @@ public class OrderServiceImpl implements OrderService {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
         String randomPart = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
         return prefix + timestamp + "-" + randomPart;
+    }
+
+    @Override
+    public BigDecimal convertToTon(BigDecimal weightBaseUnit, String unit) {
+        if (weightBaseUnit == null || unit == null) {
+            throw new IllegalArgumentException("weightBaseUnit và unit không được null");
+        }
+
+        UnitEnum unitEnum;
+        try {
+            unitEnum = UnitEnum.valueOf(unit);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Đơn vị không hợp lệ: " + unit);
+        }
+
+        return weightBaseUnit.multiply(unitEnum.toTon());
+    }
+
+    @Override
+    public GetOrderForCustomerResponse getOrderForCustomerByOrderId(UUID orderId) {
+        GetOrderResponse getOrderResponse = getOrderById(orderId);
+
+        List<GetIssueImageResponse> getIssueImageResponses = new ArrayList<>();
+        Map<UUID,List<PhotoCompletionResponse>> photoCompletionResponses = new HashMap<>();
+        for (GetOrderDetailResponse detail : getOrderResponse.orderDetails()) {
+            if(detail.vehicleAssignmentId() != null){
+                UUID vehicleAssignmentId = detail.vehicleAssignmentId().id(); // lấy id
+                getIssueImageResponses.add(
+                        issueImageService.getByVehicleAssignment(vehicleAssignmentId)
+                );
+                photoCompletionResponses.put(vehicleAssignmentId,photoCompletionService.getByVehicleAssignment(vehicleAssignmentId));
+            }
+        }
+
+        ContractResponse contractResponse = null;
+        List<TransactionResponse> transactionResponses = new ArrayList<>();
+
+        Optional<ContractEntity> contractEntity = contractEntityService.getContractByOrderId(orderId);
+        if (contractEntity.isPresent()) {
+            contractResponse = contractService.getContractById(contractEntity.get().getId());
+            transactionResponses = transactionService.getTransactionsByContractId(contractEntity.get().getId());
+        }
+
+        return new GetOrderForCustomerResponse(
+                getOrderResponse,
+                getIssueImageResponses,
+                photoCompletionResponses,
+                contractResponse,
+                transactionResponses
+        );
     }
 }

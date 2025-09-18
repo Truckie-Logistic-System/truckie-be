@@ -1,5 +1,6 @@
 package capstone_project.entity.order.contract;
 
+import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.common.BaseEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import jakarta.persistence.*;
@@ -32,6 +33,9 @@ public class ContractEntity extends BaseEntity {
     @Column(name = "total_value")
     private BigDecimal totalValue;
 
+    @Column(name = "supported_value")
+    private BigDecimal supportedValue;
+
     @Column(name = "attach_file_url", length = Integer.MAX_VALUE)
     private String attachFileUrl;
 
@@ -46,4 +50,8 @@ public class ContractEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id")
     private OrderEntity orderEntity;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private UserEntity staff;
 }

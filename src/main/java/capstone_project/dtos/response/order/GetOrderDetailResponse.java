@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 
 public record GetOrderDetailResponse  (
         BigDecimal weight,
+        BigDecimal weightBaseUnit,
+        String unit,
         String description,
         String status,
         LocalDateTime startTime,

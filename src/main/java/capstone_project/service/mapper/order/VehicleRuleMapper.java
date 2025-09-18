@@ -4,6 +4,8 @@ import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.pricing.UpdateVehicleRuleRequest;
 import capstone_project.dtos.request.pricing.VehicleRuleRequest;
+import capstone_project.dtos.response.pricing.FullVehicleRuleResponse;
+import capstone_project.dtos.response.pricing.GetBasingPriceNoVehicleRuleResponse;
 import capstone_project.dtos.response.pricing.VehicleRuleResponse;
 import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.entity.pricing.VehicleRuleEntity;
@@ -14,9 +16,11 @@ import capstone_project.service.mapper.vehicle.VehicleTypeMapper;
 import org.mapstruct.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.List;
 import java.util.UUID;
 
-@Mapper(componentModel = "spring", uses = {CategoryMapper.class, VehicleTypeMapper.class})
+//@Mapper(componentModel = "spring", uses = {CategoryMapper.class, VehicleTypeMapper.class})
+@Mapper(componentModel = "spring", uses = {CategoryMapper.class, VehicleTypeMapper.class, BasingPriceMapper.class})
 public abstract class VehicleRuleMapper {
 
     @Autowired
@@ -50,6 +54,13 @@ public abstract class VehicleRuleMapper {
 //    @Mapping(source = "category", target = "categoryResponse")
 //    @Mapping(source = "vehicleTypeEntity", target = "vehicleTypeResponse")
     public abstract VehicleRuleResponse toVehicleRuleResponse(final VehicleRuleEntity vehicleRuleEntity);
+
+    @Mapping(target = "id", source = "entity.id")
+    @Mapping(target = "basingPrices", expression = "java(basingPriceResponses)")
+    public abstract FullVehicleRuleResponse toFullVehicleRuleResponse(
+            VehicleRuleEntity entity,
+            List<GetBasingPriceNoVehicleRuleResponse> basingPriceResponses
+    );
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "category", source = "categoryId", qualifiedByName = "categoryFromId")

@@ -3,6 +3,7 @@ package capstone_project.service.services.order.order.impl;
 import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.ContractStatusEnum;
 import capstone_project.common.enums.ErrorEnum;
+import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.ContractRequest;
@@ -218,7 +219,8 @@ public class ContractServiceImpl implements ContractService {
 
             contractRuleEntityService.save(contractRule);
         }
-
+        order.setStatus(OrderStatusEnum.ON_PLANNING.name());
+        orderEntityService.save(order);
 
         PriceCalculationResponse totalPriceResponse = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
 
@@ -247,7 +249,7 @@ public class ContractServiceImpl implements ContractService {
 
         List<OrderDetailEntity> details = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
         if (details.isEmpty()) {
-            log.error("[assignVehicles] Order not found: {}", orderId);
+            log.error("[assignVehicles] Order details not found for orderId={}", orderId);
             throw new NotFoundException("No order details found for this order", ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
@@ -266,6 +268,7 @@ public class ContractServiceImpl implements ContractService {
         List<VehicleRuleEntity> sortedVehicleRules = vehicleRuleEntityService
                 .findAllByCategoryId(orderEntity.getCategory().getId())
                 .stream()
+                .filter(rule -> CommonStatusEnum.ACTIVE.name().equals(rule.getStatus()))
                 .sorted(Comparator.comparing(VehicleRuleEntity::getMaxWeight)
                         .thenComparing(VehicleRuleEntity::getMaxLength)
                         .thenComparing(VehicleRuleEntity::getMaxWidth)
@@ -309,7 +312,7 @@ public class ContractServiceImpl implements ContractService {
 
             log.info("[assignVehicles] Processing detail {}/{}: id={}, weight={}; size.max={}kg,{}x{}x{}",
                     processed, details.size(), detail.getId(), detail.getWeight(),
-                    detail.getOrderSizeEntity().getMaxWeight(),
+                    detail.getWeight(),
                     detail.getOrderSizeEntity().getMaxLength(),
                     detail.getOrderSizeEntity().getMaxWidth(),
                     detail.getOrderSizeEntity().getMaxHeight());
@@ -545,12 +548,11 @@ public class ContractServiceImpl implements ContractService {
     }
 
 
-
     private boolean canFit(OrderDetailEntity detail, VehicleRuleEntity rule) {
         OrderSizeEntity size = detail.getOrderSizeEntity();
         if (size == null) return false;
 
-        return size.getMaxWeight().compareTo(rule.getMaxWeight()) <= 0
+        return detail.getWeight().compareTo(rule.getMaxWeight()) <= 0
                 && size.getMaxLength().compareTo(rule.getMaxLength()) <= 0
                 && size.getMaxWidth().compareTo(rule.getMaxWidth()) <= 0
                 && size.getMaxHeight().compareTo(rule.getMaxHeight()) <= 0;

@@ -11,7 +11,7 @@ import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.user.AddressMapper;
-import capstone_project.service.services.service.RedisService;
+import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.user.AddressService;
 import capstone_project.common.utils.AddressUtil;
 import lombok.RequiredArgsConstructor;

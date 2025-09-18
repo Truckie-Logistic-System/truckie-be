@@ -403,12 +403,12 @@
                         th:text="${#numbers.formatDecimal(categoryExtraFee, 0, 'POINT', 0, 'COMMA')}"></b> VND
                 </td>
             </tr>
-            <tr>
-                <td>Giảm giá khuyến mãi:</td>
-                <td class="text-right">- <b
-                        th:text="${#numbers.formatDecimal(promotionDiscount, 0, 'POINT', 0, 'COMMA')}"></b> VND
-                </td>
-            </tr>
+<!--            <tr>-->
+<!--                <td>Giảm giá khuyến mãi:</td>-->
+<!--                <td class="text-right">- <b-->
+<!--                        th:text="${#numbers.formatDecimal(promotionDiscount, 0, 'POINT', 0, 'COMMA')}"></b> VND-->
+<!--                </td>-->
+<!--            </tr>-->
             <tr class="highlight">
                 <td><b>TỔNG CƯỚC PHÍ PHẢI THANH TOÁN:</b></td>
                 <td class="text-right"><b th:text="${#numbers.formatDecimal(finalTotal, 0, 'POINT', 0, 'COMMA')}"></b>
@@ -423,7 +423,14 @@
         </table>
 
         <div class="subsection-title">3.3. Phương thức thanh toán</div>
-        <p>Bên A thanh toán cho Bên B 100% giá trị hợp đồng trong vòng 07 ngày làm việc kể từ ngày ký kết hợp đồng.</p>
+        <p>
+            Bên A thanh toán cho Bên B
+            <span th:text="${depositPercent}"></span>%
+            giá trị hợp đồng trong vòng
+            <span th:text="${expiredDepositDate}"></span>
+            ngày làm việc kể từ ngày ký kết hợp đồng.
+        </p>
+
         <p>Thông tin tài khoản:</p>
         <ul>
             <li><b>Ngân hàng:</b> Ngân hàng TMCP Ngoại thương Việt Nam (Vietcombank)</li>

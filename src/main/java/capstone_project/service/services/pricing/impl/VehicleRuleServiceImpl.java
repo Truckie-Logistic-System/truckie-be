@@ -7,11 +7,16 @@ import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.pricing.UpdateVehicleRuleRequest;
 import capstone_project.dtos.request.pricing.VehicleRuleRequest;
+import capstone_project.dtos.response.pricing.FullVehicleRuleResponse;
+import capstone_project.dtos.response.pricing.GetBasingPriceNoVehicleRuleResponse;
 import capstone_project.dtos.response.pricing.VehicleRuleResponse;
+import capstone_project.entity.pricing.BasingPriceEntity;
 import capstone_project.entity.pricing.VehicleRuleEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
+import capstone_project.repository.entityServices.pricing.BasingPriceEntityService;
 import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
+import capstone_project.service.mapper.order.BasingPriceMapper;
 import capstone_project.service.mapper.order.VehicleRuleMapper;
 import capstone_project.service.services.pricing.VehicleRuleService;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +24,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -29,7 +37,9 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
 
     private final VehicleRuleEntityService vehicleRuleEntityService;
     private final VehicleTypeEntityService vehicleTypeEntityService;
+    private final BasingPriceEntityService basingPriceEntityService;
     private final VehicleRuleMapper vehicleRuleMapper;
+    private final BasingPriceMapper basingPriceMapper;
 
     @Override
     public List<VehicleRuleResponse> getAllVehicleRules() {
@@ -48,6 +58,35 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
     }
 
     @Override
+    public List<FullVehicleRuleResponse> getAllFullVehicleRules() {
+        log.info("Fetching all full vehicle rules");
+        List<VehicleRuleEntity> vehicleRuleEntities = vehicleRuleEntityService.findAll();
+        if (vehicleRuleEntities.isEmpty()) {
+            log.warn("No vehicle rules found");
+            throw new NotFoundException(
+                    ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+
+        return vehicleRuleEntities.stream()
+                .map(vehicleRuleEntity -> {
+                    List<BasingPriceEntity> basingPriceEntities =
+                            basingPriceEntityService.findAllByVehicleRuleEntityId(vehicleRuleEntity.getId());
+
+                    List<GetBasingPriceNoVehicleRuleResponse> basingPriceResponses = basingPriceEntities.isEmpty()
+                            ? List.of()
+                            : basingPriceEntities.stream()
+                                .map(basingPriceMapper::toGetBasingPriceNoVehicleRuleResponse)
+                                .toList();
+
+                    return vehicleRuleMapper.toFullVehicleRuleResponse(vehicleRuleEntity, basingPriceResponses);
+                })
+                .toList();
+    }
+
+
+    @Override
     public VehicleRuleResponse getVehicleRuleById(UUID id) {
         log.info("Fetching vehicle rule by ID: {}", id);
         VehicleRuleEntity vehicleRuleEntity = vehicleRuleEntityService.findEntityById(id)
@@ -57,6 +96,26 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
                 ));
         return vehicleRuleMapper.toVehicleRuleResponse(vehicleRuleEntity);
     }
+
+    @Override
+    public FullVehicleRuleResponse getFullVehicleRuleById(UUID id) {
+        VehicleRuleEntity vehicleRuleEntity = vehicleRuleEntityService.findEntityById(id)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        List<BasingPriceEntity> basingPriceEntities = basingPriceEntityService.findAllByVehicleRuleEntityId(id);
+
+        List<GetBasingPriceNoVehicleRuleResponse> basingPriceResponses = basingPriceEntities.isEmpty()
+                ? List.of()
+                : basingPriceEntities.stream()
+                    .map(basingPriceMapper::toGetBasingPriceNoVehicleRuleResponse)
+                    .toList();
+
+        return vehicleRuleMapper.toFullVehicleRuleResponse(vehicleRuleEntity, basingPriceResponses);
+    }
+
 
     @Override
     public VehicleRuleResponse createVehicleRule(VehicleRuleRequest vehicleRuleRequest) {

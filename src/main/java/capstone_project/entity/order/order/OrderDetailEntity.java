@@ -20,6 +20,12 @@ public class OrderDetailEntity extends BaseEntity {
     @Column(name = "weight")
     private BigDecimal weight;
 
+    @Column(name = "weight_base_unit")
+    private BigDecimal weightBaseUnit;
+
+    @Column(name = "unit")
+    private String unit;
+
     @Size(max = 200)
     @Column(name = "description", length = 200)
     private String description;

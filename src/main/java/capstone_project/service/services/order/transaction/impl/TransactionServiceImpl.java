@@ -1,17 +1,21 @@
 package capstone_project.service.services.order.transaction.impl;
 
-import capstone_project.common.enums.ContractStatusEnum;
-import capstone_project.common.enums.ErrorEnum;
-import capstone_project.common.enums.TransactionEnum;
+import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.config.payment.PayOSProperties;
 import capstone_project.dtos.response.order.transaction.GetTransactionStatusResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
+import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
+import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.transaction.TransactionEntity;
+import capstone_project.entity.user.customer.CustomerEntity;
+import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
+import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.order.transaction.TransactionEntityService;
+import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.order.TransactionMapper;
 import capstone_project.service.services.order.transaction.TransactionService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -34,6 +38,9 @@ public class TransactionServiceImpl implements TransactionService {
 
     private final TransactionEntityService transactionEntityService;
     private final ContractEntityService contractEntityService;
+    private final OrderEntityService orderEntityService;
+    private final CustomerEntityService customerEntityService;
+    private final UserEntityService userEntityService;
     private final PayOSProperties properties;
     private final PayOS payOS;
     private final TransactionMapper transactionMapper;
@@ -53,9 +60,9 @@ public class TransactionServiceImpl implements TransactionService {
 
         PaymentData paymentData = PaymentData.builder()
                 .orderCode(payOsOrderCode)
-                .amount(4000)
+                .amount(amountForPayOS)
                 .description("Create transaction")
-                //                .items(List.of(item))
+//                                .items(List.of(item))
                 .cancelUrl(properties.getCancelUrl())
                 .returnUrl(properties.getReturnUrl())
                 .build();
@@ -65,7 +72,7 @@ public class TransactionServiceImpl implements TransactionService {
 
             TransactionEntity transaction = TransactionEntity.builder()
                     .id(UUID.randomUUID())
-                    .amount(BigDecimal.valueOf(4000))
+                    .amount(BigDecimal.valueOf(amountForPayOS))
                     .status(TransactionEnum.PENDING.name())
                     .currencyCode("VND")
                     .paymentProvider("PayOS")
@@ -87,6 +94,11 @@ public class TransactionServiceImpl implements TransactionService {
 
     private static BigDecimal validationTotalValue(UUID contractId, ContractEntity contractEntity) {
         BigDecimal totalValue = contractEntity.getTotalValue();
+        BigDecimal supportedValue = contractEntity.getSupportedValue();
+
+        if (supportedValue != null) {
+            totalValue = supportedValue;
+        }
 
         if (totalValue == null || totalValue.compareTo(BigDecimal.ZERO) <= 0) {
             log.error("Contract {} has invalid total value: {}", contractId, totalValue);
@@ -104,6 +116,40 @@ public class TransactionServiceImpl implements TransactionService {
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
+
+        OrderEntity orderEntity = orderEntityService.findEntityById(contractEntity.getOrderEntity().getId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found for contract",
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        CustomerEntity customerEntity = customerEntityService.findEntityById(orderEntity.getSender().getId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Customer not found for order",
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        if (!customerEntity.getStatus().equals(CommonStatusEnum.ACTIVE.name())) {
+            log.error("Customer {} is not active", customerEntity.getId());
+            throw new BadRequestException(
+                    "Customer is not active",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        UserEntity userEntity = userEntityService.findEntityById(customerEntity.getUser().getId())
+                .orElseThrow(() -> new NotFoundException(
+                        "User not found for customer",
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        if (!userEntity.getStatus().equals(CommonStatusEnum.ACTIVE.name())) {
+            log.error("User {} is not active", userEntity.getId());
+            throw new BadRequestException(
+                    "User is not active",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
 
         if (!ContractStatusEnum.UNPAID.name().equals(contractEntity.getStatus())
                 && !ContractStatusEnum.CONTRACT_SIGNED.name().equals(contractEntity.getStatus())) {
@@ -238,17 +284,36 @@ public class TransactionServiceImpl implements TransactionService {
         ContractEntity contract = transaction.getContractEntity();
         if (contract == null) {
             log.warn("Transaction {} has no contract linked", transaction.getId());
-            return;
+            throw new NotFoundException(
+                    "No contract linked to transaction",
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+
+        OrderEntity order = contract.getOrderEntity();
+        if (order == null) {
+            log.warn("Contract {} has no order linked", contract.getId());
+            throw new NotFoundException(
+                    "No contract linked to transaction",
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
         }
 
         switch (TransactionEnum.valueOf(transaction.getStatus())) {
-            case PAID -> contract.setStatus(ContractStatusEnum.PAID.name());
-            case CANCELLED,EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
-            case REFUNDED -> contract.setStatus(ContractStatusEnum.REFUNDED.name());
+            case PAID -> {
+                contract.setStatus(ContractStatusEnum.PAID.name());
+                order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
+            }
+            case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
+            case REFUNDED -> {
+                contract.setStatus(ContractStatusEnum.REFUNDED.name());
+                order.setStatus(OrderStatusEnum.RETURNED.name());
+            }
             default -> {
             }
         }
 
+        orderEntityService.save(order);
         contractEntityService.save(contract);
         log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
     }

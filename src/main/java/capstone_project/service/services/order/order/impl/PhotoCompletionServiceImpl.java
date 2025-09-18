@@ -1,5 +1,7 @@
 package capstone_project.service.services.order.order.impl;
 
+import capstone_project.common.enums.ErrorEnum;
+import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreatePhotoCompletionRequest;
 import capstone_project.dtos.request.order.UpdatePhotoCompletionRequest;
 import capstone_project.dtos.response.order.PhotoCompletionResponse;
@@ -19,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -90,6 +93,15 @@ public class PhotoCompletionServiceImpl implements PhotoCompletionService {
     @Override
     public List<PhotoCompletionResponse> getAllPhotos() {
         return photoCompletionMapper.toPhotoCompletionResponses(photoCompletionEntityService.findAll());
+    }
+
+    @Override
+    public List<PhotoCompletionResponse> getByVehicleAssignment(UUID vehicleAssignmentId) {
+        Optional<VehicleAssignmentEntity> vehicleAssignmentEntity = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId);
+        if (vehicleAssignmentEntity.isEmpty()){
+            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "Vehicle assignment khong tim thay",ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+        return photoCompletionMapper.toPhotoCompletionResponses(photoCompletionEntityService.findByVehicleAssignmentEntity(vehicleAssignmentEntity.get()));
     }
 
 }

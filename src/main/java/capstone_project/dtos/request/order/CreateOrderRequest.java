@@ -13,10 +13,6 @@ public record CreateOrderRequest(
         @NotBlank(message = "Notes cannot be blank")
         String notes,
 
-        @NotNull(message = "Total weight cannot be null")
-        @Min(value = 0L, message = "Total weight must be positive")
-        BigDecimal totalWeight,
-
         @NotBlank(message = "Receiver name cannot be blank")
         String receiverName,
 

@@ -6,9 +6,11 @@ public record ContractResponse (
     String effectiveDate,
     String expirationDate,
     String totalValue,
+    String supportedValue,
     String description,
     String attachFileUrl,
     String status,
-    String orderId
+    String orderId,
+    String staffId
 ) {
 }

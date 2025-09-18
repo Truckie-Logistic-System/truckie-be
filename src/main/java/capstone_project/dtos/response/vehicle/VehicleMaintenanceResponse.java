@@ -13,6 +13,6 @@ public record VehicleMaintenanceResponse(
         LocalDateTime nextMaintenanceDate,
         Integer odometerReading,
         String serviceCenter,
-        UUID vehicleId,
-        UUID maintenanceTypeId
+        VehicleResponse vehicleEntity,
+        MaintenanceTypeResponse maintenanceTypeEntity
 ) {}

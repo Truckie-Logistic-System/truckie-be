@@ -10,4 +10,8 @@ public interface VehicleAssignmentEntityService extends BaseEntityService<Vehicl
     List<VehicleAssignmentEntity> findByStatus(String status);
 
     List<VehicleAssignmentEntity> findByVehicleEntityId(UUID vehicleID);
+
+    List<VehicleAssignmentEntity> findVehicleWithOrder(UUID type);
+
+    List<VehicleAssignmentEntity> findVehicleAssignmentsWithOrderID(UUID orderID);
 }

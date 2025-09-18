@@ -3,6 +3,7 @@ package capstone_project.entity.order.conformation;
 import capstone_project.entity.common.BaseEntity;
 import capstone_project.entity.device.DeviceEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
@@ -30,5 +31,9 @@ public class PhotoCompletionEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "device_id")
     private DeviceEntity deviceEntity;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id")
+    private OrderEntity orderEntity;
 
 }

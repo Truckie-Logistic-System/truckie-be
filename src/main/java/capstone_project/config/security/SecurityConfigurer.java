@@ -116,6 +116,21 @@ public class SecurityConfigurer {
     @Value("${chat.api.base-path}")
     private String chatApiBasePath;
 
+    @Value("${seal.api.base-path}")
+    private String sealApiBasePath;
+
+    @Value("${order-detail-seal.api.base-path}")
+    private String orderDetailSealApiBasePath;
+
+//    @Value("${system-setting.api.base-path}")
+//    private String systemSettingApiBasePath;
+
+    @Value("${contract-setting.api.base-path}")
+    private String contractSettingApiBasePath;
+
+    @Value("${weight-unit-setting.api.base-path}")
+    private String weightUnitSettingApiBasePath;
+
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -190,8 +205,8 @@ public class SecurityConfigurer {
                         // ================= CONTRACT =================
                         .requestMatchers(HttpMethod.GET, contractApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, contractRuleApiBasePath + "/**").authenticated()
-                        .requestMatchers(contractApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(contractRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(contractApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= PENALTY =================
                         .requestMatchers(HttpMethod.GET, penaltyApiBasePath + "/**").authenticated()
@@ -234,8 +249,13 @@ public class SecurityConfigurer {
                         .requestMatchers(roomApiBasePath + "/**").authenticated()
                         .requestMatchers(chatApiBasePath + "/**").authenticated()
 
+                        // ================= SETTING =================
+                        .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(weightUnitSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
-
+                        // ================= SEAL =================
+                        .requestMatchers(sealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())
+                        .requestMatchers(orderDetailSealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())
 
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())

@@ -33,6 +33,6 @@ public class ContractEntityServiceImpl implements ContractEntityService {
 
     @Override
     public Optional<ContractEntity> getContractByOrderId(UUID orderId) {
-        return contractRepository.getContractByOrderEntityId(orderId);
+        return contractRepository.findContractEntityByOrderEntity_Id(orderId);
     }
 }

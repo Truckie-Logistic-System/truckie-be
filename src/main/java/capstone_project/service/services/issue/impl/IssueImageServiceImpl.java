@@ -6,6 +6,7 @@ import capstone_project.entity.issue.IssueEntity;
 import capstone_project.entity.issue.IssueImageEntity;
 import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.repository.entityServices.issue.IssueImageEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.mapper.issue.IssueMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.issue.IssueImageService;
@@ -23,6 +24,7 @@ public class IssueImageServiceImpl implements IssueImageService {
     private final IssueEntityService issueEntityService;
     private final IssueImageEntityService issueImageEntityService;
     private final CloudinaryService cloudinaryService;
+    private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
 
     @Override
     public GetIssueImageResponse createImage(CreateIssueImageRequest request) {
@@ -30,7 +32,7 @@ public class IssueImageServiceImpl implements IssueImageService {
                 .orElseThrow(() -> new RuntimeException("Issue not found with id " + request.issueId()));
 
         List<IssueImageEntity> images = new ArrayList<>();
-
+        List<String> urlImages = new ArrayList<>();
         for (String base64Image : request.imageUrl()) {
             try {
                 // Convert base64 -> byte[]
@@ -50,7 +52,7 @@ public class IssueImageServiceImpl implements IssueImageService {
                         .issueEntity(issue)
                         .imageUrl(imageUrl)
                         .build();
-
+                urlImages.add(imageUrl);
                 images.add(imageEntity);
 
             } catch (Exception e) {
@@ -61,13 +63,30 @@ public class IssueImageServiceImpl implements IssueImageService {
 
         issueImageEntityService.saveAll(images);
 
-        return new GetIssueImageResponse(issue, images);
+        return new GetIssueImageResponse(issueMapper.toIssueBasicResponse(issue), urlImages);
     }
 
     @Override
     public GetIssueImageResponse getImage(UUID issueId) {
         List<IssueImageEntity> images = issueImageEntityService.findByIssueEntity_Id(issueId);
+        List<String> urlImages = new ArrayList<>();
+        for(IssueImageEntity urlImage : images){
+            urlImages.add(urlImage.getImageUrl());
+        }
         IssueEntity issue = issueEntityService.findEntityById(issueId).get();
-        return new GetIssueImageResponse(issue,images);
+        return new GetIssueImageResponse(issueMapper.toIssueBasicResponse(issue),urlImages);
+    }
+
+    @Override
+    public GetIssueImageResponse getByVehicleAssignment(UUID vehicleAssignmentId) {
+        IssueEntity entity = issueEntityService.findByVehicleAssignmentEntity(
+                vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId).get()
+        );
+        List<IssueImageEntity> images = issueImageEntityService.findByIssueEntity_Id(entity.getId());
+        List<String> urlImages = new ArrayList<>();
+        for(IssueImageEntity urlImage : images){
+            urlImages.add(urlImage.getImageUrl());
+        }
+        return new GetIssueImageResponse(issueMapper.toIssueBasicResponse(entity),urlImages);
     }
 }

@@ -20,4 +20,6 @@ public interface PhotoCompletionService {
     PhotoCompletionResponse getPhoto(UUID id);
 
     List<PhotoCompletionResponse> getAllPhotos();
+
+    List<PhotoCompletionResponse> getByVehicleAssignment(UUID vehicleAssignmentId);
 }

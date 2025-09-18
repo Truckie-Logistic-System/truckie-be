@@ -9,10 +9,12 @@ import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.time.LocalDateTime;
 
+
 public record VehicleAssignmentRequest(
         @NotBlank(message = "vehicleId is required") String vehicleId,
 
-        @NotBlank(message = "driverId is required")  String driverId,
+        @NotBlank(message = "driverId_1 is required")  String driverId_1,
+        @NotBlank(message = "driverId_2 is required")  String driverId_2,
 
         String descripton,
 

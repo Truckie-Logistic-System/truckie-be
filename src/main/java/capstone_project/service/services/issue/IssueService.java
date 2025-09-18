@@ -28,4 +28,5 @@ public interface IssueService {
     List<GetBasicIssueResponse> getInactiveStatus();
 
     List<GetBasicIssueResponse> getAllIssues();
+
 }

@@ -1,6 +1,7 @@
 package capstone_project.service.mapper.order;
 
 import capstone_project.dtos.response.order.CreateOrderResponse;
+import capstone_project.dtos.response.order.GetOrderForGetAllResponse;
 import capstone_project.dtos.response.order.GetOrderResponse;
 import capstone_project.entity.order.order.OrderEntity;
 import org.mapstruct.*;
@@ -20,6 +21,12 @@ public interface OrderMapper {
 
     @Mapping(source = "orderDetailEntities", target = "orderDetails")
     GetOrderResponse toGetOrderResponse(OrderEntity entity);
+
+    @Mapping(source = "pickupAddress.id", target = "pickupAddressId")
+    @Mapping(source = "category.id", target = "categoryId")
+    GetOrderForGetAllResponse toGetOrderForGetAllResponse(OrderEntity entity);
+
+    List<GetOrderForGetAllResponse> toGetOrderForGetAllResponses(List<OrderEntity> orderEntities);
 
 //    @Mapping(source = "deliveryAddress.id", target = "deliveryAddressId")
 //    @Mapping(source = "pickupAddress.id", target = "pickupAddressId")

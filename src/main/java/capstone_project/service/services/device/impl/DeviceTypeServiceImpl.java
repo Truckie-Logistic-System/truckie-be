@@ -10,7 +10,7 @@ import capstone_project.entity.device.DeviceTypeEntity;
 import capstone_project.repository.entityServices.device.DeviceTypeEntityService;
 import capstone_project.service.mapper.device.DeviceTypeMapper;
 import capstone_project.service.services.device.DeviceTypeService;
-import capstone_project.service.services.service.RedisService;
+import capstone_project.service.services.redis.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

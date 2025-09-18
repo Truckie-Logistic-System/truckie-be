@@ -1,10 +1,13 @@
 package capstone_project.controller.order;
 
 import capstone_project.common.enums.OrderStatusEnum;
+import capstone_project.common.enums.UnitEnum;
 import capstone_project.dtos.request.order.CreateOrderAndDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.CreateOrderResponse;
+import capstone_project.dtos.response.order.GetOrderForCustomerResponse;
+import capstone_project.dtos.response.order.GetOrderForGetAllResponse;
 import capstone_project.dtos.response.order.GetOrderResponse;
 import capstone_project.service.services.order.order.OrderService;
 import jakarta.validation.Valid;
@@ -13,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -73,7 +77,7 @@ public class OrderController {
 
     // Lấy order theo deliveryAddressId
     @GetMapping("/get-all")
-    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getAllOrders(
+    public ResponseEntity<ApiResponse<List<GetOrderForGetAllResponse>>> getAllOrders(
            ) {
         final var result = orderService.getAllOrders();
         return ResponseEntity.ok(ApiResponse.ok(result));
@@ -92,6 +96,20 @@ public class OrderController {
         final var result = orderService.getOrderById(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    @GetMapping("/list-unit")
+    public ResponseEntity<ApiResponse<List<UnitEnum>>> getAllUnits() {
+        final var result = orderService.responseListUnitEnum();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/get-order-for-customer-by-order-id/{orderId}")
+    public ResponseEntity<ApiResponse<GetOrderForCustomerResponse>> getOrderForCustomerByOrderId(@PathVariable UUID orderId) {
+        final var result = orderService.getOrderForCustomerByOrderId(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+
 
 
 }

@@ -19,5 +19,4 @@ public interface IssueMapper {
 
     List<GetBasicIssueResponse> toIssueBasicResponses(List<IssueEntity> issues);
 
-    GetIssueImageResponse toIssueImageResponse(IssueEntity issue);
 }

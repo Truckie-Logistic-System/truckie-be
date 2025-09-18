@@ -13,4 +13,6 @@ public interface VehicleAssignmentService {
     VehicleAssignmentResponse getAssignmentById(UUID id);
     VehicleAssignmentResponse createAssignment(VehicleAssignmentRequest req);
     VehicleAssignmentResponse updateAssignment(UUID id, UpdateVehicleAssignmentRequest req);
+    List<VehicleAssignmentResponse> getAllAssignmentsWithOrder(UUID vehicleType);
+    List<VehicleAssignmentResponse> getListVehicleAssignmentByOrderID(UUID orderID);
 }

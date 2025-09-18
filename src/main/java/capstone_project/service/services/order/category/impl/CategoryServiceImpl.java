@@ -9,7 +9,7 @@ import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
 import capstone_project.service.mapper.order.CategoryMapper;
 import capstone_project.service.services.order.category.CategoryService;
-import capstone_project.service.services.service.RedisService;
+import capstone_project.service.services.redis.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
