@@ -4,6 +4,7 @@ import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
+import capstone_project.dtos.response.vehicle.GetVehicleAssignmentForBillOfLandingResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -36,6 +37,8 @@ public abstract class VehicleAssignmentMapper {
     @Mapping(target = "driver_id_1",  source = "driver1.id")
     @Mapping(target = "driver_id_2",  source = "driver2.id")
     public abstract VehicleAssignmentResponse toResponse(VehicleAssignmentEntity entity);
+
+    public abstract GetVehicleAssignmentForBillOfLandingResponse toGetVehicleAssignmentForBillOfLandingResponse(VehicleAssignmentEntity entity);
 
     /* helpers */
     @Named("vehicleFromId")

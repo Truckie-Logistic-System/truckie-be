@@ -31,6 +31,9 @@ public class AddressEntity extends BaseEntity {
     @Column(name = "street", length = 20)
     private String street;
 
+    @Column(name = "for_delivery")
+    private String forDelivery;
+
     @Column(name = "address_type")
     private Boolean addressType;
 

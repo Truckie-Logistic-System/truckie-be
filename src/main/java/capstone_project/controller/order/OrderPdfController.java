@@ -3,7 +3,7 @@ package capstone_project.controller.order;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.contract.ContractPdfResponse;
 import capstone_project.dtos.response.order.contract.FullContractPDFResponse;
-import capstone_project.service.services.order.order.impl.OrderPdfService;
+import capstone_project.service.services.order.order.OrderPdfService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;

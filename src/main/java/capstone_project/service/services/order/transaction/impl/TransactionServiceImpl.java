@@ -10,11 +10,13 @@ import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.transaction.TransactionEntity;
+import capstone_project.entity.setting.ContractSettingEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.order.transaction.TransactionEntityService;
+import capstone_project.repository.entityServices.setting.ContractSettingEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.order.TransactionMapper;
 import capstone_project.service.services.order.transaction.TransactionService;
@@ -41,8 +43,11 @@ public class TransactionServiceImpl implements TransactionService {
     private final OrderEntityService orderEntityService;
     private final CustomerEntityService customerEntityService;
     private final UserEntityService userEntityService;
+    private final ContractSettingEntityService contractSettingEntityService;
+
     private final PayOSProperties properties;
     private final PayOS payOS;
+
     private final TransactionMapper transactionMapper;
     private final ObjectMapper objectMapper;
 
@@ -54,13 +59,43 @@ public class TransactionServiceImpl implements TransactionService {
 
         ContractEntity contractEntity = getAndValidateContract(contractId);
 
+        if (!contractEntity.getStatus().equals(ContractStatusEnum.DEPOSITED.name()) &&
+                !contractEntity.getStatus().equals(ContractStatusEnum.UNPAID.name()) &&
+                !contractEntity.getStatus().equals(ContractStatusEnum.CONTRACT_SIGNED.name())) {
+            log.error("Contract {} is not in DEPOSITED status", contractId);
+            throw new BadRequestException(
+                    "Contract is not in DEPOSITED status",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
         BigDecimal totalValue = validationTotalValue(contractId, contractEntity);
 
         int amountForPayOS = totalValue.setScale(0, RoundingMode.HALF_UP).intValueExact();
 
+        ContractSettingEntity setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc()
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        BigDecimal depositPercent = setting.getDepositPercent() != null ? setting.getDepositPercent() : BigDecimal.ZERO;
+        if (depositPercent.compareTo(BigDecimal.ZERO) <= 0 || depositPercent.compareTo(BigDecimal.valueOf(100)) > 0) {
+            log.error("Invalid deposit percent in contract settings: {}", depositPercent);
+            throw new BadRequestException(
+                    "Invalid deposit percent in contract settings",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        BigDecimal depositAmount = totalValue.multiply(depositPercent)
+                .divide(BigDecimal.valueOf(100), RoundingMode.HALF_UP);
+
+        BigDecimal remainingAmount = totalValue.subtract(depositAmount);
+
         PaymentData paymentData = PaymentData.builder()
                 .orderCode(payOsOrderCode)
-                .amount(amountForPayOS)
+                .amount(remainingAmount.setScale(0, RoundingMode.HALF_UP).intValueExact())
                 .description("Create transaction")
 //                                .items(List.of(item))
                 .cancelUrl(properties.getCancelUrl())
@@ -72,7 +107,7 @@ public class TransactionServiceImpl implements TransactionService {
 
             TransactionEntity transaction = TransactionEntity.builder()
                     .id(UUID.randomUUID())
-                    .amount(BigDecimal.valueOf(amountForPayOS))
+                    .amount(remainingAmount)
                     .status(TransactionEnum.PENDING.name())
                     .currencyCode("VND")
                     .paymentProvider("PayOS")
@@ -82,6 +117,80 @@ public class TransactionServiceImpl implements TransactionService {
                     .build();
 
             TransactionEntity savedEntity = transactionEntityService.save(transaction);
+//            contractEntity.setStatus(ContractStatusEnum.PAID.name());
+            return transactionMapper.toTransactionResponse(savedEntity);
+
+
+        } catch (Exception e) {
+            log.error("Error calling PayOS API", e);
+            throw new RuntimeException("Failed to create payment link", e);
+        }
+    }
+
+    @Override
+    public TransactionResponse createDepositTransaction(UUID contractId) {
+        log.info("Creating transaction for contract {}", contractId);
+
+        Long payOsOrderCode = System.currentTimeMillis();
+
+        ContractEntity contractEntity = getAndValidateContract(contractId);
+
+        BigDecimal totalValue = validationTotalValue(contractId, contractEntity);
+
+//        int amountForPayOS = totalValue.setScale(0, RoundingMode.HALF_UP).intValueExact();
+
+        if (!contractEntity.getStatus().equals(ContractStatusEnum.CONTRACT_SIGNED.name()) && !contractEntity.getStatus().equals(ContractStatusEnum.UNPAID.name())) {
+            log.error("Contract {} is not in CONTRACT_SIGNED or UNPAID status", contractId);
+            throw new BadRequestException(
+                    "Contract is not in CONTRACT_SIGNED or UNPAID status",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        ContractSettingEntity setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc()
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        BigDecimal depositPercent = setting.getDepositPercent() != null ? setting.getDepositPercent() : BigDecimal.ZERO;
+        if (depositPercent.compareTo(BigDecimal.ZERO) <= 0 || depositPercent.compareTo(BigDecimal.valueOf(100)) > 0) {
+            log.error("Invalid deposit percent in contract settings: {}", depositPercent);
+            throw new BadRequestException(
+                    "Invalid deposit percent in contract settings",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        BigDecimal depositAmount = totalValue.multiply(depositPercent)
+                .divide(BigDecimal.valueOf(100), RoundingMode.HALF_UP);
+
+        PaymentData paymentData = PaymentData.builder()
+                .orderCode(payOsOrderCode)
+                .amount(depositAmount.setScale(0, RoundingMode.HALF_UP).intValueExact())
+                .description("Create deposit")
+//                                .items(List.of(item))
+                .cancelUrl(properties.getCancelUrl())
+                .returnUrl(properties.getReturnUrl())
+                .build();
+
+        try {
+            var response = payOS.createPaymentLink(paymentData);
+
+            TransactionEntity transaction = TransactionEntity.builder()
+                    .id(UUID.randomUUID())
+                    .amount(depositAmount)
+                    .status(TransactionEnum.PENDING.name())
+                    .currencyCode("VND")
+                    .paymentProvider("PayOS")
+                    .gatewayResponse(objectMapper.writeValueAsString(response))
+                    .gatewayOrderCode(payOsOrderCode)
+                    .contractEntity(contractEntity)
+                    .build();
+
+//            transaction.setStatus(TransactionEnum.DEPOSITED.name());
+            TransactionEntity savedEntity = transactionEntityService.save(transaction);
+//            contractEntity.setStatus(ContractStatusEnum.DEPOSITED.name());
 
             return transactionMapper.toTransactionResponse(savedEntity);
 
@@ -151,19 +260,19 @@ public class TransactionServiceImpl implements TransactionService {
             );
         }
 
-        if (!ContractStatusEnum.UNPAID.name().equals(contractEntity.getStatus())
-                && !ContractStatusEnum.CONTRACT_SIGNED.name().equals(contractEntity.getStatus())) {
-            log.error("Contract {} is not in UNPAID or CONTRACT_SIGNED status", contractId);
-            throw new BadRequestException(
-                    "Contract is not eligible for payment",
-                    ErrorEnum.INVALID.getErrorCode()
-            );
-        }
+//        if (!ContractStatusEnum.CONTRACT_SIGNED.name().equals(contractEntity.getStatus())) {
+//            log.error("Contract {} is not in UNPAID or CONTRACT_SIGNED status", contractId);
+//            throw new BadRequestException(
+//                    "Contract is not eligible for payment",
+//                    ErrorEnum.INVALID.getErrorCode()
+//            );
+//        }
 
-        if (transactionEntityService.existsByContractIdAndStatus(contractId, TransactionEnum.PAID.name())) {
-            log.error("Contract {} is already paid successfully !", contractId);
+        if (transactionEntityService.existsByContractIdAndStatus(contractId, TransactionEnum.PAID.name())
+                && contractEntity.getStatus().equals(ContractStatusEnum.DEPOSITED.name())) {
+            log.error("Contract {} is already fully paid!", contractId);
             throw new BadRequestException(
-                    "Contract is already paid successfully !",
+                    "Contract is already fully paid!",
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
@@ -301,8 +410,14 @@ public class TransactionServiceImpl implements TransactionService {
 
         switch (TransactionEnum.valueOf(transaction.getStatus())) {
             case PAID -> {
-                contract.setStatus(ContractStatusEnum.PAID.name());
-                order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
+                BigDecimal totalValue = validationTotalValue(contract.getId(), contract);
+
+                if (transaction.getAmount().compareTo(totalValue) < 0) {
+                    contract.setStatus(ContractStatusEnum.DEPOSITED.name());
+                } else {
+                    contract.setStatus(ContractStatusEnum.PAID.name());
+                    order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
+                }
             }
             case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
             case REFUNDED -> {

@@ -26,7 +26,7 @@ public class TransactionExpiryScheduler {
                         TransactionEnum.PENDING.name(), expiryThreshold);
 
         for (TransactionEntity tx : expiredTransactions) {
-            tx.setStatus(TransactionEnum.CANCELLED.name());
+            tx.setStatus(TransactionEnum.EXPIRED.name());
             transactionEntityService.save(tx);
             log.info("Transaction {} expired -> CANCELLED", tx.getId());
         }

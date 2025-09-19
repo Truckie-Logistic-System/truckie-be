@@ -10,6 +10,8 @@ public interface TransactionService {
 
     TransactionResponse createTransaction(UUID contractId);
 
+    TransactionResponse createDepositTransaction(UUID contractId);
+
     TransactionResponse getTransactionById(UUID transactionId);
 
     List<TransactionResponse> getTransactionsByContractId(UUID contractId);

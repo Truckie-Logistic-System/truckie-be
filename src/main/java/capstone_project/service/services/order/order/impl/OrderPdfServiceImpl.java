@@ -15,10 +15,9 @@ import capstone_project.repository.entityServices.setting.ContractSettingEntityS
 import capstone_project.service.mapper.order.OrderMapper;
 import capstone_project.service.mapper.setting.ContractSettingMapper;
 import capstone_project.service.mapper.user.CustomerMapper;
-import capstone_project.service.mapper.user.UserMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
-import capstone_project.service.services.order.order.ContractRuleService;
 import capstone_project.service.services.order.order.ContractService;
+import capstone_project.service.services.order.order.OrderPdfService;
 import capstone_project.service.services.pdf.PdfGenerationService;
 import capstone_project.service.services.user.DistanceService;
 import lombok.RequiredArgsConstructor;
@@ -34,21 +33,20 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class OrderPdfService {
+public class OrderPdfServiceImpl implements OrderPdfService {
 
     private final ContractEntityService contractEntityService;
     private final ContractService contractService;
-    private final ContractRuleService contractRuleAssignService;
     private final PdfGenerationService pdfGenerationService;
     private final CloudinaryService cloudinaryService;
     private final DistanceService distanceService;
     private final ContractSettingEntityService contractSettingEntityService;
 
     private final CustomerMapper customerMapper;
-    private final UserMapper userMapper;
     private final ContractSettingMapper contractSettingMapper;
     private final OrderMapper orderMapper;
 
+    @Override
     public ContractPdfResponse generateAndUploadContractPdf(UUID contractId) {
         try {
             ContractEntity contract = contractEntityService.findEntityById(contractId)
@@ -112,6 +110,7 @@ public class OrderPdfService {
         }
     }
 
+    @Override
     public FullContractPDFResponse getFullContractPdfData(UUID contractId) {
         ContractEntity contract = contractEntityService.findEntityById(contractId)
                 .orElseThrow(() -> new NotFoundException(
@@ -134,14 +133,6 @@ public class OrderPdfService {
                     ErrorEnum.NOT_FOUND.getErrorCode()
             );
         }
-
-//        UserEntity user = customer.getUser();
-//        if (user == null) {
-//            throw new NotFoundException(
-//                    "User not found for the given customer",
-//                    ErrorEnum.NOT_FOUND.getErrorCode()
-//            );
-//        }
 
         ContractSettingEntity setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc()
                 .orElseThrow(() -> new NotFoundException(
@@ -167,7 +158,6 @@ public class OrderPdfService {
 //                .pdfUrl(contract.getPdfUrl())
                 .message("Full contract PDF data retrieved successfully")
                 .customerInfo(customerMapper.mapCustomerResponse(customer))
-//                .senderInfo(userMapper.mapUserResponse(user))
                 .orderInfo(orderMapper.toGetOrderResponse(order))
                 .priceDetails(result)
                 .assignResult(assignResult)

@@ -29,6 +29,12 @@ public class TransactionController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    @PostMapping("/{contractId}/deposit")
+    public ResponseEntity<ApiResponse<TransactionResponse>> createDepositTransaction(@PathVariable UUID contractId) {
+        final var result = transactionService.createDepositTransaction(contractId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
     @GetMapping("/{transactionId}")
     public ResponseEntity<ApiResponse<TransactionResponse>> getTransactionById(@PathVariable UUID transactionId) {
         final var result = transactionService.getTransactionById(transactionId);
@@ -62,10 +68,10 @@ public class TransactionController {
 
     @PostMapping("/{transactionId}/refund")
     public ResponseEntity<ApiResponse<TransactionResponse>> refundTransaction(@PathVariable UUID transactionId,
-                                                                                @RequestParam String reason) {
-            final var result = transactionService.refundTransaction(transactionId, reason);
-            return ResponseEntity.ok(ApiResponse.ok(result));
-        }
+                                                                              @RequestParam String reason) {
+        final var result = transactionService.refundTransaction(transactionId, reason);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 
     @GetMapping("/callback")
     public ResponseEntity<String> callback(@RequestParam Map<String, String> params) {
