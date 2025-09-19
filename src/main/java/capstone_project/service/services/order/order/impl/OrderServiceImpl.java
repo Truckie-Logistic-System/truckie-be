@@ -126,6 +126,7 @@ public class OrderServiceImpl implements OrderService {
                     .orderCode(generateCode(prefixOrderCode))
                     .receiverName(orderRequest.receiverName())
                     .receiverPhone(orderRequest.receiverPhone())
+                    .receiverIdentity(orderRequest.receiverIdentity())
                     .status(OrderStatusEnum.PENDING.name())
                     .packageDescription(orderRequest.packageDescription())
                     .category(category)

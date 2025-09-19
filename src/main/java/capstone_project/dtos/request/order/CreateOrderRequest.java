@@ -19,6 +19,9 @@ public record CreateOrderRequest(
         @NotBlank(message = "Receiver phone cannot be blank")
         String receiverPhone,
 
+        @NotBlank(message = "Receiver phone cannot be blank")
+        String receiverIdentity,
+
         @NotBlank(message = "Package description cannot be blank")
         String packageDescription,
 
