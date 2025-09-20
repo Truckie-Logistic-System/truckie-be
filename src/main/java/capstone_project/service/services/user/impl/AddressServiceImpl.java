@@ -13,6 +13,7 @@ import capstone_project.service.mapper.user.AddressMapper;
 import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.user.AddressService;
 import capstone_project.common.utils.AddressUtil;
+import capstone_project.utils.UserContextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,7 @@ public class AddressServiceImpl implements AddressService {
     private final AddressMapper addressMapper;
     private final VietMapGeocodingServiceImpl geocodingService;
     private final RedisService redisService;
+    private final UserContextUtils userContextUtils;
 
     private static final String ALL_ADDRESSES_CACHE_KEY = "addresses:all";
     private static final String ADDRESS_CACHE_KEY_PREFIX = "address:";
@@ -272,6 +274,54 @@ public class AddressServiceImpl implements AddressService {
                 });
     }
 
+    @Override
+    public List<AddressResponse> getMyAddresses() {
+        log.info("Fetching addresses for current user");
+
+        // Get current customer ID from security context
+        UUID currentCustomerId = userContextUtils.getCurrentCustomerId();
+        log.info("Current customer ID: {}", currentCustomerId);
+
+        // Check cache first
+        String cacheKey = CUSTOMER_ADDRESSES_CACHE_KEY_PREFIX + currentCustomerId;
+        try {
+            List<AddressResponse> cachedAddresses = redisService.getList(cacheKey, AddressResponse.class);
+            if (cachedAddresses != null && !cachedAddresses.isEmpty()) {
+                log.info("Retrieved {} addresses from cache for current customer", cachedAddresses.size());
+                return cachedAddresses;
+            }
+        } catch (Exception e) {
+            log.warn("Error retrieving addresses from cache for current customer, falling back to database", e);
+        }
+
+        // Fetch from database using existing method
+        List<AddressEntity> entities = addressEntityService.getAddressesByCustomerId(currentCustomerId);
+
+        if (entities.isEmpty()) {
+            log.warn("No addresses found for current customer ID: {}", currentCustomerId);
+            throw new NotFoundException(
+                    ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+
+        // Convert to DTOs
+        List<AddressResponse> addressResponses = entities.stream()
+                .map(this::safeMapToResponse)
+                .toList();
+
+        // Cache the results
+        try {
+            redisService.save(cacheKey, addressResponses);
+            redisService.expire(cacheKey, 30, TimeUnit.MINUTES);
+            log.info("Cached {} addresses for current customer", addressResponses.size());
+        } catch (Exception e) {
+            log.warn("Error caching addresses for current customer", e);
+        }
+
+        return addressResponses;
+    }
+
     /**
      * Safely map AddressEntity to AddressResponse, handling null customer relationships
      */
@@ -293,7 +343,6 @@ public class AddressServiceImpl implements AddressService {
                     entity.getWard(),
                     entity.getStreet(),
                     entity.getAddressType(),
-                    entity.getForDelivery(),
                     entity.getLatitude(),
                     entity.getLongitude(),
                     customerId

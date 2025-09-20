@@ -5,7 +5,6 @@ public record AddressRequest(
         String ward,
         String province,
         Boolean addressType,
-        Boolean forDelivery,
         String customerId
 ) {
 }

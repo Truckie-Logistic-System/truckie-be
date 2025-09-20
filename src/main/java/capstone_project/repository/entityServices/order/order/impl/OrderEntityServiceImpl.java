@@ -41,4 +41,9 @@ public class OrderEntityServiceImpl implements OrderEntityService {
     public List<OrderEntity> findByDeliveryAddressId(UUID deliveryAddressId) {
         return orderRepository.findByDeliveryAddressId(deliveryAddressId);
     }
+
+    @Override
+    public List<OrderEntity> findRecentOrdersByCustomerId(UUID customerId, int limit) {
+        return orderRepository.findRecentOrdersByCustomerId(customerId, limit);
+    }
 }

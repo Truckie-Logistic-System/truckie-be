@@ -27,8 +27,7 @@ public class AddressUtil {
                 response.province(),
                 response.ward(),
                 response.street(),
-                null,
-                null, // forDelivery field set to null
+                null, // addressType
                 response.latitude(),
                 response.longitude(),
                 null
@@ -46,8 +45,7 @@ public class AddressUtil {
                 province,
                 ward,
                 street,
-                null,
-                null, // forDelivery field set to null
+                null, // addressType
                 DEFAULT_LATITUDE,
                 DEFAULT_LONGITUDE,
                 null

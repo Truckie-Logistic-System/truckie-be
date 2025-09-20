@@ -10,4 +10,12 @@ public interface OrderEntityService extends BaseEntityService<OrderEntity, UUID>
     List<OrderEntity> findBySenderId(UUID senderId);
 
     List<OrderEntity> findByDeliveryAddressId(UUID deliveryAddressId);
+
+    /**
+     * Find recent orders by customer ID with limit
+     * @param customerId customer ID
+     * @param limit maximum number of results to return
+     * @return list of recent orders with valid receiver information
+     */
+    List<OrderEntity> findRecentOrdersByCustomerId(UUID customerId, int limit);
 }

@@ -11,6 +11,12 @@ public interface AddressService {
 
     List<AddressResponse> getAddressesByCustomerId(UUID customerId);
 
+    /**
+     * Get addresses for the currently authenticated user
+     * @return list of addresses for the current user
+     */
+    List<AddressResponse> getMyAddresses();
+
     AddressResponse calculateLatLong(String address);
 
     AddressResponse createAddress(AddressRequest request);
@@ -18,10 +24,4 @@ public interface AddressService {
     AddressResponse updateAddress(UUID id,AddressRequest request);
 
     AddressResponse getAddressById(UUID id);
-
-
-
-
-
-
 }

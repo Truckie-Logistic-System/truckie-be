@@ -39,6 +39,17 @@ public class AddressController {
         return ResponseEntity.ok(ApiResponse.ok(addresses));
     }
 
+    /**
+     * Get addresses for the currently authenticated user
+     * @return list of addresses for the current user
+     */
+    @GetMapping("/my-addresses")
+    @PreAuthorize("hasAuthority('CUSTOMER')")
+    public ResponseEntity<ApiResponse<List<AddressResponse>>> getMyAddresses() {
+        final var addresses = addressService.getMyAddresses();
+        return ResponseEntity.ok(ApiResponse.ok(addresses));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<AddressResponse>> getAddressById(@PathVariable UUID id) {
         final var address = addressService.getAddressById(id);

@@ -9,7 +9,6 @@ public record AddressResponse(
         String ward,
         String street,
         Boolean addressType,
-        Boolean forDelivery,
         BigDecimal latitude,
         BigDecimal longitude,
         String customerId
