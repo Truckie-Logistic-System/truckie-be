@@ -25,6 +25,7 @@ public class ReceiverDetailMapper {
         return ReceiverDetailResponse.builder()
                 .receiverName(entity.getReceiverName())
                 .receiverPhone(entity.getReceiverPhone())
+                .receiverIdentity(entity.getReceiverIdentity())
                 .pickupAddressId(entity.getPickupAddress() != null ? entity.getPickupAddress().getId() : null)
                 .deliveryAddressId(entity.getDeliveryAddress() != null ? entity.getDeliveryAddress().getId() : null)
                 .pickupAddress(entity.getPickupAddress() != null ? addressMapper.toDto(entity.getPickupAddress()) : null)

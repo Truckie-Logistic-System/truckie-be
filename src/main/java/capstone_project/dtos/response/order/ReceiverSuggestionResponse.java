@@ -16,6 +16,7 @@ public class ReceiverSuggestionResponse {
     private UUID orderId;
     private String receiverName;
     private String receiverPhone;
+    private String receiverIdentity;
     private String partialAddress;
     private LocalDateTime orderDate;
 }

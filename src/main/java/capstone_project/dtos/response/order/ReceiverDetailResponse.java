@@ -14,6 +14,7 @@ import java.util.UUID;
 public class ReceiverDetailResponse {
     private String receiverName;
     private String receiverPhone;
+    private String receiverIdentity;
     private UUID pickupAddressId;
     private UUID deliveryAddressId;
     private AddressResponse pickupAddress;

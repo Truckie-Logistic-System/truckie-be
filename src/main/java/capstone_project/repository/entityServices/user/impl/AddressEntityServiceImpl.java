@@ -36,6 +36,6 @@ public class AddressEntityServiceImpl implements AddressEntityService {
 
     @Override
     public List<AddressEntity> getAddressesByCustomerId(UUID customerId) {
-        return addressRepository.findByCustomerId(customerId);
+        return addressRepository.findAllByCustomerId(customerId);
     }
 }

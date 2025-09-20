@@ -42,6 +42,7 @@ public class ReceiverSuggestionMapper {
                 .orderId(entity.getId())
                 .receiverName(entity.getReceiverName())
                 .receiverPhone(entity.getReceiverPhone())
+                .receiverIdentity(entity.getReceiverIdentity())
                 .partialAddress(partialAddress)
                 .orderDate(entity.getCreatedAt())
                 .build();
