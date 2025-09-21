@@ -358,13 +358,11 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         // 3. Map VehicleTypeId -> List<OrderDetailId>
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
             UUID vehicleRuleId = response.getVehicleRuleId();
-
             VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
-
             UUID vehicleTypeId = vehicleRule.getVehicleTypeEntity().getId();
             mapVehicleTypeAndOrderDetail.put(vehicleTypeId, response.getAssignedDetails());
         }

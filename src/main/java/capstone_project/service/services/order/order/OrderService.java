@@ -53,4 +53,6 @@ public interface OrderService {
     StaffOrderForStaffResponse getOrderForStaffByOrderId(UUID orderId);
 
     boolean signContractAndOrder(UUID contractId);
+
+
 }

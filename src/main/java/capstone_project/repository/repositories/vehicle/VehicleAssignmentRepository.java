@@ -1,11 +1,14 @@
 package capstone_project.repository.repositories.vehicle;
 
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.repositories.common.BaseRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssignmentEntity> {
@@ -23,7 +26,7 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
         JOIN vehicles v ON v.id = va.vehicle_id
         JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
         LEFT JOIN order_details od ON od.vehicle_assignment_id = va.id
-        WHERE va.status = 'ACTIVE'
+        WHERE va.status = 'INACTIVE'
           AND vt.id = :vehicleTypeId
           AND va.id NOT IN (
               SELECT va.id
@@ -51,6 +54,29 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
             nativeQuery = true
     )
     List<VehicleAssignmentEntity> findVehicleAssignmentsWithOrderID(@Param("orderId") UUID orderID);
+
+    Optional<VehicleAssignmentEntity> findVehicleAssignmentByVehicleEntityAndStatus(VehicleEntity vehicleId, String status);
+
+    @Query("""
+    SELECT va
+    FROM VehicleAssignmentEntity va
+    WHERE va.vehicleEntity = :vehicle
+    ORDER BY va.createdAt DESC
+""")
+    List<VehicleAssignmentEntity> findAssignmentsByVehicleOrderByCreatedAtDesc(@Param("vehicle") VehicleEntity vehicle);
+
+    @Query("SELECT va.vehicleEntity.id, COUNT(va) " +
+            "FROM VehicleAssignmentEntity va " +
+            "WHERE va.createdAt >= :startOfMonth AND va.createdAt < :endOfMonth " +
+            "AND va.vehicleEntity.id IN :vehicleIds " +
+            "GROUP BY va.vehicleEntity.id")
+    List<Object[]> countAssignmentsThisMonthForVehicles(
+            @Param("vehicleIds") List<UUID> vehicleIds,
+            @Param("startOfMonth") LocalDateTime startOfMonth,
+            @Param("endOfMonth") LocalDateTime endOfMonth
+    );
+
+
 
 
 }

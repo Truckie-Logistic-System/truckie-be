@@ -3,6 +3,7 @@ package capstone_project.service.services.vehicle;
 
 import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
+import capstone_project.dtos.response.vehicle.SampleVehicleAssignmentResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 
 import java.util.List;
@@ -15,4 +16,5 @@ public interface VehicleAssignmentService {
     VehicleAssignmentResponse updateAssignment(UUID id, UpdateVehicleAssignmentRequest req);
     List<VehicleAssignmentResponse> getAllAssignmentsWithOrder(UUID vehicleType);
     List<VehicleAssignmentResponse> getListVehicleAssignmentByOrderID(UUID orderID);
+    List<SampleVehicleAssignmentResponse> getVehicleAndDriversForDetails(UUID orderID);
 }

@@ -1,7 +1,9 @@
 package capstone_project.service.services.user;
 
+import capstone_project.common.enums.VehicleTypeEnum;
 import capstone_project.dtos.request.user.UpdateDriverRequest;
 import capstone_project.dtos.response.user.DriverResponse;
+import capstone_project.entity.user.driver.DriverEntity;
 
 import java.util.List;
 import java.util.UUID;
@@ -19,4 +21,6 @@ public interface DriverService {
     DriverResponse updateDriver(UUID driverId, UpdateDriverRequest updateDriverRequest);
 
     DriverResponse updateDriverStatus(UUID driverId, String status);
+
+    boolean isCheckClassDriverLicenseForVehicleType(DriverEntity driver, VehicleTypeEnum vehicleType);
 }

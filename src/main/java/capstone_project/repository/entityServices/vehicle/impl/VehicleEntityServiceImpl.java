@@ -1,6 +1,7 @@
 package capstone_project.repository.entityServices.vehicle.impl;
 
 import capstone_project.entity.vehicle.VehicleEntity;
+import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.repository.repositories.vehicle.VehicleRepository;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,16 @@ public class VehicleEntityServiceImpl implements VehicleEntityService {
     @Override
     public Optional<VehicleEntity>  findVehicleDetailsById(UUID id) {
         return vehicleRepository.findVehicleWithJoinsById(id);
+    }
+
+    @Override
+    public List<VehicleEntity> getVehicleEntitiesByVehicleTypeEntity(VehicleTypeEntity vehicleTypeEntity) {
+        return vehicleRepository.getVehicleEntitiesByVehicleTypeEntity(vehicleTypeEntity);
+    }
+
+    @Override
+    public List<VehicleEntity> getVehicleEntitiesByVehicleTypeEntityAndStatus(VehicleTypeEntity vehicleTypeEntity, String status) {
+        return vehicleRepository.getVehicleEntitiesByVehicleTypeEntityAndStatus(vehicleTypeEntity,status);
     }
 
 }
