@@ -4,7 +4,6 @@ public record AddressRequest(
         String street,
         String ward,
         String province,
-        Boolean addressType,
-        String customerId
+        Boolean addressType
 ) {
 }

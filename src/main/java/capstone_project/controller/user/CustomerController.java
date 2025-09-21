@@ -56,6 +56,16 @@ public class CustomerController {
         return ResponseEntity.ok(ApiResponse.ok(cus));
     }
 
+    /**
+     * Get customer information for the currently authenticated user
+     * @return customer information for the current user
+     */
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<CustomerResponse>> getCurrentCustomer() {
+        final var customer = customerService.getCurrentCustomer();
+        return ResponseEntity.ok(ApiResponse.ok(customer));
+    }
+
     @PatchMapping("/{customerId}/status")
     public ResponseEntity<ApiResponse<CustomerResponse>> updateCustomerStatusByCustomerId(@PathVariable UUID customerId, @RequestParam String status) {
         final var cus = customerService.updateCustomerStatusByCustomerId(customerId, status);
