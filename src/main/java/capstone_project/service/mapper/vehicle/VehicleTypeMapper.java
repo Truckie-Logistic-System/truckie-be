@@ -9,6 +9,7 @@ import org.mapstruct.*;
 public interface VehicleTypeMapper {
 
     @Mapping(target = "id", source = "vehicleType.id")
+    @Mapping(target = "vehicleCount", ignore = true) // We'll set this value manually
     VehicleTypeResponse toVehicleTypeResponse(VehicleTypeEntity vehicleType);
 
     VehicleTypeEntity mapRequestToVehicleTypeEntity(VehicleTypeRequest vehicleTypeRequest);

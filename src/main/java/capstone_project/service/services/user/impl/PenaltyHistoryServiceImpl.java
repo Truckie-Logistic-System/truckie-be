@@ -29,6 +29,7 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
 
     private static final String CACHE_ALL = "penalties:all";
     private static final String CACHE_BY_ID = "penalty:";
+    private static final String CACHE_BY_DRIVER_ID = "penalties:driver:";
 
     @Override
     public List<PenaltyHistoryResponse> getAll() {
@@ -71,5 +72,14 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
         entityService.save(existing);               // or repository.delete(existing);
+    }
+
+    @Override
+    public List<PenaltyHistoryResponse> getByDriverId(UUID driverId) {
+        log.info("Getting penalty histories for driver ID: {}", driverId);
+        List<PenaltyHistoryEntity> penalties = entityService.findByDriverId(driverId);
+        return penalties.stream()
+                .map(mapper::toPenaltyHistoryResponse)
+                .toList();
     }
 }

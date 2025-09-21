@@ -22,5 +22,6 @@ public interface    VehicleRepository extends BaseRepository<VehicleEntity> {
         """, nativeQuery = true)
     Optional<VehicleEntity> findVehicleWithJoinsById(@Param("id") UUID id);
 
-
+    @Query("SELECT COUNT(v) FROM VehicleEntity v WHERE v.vehicleTypeEntity.id = :vehicleTypeId")
+    long countByVehicleTypeId(@org.springframework.data.repository.query.Param("vehicleTypeId") UUID vehicleTypeId);
 }

@@ -12,4 +12,5 @@ public interface PenaltyHistoryService {
     PenaltyHistoryResponse create(PenaltyHistoryRequest req);
     PenaltyHistoryResponse update(UUID id, PenaltyHistoryRequest req);
     void delete(UUID id);
+    List<PenaltyHistoryResponse> getByDriverId(UUID driverId);
 }
