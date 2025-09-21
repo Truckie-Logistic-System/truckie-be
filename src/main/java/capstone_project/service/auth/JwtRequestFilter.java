@@ -1,5 +1,6 @@
 package capstone_project.service.auth;
 
+import capstone_project.common.utils.CookieUtil;
 import capstone_project.common.utils.JWTUtil;
 import capstone_project.dtos.response.common.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,19 +27,31 @@ import java.io.IOException;
 public class JwtRequestFilter extends OncePerRequestFilter {
 
     private final AuthUserService authUserService;
+    private final CookieUtil cookieUtil;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         final String authorizationHeader = request.getHeader("Authorization");
+        // Also check for token in cookie
+        final String tokenFromCookie = cookieUtil.getCookieValue(request, "access_token");
 
         String username = null;
         String jwt = null;
 
         try {
+            // First try to get token from Authorization header
             if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
                 jwt = authorizationHeader.substring(7);
-                username = JWTUtil.extractUsername(jwt); // <-- có thể ném ExpiredJwtException tại đây
+            }
+            // If not found, try to get from cookie
+            else if (tokenFromCookie != null && !tokenFromCookie.isEmpty()) {
+                jwt = tokenFromCookie;
+            }
+
+            // Extract username if token is available
+            if (jwt != null) {
+                username = JWTUtil.extractUsername(jwt);
             }
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
