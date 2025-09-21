@@ -18,6 +18,7 @@ public record StaffOrderResponse(
     String orderCode,
     String receiverName,
     String receiverPhone,
+    String receiverIdentity,
     String packageDescription,
     LocalDateTime createdAt,
     String status,

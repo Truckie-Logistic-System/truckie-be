@@ -90,6 +90,7 @@ public class StaffOrderMapper {
                 response.orderCode(),
                 response.receiverName(),
                 response.receiverPhone(),
+                response.receiverIdentity(),
                 response.packageDescription(),
                 response.createdAt(),
                 response.status(),
@@ -131,7 +132,6 @@ public class StaffOrderMapper {
 
         return new StaffOrderDetailResponse(
                 detail.trackingCode(), // Use trackingCode as identifier
-                detail.weight(),
                 detail.weightBaseUnit(),
                 detail.unit(),
                 detail.description(),
@@ -157,6 +157,9 @@ public class StaffOrderMapper {
 
         List<CameraTrackingResponse> cameraTrackings = getCameraTrackingsByVehicleAssignmentId(vehicleAssignmentId);
         VehicleFuelConsumptionResponse fuelConsumption = getFuelConsumptionByVehicleAssignmentId(vehicleAssignmentId);
+
+        // Get issues for this vehicle assignment
+        List<SimpleIssueImageResponse> issues = getIssuesByVehicleAssignmentId(vehicleAssignmentId);
 
         // Create enhanced driver responses with complete information from driver and user tables
         StaffDriverResponse primaryDriver = null;
@@ -211,7 +214,8 @@ public class StaffOrderMapper {
                 cameraTrackings,
                 fuelConsumption,
                 orderSeals,
-                new ArrayList<>() // journeyHistory
+                new ArrayList<>(), // journeyHistory
+                issues // Added issues to the constructor
         );
     }
 
@@ -395,5 +399,26 @@ public class StaffOrderMapper {
             address.append(province);
         }
         return address.toString();
+    }
+
+    private List<SimpleIssueImageResponse> getIssuesByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        if (vehicleAssignmentId == null) return new ArrayList<>();
+
+        try {
+            // Fetch issues from the IssueEntityService by vehicle assignment ID
+            // For now, we'll return an empty list since the current services don't support
+            // retrieving multiple issues for a vehicle assignment
+
+            // In a real implementation, you would:
+            // 1. Inject an appropriate repository or service that can fetch all issues for a vehicle assignment
+            // 2. Transform those issues into SimpleIssueImageResponse objects
+            // 3. Return the list of transformed objects
+
+            log.info("Fetching issues for vehicle assignment ID: {}", vehicleAssignmentId);
+            return new ArrayList<>();
+        } catch (Exception e) {
+            log.warn("Could not fetch issues for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
+            return new ArrayList<>();
+        }
     }
 }

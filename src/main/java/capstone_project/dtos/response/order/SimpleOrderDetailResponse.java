@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 
 public record SimpleOrderDetailResponse(
     String id,
-    BigDecimal weight,
     BigDecimal weightBaseUnit,
     String unit,
     String description,

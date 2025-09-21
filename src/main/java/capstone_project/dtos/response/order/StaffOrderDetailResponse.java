@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
  */
 public record StaffOrderDetailResponse(
     String id,
-    BigDecimal weight,
     BigDecimal weightBaseUnit,
     String unit,
     String description,

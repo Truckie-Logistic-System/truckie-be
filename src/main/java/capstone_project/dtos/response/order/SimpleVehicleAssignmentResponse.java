@@ -13,10 +13,10 @@ public record SimpleVehicleAssignmentResponse(
     SimpleDriverResponse secondaryDriver,
     String status,
     // Trip-related information
-    SimpleIssueImageResponse issue,
+    List<SimpleIssueImageResponse> issues,
     List<String> photoCompletions,
     List<GetOrderSealResponse> orderSeals,
-    List<JourneyHistoryResponse> journeyHistory
+    List<JourneyHistoryResponse> journeyHistories
 ) {
     // Constructor for backward compatibility
     public SimpleVehicleAssignmentResponse(

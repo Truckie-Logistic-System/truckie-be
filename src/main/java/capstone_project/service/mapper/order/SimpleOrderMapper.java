@@ -131,6 +131,7 @@ public class SimpleOrderMapper {
                 response.orderCode(),
                 response.receiverName(),
                 response.receiverPhone(),
+                response.receiverIdentity(),
                 response.packageDescription(),
                 response.createdAt(),
                 response.status(),
@@ -236,7 +237,7 @@ public class SimpleOrderMapper {
                     primaryDriver,
                     secondaryDriver,
                     detail.vehicleAssignmentId().status(),
-                    issue,
+                    issue != null ? List.of(issue) : null,
                     photoCompletions,
                     orderSeals,
                     journeyHistory
@@ -245,7 +246,6 @@ public class SimpleOrderMapper {
 
         return new SimpleOrderDetailResponse(
                 detail.trackingCode(), // Using trackingCode as an identifier since there's no id field
-                detail.weight(),
                 detail.weightBaseUnit(),
                 detail.unit(),
                 detail.description(),
@@ -278,7 +278,6 @@ public class SimpleOrderMapper {
 
         return new SimpleOrderDetailResponse(
                 detail.trackingCode(),
-                detail.weight(),
                 detail.weightBaseUnit(),
                 detail.unit(),
                 detail.description(),
