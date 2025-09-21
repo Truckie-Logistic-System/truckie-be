@@ -6,7 +6,6 @@ import java.util.List;
 
 public record CreateRoomRequest(
         String orderId,
-        @NotNull(message = "Participants is required")
-        List<String> userIds
+        String userId
 ) {
 }

@@ -1,9 +1,6 @@
 package capstone_project.service.services.room.impl;
 
-import capstone_project.common.enums.CommonStatusEnum;
-import capstone_project.common.enums.ErrorEnum;
-import capstone_project.common.enums.MessageEnum;
-import capstone_project.common.enums.RoomEnum;
+import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.room.ChatMessageDTO;
@@ -46,9 +43,9 @@ public class ChatServiceImpl implements ChatService {
 
 
         // Reference tới subcollection messages của room tương ứng
-        CollectionReference messagesRef = firestore.collection("chats")
+        CollectionReference messagesRef = firestore.collection(FirebaseCollectionEnum.Rooms.name())
                 .document(messageRequest.roomId())
-                .collection("messages");
+                .collection(FirebaseCollectionEnum.Chats.name());
 
         // Tạo document mới (auto-generated ID)
         DocumentReference messageDoc = messagesRef.document();
@@ -63,7 +60,7 @@ public class ChatServiceImpl implements ChatService {
                 .status(MessageEnum.SENT.name())
                 .build();
 
-        ApiFuture<WriteResult> future = messageDoc.set(chatMapper.toChatResponseDTO(chatEntity));
+        ApiFuture<WriteResult> future = messageDoc.set(chatEntity);
 
         // Convert ApiFuture -> CompletableFuture
         return convertToCompletableFuture(future)
@@ -79,9 +76,9 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public ChatPageResponse getMessagesByRoomId(String roomId, int pageSize, String lastMessageId) throws ExecutionException, InterruptedException {
-        CollectionReference messagesRef = firestore.collection("rooms")
+        CollectionReference messagesRef = firestore.collection(FirebaseCollectionEnum.Rooms.name())
                 .document(roomId)
-                .collection("messages");
+                .collection(FirebaseCollectionEnum.Chats.name());
 
         Query query = messagesRef.orderBy("createdAt", Query.Direction.DESCENDING).limit(pageSize);
 
@@ -100,10 +97,10 @@ public class ChatServiceImpl implements ChatService {
         for (DocumentSnapshot doc : snapshot.getDocuments()) {
             messages.add(new ChatMessageDTO(
                     doc.getId(),
-                    doc.getString("senderId"),
-                    doc.getString("content"),
-                    doc.getLong("createdAt"),
-                    doc.getString("type")
+                    doc.getString(FirebaseCollectionEnum.senderId.name()),
+                    doc.getString(FirebaseCollectionEnum.content.name()),
+                    doc.getTimestamp(FirebaseCollectionEnum.createdAt.name()),
+                    doc.getString(FirebaseCollectionEnum.type.name())
             ));
         }
 
@@ -122,10 +119,10 @@ public class ChatServiceImpl implements ChatService {
         }
 
         // 1️⃣ Lấy danh sách room SUPPORT mà user là participant
-        CollectionReference roomsRef = firestore.collection("Rooms");
+        CollectionReference roomsRef = firestore.collection(FirebaseCollectionEnum.Rooms.name());
         ApiFuture<QuerySnapshot> futureRooms = roomsRef
-                .whereIn("type", List.of(RoomEnum.SUPPORT.name(), RoomEnum.SUPPORTED.name()))
-                .whereEqualTo("status", CommonStatusEnum.ACTIVE.name())
+                .whereIn(FirebaseCollectionEnum.type.name(), List.of(RoomEnum.SUPPORT.name(), RoomEnum.SUPPORTED.name()))
+                .whereEqualTo(FirebaseCollectionEnum.status.name(), CommonStatusEnum.ACTIVE.name())
                 .get();
 
         List<QueryDocumentSnapshot> roomDocs = futureRooms.get().getDocuments();
@@ -140,11 +137,11 @@ public class ChatServiceImpl implements ChatService {
         }
 
         // 2️⃣ Lấy message từ tất cả room đó, orderBy createdAt DESC, paging
-        CollectionReference messagesRef = firestore.collection("Rooms")
+        CollectionReference messagesRef = firestore.collection(FirebaseCollectionEnum.Rooms.name())
                 .document(roomIds.get(0)) // nếu muốn lấy theo room cụ thể, bạn có thể pass roomId vào param
-                .collection("messages");
+                .collection(FirebaseCollectionEnum.Chats.name());
 
-        Query query = messagesRef.orderBy("createdAt", Query.Direction.DESCENDING)
+        Query query = messagesRef.orderBy(FirebaseCollectionEnum.createdAt.name(), Query.Direction.DESCENDING)
                 .limit(pageSize);
 
         if (lastMessageId != null && !lastMessageId.isEmpty()) {
@@ -161,10 +158,10 @@ public class ChatServiceImpl implements ChatService {
         for (DocumentSnapshot doc : snapshot.getDocuments()) {
             messages.add(new ChatMessageDTO(
                     doc.getId(),
-                    doc.getString("senderId"),
-                    doc.getString("content"),
-                    doc.getLong("createdAt"),
-                    doc.getString("type")
+                    doc.getString(FirebaseCollectionEnum.senderId.name()),
+                    doc.getString(FirebaseCollectionEnum.content.name()),
+                    doc.getTimestamp(FirebaseCollectionEnum.createdAt.name()),
+                    doc.getString(FirebaseCollectionEnum.type.name())
             ));
         }
 

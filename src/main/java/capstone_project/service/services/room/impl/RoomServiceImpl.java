@@ -10,13 +10,16 @@ import capstone_project.entity.chat.ParticipantInfo;
 import capstone_project.entity.chat.RoomEntity;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
+import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.room.RoomMapper;
 import capstone_project.service.services.room.ChatService;
 import capstone_project.service.services.room.RoomService;
 import com.google.api.core.ApiFuture;
+import com.google.cloud.Role;
 import com.google.cloud.firestore.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +39,7 @@ public class RoomServiceImpl implements RoomService {
     private final UserEntityService userEntityService;
     private final OrderEntityService orderEntityService;
     private final ContractEntityService contractEntityService;
+    private final CustomerEntityService customerEntityService;
     private final ChatService chatService;
 
 
@@ -60,7 +64,7 @@ public class RoomServiceImpl implements RoomService {
             roomType = RoomEnum.SUPPORT.name(); // hoặc FREE_CHAT
 
             // Chỉ có customerId trong participants
-            UUID customerUuid = UUID.fromString(request.userIds().get(0));
+            UUID customerUuid = UUID.fromString(request.userId());
             UserEntity customer = userEntityService.findEntityById(customerUuid)
                     .orElseThrow(() -> new BadRequestException("Customer not found", ErrorEnum.NOT_FOUND.getErrorCode()));
 
@@ -87,22 +91,30 @@ public class RoomServiceImpl implements RoomService {
 
             // Lấy customer + staff trong order để đưa vào participants
             UUID customerId = order.getSender().getId();
+            CustomerEntity customer = customerEntityService.findEntityById(customerId)
+                    .orElseThrow(() -> new NotFoundException("Customer not found", ErrorEnum.NOT_FOUND.getErrorCode()));
             UUID staffId = contract.get().getStaff().getId();
 
-            List<UUID> uuidList = Arrays.asList(customerId, staffId);
+            List<UUID> uuidList = Arrays.asList(customer.getUser().getId(), staffId);
             Map<UUID, UserEntity> userMap = userEntityService.findAllByIdIn(uuidList)
                     .stream().collect(Collectors.toMap(UserEntity::getId, Function.identity()));
 
             for (UUID uid : uuidList) {
                 UserEntity user = userMap.get(uid);
+                if (user == null) {
+                    // Xử lý khi user không tồn tại
+                    log.warn("User not found for id: {}", uid);
+                    continue; // hoặc ném exception tùy logic
+                }
                 ParticipantInfo p = new ParticipantInfo();
                 p.setUserId(uid.toString());
-                p.setRoleName(user.getRole().getRoleName());
+                p.setRoleName(user.getRole() != null ? user.getRole().getRoleName() : "UNKNOWN");
                 participantInfoList.add(p);
             }
+
         }
         // -------- Lưu vào Firestore ----------
-        CollectionReference rooms = firestore.collection("Rooms");
+        CollectionReference rooms = firestore.collection(FirebaseCollectionEnum.Rooms.name());
         DocumentReference roomDoc = rooms.document();
 
         RoomEntity room = RoomEntity.builder()
@@ -133,8 +145,8 @@ public class RoomServiceImpl implements RoomService {
             );
         }
         try {
-            CollectionReference rooms = firestore.collection("Rooms");
-            Query query = rooms.whereEqualTo("orderId", orderId.toString());
+            CollectionReference rooms = firestore.collection(FirebaseCollectionEnum.Rooms.name());
+            Query query = rooms.whereEqualTo(FirebaseCollectionEnum.orderId.name(), orderId.toString());
             ApiFuture<QuerySnapshot> querySnapshot = query.get();
             List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();
             if (documents.isEmpty()) {
@@ -144,7 +156,7 @@ public class RoomServiceImpl implements RoomService {
                 );
             }
             for (QueryDocumentSnapshot doc : documents) {
-                doc.getReference().update("status", CommonStatusEnum.INACTIVE.name());
+                doc.getReference().update(FirebaseCollectionEnum.status.name(), CommonStatusEnum.INACTIVE.name());
                 log.info("Room [{}] status set to UN_ACTIVE", doc.getId());
             }
             return true;
@@ -165,8 +177,8 @@ public class RoomServiceImpl implements RoomService {
         }
         List<RoomEntity> result = new ArrayList<>();
         try {
-            CollectionReference rooms = firestore.collection("Rooms");
-            Query query = rooms.whereEqualTo("status", CommonStatusEnum.ACTIVE.name());
+            CollectionReference rooms = firestore.collection(FirebaseCollectionEnum.Rooms.name());
+            Query query = rooms.whereEqualTo(FirebaseCollectionEnum.status.name(), CommonStatusEnum.ACTIVE.name());
             ApiFuture<QuerySnapshot> querySnapshot = query.get();
             List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();
 
@@ -187,16 +199,16 @@ public class RoomServiceImpl implements RoomService {
     @Override
     public List<CreateRoomResponse> getListSupportRoomsForStaff() {
         try {
-            ApiFuture<QuerySnapshot> future = firestore.collection("Rooms")
-                    .whereEqualTo("type", RoomEnum.SUPPORT.name())
-                    .whereEqualTo("status", CommonStatusEnum.ACTIVE.name())
+            ApiFuture<QuerySnapshot> future = firestore.collection(FirebaseCollectionEnum.Rooms.name())
+                    .whereIn(FirebaseCollectionEnum.type.name(), Arrays.asList(RoomEnum.SUPPORT.name(), RoomEnum.SUPPORTED.name()))
+                    .whereEqualTo(FirebaseCollectionEnum.status.name(), CommonStatusEnum.ACTIVE.name())
                     .get();
 
             List<QueryDocumentSnapshot> docs = future.get().getDocuments();
 
             List<RoomEntity> supportRooms = docs.stream()
                     .map(doc -> doc.toObject(RoomEntity.class))
-                    .filter(room -> room.getParticipants() != null && room.getParticipants().size() == 1)
+                    .filter(room -> room.getParticipants() != null )
                     .toList();
 
             return roomMapper.toCreateRoomResponseList(supportRooms);
@@ -213,7 +225,7 @@ public class RoomServiceImpl implements RoomService {
     public boolean joinRoom(String roomId, UUID staffId) {
         try {
             firestore.runTransaction(transaction -> {
-                DocumentReference roomRef = firestore.collection("Rooms").document(roomId);
+                DocumentReference roomRef = firestore.collection(FirebaseCollectionEnum.Rooms.name()).document(roomId);
                 DocumentSnapshot snapshot = transaction.get(roomRef).get();
 
                 if (!snapshot.exists()) {
@@ -238,8 +250,8 @@ public class RoomServiceImpl implements RoomService {
                 updatedParticipants.add(staffParticipant);
 
                 Map<String, Object> updates = new HashMap<>();
-                updates.put("participants", updatedParticipants);
-                updates.put("type", RoomEnum.SUPPORTED.name());
+                updates.put(FirebaseCollectionEnum.participants.name(), updatedParticipants);
+                updates.put(FirebaseCollectionEnum.type.name(), RoomEnum.SUPPORTED.name());
 
                 transaction.update(roomRef, updates);
 
@@ -268,8 +280,8 @@ public class RoomServiceImpl implements RoomService {
             );
         }
         try {
-            CollectionReference rooms = firestore.collection("Rooms");
-            Query query = rooms.whereEqualTo("orderId", orderId.toString());
+            CollectionReference rooms = firestore.collection(FirebaseCollectionEnum.Rooms.name());
+            Query query = rooms.whereEqualTo(FirebaseCollectionEnum.orderId.name(), orderId.toString());
             ApiFuture<QuerySnapshot> querySnapshot = query.get();
             List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();
             if (documents.isEmpty()) {
@@ -279,7 +291,7 @@ public class RoomServiceImpl implements RoomService {
                 );
             }
             for (QueryDocumentSnapshot doc : documents) {
-                doc.getReference().update("status", CommonStatusEnum.ACTIVE.name());
+                doc.getReference().update(FirebaseCollectionEnum.status.name(), CommonStatusEnum.ACTIVE.name());
                 log.info("Room [{}] status set to ACTIVE", doc.getId());
             }
             return true;
@@ -297,12 +309,17 @@ public class RoomServiceImpl implements RoomService {
     @Override
     public boolean isCustomerHasRoomSupported(UUID userId) {
         try {
-            CollectionReference roomsRef = firestore.collection("rooms");
+            CollectionReference roomsRef = firestore.collection(FirebaseCollectionEnum.Rooms.name());
+
+            Map<String, Object> participantQuery = new HashMap<>();
+            participantQuery.put(FirebaseCollectionEnum.userId.name(), userId.toString());
+            participantQuery.put(FirebaseCollectionEnum.roleName.name(), RoleTypeEnum.CUSTOMER.name());
 
             // Query phòng có type = SUPPORTED và có userId trong participants
             ApiFuture<QuerySnapshot> future = roomsRef
-                    .whereIn("type", Arrays.asList(RoomEnum.SUPPORT.name(), RoomEnum.SUPPORTED.name()))
-                    .whereArrayContains("participantIds", userId.toString())
+                    .whereIn(FirebaseCollectionEnum.type.name(), Arrays.asList(RoomEnum.SUPPORT.name(), RoomEnum.SUPPORTED.name()))
+                    .whereArrayContains(FirebaseCollectionEnum.participants.name(), participantQuery )
+                    .whereEqualTo(FirebaseCollectionEnum.status.name(), CommonStatusEnum.ACTIVE.name())
                     .limit(1)
                     .get();
 

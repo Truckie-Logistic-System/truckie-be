@@ -17,8 +17,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
-//@RestController
-//@RequestMapping("${chat.api.base-path}")
+@RestController
+@RequestMapping("${chat.api.base-path}")
 @Controller
 @RequiredArgsConstructor
 public class ChatController {
@@ -48,7 +48,7 @@ public class ChatController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/rooms/{userId}/messages-supported")
+    @GetMapping("/{userId}/messages-supported")
     public ResponseEntity<ChatPageResponse> getMessagesSupportedForCustomer(
             @PathVariable UUID userId,
             @RequestParam(defaultValue = "10") int pageSize,
