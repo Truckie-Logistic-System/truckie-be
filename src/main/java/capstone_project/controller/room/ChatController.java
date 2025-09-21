@@ -25,6 +25,8 @@ public class ChatController {
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatService chatService;
 
+
+    //Đây là api để send message realtime và lưu vào firebase
     @MessageMapping("/chat.sendMessage/{roomId}")
     public void handleChatMessage(
             @DestinationVariable String roomId,
@@ -38,6 +40,7 @@ public class ChatController {
                 });
     }
 
+    //Đây là lấy tất cả messages từ roomID
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<ChatPageResponse> getMessages(
             @PathVariable String roomId,
@@ -48,6 +51,11 @@ public class ChatController {
         return ResponseEntity.ok(response);
     }
 
+
+    //Đây là api lấy tất cả messegas dành cho customer mà customer đó nhắn trên system để tư vấn (những loại tin nhắn này thuộc về RoomType
+    // SUPPORT(là chỉ customer nhắn nhưng chưa được reply vì staff chưa được assign vào room chat đó)
+    // và SUPPORTED(là room chat đã được assign staff vào))
+    // , chỉ dành cho customer
     @GetMapping("/{userId}/messages-supported")
     public ResponseEntity<ChatPageResponse> getMessagesSupportedForCustomer(
             @PathVariable UUID userId,
