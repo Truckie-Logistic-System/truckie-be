@@ -3,6 +3,7 @@ package capstone_project.controller.vehicle;
 import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
 import capstone_project.dtos.response.common.ApiResponse;
+import capstone_project.dtos.response.vehicle.SampleVehicleAssignmentResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
 import jakarta.validation.Valid;
@@ -59,6 +60,14 @@ public class VehicleAssignmentController {
             @PathVariable UUID orderId) {
 
         List<VehicleAssignmentResponse> response = service.getListVehicleAssignmentByOrderID(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    @GetMapping("/{orderId}/suggest-drivers-and-vehicle-for-details")
+    public ResponseEntity<ApiResponse<List<SampleVehicleAssignmentResponse>>> getListAssignVehicleAssignmentByOrderId(
+            @PathVariable UUID orderId) {
+
+        List<SampleVehicleAssignmentResponse> response = service.getVehicleAndDriversForDetails(orderId);
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 }

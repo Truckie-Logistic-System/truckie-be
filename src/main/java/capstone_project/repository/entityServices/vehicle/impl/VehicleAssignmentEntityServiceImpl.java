@@ -1,11 +1,13 @@
 package capstone_project.repository.entityServices.vehicle.impl;
 
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.repositories.vehicle.VehicleAssignmentRepository;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -49,6 +51,23 @@ public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEnti
     @Override
     public List<VehicleAssignmentEntity> findVehicleAssignmentsWithOrderID(UUID orderID) {
         return vehicleAssignmentRepository.findVehicleAssignmentsWithOrderID(orderID);
+    }
+
+    @Override
+    public Optional<VehicleAssignmentEntity> findVehicleAssignmentByVehicleEntityAndStatus(VehicleEntity vehicle, String status) {
+        return vehicleAssignmentRepository.findVehicleAssignmentByVehicleEntityAndStatus(vehicle,status);
+    }
+
+    @Override
+    public List<VehicleAssignmentEntity> findAssignmentsByVehicleOrderByCreatedAtDesc(VehicleEntity vehicle) {
+        return vehicleAssignmentRepository.findAssignmentsByVehicleOrderByCreatedAtDesc(vehicle);
+    }
+
+    @Override
+    public  List<Object[]> countAssignmentsThisMonthForVehicles(List<UUID> vehicleIds,
+                                                                LocalDateTime startOfMonth,
+                                                                LocalDateTime endOfMonth) {
+        return vehicleAssignmentRepository.countAssignmentsThisMonthForVehicles(vehicleIds,startOfMonth,endOfMonth);
     }
 
 

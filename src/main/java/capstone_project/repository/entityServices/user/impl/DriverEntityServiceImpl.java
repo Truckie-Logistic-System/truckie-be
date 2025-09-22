@@ -40,4 +40,9 @@ public class DriverEntityServiceImpl implements DriverEntityService {
     public Optional<DriverEntity> findByUserId(UUID userId) {
         return driverRepository.findByUserId(userId);
     }
+
+    @Override
+    public List<DriverEntity> findByStatus(String status) {
+        return driverRepository.findByStatus(status);
+    }
 }

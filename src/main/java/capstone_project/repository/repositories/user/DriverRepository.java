@@ -12,4 +12,6 @@ public interface DriverRepository extends BaseRepository<DriverEntity> {
 
     Optional<DriverEntity> findByUserId(UUID userId);
 
+    List<DriverEntity> findByStatus(String status);
+
 }

@@ -11,4 +11,6 @@ public interface DriverEntityService extends BaseEntityService<DriverEntity, UUI
     List<DriverEntity> findByUser_Role_RoleName(String userRoleRoleName);
 
     Optional<DriverEntity> findByUserId(UUID userId);
+
+    List<DriverEntity> findByStatus(String status);
 }

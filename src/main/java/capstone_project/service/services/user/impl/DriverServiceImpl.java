@@ -1,13 +1,17 @@
 package capstone_project.service.services.user.impl;
 
+import capstone_project.common.enums.DriverLicenseClassEnum;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.UserStatusEnum;
+import capstone_project.common.enums.VehicleTypeEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.dtos.request.user.UpdateDriverRequest;
 import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.dtos.response.user.PenaltyHistoryResponse;
 import capstone_project.entity.user.driver.DriverEntity;
+import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.repository.entityServices.user.DriverEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.user.PenaltyHistoryService;
@@ -15,7 +19,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -24,6 +30,7 @@ import java.util.UUID;
 public class DriverServiceImpl implements DriverService {
 
     private final DriverEntityService driverEntityService;
+    private final VehicleTypeEntityService vehicleTypeEntityService;
     private final DriverMapper driverMapper;
     private final PenaltyHistoryService penaltyHistoryService;
 
@@ -162,6 +169,42 @@ public class DriverServiceImpl implements DriverService {
         DriverEntity updatedDriver = driverEntityService.save(driverEntity);
         return driverMapper.mapDriverResponse(updatedDriver);
     }
+
+    @Override
+    public boolean isCheckClassDriverLicenseForVehicleType(DriverEntity driver, VehicleTypeEnum vehicleType) {
+        return getEligibleVehicleTypes(driver).contains(vehicleType);
+    }
+
+    private Set<VehicleTypeEnum> getEligibleVehicleTypes(DriverEntity driver) {
+        if (driver.getLicenseClass() == null) {
+            return Set.of(); // Không có bằng lái
+        }
+
+        try {
+            DriverLicenseClassEnum licenseClassEnum =
+                    DriverLicenseClassEnum.valueOf(driver.getLicenseClass().toUpperCase());
+            switch (licenseClassEnum) {
+                case C1:
+                    return EnumSet.of(
+                            VehicleTypeEnum.TRUCK_0_5_TON,
+                            VehicleTypeEnum.TRUCK_1_25_TON,
+                            VehicleTypeEnum.TRUCK_1_9_TON,
+                            VehicleTypeEnum.TRUCK_2_4_TONN,
+                            VehicleTypeEnum.TRUCK_3_5_TON,
+                            VehicleTypeEnum.TRUCK_5_TON,
+                            VehicleTypeEnum.TRUCK_7_TON
+                    );
+                case C:
+                    return EnumSet.allOf(VehicleTypeEnum.class); // full quyền
+                default:
+                    return Set.of();
+            }
+        } catch (IllegalArgumentException e) {
+            // Trường hợp DB lưu rác, không mapping được enum
+            return Set.of();
+        }
+    }
+
 
     @Override
     public List<DriverResponse> getAllDriversByUserRoleName(String roleName) {
