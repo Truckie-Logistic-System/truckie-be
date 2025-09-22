@@ -9,7 +9,6 @@ import capstone_project.dtos.request.user.UpdateDriverRequest;
 import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.dtos.response.user.PenaltyHistoryResponse;
 import capstone_project.entity.user.driver.DriverEntity;
-import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.user.DriverMapper;
@@ -184,7 +183,7 @@ public class DriverServiceImpl implements DriverService {
             DriverLicenseClassEnum licenseClassEnum =
                     DriverLicenseClassEnum.valueOf(driver.getLicenseClass().toUpperCase());
             switch (licenseClassEnum) {
-                case C1:
+                case B2:
                     return EnumSet.of(
                             VehicleTypeEnum.TRUCK_0_5_TON,
                             VehicleTypeEnum.TRUCK_1_25_TON,

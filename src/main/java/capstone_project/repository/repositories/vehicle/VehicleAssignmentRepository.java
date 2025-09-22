@@ -76,7 +76,6 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
             @Param("endOfMonth") LocalDateTime endOfMonth
     );
 
-
-
-
+    boolean existsByDriver1IdAndStatus(UUID driverId, String status);
+    boolean existsByDriver2IdAndStatus(UUID driverId, String status);
 }

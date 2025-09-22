@@ -26,5 +26,5 @@ public interface VehicleAssignmentEntityService extends BaseEntityService<Vehicl
     List<Object[]> countAssignmentsThisMonthForVehicles(List<UUID> vehicleIds,
                                                         LocalDateTime startOfMonth,
                                                         LocalDateTime endOfMonth);
-
+    boolean existsActiveAssignmentForDriver(UUID driverId);
 }

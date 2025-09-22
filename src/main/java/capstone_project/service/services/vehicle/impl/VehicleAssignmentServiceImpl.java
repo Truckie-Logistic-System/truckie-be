@@ -34,6 +34,7 @@ import capstone_project.service.services.order.order.ContractRuleService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
+import capstone_project.dtos.response.vehicle.SimplifiedVehicleAssignmentResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -171,9 +172,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     public List<SampleVehicleAssignmentResponse> getVehicleAndDriversForDetails(UUID orderID) {
         List<SampleVehicleAssignmentResponse> sampleVehicleAssignmentResponses = new ArrayList<>();
 
-        OrderEntity order =  orderEntityService.findEntityById(orderID)
+        OrderEntity order = orderEntityService.findEntityById(orderID)
                 .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage()+ " Order",
+                        ErrorEnum.NOT_FOUND.getMessage() + " Order",
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
@@ -187,96 +188,119 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         ListContractRuleAssignResult assignResult =
                 contractRuleService.getListAssignOrUnAssignContractRule(contractEntity.getId());
 
-        if(!order.getStatus().equals(OrderStatusEnum.ON_PLANNING.name())){
+        if (!order.getStatus().equals(OrderStatusEnum.ON_PLANNING.name())) {
             throw new NotFoundException("Đơn hàng chưa phải là ON_PLANNING",
                     ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode());
         }
 
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
             UUID vehicleRuleId = response.getVehicleRuleId();
-
             VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
-
-            //Lay loai xe conver thanh ENUM de check tai xe co quyen lay chiec xe do khong
             VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(vehicleRule.getVehicleTypeEntity().getVehicleTypeName());
-
-            //Lay vehicles tu vehicleType sau do loai tru nhung vehicle dang active trong VehicleAssignment
             List<VehicleEntity> getVehiclesByVehicleType = vehicleEntityService.getVehicleEntitiesByVehicleTypeEntityAndStatus(vehicleRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name());
-            List<UUID> vehicleIds = new ArrayList<>();
-            for(VehicleEntity vehicle : getVehiclesByVehicleType){
-                vehicleIds.add(vehicle.getId());
-            }
-            //Lay list UUID vehicleId duoc sap xep
+            log.info("Tìm thấy {} xe ACTIVE cho loại {}", getVehiclesByVehicleType.size(), vehicleTypeEnum);
+            List<UUID> vehicleIds = getVehiclesByVehicleType.stream().map(VehicleEntity::getId).toList();
             for (UUID vehicleId : sortVehiclesByUsageThisMonth(vehicleIds)) {
                 Map<VehicleResponse, List<DriverResponse>> sampleVehicleAssignment = new HashMap<>();
                 VehicleEntity vehicle = vehicleEntityService.findEntityById(vehicleId).get();
-                //Check xem co loai vehicle nao cung Type dang hoat dong o assignment khong, neu co thi khong lay
-                Optional<VehicleAssignmentEntity> activeAssignment =
-                        entityService.findVehicleAssignmentByVehicleEntityAndStatus(vehicle, CommonStatusEnum.ACTIVE.name());
-
-                if (activeAssignment.isEmpty()) {
-                    List<VehicleAssignmentEntity> pastAssignments =
-                            entityService.findAssignmentsByVehicleOrderByCreatedAtDesc(vehicle);
-
-                    //Check  record vehicleAssignment gan nhat de lay 2 driver duaj vao vehicleID
-                    List<DriverEntity> selectedDrivers = new ArrayList<>();
-
-                    if (!pastAssignments.isEmpty()) {
-                        // Lấy assignment gần nhất
-                        VehicleAssignmentEntity lastAssignment = pastAssignments.get(0);
-
-                        DriverEntity driver1 = lastAssignment.getDriver1();
-                        DriverEntity driver2 = lastAssignment.getDriver2();
-
-                        if (driver1 != null && CommonStatusEnum.ACTIVE.name().equals(driver1.getStatus())) {
-                            selectedDrivers.add(driver1);
-                        }
-                        if (driver2 != null && CommonStatusEnum.ACTIVE.name().equals(driver2.getStatus())) {
-                            selectedDrivers.add(driver2);
-                        }
-                    }
-
-                    // Nếu chưa có lastAssignment hoặc chưa đủ tài xế thì bổ sung thêm
-                    if (selectedDrivers.size() < 2) {
-                        List<DriverEntity> availableDrivers =
-                                driverEntityService.findByStatus(CommonStatusEnum.ACTIVE.name());
-
-                        for (DriverEntity d : availableDrivers) {
-                            if (selectedDrivers.size() >= 2) break;
-                            if (!selectedDrivers.contains(d) &&
-                                    driverService.isCheckClassDriverLicenseForVehicleType(d, vehicleTypeEnum)) {
-                                selectedDrivers.add(d);
-                            }
-                        }
-                    }
-
-                    // Nếu cuối cùng có tài xế thì put vào map
-                    if (!selectedDrivers.isEmpty()) {
-                        List<DriverResponse> driverResponses = selectedDrivers.stream()
-                                .map(driverMapper::mapDriverResponse)
-                                .toList();
-
-                        sampleVehicleAssignment.put(vehicleMapper.toResponse(vehicle), driverResponses);
-                    }
-
+                Optional<VehicleAssignmentEntity> activeAssignment = entityService.findVehicleAssignmentByVehicleEntityAndStatus(vehicle, CommonStatusEnum.ACTIVE.name());
+                if (activeAssignment.isPresent()) {
+                    continue;
                 }
-
-
+                List<DriverEntity> availableDrivers = driverEntityService.findByStatus(CommonStatusEnum.ACTIVE.name())
+                        .stream()
+                        .filter(d -> driverService.isCheckClassDriverLicenseForVehicleType(d, vehicleTypeEnum))
+                        .filter(d -> !entityService.existsActiveAssignmentForDriver(d.getId()))
+                        .toList();
+                log.info("Tìm thấy {} tài xế ACTIVE hợp lệ cho xe {}", availableDrivers.size(), vehicle.getId());
+                List<DriverEntity> selectedDrivers = new ArrayList<>();
+                List<VehicleAssignmentEntity> pastAssignments = entityService.findAssignmentsByVehicleOrderByCreatedAtDesc(vehicle);
+                if (!pastAssignments.isEmpty()) {
+                    VehicleAssignmentEntity lastAssignment = pastAssignments.get(0);
+                    DriverEntity driver1 = lastAssignment.getDriver1();
+                    DriverEntity driver2 = lastAssignment.getDriver2();
+                    if (driver1 != null && CommonStatusEnum.ACTIVE.name().equals(driver1.getStatus()) &&
+                            driverService.isCheckClassDriverLicenseForVehicleType(driver1, vehicleTypeEnum) &&
+                            !entityService.existsActiveAssignmentForDriver(driver1.getId())) {
+                        selectedDrivers.add(driver1);
+                    }
+                    if (driver2 != null && CommonStatusEnum.ACTIVE.name().equals(driver2.getStatus()) &&
+                            driverService.isCheckClassDriverLicenseForVehicleType(driver2, vehicleTypeEnum) &&
+                            !entityService.existsActiveAssignmentForDriver(driver2.getId()) &&
+                            !selectedDrivers.contains(driver2)) {
+                        selectedDrivers.add(driver2);
+                    }
+                }
+                // Luôn bổ sung từ availableDrivers cho đủ 2 tài xế
+                for (DriverEntity d : availableDrivers) {
+                    if (selectedDrivers.size() >= 2) break;
+                    if (!selectedDrivers.contains(d)) {
+                        selectedDrivers.add(d);
+                    }
+                }
+                log.info("Chọn được {} tài xế cho xe {}", selectedDrivers.size(), vehicle.getId());
+                if (selectedDrivers.size() == 2) {
+                    List<DriverResponse> driverResponses = selectedDrivers.stream()
+                            .map(driverMapper::mapDriverResponse)
+                            .toList();
+                    sampleVehicleAssignment.put(vehicleMapper.toResponse(vehicle), driverResponses);
+                }
                 if (!sampleVehicleAssignment.isEmpty()) {
                     sampleVehicleAssignmentResponses.add(
                             new SampleVehicleAssignmentResponse(response.getAssignedDetails(), sampleVehicleAssignment)
                     );
                 }
             }
+        }
+        if (sampleVehicleAssignmentResponses.isEmpty()) {
+            log.warn("Không tìm được cặp xe và tài xế phù hợp cho order {}", orderID);
+        }
+        return sampleVehicleAssignmentResponses;
+    }
 
+    /**
+     * Chuyển đổi response phức tạp sang response đơn giản hóa
+     */
+    public SimplifiedVehicleAssignmentResponse convertToSimplifiedResponse(List<SampleVehicleAssignmentResponse> responses) {
+        List<SimplifiedVehicleAssignmentResponse.VehicleSuggestionDTO> vehicleSuggestions = new ArrayList<>();
 
+        for (SampleVehicleAssignmentResponse response : responses) {
+            for (Map.Entry<VehicleResponse, List<DriverResponse>> entry : response.sampleVehicleAssignment().entrySet()) {
+                VehicleResponse vehicleResponse = entry.getKey();
+                List<DriverResponse> driverResponses = entry.getValue();
+
+                List<SimplifiedVehicleAssignmentResponse.DriverSuggestionDTO> driverSuggestionDTOs = driverResponses.stream()
+                        .map(driver -> new SimplifiedVehicleAssignmentResponse.DriverSuggestionDTO(
+                                UUID.fromString(driver.getId()),
+                                driver.getUserResponse().getFullName(),
+                                driver.getDriverLicenseNumber(),
+                                driver.getLicenseClass()
+                        ))
+                        .toList();
+
+                vehicleSuggestions.add(
+                        new SimplifiedVehicleAssignmentResponse.VehicleSuggestionDTO(
+                                UUID.fromString(vehicleResponse.id()),
+                                vehicleResponse.licensePlateNumber(),
+                                vehicleResponse.model(),
+                                vehicleResponse.manufacturer(),
+                                driverSuggestionDTOs
+                        )
+                );
+            }
         }
 
-        return sampleVehicleAssignmentResponses;
+        return new SimplifiedVehicleAssignmentResponse(vehicleSuggestions);
+    }
+
+    @Override
+    public SimplifiedVehicleAssignmentResponse getSimplifiedSuggestionsForOrder(UUID orderID) {
+        List<SampleVehicleAssignmentResponse> responses = getVehicleAndDriversForDetails(orderID);
+        return convertToSimplifiedResponse(responses);
     }
 
     private List<UUID> sortVehiclesByUsageThisMonth(List<UUID> vehicleIds) {

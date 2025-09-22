@@ -70,5 +70,9 @@ public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEnti
         return vehicleAssignmentRepository.countAssignmentsThisMonthForVehicles(vehicleIds,startOfMonth,endOfMonth);
     }
 
-
+    @Override
+    public boolean existsActiveAssignmentForDriver(UUID driverId) {
+        return vehicleAssignmentRepository.existsByDriver1IdAndStatus(driverId, "ACTIVE") ||
+               vehicleAssignmentRepository.existsByDriver2IdAndStatus(driverId, "ACTIVE");
+    }
 }

@@ -4,6 +4,7 @@ import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.vehicle.SampleVehicleAssignmentResponse;
+import capstone_project.dtos.response.vehicle.SimplifiedVehicleAssignmentResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
 import jakarta.validation.Valid;
@@ -63,11 +64,16 @@ public class VehicleAssignmentController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
+    /**
+     * Endpoint trả về danh sách đề xuất xe và tài xế cho order với định dạng đơn giản hóa
+     *
+     * @param orderId ID của đơn hàng
+     * @return Danh sách đề xuất xe và tài xế đã được đơn giản hóa
+     */
     @GetMapping("/{orderId}/suggest-drivers-and-vehicle-for-details")
-    public ResponseEntity<ApiResponse<List<SampleVehicleAssignmentResponse>>> getListAssignVehicleAssignmentByOrderId(
+    public ResponseEntity<ApiResponse<SimplifiedVehicleAssignmentResponse>> getSimplifiedSuggestions(
             @PathVariable UUID orderId) {
-
-        List<SampleVehicleAssignmentResponse> response = service.getVehicleAndDriversForDetails(orderId);
+        SimplifiedVehicleAssignmentResponse response = service.getSimplifiedSuggestionsForOrder(orderId);
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 }

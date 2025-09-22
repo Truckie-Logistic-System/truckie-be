@@ -7,9 +7,7 @@ import capstone_project.dtos.request.vehicle.VehicleTypeRequest;
 import capstone_project.dtos.response.vehicle.VehicleTypeResponse;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
-import capstone_project.repository.repositories.vehicle.VehicleRepository;
 import capstone_project.service.mapper.vehicle.VehicleTypeMapper;
-import capstone_project.service.mapper.vehicle.VehicleTypeMapperHelper;
 import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.vehicle.VehicleTypeService;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +27,6 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
     private final VehicleTypeEntityService vehicleTypeEntityService;
     private final VehicleTypeMapper vehicleTypeMapper;
     private final RedisService redisService;
-    private final VehicleRepository vehicleRepository;
 
     private static final String VEHICLE_TYPE_ALL_CACHE_KEY = "vehicleTypes:all";
     private static final String VEHICLE_TYPE_BY_ID_CACHE_KEY_PREFIX = "vehicleType:";
@@ -57,26 +54,8 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
             redisService.save(VEHICLE_TYPE_ALL_CACHE_KEY, entities);
         }
 
-        // Map entities to responses with vehicle counts
         return entities.stream()
-                .map(entity -> {
-                    // Get the base response from the mapper
-                    VehicleTypeResponse baseResponse = vehicleTypeMapper.toVehicleTypeResponse(entity);
-
-                    // Count vehicles for this type
-                    UUID typeId = UUID.fromString(baseResponse.id());
-                    long vehicleCount = vehicleRepository.countByVehicleTypeId(typeId);
-
-                    log.debug("Vehicle type {} has {} vehicles", baseResponse.vehicleTypeName(), vehicleCount);
-
-                    // Create a new response with the count included
-                    return new VehicleTypeResponse(
-                            baseResponse.id(),
-                            baseResponse.vehicleTypeName(),
-                            baseResponse.description(),
-                            vehicleCount
-                    );
-                })
+                .map(vehicleTypeMapper::toVehicleTypeResponse)
                 .toList();
     }
 

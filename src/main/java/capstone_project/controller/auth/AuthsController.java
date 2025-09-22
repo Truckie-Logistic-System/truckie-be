@@ -17,9 +17,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Arrays;
-import java.util.Optional;
-
 @RestController
 @RequestMapping("${auth.api.base-path}")
 @RequiredArgsConstructor
@@ -67,22 +64,15 @@ public class AuthsController {
 
     @PostMapping("/token/refresh")
     public ResponseEntity<ApiResponse<Void>> refreshAccessToken(
-            @RequestBody(required = false) RefreshTokenRequest refreshTokenRequest,
             HttpServletRequest request,
             HttpServletResponse response) {
+        // Extract refresh token from cookies using the service
+        String refreshToken = registerService.extractRefreshTokenFromCookies(request);
 
-        // Get refresh token from cookie or request body
-        String refreshToken = extractRefreshToken(request, refreshTokenRequest);
+        // Get the new tokens
+        final var refreshTokenResponse = registerService.refreshAccessToken(refreshToken);
 
-        // Create a new request with the token from the cookie if needed
-        RefreshTokenRequest effectiveRequest = refreshTokenRequest;
-        if (refreshTokenRequest == null || refreshTokenRequest.getRefreshToken() == null) {
-            effectiveRequest = new RefreshTokenRequest(refreshToken);
-        }
-
-        final var refreshTokenResponse = registerService.refreshAccessToken(effectiveRequest);
-
-        // Update the refresh token cookie if needed
+        // Update the refresh token cookie if it has changed
         if (!refreshToken.equals(refreshTokenResponse.getRefreshToken())) {
             addRefreshTokenCookie(response, refreshTokenResponse.getRefreshToken());
         }
@@ -134,29 +124,5 @@ public class AuthsController {
         cookie.setPath("/");
         cookie.setMaxAge(30 * 60); // 30 minutes, should match your token expiration
         response.addCookie(cookie);
-    }
-
-    /**
-     * Helper method to extract refresh token from cookies or request body
-     */
-    private String extractRefreshToken(HttpServletRequest request, RefreshTokenRequest refreshTokenRequest) {
-        // First try to get from request body if provided
-        if (refreshTokenRequest != null && refreshTokenRequest.getRefreshToken() != null && !refreshTokenRequest.getRefreshToken().isEmpty()) {
-            return refreshTokenRequest.getRefreshToken();
-        }
-
-        // Otherwise try to get from cookie
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            Optional<Cookie> refreshTokenCookie = Arrays.stream(cookies)
-                    .filter(c -> REFRESH_TOKEN_COOKIE_NAME.equals(c.getName()))
-                    .findFirst();
-
-            if (refreshTokenCookie.isPresent()) {
-                return refreshTokenCookie.get().getValue();
-            }
-        }
-
-        throw new RuntimeException("Refresh token not found in request body or cookies");
     }
 }
