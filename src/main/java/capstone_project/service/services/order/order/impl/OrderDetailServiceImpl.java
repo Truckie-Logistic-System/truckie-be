@@ -4,7 +4,9 @@ import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
+import capstone_project.dtos.request.order.DetailsForAssignemntRequest;
 import capstone_project.dtos.request.order.UpdateOrderDetailRequest;
+import capstone_project.dtos.request.vehicle.CreateAndAssignForDetailsRequest;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
 import capstone_project.dtos.response.order.GetOrderDetailsResponseForList;
@@ -397,6 +399,36 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         return orderDetailMapper.toGetOrderDetailResponseListBasic(
                 orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId)
         );
+    }
+
+    @Override
+    @Transactional
+    public List<GetOrderDetailsResponseForList> createAndAssignVehicleAssignmentForDetails(CreateAndAssignForDetailsRequest request) {
+        List<GetOrderDetailsResponseForList> resultResponse = new ArrayList<>();
+        for(DetailsForAssignemntRequest detailRequests : request.assignments().keySet()){
+            List<OrderDetailEntity> toUpdateDetails = new ArrayList<>();
+            VehicleAssignmentResponse response = vehicleAssignmentService.createAssignment(request.assignments().get(detailRequests));
+            VehicleAssignmentEntity vehicleAssignmentEntity = vehicleAssignmentEntityService.findEntityById(response.id())
+                    .orElseThrow(() -> new NotFoundException(
+                            "Vehicle assignment not found: " + response.id(),
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+            for(UUID detailId : detailRequests.details()){
+                    OrderDetailEntity detail = orderDetailEntityService.findEntityById(detailId)
+                            .orElseThrow(() -> new NotFoundException(
+                                    "Order detail not found: " + detailId,
+                                    ErrorEnum.NOT_FOUND.getErrorCode()
+                            ));
+                    detail.setVehicleAssignmentEntity(vehicleAssignmentEntity);
+                    changeStatusOrderDetailExceptTroubles(detail.getId(),OrderStatusEnum.ASSIGNED_TO_DRIVER);
+                    toUpdateDetails.add(detail);
+                resultResponse.add(orderDetailMapper.toGetOrderDetailsResponseForList(detail));
+            }
+            orderDetailEntityService.saveAllOrderDetailEntities(toUpdateDetails);
+
+
+        }
+        return resultResponse;
     }
 
 

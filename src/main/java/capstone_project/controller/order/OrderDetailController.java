@@ -3,6 +3,7 @@ package capstone_project.controller.order;
 import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderDetailRequest;
+import capstone_project.dtos.request.vehicle.CreateAndAssignForDetailsRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
@@ -86,6 +87,13 @@ public class OrderDetailController {
     public ResponseEntity<ApiResponse<List<GetOrderDetailsResponseForList>>> updateVehicleAssignmentForDetailsIfContractExisted(
             @Valid @RequestParam UUID orderId) {
         final var result = orderDetailService.updateVehicleAssigmentForEachOrderDetails(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @PutMapping("create-and-assign-assignment-for-details")
+    public ResponseEntity<ApiResponse<List<GetOrderDetailsResponseForList>>> createAndAssignVehicleAssignmentForDetails(
+            @Valid @RequestBody CreateAndAssignForDetailsRequest request) {
+        final var result = orderDetailService.createAndAssignVehicleAssignmentForDetails(request);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }
