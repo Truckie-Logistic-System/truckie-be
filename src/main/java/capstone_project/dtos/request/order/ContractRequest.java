@@ -30,9 +30,9 @@ public record ContractRequest(
         String attachFileUrl,
 
         @NotBlank(message = "Order ID must not be blank")
-        String orderId,
+        String orderId
 
-        @NotBlank(message = "Staff ID must not be blank")
-        String staffId
+//        @NotBlank(message = "Staff ID must not be blank")
+//        String staffId
 ) {
 }

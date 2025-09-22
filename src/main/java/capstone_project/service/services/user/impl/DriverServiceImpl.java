@@ -7,12 +7,14 @@ import capstone_project.common.enums.VehicleTypeEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.dtos.request.user.UpdateDriverRequest;
 import capstone_project.dtos.response.user.DriverResponse;
+import capstone_project.dtos.response.user.PenaltyHistoryResponse;
 import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.services.user.DriverService;
+import capstone_project.service.services.user.PenaltyHistoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,7 @@ public class DriverServiceImpl implements DriverService {
     private final DriverEntityService driverEntityService;
     private final VehicleTypeEntityService vehicleTypeEntityService;
     private final DriverMapper driverMapper;
+    private final PenaltyHistoryService penaltyHistoryService;
 
     @Override
     public List<DriverResponse> getAllDrivers() {
@@ -70,7 +73,16 @@ public class DriverServiceImpl implements DriverService {
                     );
                 });
 
-        return driverMapper.mapDriverResponse(driverEntity);
+        // Map driver entity to response
+        DriverResponse driverResponse = driverMapper.mapDriverResponse(driverEntity);
+
+        // Get penalty histories for this driver
+        List<PenaltyHistoryResponse> penaltyHistories = penaltyHistoryService.getByDriverId(id);
+        driverResponse.setPenaltyHistories(penaltyHistories);
+
+        log.info("Found {} penalty histories for driver ID: {}", penaltyHistories.size(), id);
+
+        return driverResponse;
     }
 
     @Override

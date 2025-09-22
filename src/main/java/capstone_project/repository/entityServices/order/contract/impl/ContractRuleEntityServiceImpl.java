@@ -48,6 +48,11 @@ public class ContractRuleEntityServiceImpl implements ContractRuleEntityService 
     }
 
     @Override
+    public void saveAll(List<ContractRuleEntity> contractRuleEntities) {
+        contractRuleRepository.saveAll(contractRuleEntities);
+    }
+
+    @Override
     public ContractRuleEntity save(ContractRuleEntity entity) {
         return contractRuleRepository.save(entity);
     }

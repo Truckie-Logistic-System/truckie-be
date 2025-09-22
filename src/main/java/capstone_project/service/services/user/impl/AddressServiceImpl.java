@@ -13,7 +13,7 @@ import capstone_project.service.mapper.user.AddressMapper;
 import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.user.AddressService;
 import capstone_project.common.utils.AddressUtil;
-import capstone_project.utils.UserContextUtils;
+import capstone_project.common.utils.UserContextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -154,7 +154,9 @@ public class AddressServiceImpl implements AddressService {
             LocalDateTime now = LocalDateTime.now();
             addressEntity.setCreatedAt(now);
 
-            CustomerEntity customer = customerEntityService.findEntityById(UUID.fromString(request.customerId()))
+            // Get current customer ID from security context instead of request
+            UUID currentCustomerId = userContextUtils.getCurrentCustomerId();
+            CustomerEntity customer = customerEntityService.findEntityById(currentCustomerId)
                     .orElseThrow(() -> new NotFoundException(
                             ErrorEnum.NOT_FOUND.getMessage(),
                             ErrorEnum.NOT_FOUND.getErrorCode()
@@ -166,7 +168,7 @@ public class AddressServiceImpl implements AddressService {
 
             // Invalidate caches
             invalidateAddressCaches();
-            invalidateCustomerAddressesCache(request.customerId());
+            invalidateCustomerAddressesCache(currentCustomerId.toString());
 
             // Cache the new address
             try {
@@ -210,8 +212,10 @@ public class AddressServiceImpl implements AddressService {
         String fullAddress = AddressUtil.buildFullAddress(request);
         AddressResponse locationData = calculateLatLong(fullAddress);
 
-        AddressEntity addressEntity = addressMapper.mapRequestToAddressEntity(request);
-        AddressUtil.setCoordinatesOnEntity(addressEntity, locationData.latitude(), locationData.longitude());
+        AddressUtil.setCoordinatesOnEntity(existing, locationData.latitude(), locationData.longitude());
+
+        // Get current customer ID from security context
+        UUID currentCustomerId = userContextUtils.getCurrentCustomerId();
 
         // 5. Save the updated entity
         AddressEntity updated = addressEntityService.save(existing);
@@ -220,7 +224,7 @@ public class AddressServiceImpl implements AddressService {
         // 6. Invalidate caches
         invalidateAddressCaches();
         invalidateCustomerAddressesCache(oldCustomerId);
-        invalidateCustomerAddressesCache(request.customerId());
+        invalidateCustomerAddressesCache(currentCustomerId.toString());
 
         // 7. Update cache with new data
         try {

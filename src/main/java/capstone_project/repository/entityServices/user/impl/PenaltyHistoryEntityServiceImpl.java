@@ -24,4 +24,9 @@ public class PenaltyHistoryEntityServiceImpl
     public List<PenaltyHistoryEntity> findByVehicleAssignmentId(UUID vehicleAssignmentId) {
         return repository.findByVehicleAssignmentId(vehicleAssignmentId);
     }
+
+    @Override
+    public List<PenaltyHistoryEntity> findByDriverId(UUID driverId) {
+        return repository.findByDriverId(driverId);
+    }
 }

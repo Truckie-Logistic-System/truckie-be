@@ -11,8 +11,7 @@ import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
-import capstone_project.entity.device.DeviceEntity;
-import capstone_project.entity.order.conformation.PhotoCompletionEntity;
+import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
 import capstone_project.entity.order.order.CategoryPricingDetailEntity;
@@ -23,7 +22,7 @@ import capstone_project.entity.pricing.BasingPriceEntity;
 import capstone_project.entity.pricing.DistanceRuleEntity;
 import capstone_project.entity.pricing.VehicleRuleEntity;
 import capstone_project.entity.user.address.AddressEntity;
-import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.repository.entityServices.auth.impl.UserEntityServiceImpl;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractRuleEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryPricingDetailEntityService;
@@ -36,6 +35,7 @@ import capstone_project.service.mapper.order.ContractMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.user.DistanceService;
+import capstone_project.common.utils.UserContextUtils;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,10 +61,12 @@ public class ContractServiceImpl implements ContractService {
     private final OrderDetailEntityService orderDetailEntityService;
     private final DistanceService distanceService;
     private final CloudinaryService cloudinaryService;
+    private final UserContextUtils userContextUtils;
 
     private final ContractMapper contractMapper;
 
     private static final double EARTH_RADIUS_KM = 6371.0;
+    private final UserEntityServiceImpl userEntityServiceImpl;
 
     @Override
     public List<ContractResponse> getAllContracts() {
@@ -169,24 +171,20 @@ public class ContractServiceImpl implements ContractService {
             log.error("[createBoth] Contract already exists for orderId={}", orderUuid);
             throw new BadRequestException(ErrorEnum.ALREADY_EXISTED.getMessage(),
                     ErrorEnum.ALREADY_EXISTED.getErrorCode());
+//            deleteContractByOrderId(orderUuid);
         }
 
-        // lấy order
         OrderEntity order = orderEntityService.findEntityById(orderUuid)
                 .orElseThrow(() -> {
                     log.error("[createBoth] Order not found: {}", orderUuid);
                     return new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode());
                 });
 
-//        BigDecimal distanceKm = calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress());
-
         BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
 
-
-        // 1. map request -> ContractEntity và save trước (chưa set totalValue)
         ContractEntity contractEntity = contractMapper.mapRequestToEntity(contractRequest);
         contractEntity.setStatus(ContractStatusEnum.CONTRACT_DRAFT.name());
-        contractEntity.setOrderEntity(order); // gắn với order
+        contractEntity.setOrderEntity(order);
 
         ContractEntity savedContract = contractEntityService.save(contractEntity);
 
@@ -233,7 +231,10 @@ public class ContractServiceImpl implements ContractService {
 
         BigDecimal totalPrice = totalPriceResponse.getTotalPrice();
 
+        UserEntity currentStaff = userContextUtils.getCurrentUser();
+
         savedContract.setTotalValue(totalPrice);
+        savedContract.setStaff(currentStaff);
         ContractEntity updatedContract = contractEntityService.save(savedContract);
 
         return contractMapper.toContractResponse(updatedContract);
@@ -246,8 +247,29 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
-    public void deleteContract(UUID id) {
+    @Transactional
+    public void deleteContractByOrderId(UUID orderId) {
+        log.info("Deleting contract by order ID: {}", orderId);
 
+        if (orderId == null) {
+            log.error("[deleteContractByOrderId] Order ID is null");
+            throw new BadRequestException("Order ID must not be null",
+                    ErrorEnum.NULL.getErrorCode());
+        }
+
+        ContractEntity contractEntity = contractEntityService.getContractByOrderId(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Contract not found for order ID: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        List<ContractRuleEntity> ruleEntity = contractRuleEntityService.findContractRuleEntityByContractEntityId(contractEntity.getId());
+        if (!ruleEntity.isEmpty()) {
+            ruleEntity.forEach(rule -> rule.getOrderDetails().clear());
+            contractRuleEntityService.saveAll(ruleEntity);
+            contractRuleEntityService.deleteByContractEntityId(contractEntity.getId());
+        }
+        contractEntityService.deleteContractByOrderId(orderId);
     }
 
     public List<ContractRuleAssignResponse> assignVehicles(UUID orderId) {
@@ -540,17 +562,17 @@ public class ContractServiceImpl implements ContractService {
             throw new IllegalArgumentException("Total price must not be negative");
         }
 
-        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+//        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
 
         return PriceCalculationResponse.builder()
-                .totalPrice(total) // giữ để tương thích
+                .totalPrice(total)
                 .totalBeforeAdjustment(totalBeforeAdjustment)
                 .categoryExtraFee(categoryExtraFee)
                 .categoryMultiplier(categoryMultiplier)
                 .promotionDiscount(promotionDiscount)
                 .finalTotal(total)
                 .steps(steps)
-                .summary("Tổng giá trị hợp đồng: " + total + " (tính trong " + elapsedMs + " ms)")
+//                .summary("Tổng giá trị hợp đồng: " + total + " (tính trong " + elapsedMs + " ms)")
                 .build();
     }
 
@@ -659,7 +681,6 @@ public class ContractServiceImpl implements ContractService {
 
         // save DB
         ce.setAttachFileUrl(imageUrl);
-
 
 
         var updated = contractEntityService.save(ce);

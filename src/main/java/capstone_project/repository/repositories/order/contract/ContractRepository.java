@@ -8,4 +8,7 @@ import java.util.UUID;
 
 public interface ContractRepository extends BaseRepository<ContractEntity> {
     Optional<ContractEntity> findContractEntityByOrderEntity_Id(UUID orderEntityId);
+
+    void deleteByOrderEntityId(UUID orderId);
+
 }

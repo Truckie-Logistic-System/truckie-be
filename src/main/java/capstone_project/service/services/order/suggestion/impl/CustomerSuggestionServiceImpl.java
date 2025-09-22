@@ -10,7 +10,7 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.service.mapper.order.ReceiverDetailMapper;
 import capstone_project.service.mapper.order.ReceiverSuggestionMapper;
 import capstone_project.service.services.order.suggestion.CustomerSuggestionService;
-import capstone_project.utils.UserContextUtils;
+import capstone_project.common.utils.UserContextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

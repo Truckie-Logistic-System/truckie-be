@@ -37,5 +37,5 @@ public interface ContractService {
 
     ContractResponse uploadContractFile(ContractFileUploadRequest contractFileUploadRequest) throws IOException;
 
-    void deleteContract(UUID id);
+    void deleteContractByOrderId(UUID orderId);
 }

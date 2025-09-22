@@ -384,17 +384,14 @@ public class ContractRuleServiceImpl implements ContractRuleService {
             );
         }
 
-        // update contractRule từ request (map primitive fields)
         contractRuleMapper.toContractRuleEntity(contractRuleRequest, existingContractRule);
 
-        // set lại quan hệ
         existingContractRule.setVehicleRuleEntity(vehicleRule);
         existingContractRule.getOrderDetails().clear();
         existingContractRule.getOrderDetails().addAll(assignedDetails);
 
         ContractRuleEntity saved = contractRuleEntityService.save(existingContractRule);
 
-        // update lại tổng giá trị contract
         Map<UUID, Integer> vehicleCountMap = contractRuleEntityService
                 .findContractRuleEntityByContractEntityId(contractEntity.getId())
                 .stream()
@@ -426,7 +423,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         OrderEntity order = contract.getOrderEntity();
         if (order == null) {
-            throw new IllegalStateException("Contract has no associated order: " + contractId);
+            throw new BadRequestException("Contract has no associated order", ErrorEnum.INVALID.getErrorCode());
         }
 
         List<ContractRuleAssignResponse> assignResult = contractService.assignVehicles(order.getId());
@@ -470,11 +467,9 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                     );
                 });
 
-        // Xoá quan hệ trong bảng phụ (order_details liên kết với contract_rule này)
         contractRule.getOrderDetails().clear();
         contractRuleEntityService.save(contractRule);
 
-        // Xoá contract_rule
         contractRuleEntityService.deleteById(id);
 
         log.info("Deleted contract rule with ID {}", id);

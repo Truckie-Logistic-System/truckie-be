@@ -1,4 +1,4 @@
-package capstone_project.utils;
+package capstone_project.common.utils;
 
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;

@@ -35,4 +35,9 @@ public class ContractEntityServiceImpl implements ContractEntityService {
     public Optional<ContractEntity> getContractByOrderId(UUID orderId) {
         return contractRepository.findContractEntityByOrderEntity_Id(orderId);
     }
+
+    @Override
+    public void deleteContractByOrderId(UUID orderId) {
+        contractRepository.deleteByOrderEntityId(orderId);
+    }
 }

@@ -17,13 +17,13 @@ public interface ContractMapper {
     ContractResponse toContractResponse(ContractEntity contractEntity);
 
     @Mapping(source = "orderId", target = "orderEntity", qualifiedByName = "orderFromId")
-    @Mapping(source = "staffId", target = "staff", qualifiedByName = "staffFromId")
+//    @Mapping(source = "staffId", target = "staff", qualifiedByName = "staffFromId")
     @Mapping(target = "totalValue", ignore = true)
     ContractEntity mapRequestToEntity(ContractRequest contractRequest);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "orderEntity", source = "orderId", qualifiedByName = "orderFromId")
-    @Mapping(target = "staff", source = "staffId", qualifiedByName = "staffFromId")
+//    @Mapping(target = "staff", source = "staffId", qualifiedByName = "staffFromId")
     void toContractEntity(ContractRequest request, @MappingTarget ContractEntity entity);
 
     @Named("orderFromId")

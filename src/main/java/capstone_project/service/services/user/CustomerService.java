@@ -14,6 +14,12 @@ public interface CustomerService {
 
     CustomerResponse getCustomerByUserId(UUID userId);
 
+    /**
+     * Get customer information for the currently authenticated user
+     * @return CustomerResponse for the current user
+     */
+    CustomerResponse getCurrentCustomer();
+
     List<CustomerResponse> getAllCustomersByRepresentativeNameLike(String name);
 
     List<CustomerResponse> getAllCustomersByCompanyNameLike(String companyName);

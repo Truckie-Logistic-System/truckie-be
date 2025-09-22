@@ -13,4 +13,7 @@ public interface PenaltyHistoryRepository
 
     @Query("SELECT ph FROM PenaltyHistoryEntity ph WHERE ph.vehicleAssignmentEntity.id = :vehicleAssignmentId")
     List<PenaltyHistoryEntity> findByVehicleAssignmentId(@Param("vehicleAssignmentId") UUID vehicleAssignmentId);
+
+    @Query("SELECT ph FROM PenaltyHistoryEntity ph WHERE ph.issueBy.id = :driverId")
+    List<PenaltyHistoryEntity> findByDriverId(@Param("driverId") UUID driverId);
 }

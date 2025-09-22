@@ -20,4 +20,6 @@ public interface ContractRuleEntityService extends BaseEntityService<ContractRul
     void deleteById(UUID id);
 
     void deleteByContractEntityId(UUID contractId);
+
+    void saveAll(List<ContractRuleEntity> contractRuleEntities);
 }

@@ -9,4 +9,6 @@ public interface PenaltyHistoryEntityService
         extends BaseEntityService<PenaltyHistoryEntity, UUID> {
 
     List<PenaltyHistoryEntity> findByVehicleAssignmentId(UUID vehicleAssignmentId);
+
+    List<PenaltyHistoryEntity> findByDriverId(UUID driverId);
 }

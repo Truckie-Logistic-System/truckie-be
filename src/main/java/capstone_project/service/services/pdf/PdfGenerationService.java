@@ -96,7 +96,7 @@ public class PdfGenerationService {
             context.setVariable("promotionDiscount", result.getPromotionDiscount());
             context.setVariable("finalTotal", result.getFinalTotal());
             context.setVariable("calculationDetails", result.getSteps());
-            context.setVariable("summary", result.getSummary());
+//            context.setVariable("summary", result.getSummary());
             context.setVariable("distanceKm", distanceKm);
 
             ContractSettingEntity setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc()

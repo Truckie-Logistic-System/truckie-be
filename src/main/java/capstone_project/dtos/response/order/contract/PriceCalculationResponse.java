@@ -22,7 +22,7 @@ public class PriceCalculationResponse {
     private BigDecimal finalTotal;            // Tổng cuối cùng sau mọi điều chỉnh
 
     private List<CalculationStep> steps;      // Các bước tính chi tiết
-    private String summary;
+//    private String summary;
 
     @Data
     @Builder

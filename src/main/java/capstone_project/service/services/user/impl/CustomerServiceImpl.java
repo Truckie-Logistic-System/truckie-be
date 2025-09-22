@@ -3,6 +3,7 @@ package capstone_project.service.services.user.impl;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
+import capstone_project.common.utils.UserContextUtils;
 import capstone_project.dtos.request.user.UpdateCustomerRequest;
 import capstone_project.dtos.response.user.CustomerResponse;
 import capstone_project.entity.user.customer.CustomerEntity;
@@ -24,6 +25,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     private final CustomerEntityService customerEntityService;
     private final CustomerMapper customerMapper;
+    private final UserContextUtils userContextUtils;
 
     @Override
     public List<CustomerResponse> getAllCustomers() {
@@ -246,5 +248,26 @@ public class CustomerServiceImpl implements CustomerService {
         CustomerEntity updatedCustomer = customerEntityService.save(customerEntity);
 
         return customerMapper.mapCustomerResponse(updatedCustomer);
+    }
+
+    @Override
+    public CustomerResponse getCurrentCustomer() {
+        log.info("Getting customer information for current authenticated user");
+
+        // Get the current user's ID from security context
+        UUID currentUserId = userContextUtils.getCurrentUserId();
+        log.info("Current authenticated user ID: {}", currentUserId);
+
+        // Find the customer entity associated with the current user
+        CustomerEntity customerEntity = customerEntityService.findByUserId(currentUserId)
+                .orElseThrow(() -> {
+                    log.error("Customer not found for current authenticated user with ID: {}", currentUserId);
+                    return new BadRequestException(
+                            "Customer not found for current authenticated user",
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    );
+                });
+
+        return customerMapper.mapCustomerResponse(customerEntity);
     }
 }

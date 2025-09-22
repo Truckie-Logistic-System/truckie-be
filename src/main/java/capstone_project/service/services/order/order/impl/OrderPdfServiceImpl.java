@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -134,11 +135,7 @@ public class OrderPdfServiceImpl implements OrderPdfService {
             );
         }
 
-        ContractSettingEntity setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc()
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage(),
-                        ErrorEnum.NOT_FOUND.getErrorCode()
-                ));
+        Optional<ContractSettingEntity> setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc();
 
         List<ContractRuleAssignResponse> assignResult = contractService.assignVehicles(order.getId());
 
@@ -162,7 +159,7 @@ public class OrderPdfServiceImpl implements OrderPdfService {
                 .priceDetails(result)
                 .assignResult(assignResult)
                 .distanceKm(distanceKm)
-                .contractSettings(contractSettingMapper.toContractSettingResponse(setting))
+                .contractSettings(setting.map(contractSettingMapper::toContractSettingResponse).orElse(null))
                 .build();
 
         return response;

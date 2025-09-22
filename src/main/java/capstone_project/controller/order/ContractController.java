@@ -12,7 +12,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,6 +63,11 @@ public class ContractController {
     public ResponseEntity<ApiResponse<ContractResponse>> updateContract(@PathVariable UUID id, @RequestBody @Valid ContractRequest contractRequest) {
         final var result = contractService.updateContract(id, contractRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @DeleteMapping("/{orderId}")
+    public void deleteContract(@PathVariable UUID orderId) {
+        contractService.deleteContractByOrderId(orderId);
     }
 
     /*
