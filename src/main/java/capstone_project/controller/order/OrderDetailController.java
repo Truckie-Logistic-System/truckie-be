@@ -11,6 +11,7 @@ import capstone_project.dtos.response.order.GetOrderDetailsResponseForList;
 import capstone_project.service.services.order.order.OrderDetailService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -90,7 +91,7 @@ public class OrderDetailController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @PutMapping("create-and-assign-assignment-for-details")
+    @PutMapping(value = "create-and-assign-assignment-for-details", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<List<GetOrderDetailsResponseForList>>> createAndAssignVehicleAssignmentForDetails(
             @Valid @RequestBody CreateAndAssignForDetailsRequest request) {
         final var result = orderDetailService.createAndAssignVehicleAssignmentForDetails(request);

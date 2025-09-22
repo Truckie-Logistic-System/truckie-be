@@ -53,5 +53,8 @@ public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
         return orderDetailRepository.findAllById(ids);
     }
 
-
+    @Override
+    public Optional<OrderDetailEntity> findByTrackingCode(String trackingCode) {
+        return orderDetailRepository.findByTrackingCode(trackingCode);
+    }
 }

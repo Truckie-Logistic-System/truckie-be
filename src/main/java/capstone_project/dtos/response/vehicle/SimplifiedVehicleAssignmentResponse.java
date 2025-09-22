@@ -9,7 +9,7 @@ import java.util.UUID;
  * Cấu trúc mới giúp phân biệt suggestion cho từng order detail
  */
 public record SimplifiedVehicleAssignmentResponse(
-    Map<UUID, List<VehicleSuggestionDTO>> suggestionsByDetailId
+    Map<String, List<VehicleSuggestionDTO>> suggestionsByTrackingCode
 ) {
     /**
      * DTO cho xe

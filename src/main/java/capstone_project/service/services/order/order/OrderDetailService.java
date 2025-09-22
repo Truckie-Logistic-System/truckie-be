@@ -31,4 +31,10 @@ public interface OrderDetailService {
     List<GetOrderDetailsResponseForList> createAndAssignVehicleAssignmentForDetails(CreateAndAssignForDetailsRequest request);
 
     List<GetOrderDetailsResponseForList> getAllOrderDetails();
+
+    /**
+     * Validates if a transition is valid for an order detail
+     * Order details have different rules compared to orders
+     */
+    boolean isValidTransitionForOrderDetail(OrderStatusEnum current, OrderStatusEnum next);
 }

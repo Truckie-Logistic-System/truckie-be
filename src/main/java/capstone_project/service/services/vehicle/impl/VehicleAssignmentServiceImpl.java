@@ -55,6 +55,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final DriverEntityService driverEntityService;
     private final VehicleEntityService vehicleEntityService;
     private final OrderEntityService orderEntityService;
+    private final OrderDetailEntityService orderDetailEntityService;
     private final ContractEntityService contractEntityService;
     private final ContractRuleService contractRuleService;
     private final VehicleRuleEntityService vehicleRuleEntityService;
@@ -302,7 +303,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      * Bổ sung thông tin từ dữ liệu thực tế: vi phạm, số chuyến, kinh nghiệm, thời gian hoạt động gần nhất
      */
     public SimplifiedVehicleAssignmentResponse convertToSimplifiedResponse(List<SampleVehicleAssignmentResponse> responses) {
-        Map<UUID, List<SimplifiedVehicleAssignmentResponse.VehicleSuggestionDTO>> suggestionsByDetailId = new HashMap<>();
+        Map<String, List<SimplifiedVehicleAssignmentResponse.VehicleSuggestionDTO>> suggestionsByTrackingCode = new HashMap<>();
 
         // Thu thập tất cả driver ID để tính số chuyến đã hoàn thành
         Set<UUID> allDriverIds = new HashSet<>();
@@ -323,6 +324,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         for (SampleVehicleAssignmentResponse response : responses) {
             // Với mỗi order detail ID trong assignedDetails
             for (UUID detailId : response.assignedDetails()) {
+                // Lấy tracking code từ order detail ID
+                String trackingCode = getTrackingCodeFromDetailId(detailId);
+
                 // Danh sách xe gợi ý cho order detail này
                 List<SimplifiedVehicleAssignmentResponse.VehicleSuggestionDTO> detailSuggestions = new ArrayList<>();
 
@@ -429,14 +433,14 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     detailSuggestions.add(vehicleSuggestionDTO);
                 }
 
-                // Thêm hoặc cập nhật danh sách gợi ý cho order detail này
+                // Thêm hoặc cập nhật danh sách gợi ý cho order detail này (sử dụng tracking code)
                 if (!detailSuggestions.isEmpty()) {
-                    suggestionsByDetailId.put(detailId, detailSuggestions);
+                    suggestionsByTrackingCode.put(trackingCode, detailSuggestions);
                 }
             }
         }
 
-        return new SimplifiedVehicleAssignmentResponse(suggestionsByDetailId);
+        return new SimplifiedVehicleAssignmentResponse(suggestionsByTrackingCode);
     }
 
     /**
@@ -552,5 +556,23 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 .sorted(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey)
                 .toList();
+    }
+
+    /**
+     * Lấy tracking code từ order detail ID
+     *
+     * @param detailId ID của order detail
+     * @return Tracking code tương ứng hoặc null nếu không tìm thấy
+     */
+    private String getTrackingCodeFromDetailId(UUID detailId) {
+        try {
+            // Truy vấn OrderDetailEntity từ database để lấy tracking code
+            return orderDetailEntityService.findEntityById(detailId)
+                    .map(orderDetail -> orderDetail.getTrackingCode())
+                    .orElse(detailId.toString()); // Fallback: sử dụng ID làm tracking code nếu không tìm thấy
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy tracking code cho order detail {}: {}", detailId, e.getMessage());
+            return detailId.toString(); // Fallback khi có lỗi
+        }
     }
 }

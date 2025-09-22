@@ -12,11 +12,13 @@ import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.device.CameraTrackingEntity;
 import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.user.driver.PenaltyHistoryEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.device.CameraTrackingEntityService;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.services.order.seal.OrderSealService;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +40,7 @@ public class StaffOrderMapper {
     private final DriverEntityService driverEntityService;
     private final VehicleEntityService vehicleEntityService;
     private final OrderSealService orderSealService;
+    private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
 
     public StaffOrderForStaffResponse toStaffOrderForStaffResponse(
             GetOrderResponse orderResponse,
@@ -150,10 +153,50 @@ public class StaffOrderMapper {
     private StaffVehicleAssignmentResponse toStaffVehicleAssignmentResponse(VehicleAssignmentResponse vehicleAssignmentResponse) {
         UUID vehicleAssignmentId = vehicleAssignmentResponse.id();
 
+        log.info("Processing vehicle assignment with ID: {}", vehicleAssignmentId);
+
+        // First try to get the complete vehicle assignment entity from the database
+        VehicleAssignmentEntity vehicleAssignmentEntity = null;
+        try {
+            vehicleAssignmentEntity = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId).orElse(null);
+            if (vehicleAssignmentEntity == null) {
+                log.warn("Vehicle assignment entity not found in database for ID: {}", vehicleAssignmentId);
+            } else {
+                log.info("Successfully retrieved vehicle assignment entity from database: {}", vehicleAssignmentId);
+
+                // Log more detailed information about the driver entities
+                if (vehicleAssignmentEntity.getDriver1() != null) {
+                    log.info("Primary driver found in entity. Driver ID: {}", vehicleAssignmentEntity.getDriver1().getId());
+                    if (vehicleAssignmentEntity.getDriver1().getUser() != null) {
+                        log.info("Primary driver has user entity. User ID: {}", vehicleAssignmentEntity.getDriver1().getUser().getId());
+                    } else {
+                        log.warn("Primary driver has no associated user entity");
+                    }
+                } else {
+                    log.warn("No primary driver found in vehicle assignment entity");
+                }
+
+                if (vehicleAssignmentEntity.getDriver2() != null) {
+                    log.info("Secondary driver found in entity. Driver ID: {}", vehicleAssignmentEntity.getDriver2().getId());
+                    if (vehicleAssignmentEntity.getDriver2().getUser() != null) {
+                        log.info("Secondary driver has user entity. User ID: {}", vehicleAssignmentEntity.getDriver2().getUser().getId());
+                    } else {
+                        log.warn("Secondary driver has no associated user entity");
+                    }
+                } else {
+                    log.warn("No secondary driver found in vehicle assignment entity");
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error retrieving vehicle assignment entity from database: {}", e.getMessage(), e);
+        }
+
         // Get additional information for staff
         List<PenaltyHistoryResponse> penalties = getPenaltiesByVehicleAssignmentId(vehicleAssignmentId,
-                                                 vehicleAssignmentResponse.driver_id_1(),
-                                                 vehicleAssignmentResponse.driver_id_2());
+                                                 vehicleAssignmentEntity != null && vehicleAssignmentEntity.getDriver1() != null ?
+                                                    vehicleAssignmentEntity.getDriver1().getUser().getId() : vehicleAssignmentResponse.driver_id_1(),
+                                                 vehicleAssignmentEntity != null && vehicleAssignmentEntity.getDriver2() != null ?
+                                                    vehicleAssignmentEntity.getDriver2().getUser().getId() : vehicleAssignmentResponse.driver_id_2());
 
         List<CameraTrackingResponse> cameraTrackings = getCameraTrackingsByVehicleAssignmentId(vehicleAssignmentId);
         VehicleFuelConsumptionResponse fuelConsumption = getFuelConsumptionByVehicleAssignmentId(vehicleAssignmentId);
@@ -166,12 +209,41 @@ public class StaffOrderMapper {
         StaffDriverResponse secondaryDriver = null;
 
         try {
-            if (vehicleAssignmentResponse.driver_id_1() != null) {
-                primaryDriver = getEnhancedDriverInfo(vehicleAssignmentResponse.driver_id_1());
+            // Try to get drivers from the entity first, then fall back to the response IDs
+            UUID primaryDriverUserId = null;
+            UUID secondaryDriverUserId = null;
+
+            if (vehicleAssignmentEntity != null) {
+                if (vehicleAssignmentEntity.getDriver1() != null && vehicleAssignmentEntity.getDriver1().getUser() != null) {
+                    primaryDriverUserId = vehicleAssignmentEntity.getDriver1().getUser().getId();
+                    log.info("Using primary driver user ID from entity: {}", primaryDriverUserId);
+                }
+                if (vehicleAssignmentEntity.getDriver2() != null && vehicleAssignmentEntity.getDriver2().getUser() != null) {
+                    secondaryDriverUserId = vehicleAssignmentEntity.getDriver2().getUser().getId();
+                    log.info("Using secondary driver user ID from entity: {}", secondaryDriverUserId);
+                }
             }
 
-            if (vehicleAssignmentResponse.driver_id_2() != null) {
-                secondaryDriver = getEnhancedDriverInfo(vehicleAssignmentResponse.driver_id_2());
+            // Fall back to response IDs if entity doesn't have them
+            if (primaryDriverUserId == null && vehicleAssignmentResponse.driver_id_1() != null) {
+                primaryDriverUserId = vehicleAssignmentResponse.driver_id_1();
+                log.info("Using primary driver ID from response: {}", primaryDriverUserId);
+            }
+
+            if (secondaryDriverUserId == null && vehicleAssignmentResponse.driver_id_2() != null) {
+                secondaryDriverUserId = vehicleAssignmentResponse.driver_id_2();
+                log.info("Using secondary driver ID from response: {}", secondaryDriverUserId);
+            }
+
+            // Get the driver information
+            if (primaryDriverUserId != null) {
+                primaryDriver = getEnhancedDriverInfo(primaryDriverUserId);
+                log.info("Primary driver info fetched: {}", primaryDriver != null ? primaryDriver.fullName() : "null");
+            }
+
+            if (secondaryDriverUserId != null) {
+                secondaryDriver = getEnhancedDriverInfo(secondaryDriverUserId);
+                log.info("Secondary driver info fetched: {}", secondaryDriver != null ? secondaryDriver.fullName() : "null");
             }
         } catch (Exception e) {
             log.warn("Could not fetch driver info for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
@@ -180,8 +252,20 @@ public class StaffOrderMapper {
         // Create enhanced vehicle response from vehicleId
         StaffVehicleResponse vehicle = null;
         try {
-            if (vehicleAssignmentResponse.vehicleId() != null) {
-                var vehicleEntity = vehicleEntityService.findEntityById(vehicleAssignmentResponse.vehicleId()).orElse(null);
+            // First try to get vehicle from the entity
+            UUID vehicleId = null;
+
+            if (vehicleAssignmentEntity != null && vehicleAssignmentEntity.getVehicleEntity() != null) {
+                vehicleId = vehicleAssignmentEntity.getVehicleEntity().getId();
+                log.info("Using vehicle ID from entity: {}", vehicleId);
+            } else if (vehicleAssignmentResponse.vehicleId() != null) {
+                // Fall back to the response vehicleId
+                vehicleId = vehicleAssignmentResponse.vehicleId();
+                log.info("Using vehicle ID from response: {}", vehicleId);
+            }
+
+            if (vehicleId != null) {
+                var vehicleEntity = vehicleEntityService.findEntityById(vehicleId).orElse(null);
                 if (vehicleEntity != null) {
                     vehicle = new StaffVehicleResponse(
                             null, // Remove ID as this is already part of the vehicle assignment
@@ -190,7 +274,14 @@ public class StaffOrderMapper {
                             vehicleEntity.getLicensePlateNumber(),
                             vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null
                     );
+                    log.info("Vehicle info fetched: {}, License: {}",
+                            vehicle.manufacturer() + " " + vehicle.model(),
+                            vehicle.licensePlateNumber());
+                } else {
+                    log.warn("Vehicle entity not found for ID: {}", vehicleId);
                 }
+            } else {
+                log.warn("Vehicle ID is null in both entity and response for assignment: {}", vehicleAssignmentId);
             }
         } catch (Exception e) {
             log.warn("Could not fetch vehicle info for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
@@ -200,22 +291,27 @@ public class StaffOrderMapper {
         List<GetOrderSealResponse> orderSeals = new ArrayList<>();
         try {
             orderSeals = orderSealService.getAllOrderSealsByVehicleAssignmentId(vehicleAssignmentId);
+            log.info("Fetched {} order seals for vehicle assignment {}", orderSeals.size(), vehicleAssignmentId);
         } catch (Exception e) {
             log.warn("Could not fetch order seals for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
         }
+
+        // Get the status from the entity if available, otherwise use the response's status (which may be null)
+        String status = vehicleAssignmentEntity != null ? vehicleAssignmentEntity.getStatus() : vehicleAssignmentResponse.status();
+        log.info("Using status: {} for vehicle assignment {}", status, vehicleAssignmentId);
 
         return new StaffVehicleAssignmentResponse(
                 vehicleAssignmentId,
                 vehicle,
                 primaryDriver,
                 secondaryDriver,
-                vehicleAssignmentResponse.status(),
+                status,
                 penalties,
                 cameraTrackings,
                 fuelConsumption,
                 orderSeals,
                 new ArrayList<>(), // journeyHistory
-                issues // Added issues to the constructor
+                issues
         );
     }
 
@@ -225,10 +321,18 @@ public class StaffOrderMapper {
         try {
             // Get user information
             UserEntity userEntity = userEntityService.findEntityById(driverId).orElse(null);
-            if (userEntity == null) return null;
+            if (userEntity == null) {
+                log.warn("User entity not found for driver ID: {}", driverId);
+                return null;
+            }
 
             // Get driver information from driver entity
             DriverEntity driverEntity = driverEntityService.findByUserId(driverId).orElse(null);
+            if (driverEntity == null) {
+                log.warn("Driver entity not found for user ID: {}", driverId);
+            } else {
+                log.info("Successfully retrieved driver entity for user ID: {}", driverId);
+            }
 
             // Create enhanced driver response with combined information
             return new StaffDriverResponse(
@@ -236,23 +340,23 @@ public class StaffOrderMapper {
                     userEntity.getFullName(),
                     userEntity.getPhoneNumber(),
                     userEntity.getEmail(),
-                    userEntity.getImageUrl(), // Added image URL from user entity
-                    userEntity.getGender(), // Added gender from user entity
-                    userEntity.getDateOfBirth(), // Added date of birth from user entity
-                    driverEntity != null ? driverEntity.getIdentityNumber() : null, // Added identity number
+                    userEntity.getImageUrl(),
+                    userEntity.getGender(),
+                    userEntity.getDateOfBirth(),
+                    driverEntity != null ? driverEntity.getIdentityNumber() : null,
                     driverEntity != null ? driverEntity.getDriverLicenseNumber() : null,
-                    driverEntity != null ? driverEntity.getCardSerialNumber() : null, // Added card serial number
-                    driverEntity != null ? driverEntity.getPlaceOfIssue() : null, // Added place of issue
-                    driverEntity != null ? driverEntity.getDateOfIssue() : null, // Added date of issue
+                    driverEntity != null ? driverEntity.getCardSerialNumber() : null,
+                    driverEntity != null ? driverEntity.getPlaceOfIssue() : null,
+                    driverEntity != null ? driverEntity.getDateOfIssue() : null,
                     driverEntity != null ? driverEntity.getDateOfExpiry() : null,
-                    driverEntity != null ? driverEntity.getLicenseClass() : null, // Added license class
-                    driverEntity != null ? driverEntity.getDateOfPassing() : null, // Added date of passing
+                    driverEntity != null ? driverEntity.getLicenseClass() : null,
+                    driverEntity != null ? driverEntity.getDateOfPassing() : null,
                     userEntity.getStatus(),
                     null, // Address information not available in provided entities
                     userEntity.getCreatedAt()
             );
         } catch (Exception e) {
-            log.warn("Could not fetch enhanced driver info for driver ID {}: {}", driverId, e.getMessage());
+            log.error("Could not fetch enhanced driver info for driver ID {}: {}", driverId, e.getMessage(), e);
             return null;
         }
     }
