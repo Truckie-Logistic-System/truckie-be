@@ -454,7 +454,7 @@ public class OrderServiceImpl implements OrderService {
                 getIssueImageResponses.add(
                         issueImageService.getByVehicleAssignment(vehicleAssignmentId)
                 );
-                photoCompletionResponses.put(vehicleAssignmentId,photoCompletionService.getByVehicleAssignment(vehicleAssignmentId));
+                photoCompletionResponses.put(vehicleAssignmentId,photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId));
             }
         }
 
@@ -476,48 +476,65 @@ public class OrderServiceImpl implements OrderService {
         );
     }
 
+    // java
     @Override
     public SimpleOrderForCustomerResponse getSimplifiedOrderForCustomerByOrderId(UUID orderId) {
-        // Get the basic order information
         GetOrderResponse getOrderResponse = getOrderById(orderId);
 
-        // Maps to organize data by vehicle assignment (trip)
         Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment = new HashMap<>();
         Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment = new HashMap<>();
 
-        // Process order details and collect trip-related information
-        for (GetOrderDetailResponse detail : getOrderResponse.orderDetails()) {
-            if (detail.vehicleAssignmentId() != null) {
-                UUID vehicleAssignmentId = detail.vehicleAssignmentId().id();
+        // defensive: handle null orderDetails and avoid duplicate calls per vehicleAssignmentId
+        Set<UUID> processed = new HashSet<>();
+        List<GetOrderDetailResponse> details = Optional.ofNullable(getOrderResponse)
+                .map(GetOrderResponse::orderDetails)
+                .orElse(Collections.emptyList());
 
-                // Get issue information for this vehicle assignment/trip
+        for (GetOrderDetailResponse detail : details) {
+            if (detail == null) continue;
+            var va = detail.vehicleAssignmentId();
+            if (va == null) continue;
+
+            UUID vehicleAssignmentId;
+            try {
+                vehicleAssignmentId = va.id();
+            } catch (Exception e) {
+                log.warn("Invalid vehicleAssignmentId structure for order {}: {}", orderId, e.getMessage());
+                continue;
+            }
+            if (vehicleAssignmentId == null) continue;
+            if (!processed.add(vehicleAssignmentId)) continue; // skip duplicates
+
+            try {
                 GetIssueImageResponse issueImageResponse = issueImageService.getByVehicleAssignment(vehicleAssignmentId);
                 if (issueImageResponse != null) {
                     issuesByVehicleAssignment.put(vehicleAssignmentId, issueImageResponse);
                 }
+            } catch (Exception e) {
+                log.warn("Failed to fetch issue images for vehicleAssignment {}: {}", vehicleAssignmentId, e.getMessage());
+            }
 
-                // Get photo completion information for this vehicle assignment/trip
-                List<PhotoCompletionResponse> photoCompletions = photoCompletionService.getByVehicleAssignment(vehicleAssignmentId);
+            try {
+                List<PhotoCompletionResponse> photoCompletions = photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId);
                 if (photoCompletions != null && !photoCompletions.isEmpty()) {
                     photosByVehicleAssignment.put(vehicleAssignmentId, photoCompletions);
                 }
+            } catch (Exception e) {
+                log.warn("Failed to fetch photo completions for vehicleAssignment {}: {}", vehicleAssignmentId, e.getMessage());
             }
         }
 
-        // Get contract information if available
+        // contract / transactions same as before
         ContractResponse contractResponse = null;
         List<TransactionResponse> transactionResponses = new ArrayList<>();
-
         Optional<ContractEntity> contractEntity = contractEntityService.getContractByOrderId(orderId);
         if (contractEntity.isPresent()) {
             contractResponse = contractService.getContractById(contractEntity.get().getId());
             transactionResponses = transactionService.getTransactionsByContractId(contractEntity.get().getId());
         }
 
-        // Convert data collections to lists for the response
         List<GetIssueImageResponse> issueImageResponsesList = new ArrayList<>(issuesByVehicleAssignment.values());
 
-        // Convert to simplified response using the mapper that organizes data by trip
         return simpleOrderMapper.toSimpleOrderForCustomerResponse(
                 getOrderResponse,
                 issueImageResponsesList,
@@ -526,6 +543,7 @@ public class OrderServiceImpl implements OrderService {
                 transactionResponses
         );
     }
+
 
     @Override
     public StaffOrderForStaffResponse getOrderForStaffByOrderId(UUID orderId) {

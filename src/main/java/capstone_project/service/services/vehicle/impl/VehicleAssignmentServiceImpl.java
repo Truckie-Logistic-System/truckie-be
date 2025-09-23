@@ -772,6 +772,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             assignment.setDriver2(driver2);
             assignment.setDescription(groupAssignment.description());
             assignment.setStatus(CommonStatusEnum.ACTIVE.name());
+            assignment.setTrackingCode(generateTrackingCode());
 
             // Lưu assignment
             VehicleAssignmentEntity savedAssignment = entityService.save(assignment);
@@ -1094,5 +1095,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         }
 
         return workExperience;
+    }
+
+    private String generateTrackingCode() {
+        return "TRIP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
 }

@@ -38,6 +38,7 @@ import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,11 +54,10 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     private final OrderSizeEntityService orderSizeEntityService;
     private final ContractEntityService contractEntityService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
-    private final VehicleAssignmentService vehicleAssignmentService;
+    private final ObjectProvider<VehicleAssignmentService> vehicleAssignmentServiceProvider;
     private final VehicleRuleEntityService vehicleRuleEntityService;
     private final ContractRuleService contractRuleService;
     private final VehicleTypeEntityService vehicleTypeEntityService;
-    private final VehicleEntityService vehicleEntityService;
     private final OrderService orderService;
     private final ContractService contractService;
     private final OrderDetailMapper orderDetailMapper;
@@ -376,6 +376,10 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         // 5. Assign
 
         for(UUID vehicleTypeId : mapVehicleTypeAndOrderDetail.keySet()){
+            VehicleAssignmentService vehicleAssignmentService = vehicleAssignmentServiceProvider.getIfAvailable();
+            if (vehicleAssignmentService == null) {
+                throw new IllegalStateException("VehicleAssignmentService not available");
+            }
             List<VehicleAssignmentResponse> listAssignmentByVehicleType = vehicleAssignmentService.getAllAssignmentsWithOrder(vehicleTypeId);
             List<OrderDetailEntity> toUpdate = new ArrayList<>();
             VehicleAssignmentEntity vehicleAssignmentEntity = vehicleAssignmentEntityService.findEntityById(listAssignmentByVehicleType.get(0).id()).get();
@@ -405,6 +409,10 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     @Override
     @Transactional
     public List<GetOrderDetailsResponseForList> createAndAssignVehicleAssignmentForDetails(CreateAndAssignForDetailsRequest request) {
+        VehicleAssignmentService vehicleAssignmentService = vehicleAssignmentServiceProvider.getIfAvailable();
+        if (vehicleAssignmentService == null) {
+            throw new IllegalStateException("VehicleAssignmentService not available");
+        }
         List<GetOrderDetailsResponseForList> resultResponse = new ArrayList<>();
 
         // Iterate through tracking codes and their assignments

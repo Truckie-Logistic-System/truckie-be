@@ -8,9 +8,8 @@ public record VehicleAssignmentResponse(
         UUID id,
         UUID vehicleId,
         UUID driver_id_1,
-        UUID driver_id_2
+        UUID driver_id_2,
+        String status,
+        String trackingCode
 ){
-    public String status() {
-        return null;
-    }
 }

@@ -19,6 +19,7 @@ import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
+import capstone_project.service.services.order.order.JourneyHistoryService;
 import capstone_project.service.services.order.seal.OrderSealService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -32,6 +33,7 @@ public class SimpleOrderMapper {
     private final UserEntityService userEntityService;
     private final VehicleEntityService vehicleEntityService;
     private final OrderSealService orderSealService;
+    private final JourneyHistoryService journeyHistoryService;
 
     public SimpleOrderForCustomerResponse toSimpleOrderForCustomerResponse(
             GetOrderResponse orderResponse,
@@ -48,14 +50,14 @@ public class SimpleOrderMapper {
         );
 
         // Convert Contract
-        SimpleContractResponse simpleContractResponse = contractResponse != null ? 
+        SimpleContractResponse simpleContractResponse = contractResponse != null ?
                 toSimpleContractResponse(contractResponse) : null;
-        
+
         // Convert Transactions
         List<SimpleTransactionResponse> simpleTransactionResponses = transactionResponses.stream()
                 .map(this::toSimpleTransactionResponse)
                 .collect(Collectors.toList());
-        
+
         return new SimpleOrderForCustomerResponse(
                 simpleOrderResponse,
                 simpleContractResponse,
@@ -73,25 +75,14 @@ public class SimpleOrderMapper {
                 response.deliveryAddress().ward(),
                 response.deliveryAddress().province()
         );
-        
+
         String pickupAddress = combineAddress(
                 response.pickupAddress().street(),
                 response.pickupAddress().ward(),
                 response.pickupAddress().province()
         );
-        
-        // Create a map of issues by vehicle assignment ID for easy lookup
-        Map<UUID, SimpleIssueImageResponse> issuesByVehicleAssignment = new HashMap<>();
-        for (GetIssueImageResponse issueImageResponse : issueImageResponses) {
-            if (issueImageResponse != null && issueImageResponse.issue() != null) {
-                try {
-                    UUID vehicleAssignmentId = UUID.fromString(issueImageResponse.issue().vehicleAssignmentEntity().id().toString());
-                    issuesByVehicleAssignment.put(vehicleAssignmentId, toSimpleIssueImageResponse(issueImageResponse));
-                } catch (Exception e) {
-                    // Handle invalid UUID format gracefully
-                }
-            }
-        }
+
+        Map<UUID, SimpleIssueImageResponse> issuesByVehicleAssignment = buildIssuesMap(issueImageResponses);
 
         // Process order details with enhanced vehicle assignments
         List<SimpleOrderDetailResponse> simpleOrderDetails = response.orderDetails().stream()
@@ -103,13 +94,7 @@ public class SimpleOrderMapper {
                         // Get issue for this vehicle assignment
                         SimpleIssueImageResponse issue = issuesByVehicleAssignment.get(vehicleAssignmentId);
 
-                        // Get photo completions for this vehicle assignment
-                        List<String> photoCompletions = null;
-                        if (photoCompletionResponses.containsKey(vehicleAssignmentId)) {
-                            photoCompletions = photoCompletionResponses.get(vehicleAssignmentId).stream()
-                                    .map(PhotoCompletionResponse::imageUrl)
-                                    .collect(Collectors.toList());
-                        }
+                        List<String> photoCompletions = getPhotoCompletionsFor(photoCompletionResponses, vehicleAssignmentId);
 
                         // Create enhanced vehicle assignment with trip information
                         return toSimpleOrderDetailResponseWithTripInfo(
@@ -122,7 +107,7 @@ public class SimpleOrderMapper {
                     }
                 })
                 .collect(Collectors.toList());
-        
+
         return new SimpleOrderResponse(
                 response.id(),
                 response.totalPrice(),
@@ -144,7 +129,7 @@ public class SimpleOrderMapper {
                 simpleOrderDetails
         );
     }
-    
+
     private SimpleOrderDetailResponse toSimpleOrderDetailResponseWithTripInfo(
             GetOrderDetailResponse detail,
             SimpleIssueImageResponse issue,
@@ -197,7 +182,7 @@ public class SimpleOrderMapper {
                     // Handle exception gracefully
                 }
             }
-            
+
             // Get secondary driver information
             SimpleDriverResponse secondaryDriver = null;
             if (detail.vehicleAssignmentId().driver_id_2() != null) {
@@ -216,18 +201,29 @@ public class SimpleOrderMapper {
                 }
             }
 
-            // Create journey history (placeholder - implement actual journey history retrieval)
-            List<JourneyHistoryResponse> journeyHistory = new ArrayList<>();
-
-            // Get all order seals for this vehicle assignment
-            List<GetOrderSealResponse> orderSeals = null;
+            // Retrieve journey history for the vehicle assignment (null-safe)
+            List<JourneyHistoryResponse> journeyHistories = Collections.emptyList();
             try {
                 UUID vehicleAssignmentId = detail.vehicleAssignmentId().id();
-                orderSeals = orderSealService.getAllOrderSealsByVehicleAssignmentId(vehicleAssignmentId);
+                List<JourneyHistoryResponse> raw = journeyHistoryService.getByVehicleAssignmentId(vehicleAssignmentId);
+                if (raw != null) journeyHistories = raw;
             } catch (Exception e) {
-                // Handle exception gracefully
-                orderSeals = new ArrayList<>();
+                // Keep journeyHistories as empty list
             }
+
+            // Get all order seals for this vehicle assignment (null-safe)
+            List<GetOrderSealResponse> orderSeals = Collections.emptyList();
+            try {
+                UUID vehicleAssignmentId = detail.vehicleAssignmentId().id();
+                List<GetOrderSealResponse> raw = orderSealService.getAllOrderSealsByVehicleAssignmentId(vehicleAssignmentId);
+                if (raw != null) orderSeals = raw;
+            } catch (Exception e) {
+                // Keep orderSeals as empty list
+            }
+
+            // Ensure photoCompletions and issue lists are non-null
+            List<String> safePhotoCompletions = photoCompletions != null ? photoCompletions : Collections.emptyList();
+            List<SimpleIssueImageResponse> issuesList = issue != null ? List.of(issue) : Collections.emptyList();
 
             // Create enhanced vehicle assignment with trip information
             vehicleAssignment = new SimpleVehicleAssignmentResponse(
@@ -237,10 +233,11 @@ public class SimpleOrderMapper {
                     primaryDriver,
                     secondaryDriver,
                     detail.vehicleAssignmentId().status(),
-                    issue != null ? List.of(issue) : null,
-                    photoCompletions,
+                    detail.vehicleAssignmentId().trackingCode(),
+                    issuesList,
+                    safePhotoCompletions,
                     orderSeals,
-                    journeyHistory
+                    journeyHistories
             );
         }
 
@@ -297,7 +294,7 @@ public class SimpleOrderMapper {
         if (response == null || response.issue() == null) {
             return null;
         }
-        
+
         SimpleStaffResponse staffResponse = null;
         if (response.issue().staff() != null) {
             staffResponse = new SimpleStaffResponse(
@@ -306,7 +303,7 @@ public class SimpleOrderMapper {
                     response.issue().staff().getPhoneNumber()
             );
         }
-        
+
         SimpleIssueResponse simpleIssue = new SimpleIssueResponse(
                 response.issue().id().toString(),
                 response.issue().description(),
@@ -317,24 +314,24 @@ public class SimpleOrderMapper {
                 staffResponse,
                 response.issue().issueTypeEntity().issueTypeName()
         );
-        
+
         return new SimpleIssueImageResponse(simpleIssue, response.imageUrl());
     }
 
     private Map<String, List<String>> convertPhotoCompletions(Map<UUID, List<PhotoCompletionResponse>> photoCompletionMap) {
         Map<String, List<String>> result = new HashMap<>();
-        
+
         if (photoCompletionMap != null) {
             for (Map.Entry<UUID, List<PhotoCompletionResponse>> entry : photoCompletionMap.entrySet()) {
                 String vehicleAssignmentId = entry.getKey().toString();
                 List<String> imageUrls = entry.getValue().stream()
                         .map(PhotoCompletionResponse::imageUrl)
                         .collect(Collectors.toList());
-                
+
                 result.put(vehicleAssignmentId, imageUrls);
             }
         }
-        
+
         return result;
     }
 
@@ -342,7 +339,7 @@ public class SimpleOrderMapper {
         if (contract == null) {
             return null;
         }
-        
+
         String staffName = "";
         try {
             if (contract.staffId() != null) {
@@ -354,7 +351,7 @@ public class SimpleOrderMapper {
         } catch (Exception e) {
             // Handle exception gracefully
         }
-        
+
         return new SimpleContractResponse(
                 contract.id(),
                 contract.contractName(),
@@ -373,7 +370,7 @@ public class SimpleOrderMapper {
         if (transaction == null) {
             return null;
         }
-        
+
         return new SimpleTransactionResponse(
                 transaction.id(),
                 transaction.paymentProvider(),
@@ -399,5 +396,75 @@ public class SimpleOrderMapper {
             address.append(province);
         }
         return address.toString();
+    }
+
+    private Map<UUID, SimpleIssueImageResponse> buildIssuesMap(List<GetIssueImageResponse> issueImageResponses) {
+        Map<UUID, SimpleIssueImageResponse> map = new HashMap<>();
+        if (issueImageResponses == null) return map;
+
+        for (GetIssueImageResponse resp : issueImageResponses) {
+            if (resp == null || resp.issue() == null) continue;
+            try {
+                // guard nested nulls
+                var issue = resp.issue();
+                if (issue.vehicleAssignmentEntity() == null || issue.vehicleAssignmentEntity().id() == null) continue;
+                UUID vehicleAssignmentId = UUID.fromString(issue.vehicleAssignmentEntity().id().toString());
+                SimpleIssueImageResponse simple = safeToSimpleIssueImageResponse(resp);
+                if (simple != null) map.put(vehicleAssignmentId, simple);
+            } catch (Exception ignored) {
+                // ignore invalid UUIDs or mapping errors
+            }
+        }
+        return map;
+    }
+
+    // java
+    private List<String> getPhotoCompletionsFor(Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses, UUID vehicleAssignmentId) {
+        if (photoCompletionResponses == null) return Collections.emptyList(); // defensive
+        if (vehicleAssignmentId == null) return Collections.emptyList();
+        List<PhotoCompletionResponse> raw = photoCompletionResponses.get(vehicleAssignmentId);
+        if (raw == null) return Collections.emptyList();
+        return raw.stream()
+                .map(PhotoCompletionResponse::imageUrl)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+
+    private SimpleIssueImageResponse safeToSimpleIssueImageResponse(GetIssueImageResponse response) {
+        if (response == null || response.issue() == null) return null;
+
+        var issue = response.issue();
+
+        SimpleStaffResponse staffResponse = null;
+        if (issue.staff() != null) {
+            var s = issue.staff();
+            staffResponse = new SimpleStaffResponse(
+                    s.getId(),
+                    s.getFullName(),
+                    s.getPhoneNumber()
+            );
+        }
+
+        String vehicleAssignmentIdStr = null;
+        if (issue.vehicleAssignmentEntity() != null && issue.vehicleAssignmentEntity().id() != null) {
+            vehicleAssignmentIdStr = issue.vehicleAssignmentEntity().id().toString();
+        }
+
+        String issueTypeName = issue.issueTypeEntity() != null ? issue.issueTypeEntity().issueTypeName() : null;
+
+        SimpleIssueResponse simpleIssue = new SimpleIssueResponse(
+                issue.id() != null ? issue.id().toString() : null,
+                issue.description(),
+                issue.locationLatitude(),
+                issue.locationLongitude(),
+                issue.status(),
+                vehicleAssignmentIdStr,
+                staffResponse,
+                issueTypeName
+        );
+
+        List<String> images = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
+        return new SimpleIssueImageResponse(simpleIssue, images);
     }
 }

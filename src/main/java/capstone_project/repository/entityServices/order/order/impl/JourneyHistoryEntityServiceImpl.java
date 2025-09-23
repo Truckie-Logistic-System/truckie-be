@@ -30,4 +30,9 @@ public class JourneyHistoryEntityServiceImpl implements JourneyHistoryEntityServ
     public List<JourneyHistoryEntity> findAll() {
         return journeyHistoryRepository.findAll();
     }
+
+    @Override
+    public List<JourneyHistoryEntity> findByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        return journeyHistoryRepository.findByVehicleAssignmentEntity_Id(vehicleAssignmentId);
+    }
 }

@@ -17,6 +17,10 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class VehicleAssignmentEntity extends BaseEntity {
     @Size(max = 100)
+    @Column(name = "tracking_code", length = 100)
+    private String trackingCode;
+
+    @Size(max = 100)
     @Column(name = "description", length = 100)
     private String description;
 

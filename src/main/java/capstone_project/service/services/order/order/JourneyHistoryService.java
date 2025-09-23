@@ -13,4 +13,5 @@ public interface JourneyHistoryService {
     JourneyHistoryResponse create(JourneyHistoryRequest req);
     JourneyHistoryResponse update(UUID id, UpdateJourneyHistoryRequest req);
     void delete(UUID id);
+    List<JourneyHistoryResponse> getByVehicleAssignmentId(UUID vehicleAssignmentId);
 }

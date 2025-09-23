@@ -89,7 +89,7 @@ public class PhotoCompletionServiceImpl implements PhotoCompletionService {
     }
 
     @Override
-    public List<PhotoCompletionResponse> getByVehicleAssignment(UUID vehicleAssignmentId) {
+    public List<PhotoCompletionResponse> getByVehicleAssignmentId(UUID vehicleAssignmentId) {
         Optional<VehicleAssignmentEntity> vehicleAssignmentEntity = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId);
         if (vehicleAssignmentEntity.isEmpty()){
             throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "Vehicle assignment khong tim thay",ErrorEnum.NOT_FOUND.getErrorCode());

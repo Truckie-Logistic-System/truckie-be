@@ -111,4 +111,19 @@ public class JourneyHistoryServiceImpl implements JourneyHistoryService {
         redis.delete(KEY_ALL);
         redis.delete(KEY_ID + id);
     }
+
+    @Override
+    public List<JourneyHistoryResponse> getByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        List<JourneyHistoryEntity> entities = entityService.findByVehicleAssignmentId(vehicleAssignmentId);
+        if (entities.isEmpty()) {
+            log.warn("No journey history found for vehicleAssignmentId: {}", vehicleAssignmentId);
+            throw new NotFoundException(
+                    ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+        return entities.stream()
+                .map(mapper::toResponse)
+                .toList();
+    }
 }

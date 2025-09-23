@@ -14,6 +14,12 @@ public record JourneyHistoryResponse(
         String status,
         BigDecimal totalDistance,
         Boolean isReportedIncident,
+        Boolean isRouteChanged,
+        String routeChangeReason,
+        String originalRouteJson,
+        String currentRouteJson,
+        UUID previousJourneyId,
+        UUID vehicleAssignmentId,
         LocalDateTime createdAt,
         LocalDateTime modifiedAt
 ) {}

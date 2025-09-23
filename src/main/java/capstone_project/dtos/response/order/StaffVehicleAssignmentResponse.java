@@ -14,6 +14,7 @@ public record StaffVehicleAssignmentResponse(
     StaffDriverResponse primaryDriver,
     StaffDriverResponse secondaryDriver,
     String status,
+    String trackingCode,
     List<PenaltyHistoryResponse> penalties,
     List<CameraTrackingResponse> cameraTrackings,
     VehicleFuelConsumptionResponse fuelConsumption,

@@ -12,6 +12,7 @@ public record SimpleVehicleAssignmentResponse(
     SimpleDriverResponse primaryDriver,
     SimpleDriverResponse secondaryDriver,
     String status,
+    String trackingCode,
     // Trip-related information
     List<SimpleIssueImageResponse> issues,
     List<String> photoCompletions,
@@ -25,7 +26,8 @@ public record SimpleVehicleAssignmentResponse(
             String licensePlateNumber,
             SimpleDriverResponse primaryDriver,
             SimpleDriverResponse secondaryDriver,
-            String status) {
-        this(id, vehicleName, licensePlateNumber, primaryDriver, secondaryDriver, status, null, null, null, null);
+            String status,
+            String trackingCode) {
+        this(id, vehicleName, licensePlateNumber, primaryDriver, secondaryDriver, status, trackingCode, null, null, null, null);
     }
 }

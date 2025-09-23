@@ -1,12 +1,16 @@
 package capstone_project.service.mapper.order;
 
+import capstone_project.dtos.response.issue.GetIssueImageResponse;
 import capstone_project.dtos.response.issue.SimpleIssueImageResponse;
+import capstone_project.dtos.response.issue.SimpleIssueResponse;
+import capstone_project.dtos.response.issue.SimpleStaffResponse;
 import capstone_project.dtos.response.order.*;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.SimpleContractResponse;
 import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
 import capstone_project.dtos.response.order.transaction.SimpleTransactionResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
+import capstone_project.dtos.response.order.PhotoCompletionResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.device.CameraTrackingEntity;
@@ -20,7 +24,10 @@ import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
+import capstone_project.service.services.issue.IssueImageService;
+import capstone_project.service.services.order.order.JourneyHistoryService;
 import capstone_project.service.services.order.seal.OrderSealService;
+import capstone_project.service.services.order.order.PhotoCompletionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -41,6 +48,10 @@ public class StaffOrderMapper {
     private final VehicleEntityService vehicleEntityService;
     private final OrderSealService orderSealService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
+    private final JourneyHistoryService journeyHistoryService;
+    private final IssueImageService issueImageService;
+    // PhotoCompletionService may not exist in every project; if not present remove this field and helper below
+    private final PhotoCompletionService photoCompletionService;
 
     public StaffOrderForStaffResponse toStaffOrderForStaffResponse(
             GetOrderResponse orderResponse,
@@ -67,7 +78,6 @@ public class StaffOrderMapper {
     }
 
     private StaffOrderResponse toStaffOrderResponseWithEnhancedInfo(GetOrderResponse response) {
-        // Combine addresses like in SimpleOrderMapper
         String deliveryAddress = combineAddress(
                 response.deliveryAddress().street(),
                 response.deliveryAddress().ward(),
@@ -108,7 +118,6 @@ public class StaffOrderMapper {
     }
 
     private StaffOrderDetailResponse toStaffOrderDetailResponseWithEnhancedInfo(GetOrderDetailResponse detail) {
-        // Create order size information
         SimpleOrderSizeResponse orderSize = null;
         if (detail.orderSizeId() != null) {
             orderSize = new SimpleOrderSizeResponse(
@@ -123,18 +132,13 @@ public class StaffOrderMapper {
             );
         }
 
-        // Create enhanced vehicle assignment for staff
         StaffVehicleAssignmentResponse vehicleAssignment = null;
         if (detail.vehicleAssignmentId() != null) {
             vehicleAssignment = toStaffVehicleAssignmentResponse(detail.vehicleAssignmentId());
         }
 
-        // GetOrderDetailResponse doesn't have issue and photoCompletions
-        SimpleIssueImageResponse issue = null;
-        List<String> photoCompletions = new ArrayList<>();
-
         return new StaffOrderDetailResponse(
-                detail.trackingCode(), // Use trackingCode as identifier
+                detail.trackingCode(),
                 detail.weightBaseUnit(),
                 detail.unit(),
                 detail.description(),
@@ -155,128 +159,84 @@ public class StaffOrderMapper {
 
         log.info("Processing vehicle assignment with ID: {}", vehicleAssignmentId);
 
-        // First try to get the complete vehicle assignment entity from the database
         VehicleAssignmentEntity vehicleAssignmentEntity = null;
         try {
             vehicleAssignmentEntity = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId).orElse(null);
             if (vehicleAssignmentEntity == null) {
                 log.warn("Vehicle assignment entity not found in database for ID: {}", vehicleAssignmentId);
-            } else {
-                log.info("Successfully retrieved vehicle assignment entity from database: {}", vehicleAssignmentId);
-
-                // Log more detailed information about the driver entities
-                if (vehicleAssignmentEntity.getDriver1() != null) {
-                    log.info("Primary driver found in entity. Driver ID: {}", vehicleAssignmentEntity.getDriver1().getId());
-                    if (vehicleAssignmentEntity.getDriver1().getUser() != null) {
-                        log.info("Primary driver has user entity. User ID: {}", vehicleAssignmentEntity.getDriver1().getUser().getId());
-                    } else {
-                        log.warn("Primary driver has no associated user entity");
-                    }
-                } else {
-                    log.warn("No primary driver found in vehicle assignment entity");
-                }
-
-                if (vehicleAssignmentEntity.getDriver2() != null) {
-                    log.info("Secondary driver found in entity. Driver ID: {}", vehicleAssignmentEntity.getDriver2().getId());
-                    if (vehicleAssignmentEntity.getDriver2().getUser() != null) {
-                        log.info("Secondary driver has user entity. User ID: {}", vehicleAssignmentEntity.getDriver2().getUser().getId());
-                    } else {
-                        log.warn("Secondary driver has no associated user entity");
-                    }
-                } else {
-                    log.warn("No secondary driver found in vehicle assignment entity");
-                }
             }
         } catch (Exception e) {
             log.error("Error retrieving vehicle assignment entity from database: {}", e.getMessage(), e);
         }
 
-        // Get additional information for staff
         List<PenaltyHistoryResponse> penalties = getPenaltiesByVehicleAssignmentId(vehicleAssignmentId,
-                                                 vehicleAssignmentEntity != null && vehicleAssignmentEntity.getDriver1() != null ?
-                                                    vehicleAssignmentEntity.getDriver1().getUser().getId() : vehicleAssignmentResponse.driver_id_1(),
-                                                 vehicleAssignmentEntity != null && vehicleAssignmentEntity.getDriver2() != null ?
-                                                    vehicleAssignmentEntity.getDriver2().getUser().getId() : vehicleAssignmentResponse.driver_id_2());
+                vehicleAssignmentEntity != null && vehicleAssignmentEntity.getDriver1() != null ?
+                        vehicleAssignmentEntity.getDriver1().getUser().getId() : vehicleAssignmentResponse.driver_id_1(),
+                vehicleAssignmentEntity != null && vehicleAssignmentEntity.getDriver2() != null ?
+                        vehicleAssignmentEntity.getDriver2().getUser().getId() : vehicleAssignmentResponse.driver_id_2());
 
         List<CameraTrackingResponse> cameraTrackings = getCameraTrackingsByVehicleAssignmentId(vehicleAssignmentId);
         VehicleFuelConsumptionResponse fuelConsumption = getFuelConsumptionByVehicleAssignmentId(vehicleAssignmentId);
 
-        // Get issues for this vehicle assignment
+        // Get issues for this vehicle assignment (null-safe, full lookup)
         List<SimpleIssueImageResponse> issues = getIssuesByVehicleAssignmentId(vehicleAssignmentId);
+        if (issues == null) issues = Collections.emptyList();
 
-        // Create enhanced driver responses with complete information from driver and user tables
         StaffDriverResponse primaryDriver = null;
         StaffDriverResponse secondaryDriver = null;
 
         try {
-            // Try to get drivers from the entity first, then fall back to the response IDs
             UUID primaryDriverUserId = null;
             UUID secondaryDriverUserId = null;
 
             if (vehicleAssignmentEntity != null) {
                 if (vehicleAssignmentEntity.getDriver1() != null && vehicleAssignmentEntity.getDriver1().getUser() != null) {
                     primaryDriverUserId = vehicleAssignmentEntity.getDriver1().getUser().getId();
-                    log.info("Using primary driver user ID from entity: {}", primaryDriverUserId);
                 }
                 if (vehicleAssignmentEntity.getDriver2() != null && vehicleAssignmentEntity.getDriver2().getUser() != null) {
                     secondaryDriverUserId = vehicleAssignmentEntity.getDriver2().getUser().getId();
-                    log.info("Using secondary driver user ID from entity: {}", secondaryDriverUserId);
                 }
             }
 
-            // Fall back to response IDs if entity doesn't have them
             if (primaryDriverUserId == null && vehicleAssignmentResponse.driver_id_1() != null) {
                 primaryDriverUserId = vehicleAssignmentResponse.driver_id_1();
-                log.info("Using primary driver ID from response: {}", primaryDriverUserId);
             }
 
             if (secondaryDriverUserId == null && vehicleAssignmentResponse.driver_id_2() != null) {
                 secondaryDriverUserId = vehicleAssignmentResponse.driver_id_2();
-                log.info("Using secondary driver ID from response: {}", secondaryDriverUserId);
             }
 
-            // Get the driver information
             if (primaryDriverUserId != null) {
                 primaryDriver = getEnhancedDriverInfo(primaryDriverUserId);
-                log.info("Primary driver info fetched: {}", primaryDriver != null ? primaryDriver.fullName() : "null");
             }
 
             if (secondaryDriverUserId != null) {
                 secondaryDriver = getEnhancedDriverInfo(secondaryDriverUserId);
-                log.info("Secondary driver info fetched: {}", secondaryDriver != null ? secondaryDriver.fullName() : "null");
             }
         } catch (Exception e) {
             log.warn("Could not fetch driver info for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
         }
 
-        // Create enhanced vehicle response from vehicleId
         StaffVehicleResponse vehicle = null;
         try {
-            // First try to get vehicle from the entity
             UUID vehicleId = null;
 
             if (vehicleAssignmentEntity != null && vehicleAssignmentEntity.getVehicleEntity() != null) {
                 vehicleId = vehicleAssignmentEntity.getVehicleEntity().getId();
-                log.info("Using vehicle ID from entity: {}", vehicleId);
             } else if (vehicleAssignmentResponse.vehicleId() != null) {
-                // Fall back to the response vehicleId
                 vehicleId = vehicleAssignmentResponse.vehicleId();
-                log.info("Using vehicle ID from response: {}", vehicleId);
             }
 
             if (vehicleId != null) {
                 var vehicleEntity = vehicleEntityService.findEntityById(vehicleId).orElse(null);
                 if (vehicleEntity != null) {
                     vehicle = new StaffVehicleResponse(
-                            null, // Remove ID as this is already part of the vehicle assignment
+                            null,
                             vehicleEntity.getManufacturer(),
                             vehicleEntity.getModel(),
                             vehicleEntity.getLicensePlateNumber(),
                             vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null
                     );
-                    log.info("Vehicle info fetched: {}, License: {}",
-                            vehicle.manufacturer() + " " + vehicle.model(),
-                            vehicle.licensePlateNumber());
                 } else {
                     log.warn("Vehicle entity not found for ID: {}", vehicleId);
                 }
@@ -287,18 +247,31 @@ public class StaffOrderMapper {
             log.warn("Could not fetch vehicle info for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
         }
 
-        // Get order seals
-        List<GetOrderSealResponse> orderSeals = new ArrayList<>();
+        // Retrieve journey history for the vehicle assignment (null-safe)
+        List<JourneyHistoryResponse> journeyHistories = Collections.emptyList();
         try {
-            orderSeals = orderSealService.getAllOrderSealsByVehicleAssignmentId(vehicleAssignmentId);
-            log.info("Fetched {} order seals for vehicle assignment {}", orderSeals.size(), vehicleAssignmentId);
+            List<JourneyHistoryResponse> raw = journeyHistoryService.getByVehicleAssignmentId(vehicleAssignmentId);
+            if (raw != null) journeyHistories = raw;
         } catch (Exception e) {
-            log.warn("Could not fetch order seals for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
+            log.warn("Could not fetch journey histories for {}: {}", vehicleAssignmentId, e.getMessage());
         }
 
-        // Get the status from the entity if available, otherwise use the response's status (which may be null)
+        // Get order seals (null-safe)
+        List<GetOrderSealResponse> orderSeals = Collections.emptyList();
+        try {
+            List<GetOrderSealResponse> raw = orderSealService.getAllOrderSealsByVehicleAssignmentId(vehicleAssignmentId);
+            if (raw != null) orderSeals = raw;
+        } catch (Exception e) {
+            log.warn("Could not fetch order seals for {}: {}", vehicleAssignmentId, e.getMessage());
+        }
+
+        // Ensure lists are non-null
+        if (orderSeals == null) orderSeals = Collections.emptyList();
+        if (journeyHistories == null) journeyHistories = Collections.emptyList();
+        if (issues == null) issues = Collections.emptyList();
+
         String status = vehicleAssignmentEntity != null ? vehicleAssignmentEntity.getStatus() : vehicleAssignmentResponse.status();
-        log.info("Using status: {} for vehicle assignment {}", status, vehicleAssignmentId);
+        String trackingCode = vehicleAssignmentResponse.trackingCode();
 
         return new StaffVehicleAssignmentResponse(
                 vehicleAssignmentId,
@@ -306,11 +279,12 @@ public class StaffOrderMapper {
                 primaryDriver,
                 secondaryDriver,
                 status,
+                trackingCode,
                 penalties,
                 cameraTrackings,
                 fuelConsumption,
                 orderSeals,
-                new ArrayList<>(), // journeyHistory
+                journeyHistories,
                 issues
         );
     }
@@ -319,24 +293,16 @@ public class StaffOrderMapper {
         if (driverId == null) return null;
 
         try {
-            // Get user information
             UserEntity userEntity = userEntityService.findEntityById(driverId).orElse(null);
             if (userEntity == null) {
                 log.warn("User entity not found for driver ID: {}", driverId);
                 return null;
             }
 
-            // Get driver information from driver entity
             DriverEntity driverEntity = driverEntityService.findByUserId(driverId).orElse(null);
-            if (driverEntity == null) {
-                log.warn("Driver entity not found for user ID: {}", driverId);
-            } else {
-                log.info("Successfully retrieved driver entity for user ID: {}", driverId);
-            }
 
-            // Create enhanced driver response with combined information
             return new StaffDriverResponse(
-                    null, // Remove ID as this is already part of the vehicle assignment
+                    null,
                     userEntity.getFullName(),
                     userEntity.getPhoneNumber(),
                     userEntity.getEmail(),
@@ -352,7 +318,7 @@ public class StaffOrderMapper {
                     driverEntity != null ? driverEntity.getLicenseClass() : null,
                     driverEntity != null ? driverEntity.getDateOfPassing() : null,
                     userEntity.getStatus(),
-                    null, // Address information not available in provided entities
+                    null,
                     userEntity.getCreatedAt()
             );
         } catch (Exception e) {
@@ -368,19 +334,13 @@ public class StaffOrderMapper {
             List<PenaltyHistoryEntity> penalties = penaltyHistoryEntityService.findByVehicleAssignmentId(vehicleAssignmentId);
             return penalties.stream()
                     .map(entity -> {
-                        // Get the complete driver information for the penalty
                         StaffDriverResponse driverInfo = null;
-
-                        // Try to get the driver who issued this penalty
                         if (entity.getIssueBy() != null) {
                             driverInfo = getEnhancedDriverInfo(entity.getIssueBy().getId());
-                        }
-                        // If no specific driver is linked to the penalty, default to the primary driver
-                        else if (primaryDriverId != null) {
+                        } else if (primaryDriverId != null) {
                             driverInfo = getEnhancedDriverInfo(primaryDriverId);
                         }
 
-                        // Create the penalty response with full driver information
                         return new PenaltyHistoryResponse(
                                 entity.getId(),
                                 entity.getViolationType(),
@@ -391,7 +351,7 @@ public class StaffOrderMapper {
                                 entity.getStatus(),
                                 entity.getPaymentDate(),
                                 entity.getDisputeReason(),
-                                driverInfo  // Including the complete driver object instead of just an ID
+                                driverInfo
                         );
                     })
                     .collect(Collectors.toList());
@@ -412,9 +372,9 @@ public class StaffOrderMapper {
                             entity.getVideoUrl(),
                             entity.getTrackingAt(),
                             entity.getStatus(),
-                            null, // Remove vehicle assignment ID as this is already part of the containing object
+                            null,
                             entity.getDeviceEntity() != null ?
-                                entity.getDeviceEntity().getDeviceCode() + " " + entity.getDeviceEntity().getModel() : null
+                                    entity.getDeviceEntity().getDeviceCode() + " " + entity.getDeviceEntity().getModel() : null
                     ))
                     .collect(Collectors.toList());
         } catch (Exception e) {
@@ -506,23 +466,66 @@ public class StaffOrderMapper {
     }
 
     private List<SimpleIssueImageResponse> getIssuesByVehicleAssignmentId(UUID vehicleAssignmentId) {
-        if (vehicleAssignmentId == null) return new ArrayList<>();
+        if (vehicleAssignmentId == null) return Collections.emptyList();
 
         try {
-            // Fetch issues from the IssueEntityService by vehicle assignment ID
-            // For now, we'll return an empty list since the current services don't support
-            // retrieving multiple issues for a vehicle assignment
-
-            // In a real implementation, you would:
-            // 1. Inject an appropriate repository or service that can fetch all issues for a vehicle assignment
-            // 2. Transform those issues into SimpleIssueImageResponse objects
-            // 3. Return the list of transformed objects
-
-            log.info("Fetching issues for vehicle assignment ID: {}", vehicleAssignmentId);
-            return new ArrayList<>();
+            // IssueImageService returns a GetIssueImageResponse for a vehicle assignment
+            GetIssueImageResponse resp = issueImageService.getByVehicleAssignment(vehicleAssignmentId);
+            if (resp == null || resp.issue() == null) {
+                return Collections.emptyList();
+            }
+            SimpleIssueImageResponse simple = toSimpleIssueImageResponse(resp);
+            return simple != null ? List.of(simple) : Collections.emptyList();
         } catch (Exception e) {
             log.warn("Could not fetch issues for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
+    }
+
+    private List<String> getPhotoCompletionsByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        if (vehicleAssignmentId == null) return Collections.emptyList();
+
+        try {
+            if (photoCompletionService == null) return Collections.emptyList();
+            List<PhotoCompletionResponse> raw = photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId);
+            if (raw == null) return Collections.emptyList();
+            return raw.stream()
+                    .map(PhotoCompletionResponse::imageUrl)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Could not fetch photo completions for {}: {}", vehicleAssignmentId, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private SimpleIssueImageResponse toSimpleIssueImageResponse(GetIssueImageResponse response) {
+        if (response == null || response.issue() == null) {
+            return null;
+        }
+
+        SimpleStaffResponse staffResponse = null;
+        if (response.issue().staff() != null) {
+            staffResponse = new SimpleStaffResponse(
+                    response.issue().staff().getId(),
+                    response.issue().staff().getFullName(),
+                    response.issue().staff().getPhoneNumber()
+            );
+        }
+
+        SimpleIssueResponse simpleIssue = new SimpleIssueResponse(
+                response.issue().id().toString(),
+                response.issue().description(),
+                response.issue().locationLatitude(),
+                response.issue().locationLongitude(),
+                response.issue().status(),
+                response.issue().vehicleAssignmentEntity() != null && response.issue().vehicleAssignmentEntity().id() != null ?
+                        response.issue().vehicleAssignmentEntity().id().toString() : null,
+                staffResponse,
+                response.issue().issueTypeEntity() != null ? response.issue().issueTypeEntity().issueTypeName() : null
+        );
+
+        List<String> images = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
+        return new SimpleIssueImageResponse(simpleIssue, images);
     }
 }
