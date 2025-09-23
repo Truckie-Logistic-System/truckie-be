@@ -38,7 +38,7 @@ public class TransactionEntityServiceImpl implements TransactionEntityService {
     }
 
     @Override
-    public Optional<TransactionEntity> findByGatewayOrderCode(Long gatewayOrderCode) {
+    public Optional<TransactionEntity> findByGatewayOrderCode(String gatewayOrderCode) {
         return transactionRepository.findByGatewayOrderCode(gatewayOrderCode);
     }
 

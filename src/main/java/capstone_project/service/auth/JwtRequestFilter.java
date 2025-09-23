@@ -1,6 +1,7 @@
 package capstone_project.service.auth;
 
 import capstone_project.common.utils.JWTUtil;
+import capstone_project.config.security.SecurityConfigurer;
 import capstone_project.dtos.response.common.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -15,6 +16,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -33,6 +35,14 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+
+        String path = request.getRequestURI();
+
+        if (isPublicEndpoint(path)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         final String authorizationHeader = request.getHeader("Authorization");
 
         String username = null;
@@ -84,6 +94,11 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         response.getWriter().write(new ObjectMapper().writeValueAsString(
                 ApiResponse.fail(message, status)
         ));
+    }
+
+    private boolean isPublicEndpoint(String path) {
+        return Arrays.stream(SecurityConfigurer.PUBLIC_ENDPOINTS)
+                .anyMatch(pattern -> new AntPathMatcher().match(pattern, path));
     }
 
 }

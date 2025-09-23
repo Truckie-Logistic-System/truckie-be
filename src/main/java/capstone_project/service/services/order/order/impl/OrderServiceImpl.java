@@ -36,7 +36,7 @@ import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
-import capstone_project.service.services.order.transaction.TransactionService;
+import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
 import capstone_project.common.utils.UserContextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,7 +63,7 @@ public class OrderServiceImpl implements OrderService {
     private final IssueImageService issueImageService;
     private final ContractEntityService contractEntityService;
     private final ContractService contractService;
-    private final TransactionService transactionService;
+    private final PayOSTransactionService payOSTransactionService;
     private final PhotoCompletionService photoCompletionService;
     private final OrderMapper orderMapper;
     private final OrderDetailMapper orderDetailMapper;
@@ -464,7 +464,7 @@ public class OrderServiceImpl implements OrderService {
         Optional<ContractEntity> contractEntity = contractEntityService.getContractByOrderId(orderId);
         if (contractEntity.isPresent()) {
             contractResponse = contractService.getContractById(contractEntity.get().getId());
-            transactionResponses = transactionService.getTransactionsByContractId(contractEntity.get().getId());
+            transactionResponses = payOSTransactionService.getTransactionsByContractId(contractEntity.get().getId());
         }
 
         return new GetOrderForCustomerResponse(
@@ -511,7 +511,7 @@ public class OrderServiceImpl implements OrderService {
         Optional<ContractEntity> contractEntity = contractEntityService.getContractByOrderId(orderId);
         if (contractEntity.isPresent()) {
             contractResponse = contractService.getContractById(contractEntity.get().getId());
-            transactionResponses = transactionService.getTransactionsByContractId(contractEntity.get().getId());
+            transactionResponses = payOSTransactionService.getTransactionsByContractId(contractEntity.get().getId());
         }
 
         // Convert data collections to lists for the response
@@ -542,7 +542,7 @@ public class OrderServiceImpl implements OrderService {
         Optional<ContractEntity> contractEntity = contractEntityService.getContractByOrderId(orderId);
         if (contractEntity.isPresent()) {
             contractResponse = contractService.getContractById(contractEntity.get().getId());
-            transactionResponses = transactionService.getTransactionsByContractId(contractEntity.get().getId());
+            transactionResponses = payOSTransactionService.getTransactionsByContractId(contractEntity.get().getId());
         }
 
         // Use our mapper to convert to staff order response

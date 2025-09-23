@@ -1,4 +1,4 @@
-package capstone_project.service.services.order.transaction;
+package capstone_project.service.services.order.transaction.payOS;
 
 import capstone_project.dtos.response.order.transaction.GetTransactionStatusResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
@@ -6,7 +6,7 @@ import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import java.util.List;
 import java.util.UUID;
 
-public interface TransactionService {
+public interface PayOSTransactionService {
 
     TransactionResponse createTransaction(UUID contractId);
 

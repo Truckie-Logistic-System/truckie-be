@@ -34,7 +34,7 @@ public class TransactionEntity extends BaseEntity {
     private String gatewayResponse;
 
     @Column(name = "gateway_order_code")
-    private Long gatewayOrderCode;
+    private String gatewayOrderCode;
 
     @Size(max = 20)
     @Column(name = "status", length = 20)

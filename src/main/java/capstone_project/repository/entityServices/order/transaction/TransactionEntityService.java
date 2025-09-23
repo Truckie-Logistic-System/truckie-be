@@ -10,7 +10,7 @@ import java.util.UUID;
 public interface TransactionEntityService extends BaseEntityService<TransactionEntity, UUID> {
     List<TransactionEntity> findByContractId(UUID contractId);
 
-    Optional<TransactionEntity> findByGatewayOrderCode(Long gatewayOrderCode);
+    Optional<TransactionEntity> findByGatewayOrderCode(String gatewayOrderCode);
 
     boolean existsByContractIdAndStatus(UUID contractId, String status);
 

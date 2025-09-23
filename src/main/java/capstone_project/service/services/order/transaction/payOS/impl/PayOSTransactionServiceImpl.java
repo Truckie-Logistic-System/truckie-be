@@ -1,9 +1,9 @@
-package capstone_project.service.services.order.transaction.impl;
+package capstone_project.service.services.order.transaction.payOS.impl;
 
 import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
-import capstone_project.config.payment.PayOSProperties;
+import capstone_project.config.payment.PayOS.PayOSProperties;
 import capstone_project.dtos.response.order.transaction.GetTransactionStatusResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.entity.auth.UserEntity;
@@ -19,7 +19,7 @@ import capstone_project.repository.entityServices.order.transaction.TransactionE
 import capstone_project.repository.entityServices.setting.ContractSettingEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.order.TransactionMapper;
-import capstone_project.service.services.order.transaction.TransactionService;
+import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class TransactionServiceImpl implements TransactionService {
+public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
     private final TransactionEntityService transactionEntityService;
     private final ContractEntityService contractEntityService;
@@ -97,7 +97,6 @@ public class TransactionServiceImpl implements TransactionService {
                 .orderCode(payOsOrderCode)
                 .amount(remainingAmount.setScale(0, RoundingMode.HALF_UP).intValueExact())
                 .description("Create transaction")
-//                                .items(List.of(item))
                 .cancelUrl(properties.getCancelUrl())
                 .returnUrl(properties.getReturnUrl())
                 .build();
@@ -112,20 +111,20 @@ public class TransactionServiceImpl implements TransactionService {
                     .currencyCode("VND")
                     .paymentProvider("PayOS")
                     .gatewayResponse(objectMapper.writeValueAsString(response))
-                    .gatewayOrderCode(payOsOrderCode)
+                    .gatewayOrderCode(String.valueOf(payOsOrderCode))
                     .contractEntity(contractEntity)
                     .build();
 
             TransactionEntity savedEntity = transactionEntityService.save(transaction);
-//            contractEntity.setStatus(ContractStatusEnum.PAID.name());
-            return transactionMapper.toTransactionResponse(savedEntity);
 
+            return transactionMapper.toTransactionResponse(savedEntity);
 
         } catch (Exception e) {
             log.error("Error calling PayOS API", e);
             throw new RuntimeException("Failed to create payment link", e);
         }
     }
+
 
     @Override
     public TransactionResponse createDepositTransaction(UUID contractId) {
@@ -184,7 +183,7 @@ public class TransactionServiceImpl implements TransactionService {
                     .currencyCode("VND")
                     .paymentProvider("PayOS")
                     .gatewayResponse(objectMapper.writeValueAsString(response))
-                    .gatewayOrderCode(payOsOrderCode)
+                    .gatewayOrderCode(String.valueOf(payOsOrderCode))
                     .contractEntity(contractEntity)
                     .build();
 
@@ -260,22 +259,22 @@ public class TransactionServiceImpl implements TransactionService {
             );
         }
 
-//        if (!ContractStatusEnum.CONTRACT_SIGNED.name().equals(contractEntity.getStatus())) {
-//            log.error("Contract {} is not in UNPAID or CONTRACT_SIGNED status", contractId);
-//            throw new BadRequestException(
-//                    "Contract is not eligible for payment",
-//                    ErrorEnum.INVALID.getErrorCode()
-//            );
-//        }
-
-        if (transactionEntityService.existsByContractIdAndStatus(contractId, TransactionEnum.PAID.name())
-                && contractEntity.getStatus().equals(ContractStatusEnum.DEPOSITED.name())) {
+        if (ContractStatusEnum.PAID.name().equals(contractEntity.getStatus())) {
             log.error("Contract {} is already fully paid!", contractId);
             throw new BadRequestException(
                     "Contract is already fully paid!",
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
+
+//        if (transactionEntityService.existsByContractIdAndStatus(contractId, TransactionEnum.PAID.name())
+//                && contractEntity.getStatus().equals(ContractStatusEnum.DEPOSITED.name())) {
+//            log.error("Contract {} is already fully paid!", contractId);
+//            throw new BadRequestException(
+//                    "Contract is already fully paid!",
+//                    ErrorEnum.INVALID.getErrorCode()
+//            );
+//        }
 
         return contractEntity;
     }
@@ -345,7 +344,7 @@ public class TransactionServiceImpl implements TransactionService {
         try {
             JsonNode webhookEvent = objectMapper.readTree(rawCallbackPayload);
 
-            Long orderCode = webhookEvent.path("data").path("orderCode").asLong();
+            String orderCode = webhookEvent.path("data").path("orderCode").asText();
             String payOsStatus = webhookEvent.path("data").path("status").asText();
 
             if (orderCode == null || payOsStatus == null) {
@@ -416,7 +415,7 @@ public class TransactionServiceImpl implements TransactionService {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
                 } else {
                     contract.setStatus(ContractStatusEnum.PAID.name());
-                    order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
+//                    order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
                 }
             }
             case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
@@ -442,7 +441,7 @@ public class TransactionServiceImpl implements TransactionService {
                 ));
 
         try {
-            var payosTransaction = payOS.getPaymentLinkInformation(transaction.getGatewayOrderCode());
+            var payosTransaction = payOS.getPaymentLinkInformation(Long.valueOf(transaction.getGatewayOrderCode()));
 
             transaction.setStatus(payosTransaction.getStatus());
             transaction.setGatewayResponse(objectMapper.writeValueAsString(payosTransaction));
@@ -464,7 +463,7 @@ public class TransactionServiceImpl implements TransactionService {
                 ));
 
         try {
-            var refundResponse = payOS.cancelPaymentLink(transaction.getGatewayOrderCode(), reason);
+            var refundResponse = payOS.cancelPaymentLink(Long.parseLong(transaction.getGatewayOrderCode()), reason);
 
             transaction.setStatus(TransactionEnum.REFUNDED.name());
             transaction.setGatewayResponse(objectMapper.writeValueAsString(refundResponse));

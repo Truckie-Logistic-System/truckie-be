@@ -12,7 +12,7 @@ public interface TransactionRepository extends BaseRepository<TransactionEntity>
 
     List<TransactionEntity> findByContractEntityId(UUID contractEntityId);
 
-    Optional<TransactionEntity> findByGatewayOrderCode(Long gatewayOrderCode);
+    Optional<TransactionEntity> findByGatewayOrderCode(String gatewayOrderCode);
 
     boolean existsByContractEntityIdAndStatus(UUID contractEntityId, String status);
 

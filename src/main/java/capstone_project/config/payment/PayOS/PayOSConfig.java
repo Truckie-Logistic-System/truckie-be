@@ -1,4 +1,4 @@
-package capstone_project.config.payment;
+package capstone_project.config.payment.PayOS;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;

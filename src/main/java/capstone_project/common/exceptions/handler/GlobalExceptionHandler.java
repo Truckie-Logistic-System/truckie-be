@@ -6,6 +6,7 @@ import capstone_project.common.exceptions.dto.InternalServerException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.response.common.ApiResponse;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.stripe.exception.StripeException;
 import io.jsonwebtoken.ExpiredJwtException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -177,6 +178,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.fail(errorMessage, HttpStatus.BAD_REQUEST.value()));
+    }
+
+    @ExceptionHandler(StripeException.class)
+    public ResponseEntity<ApiResponse<?>> handleStripeException(StripeException ex) {
+        log.error("Stripe exception: ", ex);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.fail("Payment processing error: " + ex.getMessage(), HttpStatus.BAD_REQUEST.value()));
     }
 
 }
