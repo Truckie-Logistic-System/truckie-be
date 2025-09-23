@@ -568,4 +568,31 @@ public class OrderServiceImpl implements OrderService {
 
         return true;
     }
+
+    @Override
+    public boolean updateOrderStatus(UUID orderId, OrderStatusEnum newStatus) {
+        Optional<OrderEntity> optionalOrder = orderEntityService.findEntityById(orderId);
+        if (optionalOrder.isEmpty()) {
+            return false;
+        }
+        OrderEntity order = optionalOrder.get();
+        OrderStatusEnum currentStatus;
+        try {
+            currentStatus = OrderStatusEnum.valueOf(order.getStatus());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException(
+                    ErrorEnum.INVALID.getMessage() + " Invalid current status: " + order.getStatus(),
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+        if (currentStatus == null || !isValidTransition(currentStatus, newStatus)) {
+            throw new BadRequestException(
+                    ErrorEnum.INVALID.getMessage() + " Cannot change from " + order.getStatus() + " to " + newStatus,
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+        order.setStatus(newStatus.name());
+        orderEntityService.save(order);
+        return true;
+    }
 }

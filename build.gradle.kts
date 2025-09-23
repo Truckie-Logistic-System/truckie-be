@@ -37,6 +37,10 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-json")
 
+	// PDF Generation
+	implementation("com.itextpdf:itext7-core:7.2.5")
+	implementation("com.itextpdf:html2pdf:4.0.5")
+
 	// DB
 	implementation("org.postgresql:postgresql")
 	implementation("com.azure.spring:spring-cloud-azure-starter:5.22.0")

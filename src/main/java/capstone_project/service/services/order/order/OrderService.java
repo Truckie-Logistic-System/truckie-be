@@ -54,5 +54,7 @@ public interface OrderService {
 
     boolean signContractAndOrder(UUID contractId);
 
+    boolean updateOrderStatus(UUID orderId, OrderStatusEnum newStatus);
+
 
 }

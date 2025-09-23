@@ -37,4 +37,6 @@ public interface OrderDetailService {
      * Order details have different rules compared to orders
      */
     boolean isValidTransitionForOrderDetail(OrderStatusEnum current, OrderStatusEnum next);
+
+    boolean updateOrderDetailStatus(UUID orderDetailId, OrderStatusEnum newStatus);
 }

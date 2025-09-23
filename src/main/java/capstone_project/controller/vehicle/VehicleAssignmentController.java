@@ -1,8 +1,10 @@
 package capstone_project.controller.vehicle;
 
+import capstone_project.dtos.request.vehicle.GroupedAssignmentRequest;
 import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
 import capstone_project.dtos.response.common.ApiResponse;
+import capstone_project.dtos.response.vehicle.GroupedVehicleAssignmentResponse;
 import capstone_project.dtos.response.vehicle.SampleVehicleAssignmentResponse;
 import capstone_project.dtos.response.vehicle.SimplifiedVehicleAssignmentResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
@@ -75,5 +77,32 @@ public class VehicleAssignmentController {
             @PathVariable UUID orderId) {
         SimplifiedVehicleAssignmentResponse response = service.getSimplifiedSuggestionsForOrder(orderId);
         return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    /**
+     * Endpoint trả về danh sách đề xuất xe và tài xế cho order,
+     * với các order detail được nhóm lại thành các chuyến hợp lý
+     *
+     * @param orderId ID của đơn hàng
+     * @return Danh sách đề xuất xe và tài xế đã được nhóm thành các chuyến
+     */
+    @GetMapping("/{orderId}/grouped-suggestions")
+    public ResponseEntity<ApiResponse<GroupedVehicleAssignmentResponse>> getGroupedSuggestions(
+            @PathVariable UUID orderId) {
+        GroupedVehicleAssignmentResponse response = service.getGroupedSuggestionsForOrder(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    /**
+     * Endpoint để tạo và gán vehicle assignment cho nhiều order detail cùng lúc
+     *
+     * @param request Request chứa thông tin về các nhóm order detail và xe, tài xế được gán
+     * @return Danh sách vehicle assignment đã được tạo
+     */
+    @PostMapping("/create-grouped-assignments")
+    public ResponseEntity<ApiResponse<List<VehicleAssignmentResponse>>> createGroupedAssignments(
+            @RequestBody @Valid GroupedAssignmentRequest request) {
+        List<VehicleAssignmentResponse> responses = service.createGroupedAssignments(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(responses));
     }
 }

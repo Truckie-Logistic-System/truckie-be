@@ -482,4 +482,25 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                 return false;
         }
     }
+
+    @Override
+    public boolean updateOrderDetailStatus(UUID orderDetailId, OrderStatusEnum newStatus) {
+        Optional<OrderDetailEntity> optionalDetail = orderDetailEntityService.findEntityById(orderDetailId);
+        if (optionalDetail.isEmpty()) {
+            return false;
+        }
+        OrderDetailEntity detail = optionalDetail.get();
+        OrderStatusEnum currentStatus;
+        try {
+            currentStatus = OrderStatusEnum.valueOf(detail.getStatus());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        if (!isValidTransitionForOrderDetail(currentStatus, newStatus)) {
+            return false;
+        }
+        detail.setStatus(newStatus.name());
+        orderDetailEntityService.save(detail);
+        return true;
+    }
 }

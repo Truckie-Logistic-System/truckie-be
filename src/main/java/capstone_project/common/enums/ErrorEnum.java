@@ -19,6 +19,8 @@ public enum ErrorEnum {
     VEHICLE_TYPE_NOT_FOUND(15, "Vehicle Type Not Found!"),
     NO_VEHICLE_AVAILABLE(24, "No Vehicle Available For This!"),
     VEHICLE_NOT_FOUND(25, "Vehicle Not Found!"),
+    VEHICLE_NOT_AVAILABLE(30, "Vehicle is currently assigned to another trip!"),
+    DRIVER_NOT_AVAILABLE(31, "Driver is currently assigned to another trip!"),
     //
     INVALID(16, "Invalid request"),
     ENUM_INVALID(17, "Invalid enum value"),
