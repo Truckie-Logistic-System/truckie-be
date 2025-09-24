@@ -1,10 +1,11 @@
 package capstone_project.service.services.order.order.impl;
 
-import capstone_project.common.enums.*;
+import capstone_project.common.enums.CommonStatusEnum;
+import capstone_project.common.enums.ErrorEnum;
+import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
-import capstone_project.dtos.request.order.DetailsForAssignemntRequest;
 import capstone_project.dtos.request.order.UpdateOrderDetailRequest;
 import capstone_project.dtos.request.vehicle.CreateAndAssignForDetailsRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
@@ -27,7 +28,6 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.repository.entityServices.order.order.OrderSizeEntityService;
 import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
-import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.order.OrderDetailMapper;
 import capstone_project.service.mapper.order.OrderMapper;
@@ -42,7 +42,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.*;
 
 @Service
@@ -338,12 +337,15 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
         //Lấy list assign phan bo tung detail cho moi vehicle rule
         List<ContractRuleAssignResponse> assignResponses = contractService.assignVehicles(orderId);
-        Map<UUID,List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
+        Map<UUID, List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
         for(ContractRuleAssignResponse contractRuleAssignResponse : assignResponses){
             VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findEntityById(vehicleRuleEntityService.findEntityById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
             mapVehicleTypeAndOrderDetail.put(
                     vehicleTypeEntity.getId(),
                     contractRuleAssignResponse.getAssignedDetails()
+                            .stream()
+                            .map(detail -> UUID.fromString(detail.id()))
+                            .toList()
             );
         }
 
@@ -367,14 +369,15 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
             UUID vehicleTypeId = vehicleRule.getVehicleTypeEntity().getId();
-            mapVehicleTypeAndOrderDetail.put(vehicleTypeId, response.getAssignedDetails());
-        }
-
-
-
+            mapVehicleTypeAndOrderDetail.put(
+                    vehicleTypeId,
+                    response.getAssignedDetails()
+                            .stream()
+                            .map(detail -> UUID.fromString(detail.id()))
+                            .toList()
+            );        }
 
         // 5. Assign
-
         for(UUID vehicleTypeId : mapVehicleTypeAndOrderDetail.keySet()){
             VehicleAssignmentService vehicleAssignmentService = vehicleAssignmentServiceProvider.getIfAvailable();
             if (vehicleAssignmentService == null) {
