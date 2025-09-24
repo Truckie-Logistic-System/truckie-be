@@ -28,6 +28,7 @@ import com.stripe.param.PaymentIntentCreateParams;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -46,7 +47,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
     private final UserEntityService userEntityService;
     private final ContractSettingEntityService contractSettingEntityService;
     private final StripeConfig stripeConfig;
-    private final OrderService orderService;
+    private final ObjectProvider<OrderService> orderServiceObjectProvider;
 
     @Override
     @Transactional
@@ -299,6 +300,10 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
                 if (transaction.getAmount().compareTo(totalValue) < 0) {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
                 } else {
+                    OrderService orderService = orderServiceObjectProvider.getIfAvailable();
+                    if (orderService == null) {
+                        throw new RuntimeException("OrderService is not available");
+                    }
                     contract.setStatus(ContractStatusEnum.PAID.name());
                     orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
                 }

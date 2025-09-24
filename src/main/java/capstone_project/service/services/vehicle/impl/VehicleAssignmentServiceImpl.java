@@ -75,7 +75,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final OrderService orderService;
     private final OrderDetailService orderDetailService;
 
-    @Value("${prefix.vehicle-assignment-code}")
+    @Value("${prefix.vehicle.assignment.code}")
     private String prefixVehicleAssignmentCode;
 
     /**

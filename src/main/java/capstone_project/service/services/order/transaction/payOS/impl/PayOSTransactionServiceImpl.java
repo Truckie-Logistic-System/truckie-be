@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import vn.payos.PayOS;
 import vn.payos.type.PaymentData;
@@ -45,7 +46,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final CustomerEntityService customerEntityService;
     private final UserEntityService userEntityService;
     private final ContractSettingEntityService contractSettingEntityService;
-    private final OrderService orderService;
+    private final ObjectProvider<OrderService> orderServiceObjectProvider;
 
     private final PayOSProperties properties;
     private final PayOS payOS;
@@ -416,6 +417,10 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 if (transaction.getAmount().compareTo(totalValue) < 0) {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
                 } else {
+                    OrderService orderService = orderServiceObjectProvider.getIfAvailable();
+                    if (orderService == null) {
+                        throw new RuntimeException("OrderService is not available");
+                    }
                     contract.setStatus(ContractStatusEnum.PAID.name());
                     orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
                 }
