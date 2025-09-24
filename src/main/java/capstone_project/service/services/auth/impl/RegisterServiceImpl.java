@@ -333,7 +333,7 @@ public class RegisterServiceImpl implements RegisterService {
 
                 log.info("[login] Login successful");
 
-                return userMapper.mapLoginResponse(usersEntity, accessToken, refreshTokenString);
+                return userMapper.mapLoginResponse(usersEntity);
             }
             log.info("[login] Wrong password");
             throw new NotFoundException(
@@ -427,7 +427,7 @@ public class RegisterServiceImpl implements RegisterService {
 
             refreshTokenEntityService.save(refreshTokenEntity);
             log.info("[loginWithGoogle] login successful");
-            return userMapper.mapLoginResponse(usersEntity, token, refreshTokenString);
+            return userMapper.mapLoginResponse(usersEntity);
 
         }
         log.info("[login] Username and Email are not found");

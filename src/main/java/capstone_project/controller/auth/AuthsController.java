@@ -39,10 +39,10 @@ public class AuthsController {
         final var login = registerService.login(loginRequest);
 
         // Set refresh token as a cookie
-        addRefreshTokenCookie(response, login.getRefreshToken());
+        //addRefreshTokenCookie(response, login.getRefreshToken());
 
         // Set access token as a cookie
-        addAccessTokenCookie(response, login.getAuthToken());
+        //addAccessTokenCookie(response, login.getAuthToken());
 
         return ResponseEntity.ok(ApiResponse.ok(login));
     }
@@ -54,10 +54,10 @@ public class AuthsController {
         final var login = registerService.loginWithGoogle(registerUserRequest);
 
         // Set refresh token as a cookie
-        addRefreshTokenCookie(response, login.getRefreshToken());
+        // addRefreshTokenCookie(response, login.getRefreshToken());
 
         // Set access token as a cookie
-        addAccessTokenCookie(response, login.getAuthToken());
+        // addAccessTokenCookie(response, login.getAuthToken());
 
         return ResponseEntity.ok(ApiResponse.ok(login));
     }

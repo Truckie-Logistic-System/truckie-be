@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Swagger UI</title>
+    <link rel="stylesheet" href="./swagger-ui.css" />
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="./swagger-ui-bundle.js"></script>
+<script src="./swagger-ui-standalone-preset.js"></script>
+<script>
+    window.onload = function() {
+        const ui = SwaggerUIBundle({
+            url: "/v3/api-docs",
+            dom_id: "#swagger-ui",
+            presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+            layout: "StandaloneLayout",
+            // Ensure browser sends cookies (HttpOnly cookies remain inaccessible to JS)
+            requestInterceptor: function(request) {
+                // for fetch-based requests
+                request.credentials = 'include';
+                // for XHR-based requests (some swagger versions)
+                request.withCredentials = true;
+                return request;
+            },
+            // optional alternative if supported:
+            // requestCredentials: 'include',
+        });
+        window.ui = ui;
+    };
+</script>
+</body>
+</html>
