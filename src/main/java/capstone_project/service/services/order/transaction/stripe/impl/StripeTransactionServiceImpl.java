@@ -16,6 +16,7 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.repository.entityServices.order.transaction.TransactionEntityService;
 import capstone_project.repository.entityServices.setting.ContractSettingEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
+import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.transaction.stripe.StripeTransactionService;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.exception.StripeException;
@@ -45,6 +46,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
     private final UserEntityService userEntityService;
     private final ContractSettingEntityService contractSettingEntityService;
     private final StripeConfig stripeConfig;
+    private final OrderService orderService;
 
     @Override
     @Transactional
@@ -298,7 +300,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
                 } else {
                     contract.setStatus(ContractStatusEnum.PAID.name());
-//                    order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
+                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
                 }
             }
             case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());

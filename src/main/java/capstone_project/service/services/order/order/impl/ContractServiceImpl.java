@@ -225,7 +225,7 @@ public class ContractServiceImpl implements ContractService {
 
             contractRuleEntityService.save(contractRule);
         }
-        order.setStatus(OrderStatusEnum.ON_PLANNING.name());
+        order.setStatus(OrderStatusEnum.CONTRACT_DRAFT.name());
         orderEntityService.save(order);
 
         PriceCalculationResponse totalPriceResponse = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
