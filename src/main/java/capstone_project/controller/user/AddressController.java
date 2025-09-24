@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("${address.api.base-path}")
+@RequestMapping("${address.api.base-path}es")
 @RequiredArgsConstructor
 @PreAuthorize("isAuthenticated()")
 public class AddressController {
@@ -39,12 +39,7 @@ public class AddressController {
         return ResponseEntity.ok(ApiResponse.ok(addresses));
     }
 
-    /**
-     * Get addresses for the currently authenticated user
-     * @return list of addresses for the current user
-     */
-    @GetMapping("/my-addresses")
-    @PreAuthorize("hasAuthority('CUSTOMER')")
+    @GetMapping("/get-my-addresses")
     public ResponseEntity<ApiResponse<List<AddressResponse>>> getMyAddresses() {
         final var addresses = addressService.getMyAddresses();
         return ResponseEntity.ok(ApiResponse.ok(addresses));

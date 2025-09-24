@@ -280,16 +280,11 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     public List<AddressResponse> getMyAddresses() {
-        log.info("Fetching addresses for current user");
-
-        // Get current customer ID from security context
-        UUID currentCustomerId = userContextUtils.getCurrentCustomerId();
-        log.info("Current customer ID: {}", currentCustomerId);
-
-        // Xóa logic cache để đơn giản hóa và loại bỏ các vấn đề tiềm ẩn
-
-        // Dùng trực tiếp logic của getAddressesByCustomerId để đảm bảo kết quả nhất quán
-        return getAddressesByCustomerId(currentCustomerId);
+        UUID customerId = userContextUtils.getCurrentCustomerId();
+        List<AddressEntity> entities = addressEntityService.getAddressesByCustomerId(customerId);
+        return entities.stream()
+                .map(this::safeMapToResponse)
+                .toList();
     }
 
     /**
