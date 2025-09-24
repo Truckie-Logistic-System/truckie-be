@@ -11,6 +11,7 @@ import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
+import capstone_project.dtos.response.order.contract.OrderDetailForPackingResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
@@ -213,12 +214,19 @@ public class ContractServiceImpl implements ContractService {
                     .build();
 
             // 🔑 Lấy các orderDetails từ assignments
-            List<UUID> detailIds = assignments.stream()
+            List<OrderDetailForPackingResponse> detailResponses = assignments.stream()
                     .filter(a -> a.getVehicleRuleId().equals(vehicleRuleId))
                     .flatMap(a -> a.getAssignedDetails().stream())
                     .toList();
 
-            if (!detailIds.isEmpty()) {
+//            List<OrderDetailForPackingResponse> detailIds = assignments.stream()
+
+
+            if (!detailResponses.isEmpty()) {
+                List<UUID> detailIds = detailResponses.stream()
+                        .map(r -> UUID.fromString(r.id()))
+                        .toList();
+
                 List<OrderDetailEntity> orderDetailEntities = orderDetailEntityService.findAllByIds(detailIds);
                 contractRule.getOrderDetails().addAll(orderDetailEntities);
             }
@@ -356,7 +364,7 @@ public class ContractServiceImpl implements ContractService {
 
                 if (canFit(detail, currentRule, assignment)) {
                     assignment.setCurrentLoad(assignment.getCurrentLoad().add(detail.getWeight()));
-                    assignment.getAssignedDetails().add(detail.getId());
+                    assignment.getAssignedDetails().add(toPackingResponse(detail));
                     log.info("[assignVehicles] Assigned detail {} -> existing vehicle ruleId={}, newLoad={}",
                             detail.getId(), currentRule.getId(), assignment.getCurrentLoad());
                     assigned = true;
@@ -369,7 +377,7 @@ public class ContractServiceImpl implements ContractService {
                     assignment.setVehicleRuleId(upgradedRule.getId());
                     assignment.setVehicleRuleName(upgradedRule.getVehicleRuleName());
                     assignment.setCurrentLoad(calculateTotalWeight(assignment, detail));
-                    assignment.getAssignedDetails().add(detail.getId());
+                    assignment.getAssignedDetails().add(toPackingResponse(detail));
                     log.info("[assignVehicles] Upgraded vehicle for detail {} -> ruleId={}, maxWeight={}, newLoad={}",
                             detail.getId(), upgradedRule.getId(), upgradedRule.getMaxWeight(), assignment.getCurrentLoad());
                     assigned = true;
@@ -386,7 +394,7 @@ public class ContractServiceImpl implements ContractService {
                                 rule.getId(),
                                 rule.getVehicleRuleName(),
                                 detail.getWeight(),
-                                new ArrayList<>(List.of(detail.getId()))
+                                new ArrayList<>(List.of(toPackingResponse(detail)))
                         );
                         assignments.add(newAssignment);
                         log.info("[assignVehicles] Opened new vehicle for detail {} -> ruleId={}, firstLoad={}",
@@ -407,6 +415,16 @@ public class ContractServiceImpl implements ContractService {
         long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
         log.info("[assignVehicles] Finished in {} ms", elapsedMs);
         return assignments;
+    }
+
+    private OrderDetailForPackingResponse toPackingResponse(OrderDetailEntity entity) {
+        return new OrderDetailForPackingResponse(
+                entity.getId().toString(),
+                entity.getWeight(),
+                entity.getWeightBaseUnit(),
+                entity.getUnit(),
+                entity.getTrackingCode()
+        );
     }
 
     private BigDecimal calculateTotalWeight(ContractRuleAssignResponse assignment, OrderDetailEntity newDetail) {
@@ -662,7 +680,6 @@ public class ContractServiceImpl implements ContractService {
     }
 
     private boolean canFitAll(List<UUID> detailIds, VehicleRuleEntity newRule, OrderDetailEntity newDetail) {
-        // Sửa bug: detailIds là ID của OrderDetail, cần findEntityById từng detail
         BigDecimal totalWeight = newDetail.getWeight();
 
         for (UUID id : detailIds) {

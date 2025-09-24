@@ -13,8 +13,8 @@ import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.dtos.response.vehicle.*;
 import capstone_project.entity.order.contract.ContractEntity;
-import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.pricing.VehicleRuleEntity;
 import capstone_project.entity.user.address.AddressEntity;
@@ -35,8 +35,8 @@ import capstone_project.service.mapper.vehicle.VehicleAssignmentMapper;
 import capstone_project.service.mapper.vehicle.VehicleMapper;
 import capstone_project.service.services.order.order.ContractRuleService;
 import capstone_project.service.services.order.order.ContractService;
-import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.order.OrderDetailService;
+import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +50,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -307,8 +306,15 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
             if (!detailVehicleAssignments.isEmpty()) {
                 sampleVehicleAssignmentResponses.add(
-                        new SampleVehicleAssignmentResponse(response.getAssignedDetails(), detailVehicleAssignments)
+                        new SampleVehicleAssignmentResponse(
+                                response.getAssignedDetails()
+                                        .stream()
+                                        .map(d -> UUID.fromString(d.id()))
+                                        .toList(),
+                                detailVehicleAssignments
+                        )
                 );
+
             }
         }
 
@@ -659,24 +665,25 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
 
-            List<UUID> detailIds = assignment.getAssignedDetails();
+            List<UUID> detailIds = assignment.getAssignedDetails().stream()
+                    .map(detail -> UUID.fromString(detail.id()))
+                    .toList();
+
             if (detailIds.isEmpty()) continue;
 
-            // Lấy thông tin chi tiết về các order detail
             List<GroupedVehicleAssignmentResponse.OrderDetailInfo> detailInfos =
                     getOrderDetailInfos(detailIds);
 
-            // Tìm xe và tài xế phù hợp cho nhóm này
             List<GroupedVehicleAssignmentResponse.VehicleSuggestionDTO> vehicleSuggestions =
                     findSuitableVehiclesForGroup(detailIds, vehicleRule);
 
-            // Tính tổng khối lượng của nhóm để đưa vào lý do nhóm
             BigDecimal totalWeight = detailIds.stream()
                     .map(id -> orderDetailEntityService.findEntityById(id).orElse(null))
                     .filter(Objects::nonNull)
                     .map(OrderDetailEntity::getWeight)
                     .filter(Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
+
 
             // Xác định lý do nhóm
             String groupingReason;

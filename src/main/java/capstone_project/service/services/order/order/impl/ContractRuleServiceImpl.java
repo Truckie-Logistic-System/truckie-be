@@ -8,6 +8,7 @@ import capstone_project.dtos.request.order.ContractRuleRequest;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleResponse;
+import capstone_project.dtos.response.order.contract.OrderDetailForPackingResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
@@ -117,8 +118,8 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                     .filter(Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            List<UUID> detailIds = rule.getOrderDetails().stream()
-                    .map(OrderDetailEntity::getId)
+            List<OrderDetailForPackingResponse> detailResponses = rule.getOrderDetails().stream()
+                    .map(this::toPackingResponse)
                     .toList();
 
             responses.add(
@@ -127,7 +128,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                             .vehicleRuleId(rule.getVehicleRuleEntity().getId())
                             .vehicleRuleName(rule.getVehicleRuleEntity().getVehicleRuleName())
                             .currentLoad(currentLoad)
-                            .assignedDetails(detailIds)
+                            .assignedDetails(detailResponses)
                             .build()
             );
         }
@@ -137,6 +138,16 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                 .unassignedDetails(unassignedDetails)
                 .build();
 
+    }
+
+    private OrderDetailForPackingResponse toPackingResponse(OrderDetailEntity entity) {
+        return new OrderDetailForPackingResponse(
+                entity.getId().toString(),
+                entity.getWeight(),
+                entity.getWeightBaseUnit(),
+                entity.getUnit(),
+                entity.getTrackingCode()
+        );
     }
 
     @Override
@@ -225,7 +236,8 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
             for (int v = 0; v < numOfVehicles; v++) {
                 BigDecimal currentLoad = BigDecimal.ZERO;
-                List<UUID> assignedDetails = new ArrayList<>();
+//                List<UUID> assignedDetails = new ArrayList<>();
+                List<OrderDetailForPackingResponse> assignedDetails = new ArrayList<>();
 
                 ContractRuleEntity contractRule = new ContractRuleEntity();
                 contractRule.setContractEntity(contractEntity);
@@ -252,7 +264,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
                     if (canFit) {
                         currentLoad = currentLoad.add(detail.getWeight());
-                        assignedDetails.add(detail.getId());
+                        assignedDetails.add(toPackingResponse(detail));
                         newlyAssigned.add(detail.getId());
                         contractRule.getOrderDetails().add(detail);
                     }
@@ -276,14 +288,15 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         Set<UUID> allAssigned = new HashSet<>(alreadyAssigned);
         allAssigned.addAll(newlyAssigned);
 
-        List<UUID> stillUnassigned = orderDetails.stream()
-                .map(OrderDetailEntity::getId)
-                .filter(id -> !allAssigned.contains(id))
+        List<OrderDetailForPackingResponse> stillUnassigned = orderDetails.stream()
+                .filter(d -> !allAssigned.contains(d.getId()))
+                .map(this::toPackingResponse)
                 .toList();
 
         if (!stillUnassigned.isEmpty()) {
             log.warn("Assignment incomplete: {} orderDetails still unassigned -> {}",
-                    stillUnassigned.size(), stillUnassigned);
+                    stillUnassigned.size(),
+                    stillUnassigned.stream().map(OrderDetailForPackingResponse::id).toList());
         } else {
             log.info("All orderDetails assigned successfully!");
         }
@@ -304,7 +317,11 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         return ListContractRuleAssignResult.builder()
                 .vehicleAssignments(responses)
-                .unassignedDetails(stillUnassigned)
+                .unassignedDetails(
+                        stillUnassigned.stream()
+                                .map(r -> UUID.fromString(r.id()))
+                                .toList()
+                )
                 .build();
     }
 
