@@ -41,11 +41,13 @@ import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -72,6 +74,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final ContractService contractService;
     private final OrderService orderService;
     private final OrderDetailService orderDetailService;
+
+    @Value("${prefix.vehicle-assignment-code}")
+    private String prefixVehicleAssignmentCode;
 
     /**
      * Define custom error codes for vehicle and driver availability
@@ -772,7 +777,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             assignment.setDriver2(driver2);
             assignment.setDescription(groupAssignment.description());
             assignment.setStatus(CommonStatusEnum.ACTIVE.name());
-            assignment.setTrackingCode(generateTrackingCode());
+            assignment.setTrackingCode(generateCode(prefixVehicleAssignmentCode));
 
             // Lưu assignment
             VehicleAssignmentEntity savedAssignment = entityService.save(assignment);
@@ -1097,7 +1102,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         return workExperience;
     }
 
-    private String generateTrackingCode() {
-        return "TRIP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    private String generateCode(String prefix) {
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        String randomPart = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+        return prefix + timestamp + "-" + randomPart;
     }
 }

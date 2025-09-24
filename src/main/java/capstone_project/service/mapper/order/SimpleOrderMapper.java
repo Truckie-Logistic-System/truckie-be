@@ -14,10 +14,9 @@ import capstone_project.dtos.response.order.PhotoCompletionResponse;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.entity.auth.UserEntity;
-import capstone_project.entity.order.order.OrderDetailEntity;
-import capstone_project.entity.order.order.OrderEntity;
-import capstone_project.entity.order.order.OrderSizeEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
 import capstone_project.service.services.order.seal.OrderSealService;
@@ -34,6 +33,7 @@ public class SimpleOrderMapper {
     private final VehicleEntityService vehicleEntityService;
     private final OrderSealService orderSealService;
     private final JourneyHistoryService journeyHistoryService;
+    private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
 
     public SimpleOrderForCustomerResponse toSimpleOrderForCustomerResponse(
             GetOrderResponse orderResponse,
@@ -84,10 +84,13 @@ public class SimpleOrderMapper {
 
         Map<UUID, SimpleIssueImageResponse> issuesByVehicleAssignment = buildIssuesMap(issueImageResponses);
 
+        // Per-request caches to avoid duplicate DB calls inside mapper
+        Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache = new HashMap<>();
+        Map<UUID, UserEntity> userCache = new HashMap<>();
+
         // Process order details with enhanced vehicle assignments
         List<SimpleOrderDetailResponse> simpleOrderDetails = response.orderDetails().stream()
                 .map(detail -> {
-                    // Create an enhanced version of SimpleOrderDetailResponse with trip info integrated into vehicle assignment
                     if (detail.vehicleAssignmentId() != null) {
                         UUID vehicleAssignmentId = detail.vehicleAssignmentId().id();
 
@@ -96,11 +99,13 @@ public class SimpleOrderMapper {
 
                         List<String> photoCompletions = getPhotoCompletionsFor(photoCompletionResponses, vehicleAssignmentId);
 
-                        // Create enhanced vehicle assignment with trip information
+                        // Pass caches so entity lookups are memoized
                         return toSimpleOrderDetailResponseWithTripInfo(
                                 detail,
                                 issue,
-                                photoCompletions
+                                photoCompletions,
+                                vehicleCache,
+                                userCache
                         );
                     } else {
                         return toSimpleOrderDetailResponse(detail);
@@ -133,7 +138,9 @@ public class SimpleOrderMapper {
     private SimpleOrderDetailResponse toSimpleOrderDetailResponseWithTripInfo(
             GetOrderDetailResponse detail,
             SimpleIssueImageResponse issue,
-            List<String> photoCompletions
+            List<String> photoCompletions,
+            Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache,
+            Map<UUID, UserEntity> userCache
     ) {
         SimpleOrderSizeResponse orderSize = null;
         if (detail.orderSizeId() != null) {
@@ -150,54 +157,89 @@ public class SimpleOrderMapper {
         }
 
         SimpleVehicleAssignmentResponse vehicleAssignment = null;
+
         if (detail.vehicleAssignmentId() != null) {
-            // Get vehicle information
+            // Get vehicle information (memoized)
             String vehicleName = "";
             String licensePlate = "";
+            VehicleAssignmentEntity vaEntity = null;
             try {
-                var vehicle = vehicleEntityService.findEntityById(detail.vehicleAssignmentId().vehicleId())
-                        .orElse(null);
-                if (vehicle != null) {
-                    vehicleName = vehicle.getModel() + " " + vehicle.getManufacturer();
-                    licensePlate = vehicle.getLicensePlateNumber();
+                UUID vaId = detail.vehicleAssignmentId().id();
+                if (vaId != null) {
+                    vaEntity = vehicleAssignmentEntityService.findEntityById(vaId).orElse(null);
                 }
-            } catch (Exception e) {
-                // Handle exception gracefully
+            } catch (Exception ignored) {
             }
-
-            // Get primary driver information
             SimpleDriverResponse primaryDriver = null;
-            if (detail.vehicleAssignmentId().driver_id_1() != null) {
-                try {
-                    var driver = userEntityService.findEntityById(detail.vehicleAssignmentId().driver_id_1())
-                            .orElse(null);
-                    if (driver != null) {
-                        primaryDriver = new SimpleDriverResponse(
-                                driver.getId().toString(),
-                                driver.getFullName(),
-                                driver.getPhoneNumber()
-                        );
-                    }
-                } catch (Exception e) {
-                    // Handle exception gracefully
-                }
-            }
-
-            // Get secondary driver information
             SimpleDriverResponse secondaryDriver = null;
-            if (detail.vehicleAssignmentId().driver_id_2() != null) {
+            if (vaEntity != null) {
                 try {
-                    var driver = userEntityService.findEntityById(detail.vehicleAssignmentId().driver_id_2())
-                            .orElse(null);
-                    if (driver != null) {
-                        secondaryDriver = new SimpleDriverResponse(
-                                driver.getId().toString(),
-                                driver.getFullName(),
-                                driver.getPhoneNumber()
-                        );
+                    // Vehicle from assignment entity
+                    if (vaEntity.getVehicleEntity() != null) {
+                        var v = vaEntity.getVehicleEntity();
+                        vehicleName = (v.getModel() == null ? "" : v.getModel())
+                                + (v.getManufacturer() == null ? "" : " " + v.getManufacturer()).trim();
+                        licensePlate = v.getLicensePlateNumber() == null ? "" : v.getLicensePlateNumber();
+                    } else {
+                        // fallback to vehicle id in DTO -> use cached vehicle entity
+                        UUID vehicleId = detail.vehicleAssignmentId().vehicleId();
+                        var v = getVehicleFromCache(vehicleId, vehicleCache);
+                        if (v != null) {
+                            vehicleName = (v.getModel() == null ? "" : v.getModel())
+                                    + (v.getManufacturer() == null ? "" : " " + v.getManufacturer()).trim();
+                            licensePlate = v.getLicensePlateNumber() == null ? "" : v.getLicensePlateNumber();
+                        }
                     }
-                } catch (Exception e) {
-                    // Handle exception gracefully
+                } catch (Exception ignored) {
+                }
+
+                try {
+                    if (vaEntity.getDriver1() != null) {
+                        var d = vaEntity.getDriver1();
+                        primaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getUser().getFullName(), d.getUser().getPhoneNumber());
+                    } else {
+                        UUID d1 = detail.vehicleAssignmentId().driver_id_1();
+                        var d = getUserFromCache(d1, userCache);
+                        if (d != null) primaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
+                    }
+                } catch (Exception ignored) {
+                }
+
+                try {
+                    if (vaEntity.getDriver2() != null) {
+                        var d = vaEntity.getDriver2();
+                        secondaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getUser().getFullName(), d.getUser().getPhoneNumber());
+                    } else {
+                        UUID d2 = detail.vehicleAssignmentId().driver_id_2();
+                        var d = getUserFromCache(d2, userCache);
+                        if (d != null) secondaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
+                    }
+                } catch (Exception ignored) {
+                }
+            } else {
+                try {
+                    UUID vehicleId = detail.vehicleAssignmentId().vehicleId();
+                    var vehicle = getVehicleFromCache(vehicleId, vehicleCache);
+                    if (vehicle != null) {
+                        vehicleName = (vehicle.getModel() == null ? "" : vehicle.getModel())
+                                + (vehicle.getManufacturer() == null ? "" : " " + vehicle.getManufacturer()).trim();
+                        licensePlate = vehicle.getLicensePlateNumber() == null ? "" : vehicle.getLicensePlateNumber();
+                    }
+                } catch (Exception ignored) {
+                }
+
+                try {
+                    UUID d1 = detail.vehicleAssignmentId().driver_id_1();
+                    var d = getUserFromCache(d1, userCache);
+                    if (d != null) primaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
+                } catch (Exception ignored) {
+                }
+
+                try {
+                    UUID d2 = detail.vehicleAssignmentId().driver_id_2();
+                    var d = getUserFromCache(d2, userCache);
+                    if (d != null) secondaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
+                } catch (Exception ignored) {
                 }
             }
 
@@ -225,7 +267,7 @@ public class SimpleOrderMapper {
             List<String> safePhotoCompletions = photoCompletions != null ? photoCompletions : Collections.emptyList();
             List<SimpleIssueImageResponse> issuesList = issue != null ? List.of(issue) : Collections.emptyList();
 
-            // Create enhanced vehicle assignment with trip information
+            // Build vehicleAssignment response
             vehicleAssignment = new SimpleVehicleAssignmentResponse(
                     detail.vehicleAssignmentId().id().toString(),
                     vehicleName,
@@ -256,6 +298,29 @@ public class SimpleOrderMapper {
                 orderSize,
                 vehicleAssignment
         );
+    }
+
+    // helpers: memoized lookups
+    private capstone_project.entity.vehicle.VehicleEntity getVehicleFromCache(UUID id, Map<UUID, capstone_project.entity.vehicle.VehicleEntity> cache) {
+        if (id == null) return null;
+        return cache.computeIfAbsent(id, k -> {
+            try {
+                return vehicleEntityService.findEntityById(k).orElse(null);
+            } catch (Exception e) {
+                return null;
+            }
+        });
+    }
+
+    private UserEntity getUserFromCache(UUID id, Map<UUID, UserEntity> cache) {
+        if (id == null) return null;
+        return cache.computeIfAbsent(id, k -> {
+            try {
+                return userEntityService.findEntityById(k).orElse(null);
+            } catch (Exception e) {
+                return null;
+            }
+        });
     }
 
     private SimpleOrderDetailResponse toSimpleOrderDetailResponse(GetOrderDetailResponse detail) {
