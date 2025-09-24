@@ -19,6 +19,7 @@ import capstone_project.repository.entityServices.order.transaction.TransactionE
 import capstone_project.repository.entityServices.setting.ContractSettingEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.order.TransactionMapper;
+import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,6 +45,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final CustomerEntityService customerEntityService;
     private final UserEntityService userEntityService;
     private final ContractSettingEntityService contractSettingEntityService;
+    private final OrderService orderService;
 
     private final PayOSProperties properties;
     private final PayOS payOS;
@@ -415,7 +417,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
                 } else {
                     contract.setStatus(ContractStatusEnum.PAID.name());
-//                    order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
+                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
                 }
             }
             case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
