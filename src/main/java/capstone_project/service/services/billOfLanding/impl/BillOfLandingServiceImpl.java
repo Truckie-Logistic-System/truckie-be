@@ -44,18 +44,17 @@ import com.itextpdf.barcodes.Barcode128;
 import com.itextpdf.kernel.pdf.xobject.PdfFormXObject;
 import com.itextpdf.layout.element.Image;
 import com.itextpdf.layout.properties.HorizontalAlignment;
+import com.itextpdf.layout.element.AreaBreak;
+import com.itextpdf.layout.properties.AreaBreakType;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicReference;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
@@ -76,6 +75,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
 
     private final String BILL_OF_LANDING_PREFIX = "VN-TRUCKIE-";
     private final OrderRepository orderRepository;
+    private static final int MAX_CARGO_ROWS_PER_PAGE = 12;
 
     @Override
     public BillOfLandingResponse getBillOfLandingById(UUID contractId) {
@@ -174,7 +174,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             // slightly smaller margins to help fit content into two pages
             document.setMargins(20, 20, 18, 20);
 
-            // Set font for Vietnamese text
+            // Set font for Vietnamese text and apply standard base font size
             PdfFont font;
             try {
                 byte[] fontBytes = new ClassPathResource("/fonts/DejaVuSans.ttf").getInputStream().readAllBytes();
@@ -183,7 +183,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 font = PdfFontFactory.createFont(fontProgram, PdfEncodings.IDENTITY_H,
                         com.itextpdf.kernel.font.PdfFontFactory.EmbeddingStrategy.FORCE_EMBEDDED);
                 document.setFont(font);
-                // apply standard base font size for consistent scaling
                 new PdfUtil().applyStandardBaseFontSize(document);
             } catch (IOException e) {
                 log.error("Error loading font: {}", e.getMessage());
@@ -197,7 +196,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             String billCode = "VAN-DON-" + orderCode + "-" + dateStr;
 
             // Header and parties
-            addHeader(document, billCode);
+            addHeader(document, billCode); // keeps the main waybill title
 
             // --- Add barcode at the top: use order tracking code if available, otherwise orderCode ---
             String orderTracking = extractTrackingCodeFromOrder(order);
@@ -227,8 +226,8 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             // Addresses
             addShippingAddresses(document, order.getPickupAddress(), order.getDeliveryAddress(), order);
 
-            // Cargo (all order details)
-            addCargoInformation(document, orderDetails);
+            // Cargo (all order details) - use paged implementation to avoid mid-row splits
+            addCargoInformationPaged(document, orderDetails);
 
             // Transport info - list all vehicle assignments
             addTransportInformation(document, vehicleAssignments);
@@ -371,7 +370,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             document.add(new Paragraph("").setMarginBottom(6));
 
             // Cargo details: only detailsForTrip
-            addCargoInformation(document, detailsForTrip);
+            addCargoInformationPaged(document, detailsForTrip);
 
             // Totals summary (count, total weight, total volume)
             DecimalFormat df = new DecimalFormat("#,###.##");
@@ -478,6 +477,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
 
         Table partiesTable = new Table(UnitValue.createPercentArray(2)).useAllAvailableWidth();
         partiesTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
+        partiesTable.setKeepTogether(true);
 
         Cell senderHeaderCell = new Cell();
         senderHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
@@ -537,6 +537,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
 
         Table addressTable = new Table(UnitValue.createPercentArray(2)).useAllAvailableWidth();
         addressTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
+        addressTable.setKeepTogether(true);
 
         // Pickup address
         Cell pickupHeaderCell = new Cell();
@@ -656,120 +657,157 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         document.add(new Paragraph("").setMarginBottom(8));
     }
 
-    private void addCargoInformation(Document document, List<OrderDetailEntity> orderDetails) {
-        Paragraph sectionTitle = new Paragraph("3. THÔNG TIN HÀNG HÓA / CARGO INFORMATION")
-                .setBold()
-                .setFontSize(SECTION_TITLE_FONT_SIZE)
-                .setMarginBottom(5);
-        document.add(sectionTitle);
+    private void addCargoInformationPaged(Document document, List<OrderDetailEntity> orderDetails) {
+        if (orderDetails == null) orderDetails = Collections.emptyList();
 
-        Table cargoTable = new Table(UnitValue.createPercentArray(new float[]{5, 30, 15, 15, 15, 20})).useAllAvailableWidth();
-
-        Cell noHeaderCell = new Cell().add(new Paragraph("STT").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
-        Cell descHeaderCell = new Cell().add(new Paragraph("Mô tả hàng hóa / Description").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
-        Cell quantityHeaderCell = new Cell().add(new Paragraph("Số lượng / Quantity").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
-        Cell weightHeaderCell = new Cell().add(new Paragraph("Khối lượng (kg) / Weight").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
-        Cell volumeHeaderCell = new Cell().add(new Paragraph("Thể tích (m³) / Volume").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
-        Cell valueHeaderCell = new Cell().add(new Paragraph("Giá trị / Value (VND)").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
-
-        // Style header cells
-        noHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        descHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        quantityHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        weightHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        volumeHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        valueHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-
-        cargoTable.addCell(noHeaderCell);
-        cargoTable.addCell(descHeaderCell);
-        cargoTable.addCell(quantityHeaderCell);
-        cargoTable.addCell(weightHeaderCell);
-        cargoTable.addCell(volumeHeaderCell);
-        cargoTable.addCell(valueHeaderCell);
-
-        // Add order details rows
         DecimalFormat df = new DecimalFormat("#,###.##");
         BigDecimal totalWeight = BigDecimal.ZERO;
         BigDecimal totalVolume = BigDecimal.ZERO;
-
-        for (int i = 0; i < orderDetails.size(); i++) {
-            OrderDetailEntity detail = orderDetails.get(i);
-
-            cargoTable.addCell(new Cell().add(new Paragraph(String.valueOf(i + 1))));
-            // Use the correct field for description based on your entity structure
-            cargoTable.addCell(new Cell().add(new Paragraph(detail.getDescription())));
-
-            // Use entity unit field for quantity
-            Integer quantity = 1; // Default value if not available
-            cargoTable.addCell(new Cell().add(new Paragraph(String.valueOf(quantity))));
-
-            // Use correct field for weight based on your entity structure
-            BigDecimal weight = detail.getWeight() != null ? detail.getWeight() : BigDecimal.ZERO;
-            totalWeight = totalWeight.add(weight);
-            cargoTable.addCell(new Cell().add(new Paragraph(df.format(weight))));
-
-            // Use correct field for volume - might be calculated from dimensions in your entity
-            BigDecimal volume = BigDecimal.ZERO; // Default if no direct volume property
-            totalVolume = totalVolume.add(volume);
-            cargoTable.addCell(new Cell().add(new Paragraph(df.format(volume))));
-
-            // Use correct field for value - might be calculated from price or other fields
-            BigDecimal value = BigDecimal.ZERO; // Default if no direct value property
-            cargoTable.addCell(new Cell().add(new Paragraph(df.format(value))));
+        for (OrderDetailEntity d : orderDetails) {
+            if (d.getWeight() != null) totalWeight = totalWeight.add(d.getWeight());
+            // if you have volume field add here
         }
 
-        // Add totals row
-        Cell totalLabelCell = new Cell(1, 2).add(new Paragraph("TỔNG CỘNG / TOTAL").setBold());
-        totalLabelCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        cargoTable.addCell(totalLabelCell);
+        int totalRows = orderDetails.size();
+        int pages = Math.max(1, (int) Math.ceil((double) totalRows / MAX_CARGO_ROWS_PER_PAGE));
 
-        // Set a default quantity if no direct quantity property exists
-        int totalQuantity = orderDetails.size(); // Assuming 1 per detail if no direct quantity
+        for (int p = 0; p < pages; p++) {
+            int start = p * MAX_CARGO_ROWS_PER_PAGE;
+            int end = Math.min(start + MAX_CARGO_ROWS_PER_PAGE, totalRows);
 
-        Cell totalQuantityCell = new Cell().add(new Paragraph(String.valueOf(totalQuantity)).setBold());
-        totalQuantityCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        cargoTable.addCell(totalQuantityCell);
+            if (p == 0) {
+                Paragraph sectionTitle = new Paragraph("3. THÔNG TIN HÀNG HÓA / CARGO INFORMATION")
+                        .setBold()
+                        .setFontSize(SECTION_TITLE_FONT_SIZE)
+                        .setMarginBottom(5);
+                document.add(sectionTitle);
+            } else {
+                Paragraph contTitle = new Paragraph("3. THÔNG TIN HÀNG HÓA (Tiếp theo) / CARGO INFORMATION (continued)")
+                        .setBold()
+                        .setFontSize(SECTION_TITLE_FONT_SIZE)
+                        .setMarginBottom(5);
+                document.add(contTitle);
+            }
 
-        Cell totalWeightCell = new Cell().add(new Paragraph(df.format(totalWeight)).setBold());
-        totalWeightCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        cargoTable.addCell(totalWeightCell);
+            Table cargoTable = new Table(UnitValue.createPercentArray(new float[]{5, 30, 15, 15, 15, 20})).useAllAvailableWidth();
+            cargoTable.setKeepTogether(true);
 
-        Cell totalVolumeCell = new Cell().add(new Paragraph(df.format(totalVolume)).setBold());
-        totalVolumeCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        cargoTable.addCell(totalVolumeCell);
+            Cell noHeaderCell = new Cell().add(new Paragraph("STT").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell descHeaderCell = new Cell().add(new Paragraph("Mô tả hàng hóa / Description").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell quantityHeaderCell = new Cell().add(new Paragraph("Số lượng / Quantity").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell weightHeaderCell = new Cell().add(new Paragraph("Khối lượng (kg) / Weight").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell volumeHeaderCell = new Cell().add(new Paragraph("Thể tích (m³) / Volume").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell valueHeaderCell = new Cell().add(new Paragraph("Giá trị / Value (VND)").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
 
-        // Set a default total value
-        BigDecimal totalValue = BigDecimal.ZERO;
+            noHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+            descHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+            quantityHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+            weightHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+            volumeHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+            valueHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
 
-        Cell totalValueCell = new Cell().add(new Paragraph(df.format(totalValue)).setBold());
-        totalValueCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        cargoTable.addCell(totalValueCell);
+            cargoTable.addCell(noHeaderCell);
+            cargoTable.addCell(descHeaderCell);
+            cargoTable.addCell(quantityHeaderCell);
+            cargoTable.addCell(weightHeaderCell);
+            cargoTable.addCell(volumeHeaderCell);
+            cargoTable.addCell(valueHeaderCell);
 
-        document.add(cargoTable);
+            for (int i = start; i < end; i++) {
+                OrderDetailEntity detail = orderDetails.get(i);
 
-        // Cargo condition and special instructions
+                Cell idxCell = new Cell().add(new Paragraph(String.valueOf(i + 1)).setFontSize(TABLE_CELL_FONT_SIZE));
+                idxCell.setKeepTogether(true);
+                cargoTable.addCell(idxCell);
+
+                String desc = detail.getDescription() != null ? detail.getDescription() : "";
+                Cell descCell = new Cell().add(new Paragraph(desc).setFontSize(TABLE_CELL_FONT_SIZE));
+                descCell.setKeepTogether(true);
+                cargoTable.addCell(descCell);
+
+                Integer qty = 1;
+                try {
+                    Method m = detail.getClass().getMethod("getQuantity");
+                    Object v = m.invoke(detail);
+                    if (v instanceof Number) qty = ((Number) v).intValue();
+                } catch (Exception ignored) {}
+                Cell qtyCell = new Cell().add(new Paragraph(String.valueOf(qty)).setFontSize(TABLE_CELL_FONT_SIZE));
+                qtyCell.setKeepTogether(true);
+                cargoTable.addCell(qtyCell);
+
+                BigDecimal weight = detail.getWeight() != null ? detail.getWeight() : BigDecimal.ZERO;
+                Cell weightCell = new Cell().add(new Paragraph(df.format(weight)).setFontSize(TABLE_CELL_FONT_SIZE));
+                weightCell.setKeepTogether(true);
+                cargoTable.addCell(weightCell);
+
+                BigDecimal volume = BigDecimal.ZERO;
+                Cell volCell = new Cell().add(new Paragraph(df.format(volume)).setFontSize(TABLE_CELL_FONT_SIZE));
+                volCell.setKeepTogether(true);
+                cargoTable.addCell(volCell);
+
+                BigDecimal value = BigDecimal.ZERO;
+                Cell valCell = new Cell().add(new Paragraph(df.format(value)).setFontSize(TABLE_CELL_FONT_SIZE));
+                valCell.setKeepTogether(true);
+                cargoTable.addCell(valCell);
+            }
+
+            if (p == pages - 1) {
+                Cell totalLabelCell = new Cell(1, 2).add(new Paragraph("TỔNG CỘNG / TOTAL").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+                totalLabelCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+                cargoTable.addCell(totalLabelCell);
+
+                int totalQuantity = orderDetails.size();
+                Cell totalQuantityCell = new Cell().add(new Paragraph(String.valueOf(totalQuantity)).setBold().setFontSize(TABLE_CELL_FONT_SIZE));
+                totalQuantityCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+                cargoTable.addCell(totalQuantityCell);
+
+                Cell totalWeightCell = new Cell().add(new Paragraph(df.format(totalWeight)).setBold().setFontSize(TABLE_CELL_FONT_SIZE));
+                totalWeightCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+                cargoTable.addCell(totalWeightCell);
+
+                Cell totalVolumeCell = new Cell().add(new Paragraph(df.format(totalVolume)).setBold().setFontSize(TABLE_CELL_FONT_SIZE));
+                totalVolumeCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+                cargoTable.addCell(totalVolumeCell);
+
+                BigDecimal totalValue = BigDecimal.ZERO;
+                Cell totalValueCell = new Cell().add(new Paragraph(df.format(totalValue)).setBold().setFontSize(TABLE_CELL_FONT_SIZE));
+                totalValueCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+                cargoTable.addCell(totalValueCell);
+            }
+
+            document.add(cargoTable);
+
+            if (p < pages - 1) {
+                document.add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+            }
+        }
+
+        // Add cargo condition and special instructions once (after all chunks)
         Paragraph cargoConditionTitle = new Paragraph("Tình trạng hàng hóa / Cargo condition:")
                 .setBold()
-                .setMarginTop(5);
+                .setMarginTop(5)
+                .setFontSize(TABLE_CELL_FONT_SIZE);
         document.add(cargoConditionTitle);
 
         Table conditionTable = new Table(UnitValue.createPercentArray(1)).useAllAvailableWidth();
+        conditionTable.setKeepTogether(true);
         Cell conditionCell = new Cell();
         conditionCell.setHeight(40);
-        conditionCell.add(new Paragraph("□ Nguyên vẹn / Intact   □ Dễ vỡ / Fragile   □ Cần giữ lạnh / Temperature controlled   □ Khác / Other: _____________"));
+        conditionCell.add(new Paragraph("□ Nguyên vẹn / Intact   □ Dễ vỡ / Fragile   □ Cần giữ lạnh / Temperature controlled   □ Khác / Other: _____________").setFontSize(TABLE_CELL_FONT_SIZE));
         conditionTable.addCell(conditionCell);
         document.add(conditionTable);
 
-        // Special instructions
         Paragraph specialInstructionsTitle = new Paragraph("Chỉ dẫn đặc biệt / Special instructions:")
                 .setBold()
-                .setMarginTop(5);
+                .setMarginTop(5)
+                .setFontSize(TABLE_CELL_FONT_SIZE);
         document.add(specialInstructionsTitle);
 
         Table instructionsTable = new Table(UnitValue.createPercentArray(1)).useAllAvailableWidth();
+        instructionsTable.setKeepTogether(true);
         Cell instructionsCell = new Cell();
         instructionsCell.setHeight(40);
-        instructionsCell.add(new Paragraph(""));
+        instructionsCell.add(new Paragraph("").setFontSize(TABLE_CELL_FONT_SIZE));
         instructionsTable.addCell(instructionsCell);
         document.add(instructionsTable);
 
@@ -784,6 +822,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         document.add(sectionTitle);
 
         Table transportTable = new Table(UnitValue.createPercentArray(new float[]{5, 20, 20, 20, 35})).useAllAvailableWidth();
+        transportTable.setKeepTogether(true);
 
         // Header row
         Cell noHeaderCell = new Cell().add(new Paragraph("STT").setBold());
@@ -854,6 +893,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         document.add(sectionTitle);
 
         Table financialTable = new Table(UnitValue.createPercentArray(new float[]{70, 30})).useAllAvailableWidth();
+        financialTable.setKeepTogether(true);
 
         // Header
         Cell serviceCostHeaderCell = new Cell().add(new Paragraph("Mô tả / Description").setBold());
@@ -1005,6 +1045,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         document.add(sectionTitle);
 
         Table signaturesTable = new Table(UnitValue.createPercentArray(3)).useAllAvailableWidth();
+        signaturesTable.setKeepTogether(true);
 
         Cell senderSignatureHeaderCell = new Cell();
         senderSignatureHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
