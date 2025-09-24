@@ -473,7 +473,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 .setBold()
                 .setFontSize(SECTION_TITLE_FONT_SIZE)
                 .setMarginBottom(5);
-        document.add(sectionTitle);
 
         Table partiesTable = new Table(UnitValue.createPercentArray(2)).useAllAvailableWidth();
         partiesTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
@@ -506,16 +505,20 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         receiverDetailsCell.add(new Paragraph("Điện thoại / Phone: " + receiverPhone).setFontSize(TABLE_CELL_FONT_SIZE));
         partiesTable.addCell(receiverDetailsCell);
 
-        document.add(partiesTable);
+        Div partiesBlock = new Div().setKeepTogether(true);
+        partiesBlock.add(sectionTitle);
+        partiesBlock.add(partiesTable);
+        document.add(partiesBlock);
 
         Paragraph transportCompanyTitle = new Paragraph("ĐƠN VỊ VẬN TẢI / TRANSPORT COMPANY")
                 .setBold()
                 .setFontSize(SECTION_TITLE_FONT_SIZE)
-                .setMarginTop(8);
-        document.add(transportCompanyTitle);
+                .setMarginTop(8)
+                .setKeepTogether(true);
 
         Table companyTable = new Table(UnitValue.createPercentArray(1)).useAllAvailableWidth();
         companyTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
+        companyTable.setKeepTogether(true);
 
         Cell companyCell = new Cell();
         companyCell.add(new Paragraph("Tên công ty / Company name: TRUCKIE LOGISTICS CO., LTD").setBold().setFontSize(TABLE_CELL_FONT_SIZE));
@@ -524,7 +527,10 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         companyCell.add(new Paragraph("Người phụ trách / Staff in charge: " + staff.getFullName() + " (" + staff.getPhoneNumber() + ")").setFontSize(TABLE_CELL_FONT_SIZE));
 
         companyTable.addCell(companyCell);
-        document.add(companyTable);
+        Div companyBlock = new Div().setKeepTogether(true);
+        companyBlock.add(transportCompanyTitle);
+        companyBlock.add(companyTable);
+        document.add(companyBlock);
         document.add(new Paragraph("").setMarginBottom(8));
     }
 
@@ -532,8 +538,8 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         Paragraph sectionTitle = new Paragraph("2. THÔNG TIN VẬN CHUYỂN / SHIPPING INFORMATION")
                 .setBold()
                 .setFontSize(SECTION_TITLE_FONT_SIZE)
-                .setMarginBottom(5);
-        document.add(sectionTitle);
+                .setMarginBottom(5)
+                .setKeepTogether(true);
 
         Table addressTable = new Table(UnitValue.createPercentArray(2)).useAllAvailableWidth();
         addressTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
@@ -592,69 +598,11 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         deliveryDetailsCell.add(new Paragraph("Thời gian giao hàng dự kiến / Expected delivery time: " + deliveryTimeStr));
         addressTable.addCell(deliveryDetailsCell);
 
-        document.add(addressTable);
+        Div addressBlock = new Div().setKeepTogether(true);
+        addressBlock.add(sectionTitle);
+        addressBlock.add(addressTable);
+        document.add(addressBlock);
         document.add(new Paragraph("").setMarginBottom(8)); // Reduced from 10
-    }
-
-    private void addShippingAddresses(Document document, AddressEntity pickupAddress, AddressEntity deliveryAddress, OrderDetailEntity orderDetail) {
-        Paragraph sectionTitle = new Paragraph("2. THÔNG TIN VẬN CHUYỂN / SHIPPING INFORMATION")
-                .setBold()
-                .setFontSize(11)
-                .setMarginBottom(5);
-        document.add(sectionTitle);
-
-        Table addressTable = new Table(UnitValue.createPercentArray(2)).useAllAvailableWidth();
-        addressTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
-
-        // Pickup address
-        Cell pickupHeaderCell = new Cell();
-        pickupHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        pickupHeaderCell.setBold();
-        pickupHeaderCell.add(new Paragraph("ĐỊA ĐIỂM LẤY HÀNG / PICKUP LOCATION"));
-        addressTable.addCell(pickupHeaderCell);
-
-        // Delivery address
-        Cell deliveryHeaderCell = new Cell();
-        deliveryHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        deliveryHeaderCell.setBold();
-        deliveryHeaderCell.add(new Paragraph("ĐỊA ĐIỂM GIAO HÀNG / DELIVERY LOCATION"));
-        addressTable.addCell(deliveryHeaderCell);
-
-        // Pickup details
-        Cell pickupDetailsCell = new Cell();
-        // Use the available fields based on your AddressEntity structure
-        String pickupAddressStr = pickupAddress.getStreet() + ", " +
-                pickupAddress.getWard() + ", " +
-                pickupAddress.getProvince(); // No district property found
-        pickupDetailsCell.add(new Paragraph("Địa chỉ / Address: " + pickupAddressStr));
-
-        // Get estimated start time from the specific order detail
-        String pickupTimeStr = "N/A";
-        LocalDateTime estimatedStartTime = orderDetail.getEstimatedStartTime();
-        if (estimatedStartTime != null) {
-            pickupTimeStr = estimatedStartTime.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-        }
-        pickupDetailsCell.add(new Paragraph("Thời gian lấy hàng dự kiến / Pickup time: " + pickupTimeStr));
-        addressTable.addCell(pickupDetailsCell);
-
-        // Delivery details
-        Cell deliveryDetailsCell = new Cell();
-        String deliveryAddressStr = deliveryAddress.getStreet() + ", " +
-                deliveryAddress.getWard() + ", " +
-                deliveryAddress.getProvince();
-        deliveryDetailsCell.add(new Paragraph("Địa chỉ / Address: " + deliveryAddressStr));
-
-        // Get estimated end time from the specific order detail
-        String deliveryTimeStr = "N/A";
-        LocalDateTime estimatedEndTime = orderDetail.getEstimatedEndTime();
-        if (estimatedEndTime != null) {
-            deliveryTimeStr = estimatedEndTime.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-        }
-        deliveryDetailsCell.add(new Paragraph("Thời gian giao hàng dự kiến / Expected delivery time: " + deliveryTimeStr));
-        addressTable.addCell(deliveryDetailsCell);
-
-        document.add(addressTable);
-        document.add(new Paragraph("").setMarginBottom(8));
     }
 
     private void addCargoInformationPaged(Document document, List<OrderDetailEntity> orderDetails) {
@@ -665,7 +613,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         BigDecimal totalVolume = BigDecimal.ZERO;
         for (OrderDetailEntity d : orderDetails) {
             if (d.getWeight() != null) totalWeight = totalWeight.add(d.getWeight());
-            // if you have volume field add here
         }
 
         int totalRows = orderDetails.size();
@@ -675,18 +622,19 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             int start = p * MAX_CARGO_ROWS_PER_PAGE;
             int end = Math.min(start + MAX_CARGO_ROWS_PER_PAGE, totalRows);
 
+            Paragraph sectionTitle;
             if (p == 0) {
-                Paragraph sectionTitle = new Paragraph("3. THÔNG TIN HÀNG HÓA / CARGO INFORMATION")
+                sectionTitle = new Paragraph("3. THÔNG TIN HÀNG HÓA / CARGO INFORMATION")
                         .setBold()
                         .setFontSize(SECTION_TITLE_FONT_SIZE)
-                        .setMarginBottom(5);
-                document.add(sectionTitle);
+                        .setMarginBottom(5)
+                        .setKeepTogether(true);
             } else {
-                Paragraph contTitle = new Paragraph("3. THÔNG TIN HÀNG HÓA (Tiếp theo) / CARGO INFORMATION (continued)")
+                sectionTitle = new Paragraph("3. THÔNG TIN HÀNG HÓA (Tiếp theo) / CARGO INFORMATION (continued)")
                         .setBold()
                         .setFontSize(SECTION_TITLE_FONT_SIZE)
-                        .setMarginBottom(5);
-                document.add(contTitle);
+                        .setMarginBottom(5)
+                        .setKeepTogether(true);
             }
 
             Table cargoTable = new Table(UnitValue.createPercentArray(new float[]{5, 30, 15, 15, 15, 20})).useAllAvailableWidth();
@@ -775,10 +723,14 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 cargoTable.addCell(totalValueCell);
             }
 
-            document.add(cargoTable);
+            Div cargoBlock = new Div().setKeepTogether(true);
+            cargoBlock.add(sectionTitle);
+            cargoBlock.add(cargoTable);
+            document.add(cargoBlock);
 
             if (p < pages - 1) {
-                document.add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+                // use fully-qualified enum to avoid symbol resolution issues
+                document.add(new AreaBreak(com.itextpdf.layout.properties.AreaBreakType.NEXT_PAGE));
             }
         }
 
@@ -786,7 +738,8 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         Paragraph cargoConditionTitle = new Paragraph("Tình trạng hàng hóa / Cargo condition:")
                 .setBold()
                 .setMarginTop(5)
-                .setFontSize(TABLE_CELL_FONT_SIZE);
+                .setFontSize(TABLE_CELL_FONT_SIZE)
+                .setKeepTogether(true);
         document.add(cargoConditionTitle);
 
         Table conditionTable = new Table(UnitValue.createPercentArray(1)).useAllAvailableWidth();
@@ -800,7 +753,8 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         Paragraph specialInstructionsTitle = new Paragraph("Chỉ dẫn đặc biệt / Special instructions:")
                 .setBold()
                 .setMarginTop(5)
-                .setFontSize(TABLE_CELL_FONT_SIZE);
+                .setFontSize(TABLE_CELL_FONT_SIZE)
+                .setKeepTogether(true);
         document.add(specialInstructionsTitle);
 
         Table instructionsTable = new Table(UnitValue.createPercentArray(1)).useAllAvailableWidth();
@@ -817,9 +771,9 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
     private void addTransportInformation(Document document, List<VehicleAssignmentEntity> vehicleAssignments) {
         Paragraph sectionTitle = new Paragraph("4. THÔNG TIN PHƯƠNG TIỆN / TRANSPORT INFORMATION")
                 .setBold()
-                .setFontSize(11) // Reduced from 12
-                .setMarginBottom(5);
-        document.add(sectionTitle);
+                .setFontSize(11)
+                .setMarginBottom(5)
+                .setKeepTogether(true);
 
         Table transportTable = new Table(UnitValue.createPercentArray(new float[]{5, 20, 20, 20, 35})).useAllAvailableWidth();
         transportTable.setKeepTogether(true);
@@ -881,7 +835,11 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             }
         }
 
-        document.add(transportTable);
+        Div transportBlock = new Div().setKeepTogether(true);
+        transportBlock.add(sectionTitle);
+        transportBlock.add(transportTable);
+        document.add(transportBlock);
+
         document.add(new Paragraph("").setMarginBottom(10));
     }
 
@@ -889,8 +847,8 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         Paragraph sectionTitle = new Paragraph("5. THÔNG TIN TÀI CHÍNH / FINANCIAL INFORMATION")
                 .setBold()
                 .setFontSize(11)
-                .setMarginBottom(5);
-        document.add(sectionTitle);
+                .setMarginBottom(5)
+                .setKeepTogether(true);
 
         Table financialTable = new Table(UnitValue.createPercentArray(new float[]{70, 30})).useAllAvailableWidth();
         financialTable.setKeepTogether(true);
@@ -935,7 +893,10 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         financialTable.addCell(totalLabelCell);
         financialTable.addCell(totalAmountCell);
 
-        document.add(financialTable);
+        Div financialBlock = new Div().setKeepTogether(true);
+        financialBlock.add(sectionTitle);
+        financialBlock.add(financialTable);
+        document.add(financialBlock);
 
         // Payment method - default tick on bank transfer
         Paragraph paymentTitle = new Paragraph("Hình thức thanh toán / Payment method:")
@@ -950,99 +911,12 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         document.add(new Paragraph("").setMarginBottom(10));
     }
 
-    private void addFinancialInformationForOrderDetail(Document document, ContractEntity contract, OrderEntity order, OrderDetailEntity orderDetail) {
-        Paragraph sectionTitle = new Paragraph("5. THÔNG TIN TÀI CHÍNH / FINANCIAL INFORMATION")
-                .setBold()
-                .setFontSize(11)
-                .setMarginBottom(5);
-        document.add(sectionTitle);
-
-        Table financialTable = new Table(UnitValue.createPercentArray(new float[]{70, 30})).useAllAvailableWidth();
-
-        // Service costs
-        Cell serviceCostHeaderCell = new Cell().add(new Paragraph("Mô tả / Description").setBold());
-        Cell amountHeaderCell = new Cell().add(new Paragraph("Số tiền / Amount (VND)").setBold());
-
-        serviceCostHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        amountHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-
-        financialTable.addCell(serviceCostHeaderCell);
-        financialTable.addCell(amountHeaderCell);
-
-        // Base freight charge - using just this specific order detail's price
-        DecimalFormat df = new DecimalFormat("#,###.##");
-
-        // Calculate proportional amount for this specific order detail
-        BigDecimal totalOrderAmount = order.getTotalPrice() != null ? order.getTotalPrice() : BigDecimal.ZERO;
-
-        // Calculate the price for this specific order detail based on weight proportion
-        BigDecimal detailAmount;
-        BigDecimal totalOrderWeight = BigDecimal.ZERO;
-        for (OrderDetailEntity detail : order.getOrderDetailEntities()) {
-            if (detail.getWeight() != null) {
-                totalOrderWeight = totalOrderWeight.add(detail.getWeight());
-            }
-        }
-
-        if (totalOrderWeight.compareTo(BigDecimal.ZERO) > 0 && orderDetail.getWeight() != null) {
-            BigDecimal proportion = orderDetail.getWeight().divide(totalOrderWeight, 4, BigDecimal.ROUND_HALF_UP);
-            detailAmount = totalOrderAmount.multiply(proportion);
-        } else {
-            int totalDetails = order.getOrderDetailEntities().size();
-            if (totalDetails > 0) {
-                detailAmount = totalOrderAmount.divide(BigDecimal.valueOf(totalDetails), 2, BigDecimal.ROUND_HALF_UP);
-            } else {
-                detailAmount = BigDecimal.ZERO;
-            }
-        }
-
-        BigDecimal depositAmount = BigDecimal.ZERO;
-        if (contract != null && contract.getContractName() != null && contract.getContractName().contains("Deposit")) {
-            depositAmount = detailAmount.multiply(new BigDecimal("0.3")); // 30% deposit
-        }
-
-        BigDecimal remainingAmount = detailAmount.subtract(depositAmount);
-
-        financialTable.addCell(new Cell().add(new Paragraph("Cước vận chuyển / Freight charge")));
-        financialTable.addCell(new Cell().add(new Paragraph(df.format(detailAmount))));
-
-        // Deposit information
-        financialTable.addCell(new Cell().add(new Paragraph("Đã thanh toán (tiền đặt cọc) / Paid (deposit)")));
-        financialTable.addCell(new Cell().add(new Paragraph(df.format(depositAmount))));
-
-        // Total
-        Cell totalLabelCell = new Cell().add(new Paragraph("Còn lại / Remaining").setBold());
-        Cell totalAmountCell = new Cell().add(new Paragraph(df.format(remainingAmount)).setBold());
-
-        totalLabelCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        totalAmountCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-
-        financialTable.addCell(totalLabelCell);
-        financialTable.addCell(totalAmountCell);
-
-        document.add(financialTable);
-
-        // Payment information
-        Paragraph paymentTitle = new Paragraph("Hình thức thanh toán / Payment method:")
-                .setBold()
-                .setMarginTop(5);
-        document.add(paymentTitle);
-
-        Table paymentTable = new Table(UnitValue.createPercentArray(1)).useAllAvailableWidth();
-        Cell paymentCell = new Cell();
-        paymentCell.add(new Paragraph("□ Thanh toán online / Online payment   □ Chuyển khoản / Bank transfer   □ Tiền mặt / Cash"));
-        paymentTable.addCell(paymentCell);
-        document.add(paymentTable);
-
-        document.add(new Paragraph("").setMarginBottom(10));
-    }
-
     private void addSignatureBlocks(Document document) {
         Paragraph sectionTitle = new Paragraph("6. XÁC NHẬN / CONFIRMATION")
                 .setBold()
                 .setFontSize(SECTION_TITLE_FONT_SIZE)
-                .setMarginBottom(5);
-        document.add(sectionTitle);
+                .setMarginBottom(5)
+                .setKeepTogether(true);
 
         Table signaturesTable = new Table(UnitValue.createPercentArray(3)).useAllAvailableWidth();
         signaturesTable.setKeepTogether(true);
@@ -1083,7 +957,11 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         receiverSignatureCell.add(new Paragraph("Chữ ký, họ tên / Signature, name").setFontSize(8));
         signaturesTable.addCell(receiverSignatureCell);
 
-        document.add(signaturesTable);
+        Div sigBlock = new Div().setKeepTogether(true);
+        sigBlock.add(sectionTitle);
+        sigBlock.add(signaturesTable);
+        document.add(sigBlock);
+
         document.add(new Paragraph("").setMarginBottom(8));
     }
 
