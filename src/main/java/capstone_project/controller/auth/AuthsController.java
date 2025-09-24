@@ -4,6 +4,7 @@ package capstone_project.controller.auth;
 import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
 import capstone_project.dtos.response.auth.ChangePasswordResponse;
+import capstone_project.dtos.response.auth.LoginPublicResponse;
 import capstone_project.dtos.response.auth.LoginResponse;
 import capstone_project.dtos.response.auth.RefreshTokenResponse;
 import capstone_project.dtos.response.common.ApiResponse;
@@ -33,18 +34,19 @@ public class AuthsController {
      * @return the response entity
      */
     @PostMapping("")
-    public ResponseEntity<ApiResponse<LoginResponse>> login(
+    public ResponseEntity<ApiResponse<LoginPublicResponse>> login(
             @RequestBody @Valid LoginWithoutEmailRequest loginRequest,
             HttpServletResponse response) {
         final var login = registerService.login(loginRequest);
 
         // Set refresh token as a cookie
-        //addRefreshTokenCookie(response, login.getRefreshToken());
+        addRefreshTokenCookie(response, login.getRefreshToken());
 
         // Set access token as a cookie
-        //addAccessTokenCookie(response, login.getAuthToken());
+        addAccessTokenCookie(response, login.getAuthToken());
 
-        return ResponseEntity.ok(ApiResponse.ok(login));
+        var publicResp = new LoginPublicResponse(login.getUser().getId(), login.getUser().getUsername(), login.getUser().getEmail(), login.getUser().getRole().getRoleName());
+        return ResponseEntity.ok(ApiResponse.ok(publicResp));
     }
 
     @PostMapping("/google")

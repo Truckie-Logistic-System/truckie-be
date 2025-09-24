@@ -333,7 +333,7 @@ public class RegisterServiceImpl implements RegisterService {
 
                 log.info("[login] Login successful");
 
-                return userMapper.mapLoginResponse(usersEntity);
+                return userMapper.mapLoginResponse(usersEntity, accessToken, refreshTokenString);
             }
             log.info("[login] Wrong password");
             throw new NotFoundException(
@@ -427,7 +427,7 @@ public class RegisterServiceImpl implements RegisterService {
 
             refreshTokenEntityService.save(refreshTokenEntity);
             log.info("[loginWithGoogle] login successful");
-            return userMapper.mapLoginResponse(usersEntity);
+            return userMapper.mapLoginResponse(usersEntity, token, refreshTokenString);
 
         }
         log.info("[login] Username and Email are not found");
@@ -470,7 +470,11 @@ public class RegisterServiceImpl implements RegisterService {
             }
         }
 
-        throw new RuntimeException("Refresh token not found in cookies");
+        log.warn("[extractRefreshTokenFromCookies] Refresh token not found in cookies");
+        throw new BadRequestException(
+                "Refresh token not found in cookies",
+                ErrorEnum.NULL.getErrorCode()
+        );
     }
 
     @Override

@@ -29,7 +29,7 @@ public interface UserMapper {
      * @return the login response
      */
     @Mapping(target = "user", expression = "java(mapUserResponse(userEntity))")
-    LoginResponse mapLoginResponse(final UserEntity userEntity);
+    LoginResponse mapLoginResponse(final UserEntity userEntity, final String token, final String refreshToken);
 
 
 
