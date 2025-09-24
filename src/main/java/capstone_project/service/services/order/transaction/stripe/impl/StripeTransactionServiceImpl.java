@@ -55,7 +55,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
         log.info("createPaymentIntent - Stripe");
         ContractEntity contractEntity = getAndValidateContract(contractId);
 
-        BigDecimal totalValue = validationTotalValue(contractId, contractEntity);
+        BigDecimal totalValue = validationTotalValue(contractId);
 
         if (!contractEntity.getStatus().equals(ContractStatusEnum.DEPOSITED.name()) &&
                 !contractEntity.getStatus().equals(ContractStatusEnum.UNPAID.name()) &&
@@ -139,7 +139,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
         ContractEntity contractEntity = getAndValidateContract(contractId);
 
-        BigDecimal totalValue = validationTotalValue(contractId, contractEntity);
+        BigDecimal totalValue = validationTotalValue(contractId);
 
         if (!contractEntity.getStatus().equals(ContractStatusEnum.CONTRACT_SIGNED.name()) && !contractEntity.getStatus().equals(ContractStatusEnum.UNPAID.name())) {
             log.error("Contract {} is not in CONTRACT_SIGNED or UNPAID status", contractId);
@@ -295,7 +295,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
         switch (TransactionEnum.valueOf(transaction.getStatus())) {
             case PAID -> {
-                BigDecimal totalValue = validationTotalValue(contract.getId(), contract);
+                BigDecimal totalValue = validationTotalValue(contract.getId());
 
                 if (transaction.getAmount().compareTo(totalValue) < 0) {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
@@ -322,11 +322,20 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
         log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
     }
 
-    private static BigDecimal validationTotalValue(UUID contractId, ContractEntity contractEntity) {
-        BigDecimal totalValue = contractEntity.getTotalValue();
-        BigDecimal supportedValue = contractEntity.getSupportedValue();
+    private BigDecimal validationTotalValue(UUID contractId) {
 
-        if (supportedValue != null) {
+        ContractEntity contractEntity = contractEntityService.findEntityById(contractId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        BigDecimal totalValue = contractEntity.getTotalValue();
+        log.info("Total value for contract {} is {}", contractId, totalValue);
+        BigDecimal supportedValue = contractEntity.getSupportedValue();
+        log.info("Supported value for contract {} is {}", contractId, supportedValue);
+
+        if (supportedValue != null && supportedValue.compareTo(BigDecimal.ZERO) > 0) {
             totalValue = supportedValue;
         }
 

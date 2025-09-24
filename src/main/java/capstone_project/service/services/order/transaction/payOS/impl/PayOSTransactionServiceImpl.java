@@ -72,7 +72,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             );
         }
 
-        BigDecimal totalValue = validationTotalValue(contractId, contractEntity);
+        BigDecimal totalValue = validationTotalValue(contractId);
 
         int amountForPayOS = totalValue.setScale(0, RoundingMode.HALF_UP).intValueExact();
 
@@ -137,7 +137,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         ContractEntity contractEntity = getAndValidateContract(contractId);
 
-        BigDecimal totalValue = validationTotalValue(contractId, contractEntity);
+        BigDecimal totalValue = validationTotalValue(contractId);
 
 //        int amountForPayOS = totalValue.setScale(0, RoundingMode.HALF_UP).intValueExact();
 
@@ -203,11 +203,20 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         }
     }
 
-    private static BigDecimal validationTotalValue(UUID contractId, ContractEntity contractEntity) {
-        BigDecimal totalValue = contractEntity.getTotalValue();
-        BigDecimal supportedValue = contractEntity.getSupportedValue();
+    private BigDecimal validationTotalValue(UUID contractId) {
 
-        if (supportedValue != null) {
+        ContractEntity contractEntity = contractEntityService.findEntityById(contractId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        BigDecimal totalValue = contractEntity.getTotalValue();
+        log.info("Total value for contract {} is {}", contractId, totalValue);
+        BigDecimal supportedValue = contractEntity.getSupportedValue();
+        log.info("Supported value for contract {} is {}", contractId, supportedValue);
+
+        if (supportedValue != null && supportedValue.compareTo(BigDecimal.ZERO) > 0) {
             totalValue = supportedValue;
         }
 
@@ -412,7 +421,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         switch (TransactionEnum.valueOf(transaction.getStatus())) {
             case PAID -> {
-                BigDecimal totalValue = validationTotalValue(contract.getId(), contract);
+                BigDecimal totalValue = validationTotalValue(contract.getId());
 
                 if (transaction.getAmount().compareTo(totalValue) < 0) {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
