@@ -39,10 +39,10 @@ public class AuthsController {
         final var login = registerService.login(loginRequest);
 
         // Set refresh token as a cookie
-        addRefreshTokenCookie(response, login.getRefreshToken());
+        // addRefreshTokenCookie(response, login.getRefreshToken());
 
         // Set access token as a cookie
-        addAccessTokenCookie(response, login.getAuthToken());
+        // addAccessTokenCookie(response, login.getAuthToken());
 
         return ResponseEntity.ok(ApiResponse.ok(login));
     }
@@ -54,34 +54,19 @@ public class AuthsController {
         final var login = registerService.loginWithGoogle(registerUserRequest);
 
         // Set refresh token as a cookie
-        addRefreshTokenCookie(response, login.getRefreshToken());
+        // addRefreshTokenCookie(response, login.getRefreshToken());
 
         // Set access token as a cookie
-        addAccessTokenCookie(response, login.getAuthToken());
+        // addAccessTokenCookie(response, login.getAuthToken());
 
         return ResponseEntity.ok(ApiResponse.ok(login));
     }
 
     @PostMapping("/token/refresh")
-    public ResponseEntity<ApiResponse<Void>> refreshAccessToken(
-            HttpServletRequest request,
-            HttpServletResponse response) {
-        // Extract refresh token from cookies using the service
-        String refreshToken = registerService.extractRefreshTokenFromCookies(request);
-
-        // Get the new tokens
-        final var refreshTokenResponse = registerService.refreshAccessToken(refreshToken);
-
-        // Update the refresh token cookie if it has changed
-        if (!refreshToken.equals(refreshTokenResponse.getRefreshToken())) {
-            addRefreshTokenCookie(response, refreshTokenResponse.getRefreshToken());
-        }
-
-        // Always set the new access token as a cookie
-        addAccessTokenCookie(response, refreshTokenResponse.getAccessToken());
-
-        // Return an empty successful response since tokens are in cookies
-        return ResponseEntity.ok(ApiResponse.ok(null));
+    public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshAccessToken(
+            @RequestBody RefreshTokenRequest refreshTokenRequest) {
+        final var refreshTokenResponse = registerService.refreshAccessToken(refreshTokenRequest.getRefreshToken());
+        return ResponseEntity.ok(ApiResponse.ok(refreshTokenResponse));
     }
 
     @PostMapping("/customer/register")
