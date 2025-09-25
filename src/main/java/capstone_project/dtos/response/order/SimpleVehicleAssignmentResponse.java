@@ -7,8 +7,7 @@ import java.util.List;
 
 public record SimpleVehicleAssignmentResponse(
     String id,
-    String vehicleName,
-    String licensePlateNumber,
+    VehicleResponse vehicle,
     SimpleDriverResponse primaryDriver,
     SimpleDriverResponse secondaryDriver,
     String status,
@@ -22,12 +21,11 @@ public record SimpleVehicleAssignmentResponse(
     // Constructor for backward compatibility
     public SimpleVehicleAssignmentResponse(
             String id,
-            String vehicleName,
-            String licensePlateNumber,
+            VehicleResponse vehicle,
             SimpleDriverResponse primaryDriver,
             SimpleDriverResponse secondaryDriver,
             String status,
             String trackingCode) {
-        this(id, vehicleName, licensePlateNumber, primaryDriver, secondaryDriver, status, trackingCode, null, null, null, null);
+        this(id, vehicle, primaryDriver, secondaryDriver, status, trackingCode, null, null, null, null);
     }
 }

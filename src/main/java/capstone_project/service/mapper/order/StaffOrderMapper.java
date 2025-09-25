@@ -32,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -58,8 +59,24 @@ public class StaffOrderMapper {
             ContractResponse contractResponse,
             List<TransactionResponse> transactionResponses
     ) {
-        // Convert Order with enhanced information for staff
-        StaffOrderResponse staffOrderResponse = toStaffOrderResponseWithEnhancedInfo(orderResponse);
+        BigDecimal effectiveTotal = null;
+        try {
+            if (contractResponse != null) {
+                BigDecimal contractTotal = contractResponse.totalValue();
+                if (contractTotal != null && contractTotal.compareTo(BigDecimal.ZERO) > 0) {
+                    effectiveTotal = contractTotal;
+                } else {
+                    effectiveTotal = contractResponse.supportedValue();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        if (effectiveTotal == null && orderResponse != null) {
+            effectiveTotal = orderResponse.totalPrice();
+        }
+
+        // Convert Order with enhanced information for staff, passing effective total
+        StaffOrderResponse staffOrderResponse = toStaffOrderResponseWithEnhancedInfo(orderResponse, effectiveTotal);
 
         // Convert Contract
         SimpleContractResponse simpleContractResponse = contractResponse != null ?
@@ -77,7 +94,7 @@ public class StaffOrderMapper {
         );
     }
 
-    private StaffOrderResponse toStaffOrderResponseWithEnhancedInfo(GetOrderResponse response) {
+    private StaffOrderResponse toStaffOrderResponseWithEnhancedInfo(GetOrderResponse response, BigDecimal effectiveTotal) {
         String deliveryAddress = combineAddress(
                 response.deliveryAddress().street(),
                 response.deliveryAddress().ward(),
@@ -97,7 +114,7 @@ public class StaffOrderMapper {
 
         return new StaffOrderResponse(
                 response.id(),
-                response.totalPrice(),
+                effectiveTotal,
                 response.notes(),
                 response.totalQuantity(),
                 response.orderCode(),
@@ -177,7 +194,7 @@ public class StaffOrderMapper {
 
         List<CameraTrackingResponse> cameraTrackings = getCameraTrackingsByVehicleAssignmentId(vehicleAssignmentId);
         VehicleFuelConsumptionResponse fuelConsumption = getFuelConsumptionByVehicleAssignmentId(vehicleAssignmentId);
-
+        List<String> photoCompletions = getPhotoCompletionsByVehicleAssignmentId(vehicleAssignmentId);
         // Get issues for this vehicle assignment (null-safe, full lookup)
         List<SimpleIssueImageResponse> issues = getIssuesByVehicleAssignmentId(vehicleAssignmentId);
         if (issues == null) issues = Collections.emptyList();
@@ -217,7 +234,7 @@ public class StaffOrderMapper {
             log.warn("Could not fetch driver info for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
         }
 
-        StaffVehicleResponse vehicle = null;
+        VehicleResponse vehicle = null;
         try {
             UUID vehicleId = null;
 
@@ -230,8 +247,8 @@ public class StaffOrderMapper {
             if (vehicleId != null) {
                 var vehicleEntity = vehicleEntityService.findEntityById(vehicleId).orElse(null);
                 if (vehicleEntity != null) {
-                    vehicle = new StaffVehicleResponse(
-                            null,
+                    vehicle = new VehicleResponse(
+                            vehicleEntity.getId(),
                             vehicleEntity.getManufacturer(),
                             vehicleEntity.getModel(),
                             vehicleEntity.getLicensePlateNumber(),
@@ -269,6 +286,7 @@ public class StaffOrderMapper {
         if (orderSeals == null) orderSeals = Collections.emptyList();
         if (journeyHistories == null) journeyHistories = Collections.emptyList();
         if (issues == null) issues = Collections.emptyList();
+        if (photoCompletions == null) photoCompletions = Collections.emptyList();
 
         String status = vehicleAssignmentEntity != null ? vehicleAssignmentEntity.getStatus() : vehicleAssignmentResponse.status();
         String trackingCode = vehicleAssignmentResponse.trackingCode();
@@ -285,6 +303,7 @@ public class StaffOrderMapper {
                 fuelConsumption,
                 orderSeals,
                 journeyHistories,
+                photoCompletions,
                 issues
         );
     }

@@ -21,11 +21,14 @@ import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
 import capstone_project.service.services.order.seal.OrderSealService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class SimpleOrderMapper {
@@ -42,13 +45,6 @@ public class SimpleOrderMapper {
             ContractResponse contractResponse,
             List<TransactionResponse> transactionResponses
     ) {
-        // Convert Order with enhanced vehicle assignments
-        SimpleOrderResponse simpleOrderResponse = toSimpleOrderResponseWithTripInfo(
-                orderResponse,
-                issueImageResponses,
-                photoCompletionResponses
-        );
-
         // Convert Contract
         SimpleContractResponse simpleContractResponse = contractResponse != null ?
                 toSimpleContractResponse(contractResponse) : null;
@@ -57,6 +53,31 @@ public class SimpleOrderMapper {
         List<SimpleTransactionResponse> simpleTransactionResponses = transactionResponses.stream()
                 .map(this::toSimpleTransactionResponse)
                 .collect(Collectors.toList());
+
+        BigDecimal effectiveTotal = null;
+        try {
+            if (contractResponse != null) {
+                BigDecimal contractTotal = contractResponse.totalValue();
+                log.info("Contract total value is {}", contractTotal);
+                if (contractTotal != null && contractTotal.compareTo(BigDecimal.ZERO) > 0) {
+                    effectiveTotal = contractTotal;
+                } else {
+                    effectiveTotal = contractResponse.supportedValue();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        if (effectiveTotal == null && orderResponse != null) {
+            effectiveTotal = orderResponse.totalPrice();
+        }
+
+        // Convert Order with enhanced vehicle assignments
+        SimpleOrderResponse simpleOrderResponse = toSimpleOrderResponseWithTripInfo(
+                orderResponse,
+                issueImageResponses,
+                photoCompletionResponses,
+                effectiveTotal
+        );
 
         return new SimpleOrderForCustomerResponse(
                 simpleOrderResponse,
@@ -68,7 +89,8 @@ public class SimpleOrderMapper {
     private SimpleOrderResponse toSimpleOrderResponseWithTripInfo(
             GetOrderResponse response,
             List<GetIssueImageResponse> issueImageResponses,
-            Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses
+            Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses,
+            BigDecimal effectiveTotal
     ) {
         String deliveryAddress = combineAddress(
                 response.deliveryAddress().street(),
@@ -115,7 +137,7 @@ public class SimpleOrderMapper {
 
         return new SimpleOrderResponse(
                 response.id(),
-                response.totalPrice(),
+                effectiveTotal,
                 response.notes(),
                 response.totalQuantity(),
                 response.orderCode(),
@@ -157,11 +179,8 @@ public class SimpleOrderMapper {
         }
 
         SimpleVehicleAssignmentResponse vehicleAssignment = null;
-
+        VehicleResponse vehicle = null;
         if (detail.vehicleAssignmentId() != null) {
-            // Get vehicle information (memoized)
-            String vehicleName = "";
-            String licensePlate = "";
             VehicleAssignmentEntity vaEntity = null;
             try {
                 UUID vaId = detail.vehicleAssignmentId().id();
@@ -176,19 +195,25 @@ public class SimpleOrderMapper {
                 try {
                     // Vehicle from assignment entity
                     if (vaEntity.getVehicleEntity() != null) {
-                        var v = vaEntity.getVehicleEntity();
-                        vehicleName = (v.getModel() == null ? "" : v.getModel())
-                                + (v.getManufacturer() == null ? "" : " " + v.getManufacturer()).trim();
-                        licensePlate = v.getLicensePlateNumber() == null ? "" : v.getLicensePlateNumber();
+                        var vehicleEntity = vaEntity.getVehicleEntity();
+                        vehicle = new VehicleResponse(
+                                null,
+                                vehicleEntity.getManufacturer(),
+                                vehicleEntity.getModel(),
+                                vehicleEntity.getLicensePlateNumber(),
+                                vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null
+                        );
                     } else {
                         // fallback to vehicle id in DTO -> use cached vehicle entity
                         UUID vehicleId = detail.vehicleAssignmentId().vehicleId();
-                        var v = getVehicleFromCache(vehicleId, vehicleCache);
-                        if (v != null) {
-                            vehicleName = (v.getModel() == null ? "" : v.getModel())
-                                    + (v.getManufacturer() == null ? "" : " " + v.getManufacturer()).trim();
-                            licensePlate = v.getLicensePlateNumber() == null ? "" : v.getLicensePlateNumber();
-                        }
+                        var vehicleEntity = getVehicleFromCache(vehicleId, vehicleCache);
+                        vehicle = new VehicleResponse(
+                                null,
+                                vehicleEntity.getManufacturer(),
+                                vehicleEntity.getModel(),
+                                vehicleEntity.getLicensePlateNumber(),
+                                vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null
+                        );
                     }
                 } catch (Exception ignored) {
                 }
@@ -219,12 +244,14 @@ public class SimpleOrderMapper {
             } else {
                 try {
                     UUID vehicleId = detail.vehicleAssignmentId().vehicleId();
-                    var vehicle = getVehicleFromCache(vehicleId, vehicleCache);
-                    if (vehicle != null) {
-                        vehicleName = (vehicle.getModel() == null ? "" : vehicle.getModel())
-                                + (vehicle.getManufacturer() == null ? "" : " " + vehicle.getManufacturer()).trim();
-                        licensePlate = vehicle.getLicensePlateNumber() == null ? "" : vehicle.getLicensePlateNumber();
-                    }
+                    var vehicleFromCache = getVehicleFromCache(vehicleId, vehicleCache);
+                    vehicle = new VehicleResponse(
+                            null,
+                            vehicleFromCache.getManufacturer(),
+                            vehicleFromCache.getModel(),
+                            vehicleFromCache.getLicensePlateNumber(),
+                            vehicleFromCache.getVehicleTypeEntity() != null ? vehicleFromCache.getVehicleTypeEntity().getVehicleTypeName() : null
+                    );
                 } catch (Exception ignored) {
                 }
 
@@ -270,8 +297,7 @@ public class SimpleOrderMapper {
             // Build vehicleAssignment response
             vehicleAssignment = new SimpleVehicleAssignmentResponse(
                     detail.vehicleAssignmentId().id().toString(),
-                    vehicleName,
-                    licensePlate,
+                    vehicle,
                     primaryDriver,
                     secondaryDriver,
                     detail.vehicleAssignmentId().status(),

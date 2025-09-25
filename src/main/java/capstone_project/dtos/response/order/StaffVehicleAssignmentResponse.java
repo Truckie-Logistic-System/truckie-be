@@ -10,7 +10,7 @@ import java.util.UUID;
  */
 public record StaffVehicleAssignmentResponse(
     UUID id,
-    StaffVehicleResponse vehicle,
+    VehicleResponse vehicle,
     StaffDriverResponse primaryDriver,
     StaffDriverResponse secondaryDriver,
     String status,
@@ -20,5 +20,6 @@ public record StaffVehicleAssignmentResponse(
     VehicleFuelConsumptionResponse fuelConsumption,
     List<GetOrderSealResponse> orderSeals,
     List<JourneyHistoryResponse> journeyHistories,
+    List<String> photoCompletions,
     List<SimpleIssueImageResponse> issues
 ) {}

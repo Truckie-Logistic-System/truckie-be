@@ -1,12 +1,14 @@
 package capstone_project.dtos.response.order.contract;
 
+import java.math.BigDecimal;
+
 public record ContractResponse (
     String id,
     String contractName,
     String effectiveDate,
     String expirationDate,
-    String totalValue,
-    String supportedValue,
+    BigDecimal totalValue,
+    BigDecimal supportedValue,
     String description,
     String attachFileUrl,
     String status,
