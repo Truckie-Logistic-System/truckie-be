@@ -3,6 +3,7 @@ package capstone_project.service.services.order.order;
 import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
+import capstone_project.dtos.response.order.contract.BothOptimalAndRealisticAssignVehiclesResponse;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
@@ -28,10 +29,11 @@ public interface ContractService {
 
     ContractResponse createBothContractAndContractRuleForCus(CreateContractForCusRequest contractRequest);
 
+    BothOptimalAndRealisticAssignVehiclesResponse getBothOptimalAndRealisticAssignVehiclesResponse(UUID orderId);
 
     ContractResponse updateContract(UUID id, ContractRequest contractRequest);
 
-    List<ContractRuleAssignResponse> assignVehicles(UUID orderId);
+    List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId);
 
     PriceCalculationResponse calculateTotalPrice(ContractEntity contract,
                                                  BigDecimal distanceKm,
@@ -42,4 +44,6 @@ public interface ContractService {
     ContractResponse uploadContractFile(ContractFileUploadRequest contractFileUploadRequest) throws IOException;
 
     void deleteContractByOrderId(UUID orderId);
+
+    List<ContractRuleAssignResponse> assignVehiclesWithAvailability(UUID orderId);
 }

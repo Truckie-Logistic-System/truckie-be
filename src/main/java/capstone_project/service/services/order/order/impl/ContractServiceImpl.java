@@ -10,10 +10,7 @@ import capstone_project.common.utils.UserContextUtils;
 import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
-import capstone_project.dtos.response.order.contract.ContractResponse;
-import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
-import capstone_project.dtos.response.order.contract.OrderDetailForPackingResponse;
-import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
+import capstone_project.dtos.response.order.contract.*;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
@@ -34,6 +31,7 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.repository.entityServices.pricing.BasingPriceEntityService;
 import capstone_project.repository.entityServices.pricing.DistanceRuleEntityService;
 import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.mapper.order.ContractMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.ContractService;
@@ -62,6 +60,7 @@ public class ContractServiceImpl implements ContractService {
     private final DistanceRuleEntityService distanceRuleEntityService;
     private final BasingPriceEntityService basingPriceEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
+    private final VehicleEntityService vehicleEntityService;
     private final DistanceService distanceService;
     private final CloudinaryService cloudinaryService;
     private final UserContextUtils userContextUtils;
@@ -191,7 +190,7 @@ public class ContractServiceImpl implements ContractService {
 
         ContractEntity savedContract = contractEntityService.save(contractEntity);
 
-        List<ContractRuleAssignResponse> assignments = assignVehicles(orderUuid);
+        List<ContractRuleAssignResponse> assignments = assignVehiclesWithAvailability(orderUuid);
 
         Map<UUID, Integer> vehicleCountMap = assignments.stream()
                 .collect(Collectors.groupingBy(ContractRuleAssignResponse::getVehicleRuleId, Collectors.summingInt(a -> 1)));
@@ -296,7 +295,7 @@ public class ContractServiceImpl implements ContractService {
 
         ContractEntity savedContract = contractEntityService.save(contractEntity);
 
-        List<ContractRuleAssignResponse> assignments = assignVehicles(orderUuid);
+        List<ContractRuleAssignResponse> assignments = assignVehiclesWithAvailability(orderUuid);
 
         Map<UUID, Integer> vehicleCountMap = assignments.stream()
                 .collect(Collectors.groupingBy(ContractRuleAssignResponse::getVehicleRuleId, Collectors.summingInt(a -> 1)));
@@ -356,6 +355,31 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    public BothOptimalAndRealisticAssignVehiclesResponse getBothOptimalAndRealisticAssignVehiclesResponse(UUID orderId) {
+        List<ContractRuleAssignResponse> optimal = null;
+        List<ContractRuleAssignResponse> realistic = null;
+
+        try {
+            optimal = assignVehiclesOptimal(orderId);
+        } catch (Exception e) {
+            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Optimal assignment failed for orderId={}, reason={}", orderId, e.getMessage());
+        }
+
+        try {
+            realistic = assignVehiclesWithAvailability(orderId);
+        } catch (Exception e) {
+            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Realistic assignment failed for orderId={}, reason={}", orderId, e.getMessage());
+        }
+
+        if (optimal == null && realistic == null) {
+            return null;
+        }
+
+        return new BothOptimalAndRealisticAssignVehiclesResponse(optimal, realistic);
+    }
+
+
+    @Override
     public ContractResponse updateContract(UUID id, ContractRequest contractRequest) {
         return null;
     }
@@ -386,7 +410,99 @@ public class ContractServiceImpl implements ContractService {
         contractEntityService.deleteContractByOrderId(orderId);
     }
 
-    public List<ContractRuleAssignResponse> assignVehicles(UUID orderId) {
+    @Override
+    public List<ContractRuleAssignResponse> assignVehiclesWithAvailability(UUID orderId) {
+        List<ContractRuleAssignResponse> optimal = assignVehiclesOptimal(orderId);
+
+        OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
+
+        List<VehicleRuleEntity> sortedVehicleRules = vehicleRuleEntityService
+                .findAllByCategoryId(orderEntity.getCategory().getId())
+                .stream()
+                .filter(rule -> CommonStatusEnum.ACTIVE.name().equals(rule.getStatus()))
+                .sorted(Comparator.comparing(VehicleRuleEntity::getMaxWeight)
+                        .thenComparing(VehicleRuleEntity::getMaxLength)
+                        .thenComparing(VehicleRuleEntity::getMaxWidth)
+                        .thenComparing(VehicleRuleEntity::getMaxHeight))
+                .toList();
+
+        // map ruleId -> số lượng xe khả dụng
+        Map<UUID, Integer> availableVehicles = new HashMap<>();
+        for (VehicleRuleEntity rule : sortedVehicleRules) {
+            int count = vehicleEntityService
+                    .getVehicleEntitiesByVehicleTypeEntityAndStatus(
+                            rule.getVehicleTypeEntity(),
+                            CommonStatusEnum.ACTIVE.name()
+                    ).size();
+            availableVehicles.put(rule.getId(), count);
+        }
+
+        // map ruleId -> số lượng xe đã sử dụng
+        Map<UUID, Integer> usedVehicles = new HashMap<>();
+        List<ContractRuleAssignResponse> realisticAssignments = new ArrayList<>();
+
+        for (ContractRuleAssignResponse assignment : optimal) {
+            UUID ruleId = assignment.getVehicleRuleId();
+            int used = usedVehicles.getOrDefault(ruleId, 0);
+            int available = availableVehicles.getOrDefault(ruleId, 0);
+
+            if (used < available) {
+                // còn xe → gán
+                realisticAssignments.add(assignment);
+                usedVehicles.put(ruleId, used + 1);
+            } else {
+                // hết xe → upgrade
+                VehicleRuleEntity currentRule = sortedVehicleRules.get(assignment.getVehicleIndex());
+                VehicleRuleEntity upgradedRule = tryUpgradeUntilAvailable(
+                        assignment, currentRule, sortedVehicleRules, availableVehicles, usedVehicles
+                );
+
+                if (upgradedRule != null) {
+                    assignment.setVehicleRuleId(upgradedRule.getId());
+                    assignment.setVehicleRuleName(upgradedRule.getVehicleRuleName());
+                    assignment.setVehicleIndex(sortedVehicleRules.indexOf(upgradedRule));
+                    realisticAssignments.add(assignment);
+
+                    usedVehicles.put(upgradedRule.getId(),
+                            usedVehicles.getOrDefault(upgradedRule.getId(), 0) + 1);
+                } else {
+                    log.error("Không có xe nào đủ khả dụng để chở cho order {}", orderId);
+                    throw new BadRequestException(
+                            ErrorEnum.NO_VEHICLE_AVAILABLE.getMessage(),
+                            ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode()
+                    );
+                }
+            }
+        }
+
+        return realisticAssignments;
+    }
+
+
+    private VehicleRuleEntity tryUpgradeUntilAvailable(ContractRuleAssignResponse assignment,
+                                                       VehicleRuleEntity currentRule,
+                                                       List<VehicleRuleEntity> sortedRules,
+                                                       Map<UUID, Integer> availableVehicles,
+                                                       Map<UUID, Integer> usedVehicles) {
+
+        int currentIdx = sortedRules.indexOf(currentRule);
+
+        for (int nextIdx = currentIdx + 1; nextIdx < sortedRules.size(); nextIdx++) {
+            VehicleRuleEntity nextRule = sortedRules.get(nextIdx);
+            int used = usedVehicles.getOrDefault(nextRule.getId(), 0);
+            int available = availableVehicles.getOrDefault(nextRule.getId(), 0);
+
+            if (used < available) {
+                log.info("[assignVehicles] Upgrade thành công assignment rule={} -> rule={} (used={}/available={})",
+                        currentRule.getId(), nextRule.getId(), used + 1, available);
+                return nextRule;
+            }
+        }
+        return null;
+    }
+
+    public List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId) {
         final long t0 = System.nanoTime();
         log.info("Assigning vehicles for order ID: {}", orderId);
 
@@ -555,7 +671,6 @@ public class ContractServiceImpl implements ContractService {
     }
 
 
-
     /**
      * Upgrade vehicle if possible
      */
@@ -620,9 +735,6 @@ public class ContractServiceImpl implements ContractService {
 //        }
 //        return null;
 //    }
-
-
-
     @Override
     public PriceCalculationResponse calculateTotalPrice(ContractEntity contract,
                                                         BigDecimal distanceKm,

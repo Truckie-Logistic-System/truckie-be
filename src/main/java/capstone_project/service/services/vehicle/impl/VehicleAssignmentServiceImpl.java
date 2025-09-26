@@ -627,7 +627,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
         // Sử dụng trực tiếp phương thức assignVehicles từ ContractService
         // Phương thức này đã triển khai thuật toán First-Fit Decreasing (FFD) tối ưu
-        List<ContractRuleAssignResponse> vehicleAssignments = contractService.assignVehicles(orderID);
+        List<ContractRuleAssignResponse> vehicleAssignments = contractService.assignVehiclesWithAvailability(orderID);
 
         if (vehicleAssignments.isEmpty()) {
             log.error("Không tìm thấy gợi ý phân bổ xe cho đơn hàng ID={}", orderID);
