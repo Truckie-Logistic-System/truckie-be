@@ -3,6 +3,7 @@ package capstone_project.controller.auth;
 
 import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
+import capstone_project.dtos.response.auth.AccessTokenResponse;
 import capstone_project.dtos.response.auth.ChangePasswordResponse;
 import capstone_project.dtos.response.auth.LoginResponse;
 import capstone_project.dtos.response.auth.RefreshTokenResponse;
@@ -23,28 +24,22 @@ import org.springframework.web.bind.annotation.*;
 public class AuthsController {
 
     private final RegisterService registerService;
-    private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
-    private static final String ACCESS_TOKEN_COOKIE_NAME = "accessToken";
 
-    /**
-     * Login response entity.
-     *
-     * @param loginRequest the login request
-     * @return the response entity
-     */
     @PostMapping("")
-    public ResponseEntity<ApiResponse<LoginResponse>> login(
+    public ResponseEntity<ApiResponse<AccessTokenResponse>> login(
             @RequestBody @Valid LoginWithoutEmailRequest loginRequest,
             HttpServletResponse response) {
         final var login = registerService.login(loginRequest);
 
-        // Set refresh token as a cookie
-        // addRefreshTokenCookie(response, login.getRefreshToken());
+        // set refresh token as HttpOnly cookie
+        registerService.addRefreshTokenCookie(response, login.getRefreshToken());
 
-        // Set access token as a cookie
-        // addAccessTokenCookie(response, login.getAuthToken());
+        var accessDto = AccessTokenResponse.builder()
+                .authToken(login.getAuthToken())
+                .user(login.getUser())
+                .build();
 
-        return ResponseEntity.ok(ApiResponse.ok(login));
+        return ResponseEntity.ok(ApiResponse.ok(accessDto));
     }
 
     @PostMapping("/google")
@@ -63,9 +58,9 @@ public class AuthsController {
     }
 
     @PostMapping("/token/refresh")
-    public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshAccessToken(
-            @RequestBody RefreshTokenRequest refreshTokenRequest) {
-        final var refreshTokenResponse = registerService.refreshAccessToken(refreshTokenRequest.getRefreshToken());
+    public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshAccessToken(HttpServletRequest request) {
+        String refreshToken = registerService.extractRefreshTokenFromCookies(request);
+        final var refreshTokenResponse = registerService.refreshAccessToken(refreshToken);
         return ResponseEntity.ok(ApiResponse.ok(refreshTokenResponse));
     }
 
@@ -85,29 +80,5 @@ public class AuthsController {
     public ResponseEntity<ApiResponse<ChangePasswordResponse>> changePasswordForForgetPassword(@RequestBody final ChangePasswordForForgetPassRequest changePasswordForForgetPassRequest) {
         final var changePasswordResponse = registerService.changePasswordForForgetPassword(changePasswordForForgetPassRequest);
         return ResponseEntity.ok(ApiResponse.ok(changePasswordResponse));
-    }
-
-    /**
-     * Helper method to add a refresh token cookie to the response
-     */
-    private void addRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
-        Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true); // For HTTPS
-        cookie.setPath("/");
-        cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days, should match your token expiration
-        response.addCookie(cookie);
-    }
-
-    /**
-     * Helper method to add an access token cookie to the response
-     */
-    private void addAccessTokenCookie(HttpServletResponse response, String accessToken) {
-        Cookie cookie = new Cookie(ACCESS_TOKEN_COOKIE_NAME, accessToken);
-        cookie.setHttpOnly(true); // Make HTTP-only for better security
-        cookie.setSecure(true); // For HTTPS
-        cookie.setPath("/");
-        cookie.setMaxAge(30 * 60); // 30 minutes, should match your token expiration
-        response.addCookie(cookie);
     }
 }

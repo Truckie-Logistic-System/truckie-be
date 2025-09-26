@@ -33,6 +33,7 @@ import capstone_project.service.services.auth.RegisterService;
 import capstone_project.service.services.email.EmailProtocolService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -68,6 +69,7 @@ public class RegisterServiceImpl implements RegisterService {
     private final DriverMapper driverMapper;
 
     private static final String NO_PASSWORD = "NO_PASSWORD";
+    private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
     private static final String TOKEN_TYPE = "Bearer";
 
     // just only for register staff
@@ -454,7 +456,7 @@ public class RegisterServiceImpl implements RegisterService {
 
         String newAccessToken = JWTUtil.generateToken(user);
 
-        return new RefreshTokenResponse(newAccessToken, refreshToken);
+        return new RefreshTokenResponse(newAccessToken);
     }
 
     @Override
@@ -593,6 +595,15 @@ public class RegisterServiceImpl implements RegisterService {
         }
     }
 
+    @Override
+    public void addRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
+        Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true); // For HTTPS
+        cookie.setPath("/");
+        cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days, should match your token expiration
+        response.addCookie(cookie);
+    }
 
     public String generateOtp() {
         return String.format("%06d", new Random().nextInt(999999));

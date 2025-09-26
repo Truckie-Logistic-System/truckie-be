@@ -11,6 +11,7 @@ import capstone_project.dtos.response.auth.UserResponse;
 import capstone_project.dtos.response.user.CustomerResponse;
 import capstone_project.dtos.response.user.DriverResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * The interface Registers service.
@@ -63,6 +64,8 @@ public interface RegisterService {
      * @return the extracted refresh token
      */
     String extractRefreshTokenFromCookies(HttpServletRequest request);
+
+    void addRefreshTokenCookie(HttpServletResponse response, String refreshToken);
 
     String generateOtp();
 

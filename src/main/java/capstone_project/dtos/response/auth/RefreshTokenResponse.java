@@ -11,5 +11,5 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 public class RefreshTokenResponse {
     private String accessToken;
-    private String refreshToken;
+//    private String refreshToken;
 }
