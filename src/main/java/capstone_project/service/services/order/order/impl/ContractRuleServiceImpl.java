@@ -443,7 +443,8 @@ public class ContractRuleServiceImpl implements ContractRuleService {
             throw new BadRequestException("Contract has no associated order", ErrorEnum.INVALID.getErrorCode());
         }
 
-        List<ContractRuleAssignResponse> assignResult = contractService.assignVehicles(order.getId());
+        List<ContractRuleAssignResponse> assignResult = contractService.assignVehiclesWithAvailability(order.getId());
+
 
         log.info("Assignments total: {}", assignResult.size());
         assignResult.forEach(a ->

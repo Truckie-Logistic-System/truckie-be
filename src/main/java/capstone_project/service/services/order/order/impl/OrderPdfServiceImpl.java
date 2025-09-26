@@ -58,7 +58,7 @@ public class OrderPdfServiceImpl implements OrderPdfService {
                 throw new IllegalStateException("Contract has no associated order: " + contractId);
             }
 
-            List<ContractRuleAssignResponse> assignResult = contractService.assignVehicles(order.getId());
+            List<ContractRuleAssignResponse> assignResult = contractService.assignVehiclesWithAvailability(order.getId());
 
             log.info("Assignments total: {}", assignResult.size());
             assignResult.forEach(a ->
@@ -137,7 +137,7 @@ public class OrderPdfServiceImpl implements OrderPdfService {
 
         Optional<ContractSettingEntity> setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc();
 
-        List<ContractRuleAssignResponse> assignResult = contractService.assignVehicles(order.getId());
+        List<ContractRuleAssignResponse> assignResult = contractService.assignVehiclesWithAvailability(order.getId());
 
         Map<UUID, Integer> vehicleCountMap = assignResult.stream()
                 .collect(Collectors.groupingBy(

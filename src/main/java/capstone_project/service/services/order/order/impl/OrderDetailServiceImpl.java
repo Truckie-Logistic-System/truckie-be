@@ -336,7 +336,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         log.info("Updating vehicle assignment for order ID: {}", orderId);
 
         //Lấy list assign phan bo tung detail cho moi vehicle rule
-        List<ContractRuleAssignResponse> assignResponses = contractService.assignVehicles(orderId);
+        List<ContractRuleAssignResponse> assignResponses = contractService.assignVehiclesWithAvailability(orderId);
         Map<UUID, List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
         for(ContractRuleAssignResponse contractRuleAssignResponse : assignResponses){
             VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findEntityById(vehicleRuleEntityService.findEntityById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();

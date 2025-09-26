@@ -4,6 +4,7 @@ import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
 import capstone_project.dtos.response.common.ApiResponse;
+import capstone_project.dtos.response.order.contract.BothOptimalAndRealisticAssignVehiclesResponse;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.service.services.order.order.ContractService;
@@ -82,7 +83,13 @@ public class ContractController {
     * */
     @GetMapping("{orderId}/suggest-assign-vehicles")
     public ResponseEntity<ApiResponse<List<ContractRuleAssignResponse>>> assignVehicles(@PathVariable UUID orderId) {
-        final var result = contractService.assignVehicles(orderId);
+        final var result = contractService.assignVehiclesOptimal(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("{orderId}/get-both-optimal-and-realistic-assign-vehicles")
+    public ResponseEntity<ApiResponse<BothOptimalAndRealisticAssignVehiclesResponse>> getBothOptimalAndRealisticAssignVehiclesResponse(@PathVariable UUID orderId) {
+        final var result = contractService.getBothOptimalAndRealisticAssignVehiclesResponse(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
