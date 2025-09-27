@@ -3,15 +3,15 @@ package capstone_project.service.services.user.impl;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.user.AddressRequest;
-import capstone_project.dtos.response.trackasiamap.TrackAsiaSearchResponse;
-import capstone_project.dtos.response.trackasiamap.TrackAsiaSearchResult;
+import capstone_project.dtos.response.trackasia.Search.TrackAsiaSearchResponse;
+import capstone_project.dtos.response.trackasia.Search.TrackAsiaSearchResult;
 import capstone_project.dtos.response.user.GeocodingResponse;
 import capstone_project.dtos.response.user.AddressResponse;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
-import capstone_project.service.ThirdPartyServices.TrackAsiaMap.TrackAsiaMapService;
+import capstone_project.service.ThirdPartyServices.TrackAsia.TrackAsiaService;
 import capstone_project.service.mapper.user.AddressMapper;
 import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.user.AddressService;
@@ -38,7 +38,7 @@ public class AddressServiceImpl implements AddressService {
     private final VietMapGeocodingServiceImpl geocodingService;
     private final RedisService redisService;
     private final UserContextUtils userContextUtils;
-    private final TrackAsiaMapService trackAsiaMapService;
+    private final TrackAsiaService trackAsiaService;
 
     private static final String ALL_ADDRESSES_CACHE_KEY = "addresses:all";
     private static final String ADDRESS_CACHE_KEY_PREFIX = "address:";
@@ -429,7 +429,7 @@ public class AddressServiceImpl implements AddressService {
         };
 
         try {
-            TrackAsiaSearchResponse searchResp = trackAsiaMapService.search(address);
+            TrackAsiaSearchResponse searchResp = trackAsiaService.search(address);
             if (searchResp == null || searchResp.getResults() == null || searchResp.getResults().isEmpty()) {
                 return AddressUtil.buildFallbackResponse(address);
             }

@@ -1,4 +1,4 @@
-package capstone_project.dtos.response.trackasiamap;
+package capstone_project.dtos.response.trackasia.Search;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -12,16 +12,12 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TrackAsiaSearchResult {
-    private String name;
+public class TrackAsiaAddressComponent {
+    @JsonProperty("short_name")
+    private String shortName;
 
-    @JsonProperty("formatted_address")
-    private String formattedAddress;
-
-    @JsonProperty("address_components")
-    private List<TrackAsiaAddressComponent> addressComponents;
+    @JsonProperty("long_name")
+    private String longName;
 
     private List<String> types;
-
-    private TrackAsiaGeometry geometry;
 }

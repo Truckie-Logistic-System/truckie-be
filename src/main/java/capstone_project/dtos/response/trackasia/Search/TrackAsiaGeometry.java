@@ -1,4 +1,4 @@
-package capstone_project.dtos.response.trackasiamap;
+package capstone_project.dtos.response.trackasia.Search;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
