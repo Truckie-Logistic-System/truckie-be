@@ -25,28 +25,28 @@ public class DistanceController {
     @GetMapping("/order/{orderId}")
     public ResponseEntity<ApiResponse<DistanceTimeResponse>> getDistanceAndTime(
             @PathVariable UUID orderId) {
-        DistanceTimeResponse response = distanceService.calculateDistanceAndTime(orderId);
+        DistanceTimeResponse response = distanceService.calculateDistanceAndTimeByTrackAsia(orderId);
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
     @GetMapping("/order/{orderId}/instructions")
     public ResponseEntity<ApiResponse<RouteInstructionsResponse>> getRouteInstructions(
             @PathVariable UUID orderId) {
-        RouteInstructionsResponse response = distanceService.getRouteInstructions(orderId);
+        RouteInstructionsResponse response = distanceService.getRouteInstructionsByTrackAsia(orderId);
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
     @GetMapping("/order/{orderId}/kilometers")
     public ResponseEntity<ApiResponse<BigDecimal>> getDistanceInKilometers(
             @PathVariable UUID orderId) {
-        BigDecimal distance = distanceService.getDistanceInKilometers(orderId);
+        BigDecimal distance = distanceService.getDistanceInKilometersByTrackAsia(orderId);
         return ResponseEntity.ok(ApiResponse.ok(distance));
     }
 
     @GetMapping("/order/{orderId}/time")
     public ResponseEntity<ApiResponse<Double>> getTravelTimeInHours(
             @PathVariable UUID orderId) {
-        double time = distanceService.getTravelTimeInHours(orderId);
+        double time = distanceService.getTravelTimeInHoursByTrackAsia(orderId);
         return ResponseEntity.ok(ApiResponse.ok(time));
     }
 }
