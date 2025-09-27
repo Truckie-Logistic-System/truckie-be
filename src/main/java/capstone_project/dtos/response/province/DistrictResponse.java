@@ -8,17 +8,16 @@ import java.util.List;
 
 @Data
 @NoArgsConstructor
-public class ProvinceDto {
+public class DistrictResponse {
     private String name;
     private Integer code;
+    private String codename;
 
     @JsonProperty("division_type")
     private String divisionType;
 
-    @JsonProperty("phone_code")
-    private Integer phoneCode;
+    @JsonProperty("province_code")
+    private Integer provinceCode;
 
-    private String codename;
-
-    private List<DistrictDto> districts;
+    private List<WardResponse> wards;
 }

@@ -1,7 +1,7 @@
-package capstone_project.service.ThirdPartyServices.Province.impl;
+package capstone_project.service.services.thirdPartyServices.Province.impl;
 
-import capstone_project.dtos.response.province.ProvinceDto;
-import capstone_project.service.ThirdPartyServices.Province.ProvinceService;
+import capstone_project.dtos.response.province.ProvinceResponse;
+import capstone_project.service.services.thirdPartyServices.Province.ProvinceService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,7 +25,7 @@ public class ProvinceServiceImpl implements ProvinceService {
     private final ObjectMapper mapper = new ObjectMapper();
 
     // simple in-memory cache
-    private volatile List<ProvinceDto> cache = Collections.emptyList();
+    private volatile List<ProvinceResponse> cache = Collections.emptyList();
     private volatile Instant cacheTime = Instant.EPOCH;
     private final Duration ttl = Duration.ofHours(24);
 
@@ -36,7 +36,7 @@ public class ProvinceServiceImpl implements ProvinceService {
     }
 
     @Override
-    public List<ProvinceDto> getAllProvinces() {
+    public List<ProvinceResponse> getAllProvinces() {
         Instant now = Instant.now();
         if (cache != null && !cache.isEmpty() && cacheTime.plus(ttl).isAfter(now)) {
             return cache;
@@ -49,7 +49,7 @@ public class ProvinceServiceImpl implements ProvinceService {
             try {
                 ResponseEntity<String> resp = restTemplate.getForEntity(baseUrl, String.class);
                 if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
-                    List<ProvinceDto> list = mapper.readValue(resp.getBody(), new TypeReference<List<ProvinceDto>>() {});
+                    List<ProvinceResponse> list = mapper.readValue(resp.getBody(), new TypeReference<List<ProvinceResponse>>() {});
                     cache = list;
                     cacheTime = Instant.now();
                     return cache;

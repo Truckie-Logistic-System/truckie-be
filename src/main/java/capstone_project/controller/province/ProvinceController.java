@@ -1,7 +1,7 @@
 package capstone_project.controller.province;
 
-import capstone_project.dtos.response.province.ProvinceDto;
-import capstone_project.service.ThirdPartyServices.Province.ProvinceService;
+import capstone_project.dtos.response.province.ProvinceResponse;
+import capstone_project.service.services.thirdPartyServices.Province.ProvinceService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,8 +20,8 @@ public class ProvinceController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ProvinceDto>> getProvinces() {
-        List<ProvinceDto> provinces = provinceService.getAllProvinces();
+    public ResponseEntity<List<ProvinceResponse>> getProvinces() {
+        List<ProvinceResponse> provinces = provinceService.getAllProvinces();
         return ResponseEntity.ok(provinces);
     }
 }

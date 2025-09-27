@@ -1,4 +1,4 @@
-package capstone_project.service.ThirdPartyServices.TrackAsia;
+package capstone_project.service.services.thirdPartyServices.TrackAsia;
 
 import capstone_project.dtos.response.trackasia.AutoComplete.TrackAsiaAutocompleteResponse;
 import capstone_project.dtos.response.trackasia.PlaceDetails.TrackAsiaPlaceDetailsResponse;

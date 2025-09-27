@@ -1,10 +1,10 @@
-package capstone_project.service.ThirdPartyServices.TrackAsia.impl;
+package capstone_project.service.services.thirdPartyServices.TrackAsia.impl;
 
 import capstone_project.dtos.response.trackasia.AutoComplete.TrackAsiaAutocompleteResponse;
 import capstone_project.dtos.response.trackasia.PlaceDetails.TrackAsiaPlaceDetailsResponse;
 import capstone_project.dtos.response.trackasia.ReverseGeocoding.TrackAsiaReverseGeocodeResponse;
 import capstone_project.dtos.response.trackasia.Search.TrackAsiaSearchResponse;
-import capstone_project.service.ThirdPartyServices.TrackAsia.TrackAsiaService;
+import capstone_project.service.services.thirdPartyServices.TrackAsia.TrackAsiaService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

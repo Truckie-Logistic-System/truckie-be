@@ -4,17 +4,21 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @NoArgsConstructor
-public class WardDto {
+public class ProvinceResponse {
     private String name;
     private Integer code;
-    private String codename;
 
     @JsonProperty("division_type")
     private String divisionType;
 
-    @JsonProperty("district_code")
-    private Integer districtCode;
-}
+    @JsonProperty("phone_code")
+    private Integer phoneCode;
 
+    private String codename;
+
+    private List<DistrictResponse> districts;
+}
