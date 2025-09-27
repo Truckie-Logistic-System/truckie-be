@@ -122,6 +122,8 @@ public class SecurityConfigurer {
     @Value("${order-detail-seal.api.base-path}")
     private String orderDetailSealApiBasePath;
 
+    @Value("${notification.api.base-path}")
+    private String notificationApiBasePath;
 
 
 //    @Value("${system-setting.api.base-path}")
@@ -147,6 +149,7 @@ public class SecurityConfigurer {
                     "/api/loading/**",
                     "/api/v1/address/**",
                     "/api/v1/emails/**",
+                    "/api/v1/notifications/**",
                     "/api/v1/transactions/stripe/webhook/**",
                     "/api/webhooks/**",
                     "/api/v1/transactions/pay-os/webhooks/**",

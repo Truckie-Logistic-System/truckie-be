@@ -92,6 +92,7 @@ dependencies {
 
     // SOCKET / MESSAGING
     implementation("org.springframework:spring-websocket:6.2.3")
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation("org.springframework:spring-messaging:6.1.6")
 
     // DEVELOPMENT
