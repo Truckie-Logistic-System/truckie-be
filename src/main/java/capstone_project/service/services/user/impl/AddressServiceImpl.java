@@ -363,7 +363,8 @@ public class AddressServiceImpl implements AddressService {
         return responses;
     }
 
-    private AddressResponse enhancedCalculateLatLong(String address) {
+    @Override
+    public AddressResponse enhancedCalculateLatLong(String address) {
         log.info("Calculating lat/long for address: {}", address);
 
         // weights

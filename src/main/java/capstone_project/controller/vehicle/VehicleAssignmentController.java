@@ -66,12 +66,6 @@ public class VehicleAssignmentController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
-    /**
-     * Endpoint trả về danh sách đề xuất xe và tài xế cho order với định dạng đơn giản hóa
-     *
-     * @param orderId ID của đơn hàng
-     * @return Danh sách đề xuất xe và tài xế đã được đơn giản hóa
-     */
     @GetMapping("/{orderId}/suggest-drivers-and-vehicle-for-details")
     public ResponseEntity<ApiResponse<SimplifiedVehicleAssignmentResponse>> getSimplifiedSuggestions(
             @PathVariable UUID orderId) {
@@ -79,13 +73,6 @@ public class VehicleAssignmentController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
-    /**
-     * Endpoint trả về danh sách đề xuất xe và tài xế cho order,
-     * với các order detail được nhóm lại thành các chuyến hợp lý
-     *
-     * @param orderId ID của đơn hàng
-     * @return Danh sách đề xuất xe và tài xế đã được nhóm thành các chuyến
-     */
     @GetMapping("/{orderId}/grouped-suggestions")
     public ResponseEntity<ApiResponse<GroupedVehicleAssignmentResponse>> getGroupedSuggestions(
             @PathVariable UUID orderId) {
@@ -93,12 +80,6 @@ public class VehicleAssignmentController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
-    /**
-     * Endpoint để tạo và gán vehicle assignment cho nhiều order detail cùng lúc
-     *
-     * @param request Request chứa thông tin về các nhóm order detail và xe, tài xế được gán
-     * @return Danh sách vehicle assignment đã được tạo
-     */
     @PostMapping("/create-grouped-assignments")
     public ResponseEntity<ApiResponse<List<VehicleAssignmentResponse>>> createGroupedAssignments(
             @RequestBody @Valid GroupedAssignmentRequest request) {

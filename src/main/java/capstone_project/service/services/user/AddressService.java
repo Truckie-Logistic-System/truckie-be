@@ -26,4 +26,6 @@ public interface AddressService {
     AddressResponse getAddressById(UUID id);
 
     List<AddressResponse> getMyDeliveryAddress();
+
+    AddressResponse enhancedCalculateLatLong(String address);
 }
