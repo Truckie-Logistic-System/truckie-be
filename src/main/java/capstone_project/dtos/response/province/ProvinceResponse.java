@@ -22,7 +22,7 @@ public class ProvinceResponse {
 
     private String codename;
 
-    @JsonProperty("districts")
+    @JsonProperty("wards")
     @JsonSetter(nulls = Nulls.AS_EMPTY)
-    private List<DistrictResponse> districts;
+    private List<WardResponse> wards;
 }

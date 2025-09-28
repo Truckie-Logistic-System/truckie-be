@@ -1,5 +1,6 @@
 package capstone_project.dtos.response.trackasia.PlaceDetails;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -13,4 +14,8 @@ public class Geometry {
     private String locationType;
 
     private Viewport viewport;
+
+    // Optional: keep the raw shape (GeoJSON-like) if the API returns it
+    @JsonProperty("shape")
+    private JsonNode shape;
 }

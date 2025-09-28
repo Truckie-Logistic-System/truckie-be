@@ -56,34 +56,14 @@ public class ProvinceServiceImpl implements ProvinceService {
                 return cache;
             }
             try {
-                // ensure the third-party API returns nested districts/wards
-                String url = buildUrlWithDepth(baseUrl, 2);
+                String url = buildUrlWithDepth(baseUrl, 2); // depth=1 for province + wards
                 ResponseEntity<String> resp = restTemplate.getForEntity(url, String.class);
 
                 if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
                     String body = resp.getBody();
-
-                    // optional: log raw JSON length / snippet to confirm nested structure
-                    LOGGER.log(Level.INFO, "Fetched provinces JSON length={0}", body.length());
-                    if (body.length() < 1024) {
-                        LOGGER.log(Level.FINE, "Raw provinces JSON: {0}", body);
-                    } else {
-                        LOGGER.log(Level.FINE, "Raw provinces JSON starts with: {0}", body.substring(0, 512));
-                    }
-
-                    List<ProvinceResponse> list = mapper.readValue(body, new TypeReference<List<ProvinceResponse>>() {});
+                    List<ProvinceResponse> list = mapper.readValue(body, new com.fasterxml.jackson.core.type.TypeReference<List<ProvinceResponse>>() {});
                     cache = list;
                     cacheTime = Instant.now();
-
-                    if (!cache.isEmpty()) {
-                        ProvinceResponse p = cache.get(0);
-                        int districtsSize = (p.getDistricts() == null) ? -1 : p.getDistricts().size();
-                        LOGGER.log(Level.INFO, "Mapped province: {0}, districts count: {1}", new Object[]{p.getName(), districtsSize});
-                        if (districtsSize > 0) {
-                            LOGGER.log(Level.FINE, "First district sample: {0}", p.getDistricts().get(0).getName());
-                        }
-                    }
-
                     return cache;
                 } else {
                     LOGGER.log(Level.WARNING, "Third-party API returned non-OK: {0}", resp.getStatusCode());

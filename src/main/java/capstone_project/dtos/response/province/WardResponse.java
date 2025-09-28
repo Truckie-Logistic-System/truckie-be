@@ -14,7 +14,7 @@ public class WardResponse {
     @JsonProperty("division_type")
     private String divisionType;
 
-    @JsonProperty("district_code")
-    private Integer districtCode;
+    @JsonProperty("short_codename")
+    private String shortCodename;
 }
 

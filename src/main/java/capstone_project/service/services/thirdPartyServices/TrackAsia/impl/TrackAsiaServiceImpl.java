@@ -6,6 +6,8 @@ import capstone_project.dtos.response.trackasia.ReverseGeocoding.TrackAsiaRevers
 import capstone_project.dtos.response.trackasia.Search.TrackAsiaSearchResponse;
 import capstone_project.service.services.thirdPartyServices.TrackAsia.TrackAsiaService;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -244,8 +246,6 @@ public class TrackAsiaServiceImpl implements TrackAsiaService {
             qs.append("place_id=").append(encodedPlaceId);
             qs.append("&key=").append(encodedKey);
             qs.append("&new_admin=").append(finalNewAdmin);
-            qs.append("&include_old_admin=").append(finalIncludeOldAdmin);
-            qs.append("&language=en");
 
             String fullUrl = String.format("%s%s/%s?%s",
                     trimSlash(baseUrl),
@@ -255,9 +255,24 @@ public class TrackAsiaServiceImpl implements TrackAsiaService {
 
             log.info("TrackAsia place details call: placeId='{}' url='{}'", placeId, fullUrl);
 
-            ResponseEntity<TrackAsiaPlaceDetailsResponse> resp = restTemplate.getForEntity(fullUrl, TrackAsiaPlaceDetailsResponse.class);
-            TrackAsiaPlaceDetailsResponse body = resp.getBody();
-            return body != null ? body : new TrackAsiaPlaceDetailsResponse();
+            ResponseEntity<JsonNode> resp = restTemplate.getForEntity(fullUrl, JsonNode.class);
+            JsonNode body = resp.getBody();
+            if (body == null || body.isNull()) {
+                return new TrackAsiaPlaceDetailsResponse();
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            TrackAsiaPlaceDetailsResponse mapped;
+
+            if (body.has("status") || body.has("result")) {
+                mapped = mapper.convertValue(body, TrackAsiaPlaceDetailsResponse.class);
+            } else {
+                ObjectNode wrapper = mapper.createObjectNode();
+                wrapper.set("result", body);
+                mapped = mapper.convertValue(wrapper, TrackAsiaPlaceDetailsResponse.class);
+            }
+
+            return mapped != null ? mapped : new TrackAsiaPlaceDetailsResponse();
         } catch (Exception ex) {
             log.error("Error calling TrackAsia place details", ex);
             return new TrackAsiaPlaceDetailsResponse();

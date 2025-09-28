@@ -9,6 +9,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
+import java.util.List;
+
 @Configuration
 @RequiredArgsConstructor
 public class AppConfig {
@@ -19,15 +21,28 @@ public class AppConfig {
     public FilterRegistrationBean<CorsFilter> corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.setAllowedOrigins(corsProperties.getAllowedOrigins());
+
+        List<String> allowed = corsProperties.getAllowedOrigins();
+        if (allowed != null && !allowed.isEmpty()) {
+            allowed.forEach(config::addAllowedOrigin);
+        } else {
+            // allow all origins if none configured (use with caution)
+            config.addAllowedOriginPattern("*");
+        }
+
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        // Specific TrackAsia proxy endpoints and API
+        source.registerCorsConfiguration("/api/trackasia/**", config);
+        source.registerCorsConfiguration("/api/**", config);
+        // Optional: keep a global fallback
         source.registerCorsConfiguration("/**", config);
 
         FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(source));
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        bean.setName("corsFilter");
         return bean;
     }
 }

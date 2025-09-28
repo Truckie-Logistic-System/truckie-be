@@ -149,11 +149,24 @@ public class AddressServiceImpl implements AddressService {
     @Override
     public AddressResponse createAddress(AddressRequest request) {
         try {
-            String fullAddress = AddressUtil.buildFullAddress(request);
-            AddressResponse locationData = enhancedCalculateLatLong(fullAddress);
+
+            // Use request-provided lat/lng if present, otherwise calculate
+            BigDecimal lat = null;
+            BigDecimal lng = null;
+            if (request.latitude() != null && request.longitude() != null) {
+                lat = request.latitude();
+                lng = request.longitude();
+                log.info("Using latitude/longitude provided in request");
+            } else {
+                String fullAddress = AddressUtil.buildFullAddress(request);
+                AddressResponse locationData = enhancedCalculateLatLong(fullAddress);
+                lat = locationData.latitude();
+                lng = locationData.longitude();
+                log.info("Calculated latitude/longitude via geocoding");
+            }
 
             AddressEntity addressEntity = addressMapper.mapRequestToAddressEntity(request);
-            AddressUtil.setCoordinatesOnEntity(addressEntity, locationData.latitude(), locationData.longitude());
+            AddressUtil.setCoordinatesOnEntity(addressEntity, lat, lng);
 
             LocalDateTime now = LocalDateTime.now();
             addressEntity.setCreatedAt(now);
@@ -212,11 +225,22 @@ public class AddressServiceImpl implements AddressService {
         // 3. Update the entity with new request data
         addressMapper.toAddressEntity(request, existing);
 
-        // 4. Calculate new coordinates for the updated address
-        String fullAddress = AddressUtil.buildFullAddress(request);
-        AddressResponse locationData = enhancedCalculateLatLong(fullAddress);
+        BigDecimal lat = null;
+        BigDecimal lng = null;
+        if (request.latitude() != null && request.longitude() != null) {
+            lat = request.latitude();
+            lng = request.longitude();
+            log.info("Using latitude/longitude provided in request for update");
+        } else {
+            // 4. Calculate new coordinates for the updated address or use provided ones
+            String fullAddress = AddressUtil.buildFullAddress(request);
+            AddressResponse locationData = enhancedCalculateLatLong(fullAddress);
+            lat = locationData.latitude();
+            lng = locationData.longitude();
+            log.info("Calculated latitude/longitude via geocoding for update");
+        }
 
-        AddressUtil.setCoordinatesOnEntity(existing, locationData.latitude(), locationData.longitude());
+        AddressUtil.setCoordinatesOnEntity(existing, lat, lng);
 
         // Get current customer ID from security context
         UUID currentCustomerId = userContextUtils.getCurrentCustomerId();

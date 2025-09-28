@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Data
 @NoArgsConstructor
-public class PlusCode {
+public class TrackAsiaPlusCode {
     @JsonProperty("compound_code")
     private String compoundCode;
 

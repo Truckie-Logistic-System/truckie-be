@@ -11,9 +11,8 @@ import java.util.List;
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TrackAsiaPlaceDetailsResult {
-
     @JsonProperty("address_components")
-    private List<AddressComponent> addressComponents;
+    private List<TrackAsiaAddressComponent> addressComponents;
 
     @JsonProperty("adr_address")
     private String adrAddress;
@@ -34,7 +33,7 @@ public class TrackAsiaPlaceDetailsResult {
     private String placeId;
 
     @JsonProperty("plus_code")
-    private PlusCode plusCode;
+    private TrackAsiaPlusCode plusCode;
 
     private List<String> socials;
 
@@ -49,18 +48,9 @@ public class TrackAsiaPlaceDetailsResult {
 
     private String website;
 
-    @JsonProperty("photos")
-    private List<Photo> photos;
-
-    @JsonProperty("opening_hours")
-    private OpeningHours openingHours;
-
-    @JsonProperty("editorial_summary")
-    private EditorialSummary editorialSummary;
-
-    // Map JSON field "class" to a safe Java name
+    // map JSON "class" to a safe Java name
     @JsonProperty("class")
-    private String typeClass;
+    private String clazz;
 
     private String subclass;
 }

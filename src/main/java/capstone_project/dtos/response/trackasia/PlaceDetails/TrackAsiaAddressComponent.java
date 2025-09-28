@@ -10,9 +10,11 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class AddressComponent {
-    @JsonProperty("id")
+public class TrackAsiaAddressComponent {
     private String id;
+
+    @JsonProperty("official_id")
+    private String officialId;
 
     @JsonProperty("long_name")
     private String longName;
@@ -21,7 +23,4 @@ public class AddressComponent {
     private String shortName;
 
     private List<String> types;
-
-    @JsonProperty("official_id")
-    private String officialId;
 }
