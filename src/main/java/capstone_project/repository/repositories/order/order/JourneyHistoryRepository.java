@@ -7,6 +7,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface JourneyHistoryRepository extends BaseRepository<JourneyHistoryEntity> {
-    List<JourneyHistoryEntity> findByVehicleAssignmentEntity_Id(UUID vehicleAssignmentId);
+    List<JourneyHistoryEntity> findByVehicleAssignment_Id(UUID vehicleAssignmentId);
     // Additional methods specific to JourneyHistory can be defined here if needed
 }

@@ -34,7 +34,7 @@ public class DistanceServiceImpl implements DistanceService {
     private final OrderEntityService orderEntityService;
     private final TrackAsiaService trackAsiaService;
 
-    @Value("${vietmap.api.base-url}")
+    @Value("${vietmap.base-url}")
     private String baseUrl;
 
     @Value("${vietmap.api.key}")
