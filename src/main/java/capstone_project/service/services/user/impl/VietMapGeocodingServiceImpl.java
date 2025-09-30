@@ -34,10 +34,10 @@ public class VietMapGeocodingServiceImpl {
     private final String placeEndpoint;
 
     public VietMapGeocodingServiceImpl(WebClient.Builder webClientBuilder,
-                                  @Value("${vietmap.api.base-url}") String baseUrl,
+                                  @Value("${vietmap.base-url}") String baseUrl,
                                   @Value("${vietmap.api.key}") String apiKey,
-                                  @Value("${vietmap.api.search.endpoint}") String searchEndpoint,
-                                  @Value("${vietmap.api.place.endpoint}") String placeEndpoint) {
+                                  @Value("${vietmap.api.search.demo.endpoint}") String searchEndpoint,
+                                  @Value("${vietmap.api.place.demo.endpoint}") String placeEndpoint) {
         this.webClient = webClientBuilder
                 .baseUrl(baseUrl)
                 .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(1024 * 1024))

@@ -11,6 +11,8 @@ import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "journey_history", schema = "public", catalog = "capstone-project")
@@ -19,45 +21,22 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class JourneyHistoryEntity extends BaseEntity {
-    @Column(name = "start_location", precision = 11, scale = 8)
-    private BigDecimal startLocation;
+    @Column(name = "journey_name")
+    private String journeyName;
 
-    @Column(name = "end_location", precision = 11, scale = 8)
-    private BigDecimal endLocation;
+    @Column(name = "journey_type") // INITIAL, REROUTED
+    private String journeyType;
 
-    @Column(name = "start_time")
-    private LocalDateTime startTime;
-
-    @Column(name = "end_time")
-    private LocalDateTime endTime;
-
-    @Size(max = 20)
-    @Column(name = "status", length = 20)
+    @Column(name = "status") // ACTIVE, COMPLETED, CANCELLED
     private String status;
 
-    @Column(name = "total_distance")
-    private BigDecimal totalDistance;
-
-    @Column(name = "is_reported_incident")
-    private Boolean isReportedIncident;
-    
-    @Column(name = "is_route_changed")
-    private Boolean isRouteChanged;
-    
-    @Column(name = "route_change_reason", length = 500)
-    private String routeChangeReason;
-    
-    @Column(name = "original_route_json", length = Integer.MAX_VALUE)
-    private String originalRouteJson;
-    
-    @Column(name = "current_route_json", length = Integer.MAX_VALUE)
-    private String currentRouteJson;
-    
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "previous_journey_id")
-    private JourneyHistoryEntity previousJourney;
+    @Column(name = "reason_for_reroute")
+    private String reasonForReroute;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id")
-    private VehicleAssignmentEntity vehicleAssignmentEntity;
+    private VehicleAssignmentEntity vehicleAssignment;
+
+    @OneToMany(mappedBy = "journeyHistory", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<JourneySegmentEntity> journeySegments = new ArrayList<>();
 }

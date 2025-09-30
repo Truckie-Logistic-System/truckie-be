@@ -18,11 +18,11 @@ public abstract class JourneyHistoryMapper {
 
     @Autowired protected VehicleAssignmentEntityService vehicleAssignmentEntityService;
 
-    @Mapping(target = "vehicleAssignmentEntity", source = "orderId", qualifiedByName = "vehicleAssignmentFromId")
+    @Mapping(target = "vehicleAssignment", source = "orderId", qualifiedByName = "vehicleAssignmentFromId")
     public abstract JourneyHistoryEntity toEntity(JourneyHistoryRequest req);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    @Mapping(target = "vehicleAssignmentEntity", source = "orderId", qualifiedByName = "vehicleAssignmentFromId")
+    @Mapping(target = "vehicleAssignment", source = "orderId", qualifiedByName = "vehicleAssignmentFromId")
     public abstract void toEntity(UpdateJourneyHistoryRequest req, @MappingTarget JourneyHistoryEntity entity);
 
     public abstract JourneyHistoryResponse toResponse(JourneyHistoryEntity entity);

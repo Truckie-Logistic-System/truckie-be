@@ -33,6 +33,6 @@ public class JourneyHistoryEntityServiceImpl implements JourneyHistoryEntityServ
 
     @Override
     public List<JourneyHistoryEntity> findByVehicleAssignmentId(UUID vehicleAssignmentId) {
-        return journeyHistoryRepository.findByVehicleAssignmentEntity_Id(vehicleAssignmentId);
+        return journeyHistoryRepository.findByVehicleAssignment_Id(vehicleAssignmentId);
     }
 }
