@@ -307,8 +307,9 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         OrderEntity order = contractEntity.getOrderEntity();
 
         PriceCalculationResponse newTotal = contractService.calculateTotalPrice(contractEntity,
-                contractService.calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress()),
+                distanceService.getDistanceInKilometers(order.getId()),
                 vehicleCountMap);
+
 
         BigDecimal newTotalValue = newTotal.getTotalPrice();
 
@@ -417,7 +418,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         OrderEntity order = contractEntity.getOrderEntity();
         PriceCalculationResponse newTotalResponse = contractService.calculateTotalPrice(
                 contractEntity,
-                contractService.calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress()),
+                distanceService.getDistanceInKilometers(order.getId()),
                 vehicleCountMap
         );
 
@@ -503,14 +504,16 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         if (contractRules.isEmpty()) {
             log.warn("No contract rules found for contract ID {}", contractId);
-            return;
+            throw new NotFoundException(
+                    ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
         for (ContractRuleEntity contractRule : contractRules) {
             contractRule.getOrderDetails().clear();
-            contractRuleEntityService.save(contractRule);
         }
 
+        contractRuleEntityService.saveAll(contractRules);
         contractRuleEntityService.deleteByContractEntityId(contractId);
 
         log.info("Deleted all contract rules for contract ID {}", contractId);

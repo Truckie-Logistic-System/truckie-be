@@ -18,4 +18,24 @@ public interface OrderEntityService extends BaseEntityService<OrderEntity, UUID>
      * @return list of recent orders with valid receiver information
      */
     List<OrderEntity> findRecentOrdersByCustomerId(UUID customerId, int limit);
+
+    int countAllOrderEntities();
+
+    int countOrderEntitiesBySenderId(UUID senderId);
+
+    int countOrderEntitiesBySenderCompanyNameContainingIgnoreCase(String senderCompanyName);
+
+    int countOrderEntitiesByReceiverNameContainingIgnoreCase(String receiverName);
+
+    List<Object[]> countTotalOrderByMonthOverYear(int year);
+
+    List<Object[]> countAllByOrderStatus();
+
+    List<Object[]> countByOrderStatus(String status);
+
+    List<Object[]> countOrderByWeek(int amount);
+
+    List<Object[]> countOrderByYear(int amount);
+
+    List<OrderEntity> findOrdersByDriverId(UUID driverId);
 }

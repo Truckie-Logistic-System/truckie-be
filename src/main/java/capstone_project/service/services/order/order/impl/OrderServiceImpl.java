@@ -4,6 +4,7 @@ import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.InternalServerException;
 import capstone_project.common.exceptions.dto.NotFoundException;
+import capstone_project.common.utils.UserContextUtils;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.CreateOrderRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
@@ -18,6 +19,8 @@ import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
+import capstone_project.repository.entityServices.device.CameraTrackingEntityService;
+import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
@@ -25,8 +28,6 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.repository.entityServices.order.order.OrderSizeEntityService;
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
-import capstone_project.repository.entityServices.device.CameraTrackingEntityService;
-import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
 import capstone_project.service.mapper.order.OrderDetailMapper;
 import capstone_project.service.mapper.order.OrderMapper;
@@ -37,15 +38,12 @@ import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
-import capstone_project.common.utils.UserContextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -92,7 +90,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public CreateOrderResponse createOrder(CreateOrderRequest orderRequest, List<CreateOrderDetailRequest> listCreateOrderDetailRequests) {
         log.info("[Create Order and OrderDetails] Bat Dau Chien");
-        if(orderRequest == null || listCreateOrderDetailRequests == null || listCreateOrderDetailRequests.isEmpty()) {
+        if (orderRequest == null || listCreateOrderDetailRequests == null || listCreateOrderDetailRequests.isEmpty()) {
             log.error("Order or Order detail is null");
             throw new BadRequestException(ErrorEnum.NOT_FOUND.getMessage(),
                     ErrorEnum.NOT_FOUND.getErrorCode());
@@ -101,7 +99,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "sender not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-        if(sender.getStatus().equals(CommonStatusEnum.INACTIVE.name())){
+        if (sender.getStatus().equals(CommonStatusEnum.INACTIVE.name())) {
             log.error("[Create Order and OrderDetails] Bat Dau Chien ");
             throw new BadRequestException(
                     ErrorEnum.INVALID.getMessage() + " Account customer's status is inactive so cannot create order  ",
@@ -120,7 +118,6 @@ public class OrderServiceImpl implements OrderService {
         CategoryEntity category = categoryEntityService.findEntityById(UUID.fromString(orderRequest.categoryId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "category not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
-
 
 
         try {
@@ -146,9 +143,9 @@ public class OrderServiceImpl implements OrderService {
             saveOrder.setOrderDetailEntities(batchCreateOrderDetails(listCreateOrderDetailRequests, saveOrder, orderRequest.estimateStartTime()));
             return orderMapper.toCreateOrderResponse(saveOrder);
 
-        }catch (Exception e) {
+        } catch (Exception e) {
             log.error(e.getMessage());
-            throw new InternalServerException(ErrorEnum.INTERNAL_SERVER_ERROR.getMessage(),ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode());
+            throw new InternalServerException(ErrorEnum.INTERNAL_SERVER_ERROR.getMessage(), ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode());
         }
 
     }
@@ -221,14 +218,13 @@ public class OrderServiceImpl implements OrderService {
         orderDetailEntityService.saveAllOrderDetailEntities(orderDetailEntities);
 
 
-
         return orderMapper.toCreateOrderResponse(order);
     }
 
 
     @Override
     public boolean isValidTransition(OrderStatusEnum current, OrderStatusEnum next) {
-        switch(current) {
+        switch (current) {
             case PENDING:
                 return next == OrderStatusEnum.PROCESSING;
             case PROCESSING:
@@ -270,7 +266,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public List<CreateOrderResponse> getCreateOrderRequestsBySenderId(UUID senderId) {
         log.info("getCreateOrderRequestsBySenderId: start");
-        if(senderId == null){
+        if (senderId == null) {
             log.error("Sender id is null");
             throw new NotFoundException(
                     ErrorEnum.NOT_FOUND.getMessage() + "senderId cannot be null",
@@ -284,7 +280,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public List<CreateOrderResponse> getCreateOrderRequestsByDeliveryAddressId(UUID deliveryAddressId) {
         log.info("getCreateOrderRequestsByDeliveryAddressId: start");
-        if(deliveryAddressId == null){
+        if (deliveryAddressId == null) {
             log.error("deliveryAddressId is null");
             throw new NotFoundException(
                     ErrorEnum.NOT_FOUND.getMessage() + "deliveryAddressId cannot be null",
@@ -311,9 +307,9 @@ public class OrderServiceImpl implements OrderService {
                 ));
 
 
-        if(!(order.getStatus().equals(OrderStatusEnum.PENDING.name()) || order.getStatus().equals(OrderStatusEnum.PROCESSING.name()))){
+        if (!(order.getStatus().equals(OrderStatusEnum.PENDING.name()) || order.getStatus().equals(OrderStatusEnum.PROCESSING.name()))) {
             throw new NotFoundException(
-                    ErrorEnum.INVALID_REQUEST.getMessage() + " Cannot update order with ID: " + order.getId() +", because order status is not PENDING or PROCESSING",
+                    ErrorEnum.INVALID_REQUEST.getMessage() + " Cannot update order with ID: " + order.getId() + ", because order status is not PENDING or PROCESSING",
                     ErrorEnum.INVALID_REQUEST.getErrorCode()
             );
         }
@@ -331,8 +327,6 @@ public class OrderServiceImpl implements OrderService {
         AddressEntity pickupAddress = addressEntityService.findEntityById(UUID.fromString(updateOrderRequest.pickupAddressId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "pickupAddress not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
-
-
 
 
         order.setNotes(updateOrderRequest.notes());
@@ -369,7 +363,7 @@ public class OrderServiceImpl implements OrderService {
                     return OrderDetailEntity.builder()
                             .weightBaseUnit(request.weight())
                             .unit(request.unit())
-                            .weight(convertToTon(request.weight(),request.unit()))
+                            .weight(convertToTon(request.weight(), request.unit()))
                             .description(request.description())
                             .status(savedOrder.getStatus())
                             .trackingCode(generateCode(prefixOrderDetailCode))
@@ -401,17 +395,17 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public GetOrderResponse getOrderById(UUID orderId) {
         Optional<OrderEntity> order = orderEntityService.findEntityById(orderId);
-        if(!order.isPresent()){
-            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "Not found order with id: "+orderId, ErrorEnum.NOT_FOUND.getErrorCode());
+        if (!order.isPresent()) {
+            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "Not found order with id: " + orderId, ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
         return orderMapper.toGetOrderResponse(order.get());
     }
 
-        @Override
-        public List<UnitEnum> responseListUnitEnum() {
-            return Arrays.asList(UnitEnum.values());
-        }
+    @Override
+    public List<UnitEnum> responseListUnitEnum() {
+        return Arrays.asList(UnitEnum.values());
+    }
 
 
     private boolean checkTotalWeight(BigDecimal totalWeight, List<CreateOrderDetailRequest> listCreateOrderDetailRequests) {
@@ -449,14 +443,14 @@ public class OrderServiceImpl implements OrderService {
         GetOrderResponse getOrderResponse = getOrderById(orderId);
 
         List<GetIssueImageResponse> getIssueImageResponses = new ArrayList<>();
-        Map<UUID,List<PhotoCompletionResponse>> photoCompletionResponses = new HashMap<>();
+        Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses = new HashMap<>();
         for (GetOrderDetailResponse detail : getOrderResponse.orderDetails()) {
-            if(detail.vehicleAssignmentId() != null){
+            if (detail.vehicleAssignmentId() != null) {
                 UUID vehicleAssignmentId = detail.vehicleAssignmentId().id(); // lấy id
                 getIssueImageResponses.add(
                         issueImageService.getByVehicleAssignment(vehicleAssignmentId)
                 );
-                photoCompletionResponses.put(vehicleAssignmentId,photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId));
+                photoCompletionResponses.put(vehicleAssignmentId, photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId));
             }
         }
 
@@ -567,9 +561,9 @@ public class OrderServiceImpl implements OrderService {
 
         // Use our mapper to convert to staff order response
         return staffOrderMapper.toStaffOrderForStaffResponse(
-            orderResponse,
-            contractResponse,
-            transactionResponses
+                orderResponse,
+                contractResponse,
+                transactionResponses
         );
     }
 
@@ -577,14 +571,14 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public boolean signContractAndOrder(UUID contractId) {
         ContractEntity contractEntity = contractEntityService.findEntityById(contractId)
-         .orElseThrow(() -> new NotFoundException(
-                "Contract not found with user id: " + contractId,
-                ErrorEnum.NOT_FOUND.getErrorCode()));
+                .orElseThrow(() -> new NotFoundException(
+                        "Contract not found with user id: " + contractId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()));
 
         OrderEntity orderEntity = contractEntity.getOrderEntity();
 
         contractEntity.setStatus(ContractStatusEnum.CONTRACT_SIGNED.name());
-        changeAStatusOrder(orderEntity.getId(),OrderStatusEnum.CONTRACT_SIGNED);
+        changeAStatusOrder(orderEntity.getId(), OrderStatusEnum.CONTRACT_SIGNED);
 
         return true;
     }
@@ -614,5 +608,45 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
         return true;
+    }
+
+    @Override
+    public List<GetOrderForDriverResponse> getOrderForDriverByCurrentDrive() {
+        log.info("Getting order for current driver");
+
+        UUID driverId = userContextUtils.getCurrentDriverId();
+
+        List<OrderEntity> ordersByDriverId = orderEntityService.findOrdersByDriverId(driverId);
+
+        if (ordersByDriverId.isEmpty()) {
+            log.info("No orders found for driver with ID: {}", driverId);
+            throw new BadRequestException(
+                    ErrorEnum.NOT_FOUND.getMessage() + " Cannot found orders from " + driverId,
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+
+        return ordersByDriverId.stream()
+                .map(orderMapper::toGetOrderForDriverResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public GetOrderByJpaResponse getSimplifiedOrderForCustomerV2ByOrderId(UUID orderId) {
+        log.info("Getting order for order with ID: {}", orderId);
+
+        if (orderId == null) {
+            log.info("No orders found for order with ID: {}", orderId);
+            throw new BadRequestException(
+                    ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+
+        OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()));
+
+        return orderMapper.toGetOrderByJpaResponse(order);
     }
 }

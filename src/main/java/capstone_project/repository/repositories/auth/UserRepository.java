@@ -48,4 +48,17 @@ public interface UserRepository extends BaseRepository<UserEntity> {
     List<UserEntity> findUserEntitiesByRoleRoleName(String roleName);
 
     List<UserEntity> findAllByIdIn(List<UUID> ids);
+
+    @Query(value = """
+            SELECT o.status, COUNT(*)
+            FROM users o
+            group by o.status;
+            """, nativeQuery = true)
+    List<Object[]> countAllByUserStatus();
+
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM users o
+            """, nativeQuery = true)
+    int countAllUsers();
 }

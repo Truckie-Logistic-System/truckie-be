@@ -56,5 +56,8 @@ public interface OrderService {
 
     boolean updateOrderStatus(UUID orderId, OrderStatusEnum newStatus);
 
+    List<GetOrderForDriverResponse> getOrderForDriverByCurrentDrive();
+
+    GetOrderByJpaResponse getSimplifiedOrderForCustomerV2ByOrderId(UUID orderId);
 
 }

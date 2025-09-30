@@ -46,4 +46,54 @@ public class OrderEntityServiceImpl implements OrderEntityService {
     public List<OrderEntity> findRecentOrdersByCustomerId(UUID customerId, int limit) {
         return orderRepository.findRecentOrdersByCustomerId(customerId, limit);
     }
+
+    @Override
+    public int countAllOrderEntities() {
+        return orderRepository.countAllOrderEntities();
+    }
+
+    @Override
+    public int countOrderEntitiesBySenderId(UUID senderId) {
+        return orderRepository.countOrderEntitiesBySenderId(senderId);
+    }
+
+    @Override
+    public int countOrderEntitiesBySenderCompanyNameContainingIgnoreCase(String senderCompanyName) {
+        return orderRepository.countOrderEntitiesBySenderCompanyNameContainingIgnoreCase(senderCompanyName);
+    }
+
+    @Override
+    public int countOrderEntitiesByReceiverNameContainingIgnoreCase(String receiverName) {
+        return orderRepository.countOrderEntitiesByReceiverNameContainingIgnoreCase(receiverName);
+    }
+
+    @Override
+    public List<Object[]> countTotalOrderByMonthOverYear(int year) {
+        return orderRepository.countTotalOrderByMonthOverYear(year);
+    }
+
+    @Override
+    public List<Object[]> countAllByOrderStatus() {
+        return orderRepository.countAllByOrderStatus();
+    }
+
+    @Override
+    public List<Object[]> countByOrderStatus(String status) {
+        return orderRepository.countByOrderStatus(status);
+    }
+
+    @Override
+    public List<Object[]> countOrderByWeek(int amount) {
+        return orderRepository.countOrderByWeek(amount);
+    }
+
+    @Override
+    public List<Object[]> countOrderByYear(int amount) {
+        return orderRepository.countOrderByYear(amount);
+    }
+
+    @Override
+    public List<OrderEntity> findOrdersByDriverId(UUID driverId) {
+        return orderRepository.findOrdersByDriverId(driverId);
+    }
 }

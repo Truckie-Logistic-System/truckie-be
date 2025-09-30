@@ -1,9 +1,6 @@
 package capstone_project.service.mapper.order;
 
-import capstone_project.dtos.response.order.CreateOrderResponse;
-import capstone_project.dtos.response.order.GetOrderForGetAllResponse;
-import capstone_project.dtos.response.order.GetOrderResponse;
-import capstone_project.dtos.response.order.OrderForCustomerListResponse;
+import capstone_project.dtos.response.order.*;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import org.mapstruct.*;
@@ -28,7 +25,11 @@ public interface OrderMapper {
     @Mapping(source = "category.id", target = "categoryId")
     GetOrderForGetAllResponse toGetOrderForGetAllResponse(OrderEntity entity);
 
+    GetOrderForDriverResponse toGetOrderForDriverResponse(OrderEntity entity);
+
     List<GetOrderForGetAllResponse> toGetOrderForGetAllResponses(List<OrderEntity> orderEntities);
+
+    GetOrderByJpaResponse toGetOrderByJpaResponse(OrderEntity entity);
 
     @Mapping(target = "pickupAddress", expression = "java(formatAddress(entity.getPickupAddress()))")
     @Mapping(target = "deliveryAddress", expression = "java(formatAddress(entity.getDeliveryAddress()))")

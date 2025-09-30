@@ -6,7 +6,6 @@ import capstone_project.dtos.request.order.CreateOrderAndDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.*;
-import capstone_project.dtos.response.order.OrderForCustomerListResponse;
 import capstone_project.service.services.order.order.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -124,6 +122,18 @@ public class OrderController {
     public ResponseEntity<ApiResponse<Boolean>> signContractAndOrder(
             @RequestParam UUID contractId) {
         final var result = orderService.signContractAndOrder(contractId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/get-list-order-for-driver")
+    public ResponseEntity<ApiResponse<List<GetOrderForDriverResponse>>> getOrderForDriverByDriveId() {
+        final var result = orderService.getOrderForDriverByCurrentDrive();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/get-all-data-for-order/{orderId}")
+    public ResponseEntity<ApiResponse<GetOrderByJpaResponse>> getSimplifiedOrderForCustomerV2ByOrderId(@PathVariable UUID orderId) {
+        final var result = orderService.getSimplifiedOrderForCustomerV2ByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }
