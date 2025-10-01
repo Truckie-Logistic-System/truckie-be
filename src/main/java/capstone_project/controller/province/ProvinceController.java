@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/provinces")
+@RequestMapping("${province.api.base-path}")
 @RequiredArgsConstructor
 @PreAuthorize("isAuthenticated()")
 public class ProvinceController {

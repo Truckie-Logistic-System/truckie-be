@@ -96,4 +96,9 @@ public class OrderEntityServiceImpl implements OrderEntityService {
     public List<OrderEntity> findOrdersByDriverId(UUID driverId) {
         return orderRepository.findOrdersByDriverId(driverId);
     }
+
+    @Override
+    public Optional<OrderEntity> findVehicleAssignmentOrder(UUID assignmentId) {
+        return orderRepository.findVehicleAssignmentOrder(assignmentId);
+    }
 }

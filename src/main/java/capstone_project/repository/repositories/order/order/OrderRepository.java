@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface OrderRepository extends BaseRepository<OrderEntity> {
@@ -25,6 +26,20 @@ public interface OrderRepository extends BaseRepository<OrderEntity> {
                OR d2.id = :driverId;
             """, nativeQuery = true)
     List<OrderEntity> findOrdersByDriverId(@Param("driverId") UUID driverId);
+
+    /**
+     * Find order associated with a vehicle assignment
+     * @param assignmentId the UUID of the vehicle assignment
+     * @return Optional containing the order if found
+     */
+    @Query(value = """
+            SELECT o.*
+            FROM orders o
+            JOIN order_details od ON o.id = od.order_id
+            JOIN vehicle_assignments va ON od.vehicle_assignment_id = va.id
+            WHERE va.id = :assignmentId
+            """, nativeQuery = true)
+    Optional<OrderEntity> findVehicleAssignmentOrder(@Param("assignmentId") UUID assignmentId);
 
     /**
      * Find recent orders by customer ID with limit

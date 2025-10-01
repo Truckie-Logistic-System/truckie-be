@@ -33,6 +33,9 @@ public class JourneyHistoryEntity extends BaseEntity {
     @Column(name = "reason_for_reroute")
     private String reasonForReroute;
 
+    @Column(name = "total_toll_fee")
+    private Long totalTollFee;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id")
     private VehicleAssignmentEntity vehicleAssignment;

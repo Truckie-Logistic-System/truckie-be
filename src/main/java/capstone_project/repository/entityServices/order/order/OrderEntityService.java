@@ -4,6 +4,7 @@ import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.repository.entityServices.common.BaseEntityService;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface OrderEntityService extends BaseEntityService<OrderEntity, UUID> {
@@ -38,4 +39,11 @@ public interface OrderEntityService extends BaseEntityService<OrderEntity, UUID>
     List<Object[]> countOrderByYear(int amount);
 
     List<OrderEntity> findOrdersByDriverId(UUID driverId);
+
+    /**
+     * Find order associated with a vehicle assignment
+     * @param assignmentId the UUID of the vehicle assignment
+     * @return Optional containing the order if found, or empty if not found
+     */
+    Optional<OrderEntity> findVehicleAssignmentOrder(UUID assignmentId);
 }
