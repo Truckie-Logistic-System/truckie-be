@@ -133,6 +133,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     public TransactionResponse createDepositTransaction(UUID contractId) {
         log.info("Creating transaction for contract {}", contractId);
 
+        log.info("Creating PayOS PaymentData: cancelUrl={}, returnUrl={}",
+                properties.getCancelUrl(), properties.getReturnUrl());
+
         Long payOsOrderCode = System.currentTimeMillis();
 
         ContractEntity contractEntity = getAndValidateContract(contractId);
@@ -178,6 +181,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         try {
             var response = payOS.createPaymentLink(paymentData);
+
+            log.info("PayOS response: {}", objectMapper.writeValueAsString(response));
 
             TransactionEntity transaction = TransactionEntity.builder()
                     .id(UUID.randomUUID())
@@ -356,49 +361,61 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         try {
             JsonNode webhookEvent = objectMapper.readTree(rawCallbackPayload);
 
-            String orderCode = webhookEvent.path("data").path("orderCode").asText();
-            String payOsStatus = webhookEvent.path("data").path("status").asText();
+            String orderCode = webhookEvent.path("data").path("orderCode").asText(null);
+            String payOsStatus = webhookEvent.path("data").path("status").asText(null);
+            String payOsCode = webhookEvent.path("data").path("code").asText(null);
 
-            if (orderCode == null || payOsStatus == null) {
-                log.error("Invalid webhook payload: {}", rawCallbackPayload);
-                throw new BadRequestException("Invalid webhook payload", ErrorEnum.INVALID.getErrorCode());
+            // Skip test webhook
+            if ("123".equals(orderCode)) {
+                log.info("Received PayOS test webhook with orderCode=123, skipping...");
+                return;
             }
 
-            TransactionEntity transaction = transactionEntityService.findByGatewayOrderCode(orderCode)
-                    .orElseThrow(() -> new NotFoundException(
-                            "Transaction not found for orderCode " + orderCode,
-                            ErrorEnum.NOT_FOUND.getErrorCode()
-                    ));
+            if (orderCode == null) {
+                log.error("Invalid webhook payload: {}", rawCallbackPayload);
+                return;
+            }
 
-//            String mappedStatus = mapPayOsStatusToTransactionStatus(payOsStatus);
+            transactionEntityService.findByGatewayOrderCode(orderCode).ifPresentOrElse(transaction -> {
+                TransactionEnum mappedStatus = mapPayOsStatusToEnum(payOsStatus, payOsCode);
 
-            transaction.setStatus(payOsStatus.toUpperCase());
-            transaction.setGatewayResponse(rawCallbackPayload);
+                transaction.setStatus(mappedStatus.name());
+                transaction.setGatewayResponse(rawCallbackPayload);
+                transactionEntityService.save(transaction);
 
-            transactionEntityService.save(transaction);
+                log.info("Webhook processed successfully. TxnId={}, PayOS status={}, Mapped status={}",
+                        transaction.getId(), payOsStatus, mappedStatus);
 
-            log.info("Webhook processed successfully. TxnId={}, PayOS status={}, Mapped status={}",
-                    transaction.getId(), payOsStatus, payOsStatus.toUpperCase());
-
-            updateContractStatusIfNeeded(transaction);
+                updateContractStatusIfNeeded(transaction);
+            }, () -> {
+                log.warn("Transaction not found for orderCode {}", orderCode);
+            });
 
         } catch (Exception e) {
             log.error("Failed to handle webhook", e);
-            throw new RuntimeException("Webhook processing error", e);
         }
     }
 
-//    private String mapPayOsStatusToTransactionStatus(String payOsStatus) {
-//        return switch (payOsStatus.toUpperCase()) {
-//            case "PAID" -> TransactionEnum.PAID.name();
-//            case "CANCELLED" -> TransactionEnum.CANCELLED.name();
-//            case "EXPIRED" -> TransactionEnum.EXPIRED.name();
-//            case "FAILED" -> TransactionEnum.FAILED.name();
-//            case "REFUNDED" -> TransactionEnum.REFUNDED.name();
-//            case "PENDING" -> TransactionEnum.PENDING.name();
-//            default -> TransactionEnum.FAILED.name();
-//        };
-//    }
+
+    private TransactionEnum mapPayOsStatusToEnum(String payOsStatus, String code) {
+        if (code != null && code.equals("00")) {
+            return TransactionEnum.PAID;
+        }
+
+        if (payOsStatus == null) {
+            return TransactionEnum.PENDING;
+        }
+
+        return switch (payOsStatus.toLowerCase()) {
+            case "paid", "success", "completed" -> TransactionEnum.PAID;
+            case "cancel", "cancelled", "canceled" -> TransactionEnum.CANCELLED;
+            case "failed", "error" -> TransactionEnum.FAILED;
+            case "expired", "timeout" -> TransactionEnum.EXPIRED;
+            case "refunded" -> TransactionEnum.REFUNDED;
+            default -> TransactionEnum.PENDING;
+        };
+    }
+
 
     private void updateContractStatusIfNeeded(TransactionEntity transaction) {
         ContractEntity contract = transaction.getContractEntity();

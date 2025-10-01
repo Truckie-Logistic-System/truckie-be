@@ -150,11 +150,15 @@ public class SecurityConfigurer {
                     "/api/v1/address/**",
                     "/api/v1/emails/**",
                     "/api/v1/notifications/**",
+                    "/api/v1/transactions/stripe/webhook",
                     "/api/v1/transactions/stripe/webhook/**",
-                    "/api/webhooks/**",
-                    "/api/v1/transactions/pay-os/webhooks/**",
+                    "/api/v1/transactions/pay-os/webhook",
+                    "/api/v1/transactions/pay-os/webhook/**",
+                    "/api/v1/transactions/pay-os/callback",
                     "/api/v1/transactions/pay-os/callback/**",
+                    "/api/v1/transactions/pay-os/cancel",
                     "/api/v1/transactions/pay-os/cancel/**",
+                    "/api/webhook/**",
                     "/app/**",
                     "/topic/**",
                     "/actuator/**",
@@ -165,6 +169,7 @@ public class SecurityConfigurer {
             ),
             Arrays.stream(SWAGGER_ENDPOINTS)
     ).toArray(String[]::new);
+
 
     @Bean
     public PasswordEncoder passwordEncoder() {

@@ -54,7 +54,7 @@ public class PayOSTransactionController {
     }
 
     @PostMapping("/webhook")
-    @PreAuthorize("permitAll()")
+//    @PreAuthorize("permitAll()")
     public ResponseEntity<Void> handleWebhook(@RequestBody String rawCallbackPayload) {
         payOSTransactionService.handleWebhook(rawCallbackPayload);
         return ResponseEntity.ok().build();
