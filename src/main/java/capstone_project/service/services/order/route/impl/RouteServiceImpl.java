@@ -105,6 +105,69 @@ public class RouteServiceImpl implements RouteService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public RoutePointsResponse getRoutePointsByOrder(UUID orderId) {
+        if (orderId == null) {
+            throw new IllegalArgumentException("orderId must not be null");
+        }
+
+        // Get carrier settings
+        var careerOpt = carrierSettingEntityService.findAll().stream().findFirst();
+        var career = careerOpt.orElseThrow(() -> new IllegalStateException("Carrier settings not found"));
+
+        // Load the order directly - using findEntityById instead of findById
+        OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found with ID: " + orderId));
+
+        // Get pickup and delivery addresses
+        var pickupRef = order.getPickupAddress();
+        var deliveryRef = order.getDeliveryAddress();
+        if (pickupRef == null || deliveryRef == null) {
+            throw new IllegalStateException("Order must have pickup and delivery addresses: " + order.getId());
+        }
+
+        AddressEntity pickupAddr = addressEntityService.findById(pickupRef.getId())
+                .orElseThrow(() -> new NoSuchElementException("Pickup address not found: " + pickupRef.getId()));
+        AddressEntity deliveryAddr = addressEntityService.findById(deliveryRef.getId())
+                .orElseThrow(() -> new NoSuchElementException("Delivery address not found: " + deliveryRef.getId()));
+
+        // Create the route points (carrier, pickup, delivery)
+        List<RoutePointResponse> points = new ArrayList<>();
+        points.add(new RoutePointResponse(
+                "Carrier",
+                "carrier",
+                career.getCarrierLatitude(),
+                career.getCarrierLongitude(),
+                career.getCarrierAddressLine() == null ? "" : career.getCarrierAddressLine(),
+                career.getId() == null ? null : career.getId()
+        ));
+        points.add(new RoutePointResponse(
+                "Pickup",
+                "pickup",
+                pickupAddr.getLatitude(),
+                pickupAddr.getLongitude(),
+                resolveFullAddress(pickupAddr),
+                pickupAddr.getId()
+        ));
+        points.add(new RoutePointResponse(
+                "Delivery",
+                "delivery",
+                deliveryAddr.getLatitude(),
+                deliveryAddr.getLongitude(),
+                resolveFullAddress(deliveryAddr),
+                deliveryAddr.getId()
+        ));
+
+        // Use order code or ID as reference
+        String tracking = order.getOrderCode();
+        if (tracking == null || tracking.isEmpty()) {
+            tracking = order.getId().toString();
+        }
+
+        return new RoutePointsResponse(orderId, tracking, points);
+    }
+
+    @Override
     public SuggestRouteResponse suggestRoute(SuggestRouteRequest request) {
         if (request == null || request.points() == null) {
             throw new IllegalArgumentException("request.points must not be null");

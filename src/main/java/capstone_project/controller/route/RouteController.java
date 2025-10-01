@@ -20,6 +20,12 @@ public class RouteController {
         this.routeService = routeService;
     }
 
+    @GetMapping("/orders/{orderId}/points")
+    public ResponseEntity<RoutePointsResponse> getRoutePointsByOrder(@PathVariable UUID orderId) {
+        RoutePointsResponse response = routeService.getRoutePointsByOrder(orderId);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/assignments/{assignmentId}/points")
     public ResponseEntity<RoutePointsResponse> getRoutePoints(@PathVariable UUID assignmentId) {
         RoutePointsResponse response = routeService.getRoutePoints(assignmentId);
