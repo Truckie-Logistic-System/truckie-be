@@ -133,6 +133,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     public TransactionResponse createDepositTransaction(UUID contractId) {
         log.info("Creating transaction for contract {}", contractId);
 
+        log.info("Creating PayOS PaymentData: cancelUrl={}, returnUrl={}",
+                properties.getCancelUrl(), properties.getReturnUrl());
+
         Long payOsOrderCode = System.currentTimeMillis();
 
         ContractEntity contractEntity = getAndValidateContract(contractId);
@@ -178,6 +181,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         try {
             var response = payOS.createPaymentLink(paymentData);
+
+            log.info("PayOS response: {}", objectMapper.writeValueAsString(response));
 
             TransactionEntity transaction = TransactionEntity.builder()
                     .id(UUID.randomUUID())

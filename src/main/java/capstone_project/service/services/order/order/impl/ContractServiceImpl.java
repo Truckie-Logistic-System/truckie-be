@@ -643,13 +643,13 @@ public class ContractServiceImpl implements ContractService {
         final long t0 = System.nanoTime();
         log.info("Assigning vehicles for order ID: {}", orderId);
 
+        OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
+
         List<OrderDetailEntity> details = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
         if (details.isEmpty()) {
             throw new NotFoundException("No order details found for this order", ErrorEnum.NOT_FOUND.getErrorCode());
         }
-
-        OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
-                .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
 
         if (orderEntity.getCategory() == null) {
             throw new BadRequestException("Order category is required", ErrorEnum.INVALID.getErrorCode());
