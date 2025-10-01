@@ -6,7 +6,8 @@ import capstone_project.dtos.request.order.JourneyHistoryRequest;
 import capstone_project.dtos.request.order.UpdateJourneyHistoryRequest;
 import capstone_project.dtos.response.order.JourneyHistoryResponse;
 import capstone_project.entity.order.order.JourneyHistoryEntity;
-
+import capstone_project.dtos.response.order.JourneyHistoryResponse;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService;
 import capstone_project.repository.repositories.order.order.JourneyHistoryRepository;
 import capstone_project.service.mapper.order.JourneyHistoryMapper;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 

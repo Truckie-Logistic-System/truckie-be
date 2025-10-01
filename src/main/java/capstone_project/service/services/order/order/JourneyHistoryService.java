@@ -3,6 +3,7 @@ package capstone_project.service.services.order.order;
 import capstone_project.dtos.request.order.JourneyHistoryRequest;
 import capstone_project.dtos.request.order.UpdateJourneyHistoryRequest;
 import capstone_project.dtos.response.order.JourneyHistoryResponse;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 
 import java.util.List;
 import java.util.UUID;
@@ -14,4 +15,6 @@ public interface JourneyHistoryService {
     JourneyHistoryResponse update(UUID id, UpdateJourneyHistoryRequest req);
     void delete(UUID id);
     List<JourneyHistoryResponse> getByVehicleAssignmentId(UUID vehicleAssignmentId);
+
+
 }

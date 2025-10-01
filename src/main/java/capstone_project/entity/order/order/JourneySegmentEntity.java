@@ -49,7 +49,13 @@ public class JourneySegmentEntity extends BaseEntity {
     @Column(name = "status") // PENDING, COMPLETED, ACTIVE
     private String status;
 
+    @Column(name = "estimated_toll_fee")
+    private Long estimatedTollFee;
+
+    @Column(name = "path_coordinates_json", columnDefinition = "TEXT")
+    private String pathCoordinatesJson;
+
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "journey_history_id")
+    @JoinColumn(name = "journey_history_id", nullable = false)
     private JourneyHistoryEntity journeyHistory;
 }

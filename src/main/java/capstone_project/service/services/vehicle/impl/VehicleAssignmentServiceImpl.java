@@ -6,6 +6,9 @@ import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.enums.VehicleTypeEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.GroupedAssignmentRequest;
+import capstone_project.dtos.request.vehicle.OrderDetailGroupAssignment;
+import capstone_project.dtos.request.vehicle.RouteInfo;
+import capstone_project.dtos.request.vehicle.RouteSegmentInfo;
 import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
@@ -22,6 +25,7 @@ import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
+import capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
@@ -33,12 +37,12 @@ import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
 import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.mapper.vehicle.VehicleAssignmentMapper;
 import capstone_project.service.mapper.vehicle.VehicleMapper;
-import capstone_project.service.services.order.order.ContractRuleService;
-import capstone_project.service.services.order.order.ContractService;
-import capstone_project.service.services.order.order.OrderDetailService;
-import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.order.order.*;
+import capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService;
 import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -73,6 +77,10 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final ContractService contractService;
     private final OrderService orderService;
     private final OrderDetailService orderDetailService;
+    private final JourneyHistoryEntityService journeyHistoryEntityService;
+    private final VietmapService vietmapService;
+
+    private final ObjectMapper objectMapper;
 
     @Value("${prefix.vehicle.assignment.code}")
     private String prefixVehicleAssignmentCode;
@@ -722,7 +730,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         Set<UUID> orderIdsToUpdate = new HashSet<>();
 
         // Xử lý từng nhóm order detail
-        for (GroupedAssignmentRequest.OrderDetailGroupAssignment groupAssignment : request.groupAssignments()) {
+        for (OrderDetailGroupAssignment groupAssignment : request.groupAssignments()) {
             // Kiểm tra các order detail có tồn tại không
             List<UUID> orderDetailIds = groupAssignment.orderDetailIds();
             if (orderDetailIds.isEmpty()) {
@@ -789,6 +797,13 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             // Lưu assignment
             VehicleAssignmentEntity savedAssignment = entityService.save(assignment);
 
+            try {
+                createInitialJourneyForAssignment(savedAssignment, orderDetailIds);
+            } catch (Exception e) {
+                log.error("Failed to create journey history for assignment {}: {}", savedAssignment.getId(), e.getMessage());
+                // continue without failing whole operation
+            }
+
             // Gán order details vào assignment
             for (UUID orderDetailId : orderDetailIds) {
                 var orderDetail = orderDetailEntityService.findEntityById(orderDetailId)
@@ -820,6 +835,165 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         }
 
         return createdAssignments;
+    }
+
+    private void createInitialJourneyForAssignment(VehicleAssignmentEntity assignment, List<UUID> orderDetailIds, RouteInfo routeInfo) {
+        // If there's route information from the client, use that to create the journey
+        if (routeInfo != null && routeInfo.segments() != null && !routeInfo.segments().isEmpty()) {
+            log.info("Creating journey history with route information for assignment {}", assignment.getId());
+
+            // Build journey history
+            capstone_project.entity.order.order.JourneyHistoryEntity journeyHistory =
+                    new capstone_project.entity.order.order.JourneyHistoryEntity();
+            journeyHistory.setJourneyName("Journey for " + assignment.getTrackingCode());
+            journeyHistory.setJourneyType("INITIAL");
+            journeyHistory.setStatus(CommonStatusEnum.ACTIVE.name());
+            journeyHistory.setVehicleAssignment(assignment);
+            journeyHistory.setTotalTollFee(routeInfo.totalTollFee());
+
+            // Create journey segments from route info
+            List<capstone_project.entity.order.order.JourneySegmentEntity> segments = new ArrayList<>();
+
+            for (RouteSegmentInfo segmentInfo : routeInfo.segments()) {
+                capstone_project.entity.order.order.JourneySegmentEntity segment =
+                        new capstone_project.entity.order.order.JourneySegmentEntity();
+
+                segment.setSegmentOrder(segmentInfo.segmentOrder());
+                segment.setStartPointName(segmentInfo.startPointName());
+                segment.setEndPointName(segmentInfo.endPointName());
+                segment.setStartLatitude(segmentInfo.startLatitude());
+                segment.setStartLongitude(segmentInfo.startLongitude());
+                segment.setEndLatitude(segmentInfo.endLatitude());
+                segment.setEndLongitude(segmentInfo.endLongitude());
+                segment.setDistanceMeters(segmentInfo.distanceMeters());
+                segment.setEstimatedTollFee(segmentInfo.estimatedTollFee());
+                segment.setStatus("PENDING");
+
+                // Store path coordinates as JSON if your entity has this field
+                if (segmentInfo.pathCoordinates() != null && !segmentInfo.pathCoordinates().isEmpty()) {
+                    try {
+                        segment.setPathCoordinatesJson(objectMapper.writeValueAsString(segmentInfo.pathCoordinates()));
+                    } catch (Exception e) {
+                        log.warn("Failed to serialize path coordinates for segment {}", segmentInfo.segmentOrder());
+                    }
+                }
+
+                segment.setJourneyHistory(journeyHistory);
+                segments.add(segment);
+            }
+
+            journeyHistory.setJourneySegments(segments);
+
+            // Save journey history with all segments
+            journeyHistoryEntityService.save(journeyHistory);
+
+            log.info("Created journey history with {} segments for assignment {}",
+                    segments.size(), assignment.getId());
+
+            return;
+        }
+
+        // Fallback to the existing method if no route information is provided
+        // Determine depot/unit coordinates - fallback to vehicle current position if configured
+        BigDecimal unitLat = null;
+        BigDecimal unitLng = null;
+        VehicleEntity vehicle = assignment.getVehicleEntity();
+        if (vehicle != null) {
+            try {
+                // adjust method names if your VehicleEntity uses different getters
+                unitLat = vehicle.getCurrentLatitude();
+                unitLng = vehicle.getCurrentLongitude();
+            } catch (Exception ignored) {}
+        }
+
+        // Use first orderDetail's order addresses as representative pickup/delivery
+        BigDecimal pickupLat = null;
+        BigDecimal pickupLng = null;
+        BigDecimal deliveryLat = null;
+        BigDecimal deliveryLng = null;
+
+        if (!orderDetailIds.isEmpty()) {
+            OrderDetailEntity od = orderDetailEntityService.findEntityById(orderDetailIds.get(0)).orElse(null);
+            if (od != null && od.getOrderEntity() != null) {
+                OrderEntity order = od.getOrderEntity();
+                AddressEntity pickupAddr = order.getPickupAddress();
+                AddressEntity deliveryAddr = order.getDeliveryAddress();
+                if (pickupAddr != null) {
+                    // adjust getters if your AddressEntity uses different names / types
+                    pickupLat = pickupAddr.getLatitude();
+                    pickupLng = pickupAddr.getLongitude();
+                }
+                if (deliveryAddr != null) {
+                    deliveryLat = deliveryAddr.getLatitude();
+                    deliveryLng = deliveryAddr.getLongitude();
+                }
+            }
+        }
+
+        // fallback unit -> pickup/delivery if unit missing
+        if ((unitLat == null || unitLng == null) && pickupLat != null && pickupLng != null) {
+            unitLat = pickupLat; unitLng = pickupLng;
+        } else if ((unitLat == null || unitLng == null) && deliveryLat != null && deliveryLng != null) {
+            unitLat = deliveryLat; unitLng = deliveryLng;
+        }
+
+        // if any coordinate missing -> skip
+        if (unitLat == null || unitLng == null || pickupLat == null || pickupLng == null || deliveryLat == null || deliveryLng == null) {
+            log.warn("Missing coords for creating journey for assignment {}. unit:({},{}) pickup:({},{}) delivery:({},{})",
+                    assignment.getId(), unitLat, unitLng, pickupLat, pickupLng, deliveryLat, deliveryLng);
+            return;
+        }
+
+        // Build journey history
+        capstone_project.entity.order.order.JourneyHistoryEntity journeyHistory = new capstone_project.entity.order.order.JourneyHistoryEntity();
+        journeyHistory.setJourneyName("Journey for " + assignment.getTrackingCode());
+        journeyHistory.setJourneyType("INITIAL");
+        journeyHistory.setStatus(CommonStatusEnum.ACTIVE.name());
+        journeyHistory.setVehicleAssignment(assignment);
+
+        // Segment 1: unit -> pickup
+        capstone_project.entity.order.order.JourneySegmentEntity s1 = new capstone_project.entity.order.order.JourneySegmentEntity();
+        s1.setSegmentOrder(1);
+        s1.setStartPointName("Unit");
+        s1.setEndPointName("Pickup");
+        s1.setStartLatitude(unitLat);
+        s1.setStartLongitude(unitLng);
+        s1.setEndLatitude(pickupLat);
+        s1.setEndLongitude(pickupLng);
+        s1.setStatus("PENDING");
+
+        // Segment 2: pickup -> delivery
+        capstone_project.entity.order.order.JourneySegmentEntity s2 = new capstone_project.entity.order.order.JourneySegmentEntity();
+        s2.setSegmentOrder(2);
+        s2.setStartPointName("Pickup");
+        s2.setEndPointName("Delivery");
+        s2.setStartLatitude(pickupLat);
+        s2.setStartLongitude(pickupLng);
+        s2.setEndLatitude(deliveryLat);
+        s2.setEndLongitude(deliveryLng);
+        s2.setStatus("PENDING");
+
+        // Save segments
+        List<capstone_project.entity.order.order.JourneySegmentEntity> segments = Arrays.asList(s1, s2);
+        journeyHistory.setJourneySegments(segments);
+
+        // Assign segments to journey history
+        s1.setJourneyHistory(journeyHistory);
+        s2.setJourneyHistory(journeyHistory);
+
+        // Save journey history
+        journeyHistoryEntityService.save(journeyHistory);
+    }
+
+    private void createInitialJourneyForAssignment(VehicleAssignmentEntity assignment, List<UUID> orderDetailIds) {
+        // Call the overloaded method with null route info to use the default behavior
+        createInitialJourneyForAssignment(assignment, orderDetailIds, null);
+    }
+
+    private String generateCode(String prefix) {
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        String randomPart = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+        return prefix + timestamp + "-" + randomPart;
     }
 
     /**
@@ -878,8 +1052,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     orderDetail.getTrackingCode(),
                     originAddress,
                     destinationAddress,
-                    weight,
-                    volume
+                    weight
             ));
         }
 
@@ -1084,8 +1257,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
                 // Điều chỉnh nếu chưa đến ngày kỷ niệm hàng năm
                 if (today.getMonthValue() < joinDate.getMonthValue() ||
-                    (today.getMonthValue() == joinDate.getMonthValue() &&
-                     today.getDayOfMonth() < joinDate.getDayOfMonth())) {
+                        (today.getMonthValue() == joinDate.getMonthValue() &&
+                                today.getDayOfMonth() < joinDate.getDayOfMonth())) {
                     yearsOfWork--;
                 }
 
@@ -1107,11 +1280,5 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         }
 
         return workExperience;
-    }
-
-    private String generateCode(String prefix) {
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        String randomPart = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
-        return prefix + timestamp + "-" + randomPart;
     }
 }

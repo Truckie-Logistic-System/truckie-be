@@ -60,4 +60,13 @@ public interface VehicleAssignmentEntityService extends BaseEntityService<Vehicl
      * @return Assignment gần nhất hoặc empty nếu không tìm thấy
      */
     Optional<VehicleAssignmentEntity> findLatestAssignmentByDriverId(UUID driverId);
+
+    /**
+     * Find a vehicle assignment by ID
+     * @param id the UUID of the vehicle assignment
+     * @return Optional containing the vehicle assignment if found, or empty if not found
+     */
+    default Optional<VehicleAssignmentEntity> findById(UUID id) {
+        return findEntityById(id);
+    }
 }
