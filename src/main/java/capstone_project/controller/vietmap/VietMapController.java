@@ -128,4 +128,15 @@ public class VietMapController {
                     .body("{\"error\":\"failed to call Vietmap Styles API\",\"detail\":\"" + ex.getMessage() + "\"}");
         }
     }
+
+    @GetMapping(value = "/mobile-styles", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> mobileStyles() {
+        try {
+            String response = vietmapService.mobileStyles();
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body("{\"error\":\"failed to call Vietmap Mobile Styles API\",\"detail\":\"" + ex.getMessage() + "\"}");
+        }
+    }
 }

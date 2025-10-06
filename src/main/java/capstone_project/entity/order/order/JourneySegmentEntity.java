@@ -49,6 +49,9 @@ public class JourneySegmentEntity extends BaseEntity {
     @Column(name = "path_coordinates_json", columnDefinition = "TEXT")
     private String pathCoordinatesJson;
 
+    @Column(name = "toll_details_json", columnDefinition = "TEXT")
+    private String tollDetailsJson;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "journey_history_id", nullable = false)
     private JourneyHistoryEntity journeyHistory;

@@ -8,5 +8,6 @@ import java.util.List;
 public record RouteInfo(
         List<RouteSegmentInfo> segments,
         BigDecimal totalTollFee,
+        Integer totalTollCount,
         BigDecimal totalDistance
 ) {}

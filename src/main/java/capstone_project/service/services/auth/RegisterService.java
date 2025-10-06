@@ -73,4 +73,20 @@ public interface RegisterService {
 
     ChangePasswordResponse changePasswordForForgetPassword(ChangePasswordForForgetPassRequest changePasswordForForgetPassRequest);
 
+    /**
+     * Logout the user by invalidating their refresh token
+     *
+     * @param request the HTTP request containing the refresh token cookie
+     * @param response the HTTP response to clear the refresh token cookie
+     * @return true if logout was successful, false otherwise
+     */
+    boolean logout(HttpServletRequest request, HttpServletResponse response);
+
+    /**
+     * Logout the user using the provided refresh token
+     *
+     * @param refreshToken the refresh token to invalidate
+     * @return true if logout was successful, false otherwise
+     */
+    boolean logout(String refreshToken);
 }

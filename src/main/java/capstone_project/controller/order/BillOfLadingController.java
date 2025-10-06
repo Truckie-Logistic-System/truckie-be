@@ -28,25 +28,25 @@ import java.util.zip.ZipOutputStream;
 @RequestMapping("${bill-of-lading.api.base-path}")
 @RequiredArgsConstructor
 @PreAuthorize("isAuthenticated()")
-public class BillOfLandingController {
+public class BillOfLadingController {
 
-    private final BillOfLandingService billOfLandingService;
+    private final BillOfLandingService billOfLadingService;
 
     @GetMapping("/{contractId}")
     public ResponseEntity<ApiResponse<BillOfLandingResponse>> getAllInformationForBillOfLanding(@PathVariable UUID contractId) {
-        final var result = billOfLandingService.getBillOfLandingById(contractId);
+        final var result = billOfLadingService.getBillOfLandingById(contractId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @GetMapping("/order/{orderId}/preview")
     public ResponseEntity<ApiResponse<List<BillOfLandingPreviewResponse>>> previewWaybillsAndManifestsByOrder(@PathVariable UUID orderId) {
-        List<BillOfLandingPreviewResponse> previews = billOfLandingService.getBillOfLadingAndCargoManifestsPreview(orderId);
+        List<BillOfLandingPreviewResponse> previews = billOfLadingService.getBillOfLadingAndCargoManifestsPreview(orderId);
         return ResponseEntity.ok(ApiResponse.ok(previews));
     }
 
     @GetMapping("/order/{orderId}/print")
     public ResponseEntity<byte[]> downloadWaybillsAndManifestsByOrder(@PathVariable UUID orderId) {
-        Map<String, byte[]> files = billOfLandingService.generateBillOfLadingAndCargoManifests(orderId);
+        Map<String, byte[]> files = billOfLadingService.generateBillOfLadingAndCargoManifests(orderId);
 
         if (files == null || files.isEmpty()) {
             return ResponseEntity.noContent().build();

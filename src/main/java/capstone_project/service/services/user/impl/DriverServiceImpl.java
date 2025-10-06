@@ -14,6 +14,7 @@ import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityServi
 import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.user.PenaltyHistoryService;
+import capstone_project.common.utils.UserContextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ public class DriverServiceImpl implements DriverService {
     private final VehicleTypeEntityService vehicleTypeEntityService;
     private final DriverMapper driverMapper;
     private final PenaltyHistoryService penaltyHistoryService;
+    private final UserContextUtils userContextUtils;
 
     @Override
     public List<DriverResponse> getAllDrivers() {
@@ -85,22 +87,15 @@ public class DriverServiceImpl implements DriverService {
     }
 
     @Override
-    public DriverResponse getDriverByUserId(UUID userId) {
-        log.info("Getting driver by User ID: {}", userId);
-
-        if (userId == null) {
-            log.error("User ID is null");
-            throw new BadRequestException(
-                    "User ID cannot be null",
-                    ErrorEnum.INVALID.getErrorCode()
-            );
-        }
+    public DriverResponse getDriverByUserId() {
+        UUID userId = userContextUtils.getCurrentUserId();
+        log.info("Getting driver by current authenticated User ID: {}", userId);
 
         DriverEntity driverEntity = driverEntityService.findByUserId(userId)
                 .orElseThrow(() -> {
                     log.error("Driver not found with User ID: {}", userId);
                     return new BadRequestException(
-                            "Driver not found with User ID: " + userId,
+                            "Driver not found for current user",
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     );
                 });

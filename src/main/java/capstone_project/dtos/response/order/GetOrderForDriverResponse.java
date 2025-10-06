@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 
 public record GetOrderForDriverResponse(
         String id,
-        BigDecimal totalPrice,
         String notes,
         Integer totalQuantity,
         String orderCode,

@@ -3,6 +3,7 @@ package capstone_project.dtos.request.vehicle;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record RouteSegmentInfo(
@@ -16,5 +17,6 @@ public record RouteSegmentInfo(
         BigDecimal distanceMeters,
         List<List<BigDecimal>> pathCoordinates,
         BigDecimal estimatedTollFee,
-        List<TollDetail> tollDetails
+        List<TollDetail> tollDetails,
+        Map<String, Object> rawResponse
 ) {}

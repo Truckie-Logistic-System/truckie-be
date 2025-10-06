@@ -81,4 +81,16 @@ public class AuthsController {
         final var changePasswordResponse = registerService.changePasswordForForgetPassword(changePasswordForForgetPassRequest);
         return ResponseEntity.ok(ApiResponse.ok(changePasswordResponse));
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Boolean>> logout(HttpServletRequest request, HttpServletResponse response) {
+        boolean success = registerService.logout(request, response);
+        return ResponseEntity.ok(ApiResponse.ok(success));
+    }
+
+    @PostMapping("/logout/mobile")
+    public ResponseEntity<ApiResponse<Boolean>> logoutMobile(@RequestBody RefreshTokenRequest refreshTokenRequest) {
+        boolean success = registerService.logout(refreshTokenRequest.getRefreshToken());
+        return ResponseEntity.ok(ApiResponse.ok(success));
+    }
 }

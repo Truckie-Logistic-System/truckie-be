@@ -38,9 +38,9 @@ public class DriverController {
         return ResponseEntity.ok(ApiResponse.ok(driver));
     }
 
-    @GetMapping("/{userId}/user")
-    public ResponseEntity<ApiResponse<DriverResponse>> getDriverByUserId(@PathVariable UUID userId) {
-        final var driver = driverService.getDriverByUserId(userId);
+    @GetMapping("/user")
+    public ResponseEntity<ApiResponse<DriverResponse>> getDriverByUserId() {
+        final var driver = driverService.getDriverByUserId();
         return ResponseEntity.ok(ApiResponse.ok(driver));
     }
 

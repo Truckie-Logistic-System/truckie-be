@@ -608,4 +608,58 @@ public class RegisterServiceImpl implements RegisterService {
     public String generateOtp() {
         return String.format("%06d", new Random().nextInt(999999));
     }
+
+    @Override
+    public boolean logout(HttpServletRequest request, HttpServletResponse response) {
+        log.info("[logout] Start function with cookie-based logout");
+        try {
+            String refreshToken = extractRefreshTokenFromCookies(request);
+            boolean result = logout(refreshToken);
+
+            // Clear the refresh token cookie
+            Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, "");
+            cookie.setMaxAge(0); // Delete the cookie
+            cookie.setPath("/");
+            cookie.setHttpOnly(true);
+            cookie.setSecure(true);
+            response.addCookie(cookie);
+
+            return result;
+        } catch (Exception e) {
+            log.error("[logout] Error during logout: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
+    @Transactional
+    public boolean logout(String refreshToken) {
+        log.info("[logout] Start function with token-based logout");
+
+        if (refreshToken == null || refreshToken.isEmpty()) {
+            log.warn("[logout] No refresh token provided");
+            return false;
+        }
+
+        try {
+            Optional<RefreshTokenEntity> tokenEntity = refreshTokenEntityService.findByToken(refreshToken);
+
+            if (tokenEntity.isEmpty()) {
+                log.warn("[logout] Refresh token not found: {}", refreshToken);
+                return false;
+            }
+
+            RefreshTokenEntity token = tokenEntity.get();
+
+            // Mark the token as revoked
+            token.setRevoked(true);
+            refreshTokenEntityService.save(token);
+
+            log.info("[logout] Successfully revoked refresh token");
+            return true;
+        } catch (Exception e) {
+            log.error("[logout] Error revoking refresh token: {}", e.getMessage());
+            return false;
+        }
+    }
 }

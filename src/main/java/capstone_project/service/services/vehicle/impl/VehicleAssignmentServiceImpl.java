@@ -842,7 +842,12 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         // If there's route information from the client, use that to create the journey
         if (routeInfo != null && routeInfo.segments() != null && !routeInfo.segments().isEmpty()) {
             log.info("Creating journey history with route information for assignment {}", assignment.getId());
-
+            // Log toll information received from client
+            log.info("Route info toll data: totalTollFee={}, totalTollCount={}, segments={}",
+                routeInfo.totalTollFee(),
+                routeInfo.totalTollCount(),
+                routeInfo.segments().size());
+            
             // Build journey history
             capstone_project.entity.order.order.JourneyHistoryEntity journeyHistory =
                     new capstone_project.entity.order.order.JourneyHistoryEntity();
@@ -850,10 +855,47 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             journeyHistory.setJourneyType("INITIAL");
             journeyHistory.setStatus(CommonStatusEnum.ACTIVE.name());
             journeyHistory.setVehicleAssignment(assignment);
-            // set total toll fee (BigDecimal -> Long)
-            journeyHistory.setTotalTollFee(routeInfo.totalTollFee() != null
-                    ? routeInfo.totalTollFee().setScale(0, RoundingMode.HALF_UP).longValue()
-                    : null);
+
+            // Set total toll fee (BigDecimal -> Long)
+            Long totalTollFeeLong = null;
+            if (routeInfo.totalTollFee() != null) {
+                totalTollFeeLong = routeInfo.totalTollFee().setScale(0, RoundingMode.HALF_UP).longValue();
+                log.info("Setting journey total toll fee: {}", totalTollFeeLong);
+            } else {
+                log.warn("Total toll fee is missing in the route info for assignment {}", assignment.getId());
+                // Calculate total from segments as fallback
+                BigDecimal calculatedTotal = BigDecimal.ZERO;
+                boolean hasSegmentTolls = false;
+                
+                if (routeInfo.segments() != null) {
+                    for (RouteSegmentInfo segmentInfo : routeInfo.segments()) {
+                        if (segmentInfo.estimatedTollFee() != null) {
+                            calculatedTotal = calculatedTotal.add(segmentInfo.estimatedTollFee());
+                            hasSegmentTolls = true;
+                        }
+                    }
+                }
+                
+                if (hasSegmentTolls) {
+                    totalTollFeeLong = calculatedTotal.setScale(0, RoundingMode.HALF_UP).longValue();
+                    log.info("Calculated total toll fee from segments: {}", totalTollFeeLong);
+                }
+            }
+            journeyHistory.setTotalTollFee(totalTollFeeLong);
+
+            // Set total toll count
+            Integer totalTollCount = routeInfo.totalTollCount();
+            if (totalTollCount == null) {
+                // Calculate total toll count from segments if not provided
+                totalTollCount = 0;
+                for (RouteSegmentInfo segmentInfo : routeInfo.segments()) {
+                    if (segmentInfo.tollDetails() != null) {
+                        totalTollCount += segmentInfo.tollDetails().size();
+                    }
+                }
+                log.info("Calculated total toll count from segments: {}", totalTollCount);
+            }
+            journeyHistory.setTotalTollCount(totalTollCount);
 
             // Create journey segments from route info
             List<capstone_project.entity.order.order.JourneySegmentEntity> segments = new ArrayList<>();
@@ -869,23 +911,42 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 segment.setStartLongitude(segmentInfo.startLongitude());
                 segment.setEndLatitude(segmentInfo.endLatitude());
                 segment.setEndLongitude(segmentInfo.endLongitude());
-                // convert BigDecimal -> Integer (rounding)
+
+                // Convert BigDecimal -> Integer (rounding)
                 segment.setDistanceMeters(segmentInfo.distanceMeters() != null
                         ? segmentInfo.distanceMeters().setScale(0, RoundingMode.HALF_UP).intValue()
                         : null);
 
-                // convert BigDecimal -> Long (rounding)
-                segment.setEstimatedTollFee(segmentInfo.estimatedTollFee() != null
-                        ? segmentInfo.estimatedTollFee().setScale(0, RoundingMode.HALF_UP).longValue()
-                        : null);
+                // Convert BigDecimal -> Long (rounding)
+                Long segmentTollFee = null;
+                if (segmentInfo.estimatedTollFee() != null) {
+                    segmentTollFee = segmentInfo.estimatedTollFee().setScale(0, RoundingMode.HALF_UP).longValue();
+                    log.info("Setting segment [{}] toll fee: {}", segmentInfo.segmentOrder(), segmentTollFee);
+                } else {
+                    log.warn("Segment [{}] is missing toll fee information", segmentInfo.segmentOrder());
+                }
+                segment.setEstimatedTollFee(segmentTollFee);
                 segment.setStatus("PENDING");
 
-                // Store path coordinates as JSON if your entity has this field
+                // Store path coordinates as JSON
                 if (segmentInfo.pathCoordinates() != null && !segmentInfo.pathCoordinates().isEmpty()) {
                     try {
                         segment.setPathCoordinatesJson(objectMapper.writeValueAsString(segmentInfo.pathCoordinates()));
                     } catch (Exception e) {
-                        log.warn("Failed to serialize path coordinates for segment {}", segmentInfo.segmentOrder());
+                        log.warn("Failed to serialize path coordinates for segment {}: {}",
+                            segmentInfo.segmentOrder(), e.getMessage());
+                    }
+                }
+
+                // Store toll details as JSON
+                if (segmentInfo.tollDetails() != null && !segmentInfo.tollDetails().isEmpty()) {
+                    try {
+                        segment.setTollDetailsJson(objectMapper.writeValueAsString(segmentInfo.tollDetails()));
+                        log.info("Stored toll details JSON for segment [{}] with {} toll points",
+                            segmentInfo.segmentOrder(), segmentInfo.tollDetails().size());
+                    } catch (Exception e) {
+                        log.warn("Failed to serialize toll details for segment {}: {}",
+                            segmentInfo.segmentOrder(), e.getMessage());
                     }
                 }
 
@@ -896,10 +957,11 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             journeyHistory.setJourneySegments(segments);
 
             // Save journey history with all segments
-            journeyHistoryEntityService.save(journeyHistory);
+            journeyHistory = journeyHistoryEntityService.save(journeyHistory);
 
-            log.info("Created journey history with {} segments for assignment {}",
-                    segments.size(), assignment.getId());
+            log.info("Created journey history {} with {} segments for assignment {}, totalTollFee={}, totalTollCount={}",
+                    journeyHistory.getId(), segments.size(), assignment.getId(),
+                    journeyHistory.getTotalTollFee(), journeyHistory.getTotalTollCount());
 
             return;
         }

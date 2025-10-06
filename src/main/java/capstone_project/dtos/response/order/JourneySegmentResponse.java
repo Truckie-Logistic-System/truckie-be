@@ -18,6 +18,7 @@ public record JourneySegmentResponse(
     BigDecimal endLongitude,
     Integer distanceMeters,
     String pathCoordinatesJson,
+    String tollDetailsJson,
     String status,
     LocalDateTime createdAt,
     LocalDateTime modifiedAt

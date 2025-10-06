@@ -634,9 +634,7 @@ public class OrderServiceImpl implements OrderService {
         return driverOrderMapper.toOrderForDriverResponse(
                 getOrderResponse,
                 issueImageResponsesList,
-                photosByVehicleAssignment,
-                contractResponse,
-                transactionResponses
+                photosByVehicleAssignment
         );
     }
 

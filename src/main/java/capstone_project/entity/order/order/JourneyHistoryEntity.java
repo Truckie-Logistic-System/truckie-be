@@ -36,6 +36,10 @@ public class JourneyHistoryEntity extends BaseEntity {
     @Column(name = "total_toll_fee")
     private Long totalTollFee;
 
+    @Column(name = "total_toll_count")
+    private Integer totalTollCount;
+
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id")
     private VehicleAssignmentEntity vehicleAssignment;

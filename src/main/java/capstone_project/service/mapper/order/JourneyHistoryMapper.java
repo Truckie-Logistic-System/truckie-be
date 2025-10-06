@@ -31,6 +31,7 @@ public abstract class JourneyHistoryMapper {
 
     @Mapping(target = "vehicleAssignmentId", source = "vehicleAssignment.id")
     @Mapping(target = "journeySegments", source = "journeySegments", qualifiedByName = "mapJourneySegments")
+    @Mapping(target = "totalDistance", expression = "java(calculateTotalDistance(entity))")
     public abstract JourneyHistoryResponse toResponse(JourneyHistoryEntity entity);
 
     @Named("vehicleAssignmentFromId")
@@ -48,6 +49,17 @@ public abstract class JourneyHistoryMapper {
                     "Invalid UUID format for vehicleAssignmentId: " + id,
                     ErrorEnum.INVALID.getErrorCode());
         }
+    }
+
+    @Named("calculateTotalDistance")
+    protected Double calculateTotalDistance(JourneyHistoryEntity entity) {
+        if (entity == null || entity.getJourneySegments() == null || entity.getJourneySegments().isEmpty()) {
+            return 0.0;
+        }
+
+        return entity.getJourneySegments().stream()
+                .mapToDouble(segment -> segment.getDistanceMeters() != null ? segment.getDistanceMeters() : 0.0)
+                .sum();
     }
 
     @Named("mapJourneySegments")
@@ -77,6 +89,7 @@ public abstract class JourneyHistoryMapper {
                 entity.getEndLongitude(),
                 entity.getDistanceMeters(),
                 entity.getPathCoordinatesJson(),
+                entity.getTollDetailsJson(),
                 entity.getStatus(),
                 entity.getCreatedAt(),
                 entity.getModifiedAt()

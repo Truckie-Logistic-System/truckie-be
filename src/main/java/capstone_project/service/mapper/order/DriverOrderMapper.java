@@ -24,7 +24,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,54 +40,24 @@ public class DriverOrderMapper {
     public OrderForDriverResponse toOrderForDriverResponse(
             GetOrderResponse orderResponse,
             List<GetIssueImageResponse> issueImageResponses,
-            Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses,
-            ContractResponse contractResponse,
-            List<TransactionResponse> transactionResponses
+            Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses
     ) {
-        // Convert Contract
-        SimpleContractResponse simpleContractResponse = contractResponse != null ?
-                toSimpleContractResponse(contractResponse) : null;
-
-        // Convert Transactions
-        List<SimpleTransactionResponse> simpleTransactionResponses = transactionResponses.stream()
-                .map(this::toSimpleTransactionResponse)
-                .collect(Collectors.toList());
-
-        BigDecimal effectiveTotal = null;
-        try {
-            if (contractResponse != null) {
-                BigDecimal contractTotal = contractResponse.totalValue();
-                log.info("Contract total value is {}", contractTotal);
-                if (contractTotal != null && contractTotal.compareTo(BigDecimal.ZERO) > 0) {
-                    effectiveTotal = contractTotal;
-                } else {
-                    effectiveTotal = contractResponse.supportedValue();
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        if (effectiveTotal == null && orderResponse != null) {
-            effectiveTotal = orderResponse.totalPrice();
-        }
-
         // Convert Order with enhanced vehicle assignments
-        SimpleOrderResponse simpleOrderResponse = toSimpleOrderResponseWithTripInfo(
+        DriverOrderResponse driverOrderResponse = toDriverOrderResponseWithTripInfo(
                 orderResponse,
                 issueImageResponses,
-                photoCompletionResponses,
-                effectiveTotal
+                photoCompletionResponses
         );
 
         return new OrderForDriverResponse(
-                simpleOrderResponse
+                driverOrderResponse
         );
     }
 
-    private SimpleOrderResponse toSimpleOrderResponseWithTripInfo(
+    private DriverOrderResponse toDriverOrderResponseWithTripInfo(
             GetOrderResponse response,
             List<GetIssueImageResponse> issueImageResponses,
-            Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses,
-            BigDecimal effectiveTotal
+            Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses
     ) {
         String deliveryAddress = combineAddress(
                 response.deliveryAddress().street(),
@@ -133,9 +102,8 @@ public class DriverOrderMapper {
                 })
                 .collect(Collectors.toList());
 
-        return new SimpleOrderResponse(
+        return new DriverOrderResponse(
                 response.id(),
-                effectiveTotal,
                 response.notes(),
                 response.totalQuantity(),
                 response.orderCode(),
@@ -555,5 +523,20 @@ public class DriverOrderMapper {
 
         List<String> images = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
         return new SimpleIssueImageResponse(simpleIssue, images);
+    }
+
+    /**
+     * Calculate the total distance by summing up distances from all journey segments
+     * @param segments The list of journey segments
+     * @return The total distance as a Double, or 0.0 if segments are null or empty
+     */
+    private Double calculateTotalDistance(List<JourneySegmentResponse> segments) {
+        if (segments == null || segments.isEmpty()) {
+            return 0.0;
+        }
+
+        return segments.stream()
+                .mapToDouble(segment -> segment.distanceMeters() != null ? segment.distanceMeters() : 0.0)
+                .sum();
     }
 }

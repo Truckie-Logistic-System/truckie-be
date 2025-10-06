@@ -14,6 +14,8 @@ public record JourneyHistoryResponse(
         String journeyType,
         String status,
         Long totalTollFee,
+        Integer totalTollCount,
+        Double totalDistance,
         String reasonForReroute,
         UUID vehicleAssignmentId,
         List<JourneySegmentResponse> journeySegments,

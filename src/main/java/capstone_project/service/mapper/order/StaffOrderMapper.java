@@ -547,4 +547,19 @@ public class StaffOrderMapper {
         List<String> images = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
         return new SimpleIssueImageResponse(simpleIssue, images);
     }
+
+    /**
+     * Calculate the total distance by summing up distances from all journey segments
+     * @param segments The list of journey segments
+     * @return The total distance as a Double, or 0.0 if segments are null or empty
+     */
+    private Double calculateTotalDistance(List<JourneySegmentResponse> segments) {
+        if (segments == null || segments.isEmpty()) {
+            return 0.0;
+        }
+
+        return segments.stream()
+                .mapToDouble(segment -> segment.distanceMeters() != null ? segment.distanceMeters() : 0.0)
+                .sum();
+    }
 }

@@ -168,7 +168,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         byte[] waybillPdf = generateMainWaybillPdf(order, orderDetails, vehicleAssignments);
         result.put(waybillFileName, waybillPdf);
 
-        // 2. Generate cargo manifest for each trip: include STT (TRIP01 ...) and tracking code of vehicle assignment
+        // 2. Generate dispatch order & cargo manifest for each trip
         for (int i = 0; i < vehicleAssignments.size(); i++) {
             VehicleAssignmentEntity assignment = vehicleAssignments.get(i);
             String tripIndex = String.format("TRIP%02d", i + 1);
@@ -178,9 +178,9 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                     .filter(od -> assignment.equals(od.getVehicleAssignmentEntity()))
                     .toList();
 
-            String manifestFileName = String.format("bang-ke-%s-%s-%s-%s.pdf", orderCode, tripIndex, assignmentTracking, dateStr);
-            byte[] manifestPdf = generateCargoManifestPdf(order, assignment, detailsForTrip);
-            result.put(manifestFileName, manifestPdf);
+            String dispatchOrderFileName = String.format("lenh-dieu-dong-%s-%s-%s.pdf", orderCode, tripIndex, dateStr);
+            byte[] dispatchOrderPdf = generateDispatchOrderAndManifestPdf(order, assignment, detailsForTrip);
+            result.put(dispatchOrderFileName, dispatchOrderPdf);
         }
 
         return result;
@@ -367,9 +367,9 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                     if (assignment.getDriver1().getUser() != null) {
                         if (assignment.getDriver1().getUser().getFullName() != null) driverName = assignment.getDriver1().getUser().getFullName();
                         if (assignment.getDriver1().getUser().getPhoneNumber() != null) driverPhone = assignment.getDriver1().getUser().getPhoneNumber();
+                        if(assignment.getDriver1().getDriverLicenseNumber() != null) driverLicense = assignment.getDriver1().getDriverLicenseNumber();
                     }
                 } catch (Exception ignored) {}
-                driverLicense = extractDriverLicense(assignment.getDriver1());
             }
 
             vehicleTable.addCell(new Cell().add(new Paragraph("Biển số xe / Plate")));
@@ -1014,33 +1014,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         document.add(footer);
     }
 
-    private String extractDriverLicense(Object driverEntity) {
-        if (driverEntity == null) return "N/A";
-        String[] methodNames = new String[] {"getDrivingLicenseNumber", "getLicenseNumber", "getDrivingLicense", "getDriverLicense", "getLicenseNo", "getLicense"};
-        for (String mn : methodNames) {
-            try {
-                Method m = driverEntity.getClass().getMethod(mn);
-                Object v = m.invoke(driverEntity);
-                if (v != null) return String.valueOf(v);
-            } catch (Exception ignored) {}
-        }
-        // try user object inside driver entity
-        try {
-            Method gu = driverEntity.getClass().getMethod("getUser");
-            Object user = gu.invoke(driverEntity);
-            if (user != null) {
-                for (String mn : methodNames) {
-                    try {
-                        Method m = user.getClass().getMethod(mn);
-                        Object v = m.invoke(user);
-                        if (v != null) return String.valueOf(v);
-                    } catch (Exception ignored) {}
-                }
-            }
-        } catch (Exception ignored) {}
-        return "N/A";
-    }
-
     private Object getOrderCreatedDate(OrderEntity order) {
         if (order == null) return null;
         // Try common getters
@@ -1189,5 +1162,262 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         result.put("deposit", deposit);
         result.put("paid", paid);
         return result;
+    }
+
+    private byte[] generateDispatchOrderAndManifestPdf(OrderEntity order, VehicleAssignmentEntity assignment, List<OrderDetailEntity> detailsForTrip) {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            PdfWriter writer = new PdfWriter(baos);
+            PdfDocument pdf = new PdfDocument(writer);
+            Document document = new Document(pdf, PageSize.A4);
+            document.setMargins(20, 20, 18, 20);
+
+            PdfFont font;
+            try {
+                byte[] fontBytes = new ClassPathResource("/fonts/DejaVuSans.ttf").getInputStream().readAllBytes();
+                com.itextpdf.io.font.FontProgram fontProgram =
+                        com.itextpdf.io.font.FontProgramFactory.createFont(fontBytes);
+                font = PdfFontFactory.createFont(fontProgram, PdfEncodings.IDENTITY_H,
+                        com.itextpdf.kernel.font.PdfFontFactory.EmbeddingStrategy.FORCE_EMBEDDED);
+                document.setFont(font);
+                new PdfUtil().applyStandardBaseFontSize(document);
+            } catch (IOException e) {
+                log.error("Error loading font: {}", e.getMessage());
+                font = PdfFontFactory.createFont();
+                document.setFont(font);
+                new PdfUtil().applyStandardBaseFontSize(document);
+            }
+
+            String orderCode = order != null && order.getOrderCode() != null ? order.getOrderCode() : (order != null ? String.valueOf(order.getId()) : "NA");
+            String dateStr = new SimpleDateFormat("yyyyMMdd").format(new Date());
+            String assignmentTracking = assignment != null && assignment.getTrackingCode() != null
+                    ? assignment.getTrackingCode()
+                    : (assignment != null && assignment.getVehicleEntity() != null && assignment.getVehicleEntity().getLicensePlateNumber() != null
+                    ? assignment.getVehicleEntity().getLicensePlateNumber()
+                    : "NA");
+
+            String dispatchOrderCode = "LENH-DIEU-DONG-" + orderCode + "-" + assignmentTracking + "-" + dateStr;
+            addHeader(document, dispatchOrderCode, false);
+
+            Paragraph title = new Paragraph("LỆNH ĐIỀU ĐỘNG VÀ BẢNG KÊ HÀNG HÓA")
+                    .setFontSize(TITLE_FONT_SIZE)
+                    .setBold()
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginBottom(12);
+            document.add(title);
+
+            // --- Barcode for dispatch order ---
+            try {
+                Barcode128 barcode = new Barcode128(pdf);
+                String barcodeValue = dispatchOrderCode != null ? dispatchOrderCode : orderCode;
+                barcode.setCode(barcodeValue);
+                PdfFormXObject barcodeObject = barcode.createFormXObject(pdf);
+                Image barcodeImage = new Image(barcodeObject).setWidth(220).setHorizontalAlignment(HorizontalAlignment.CENTER);
+                document.add(barcodeImage);
+                document.add(new Paragraph("").setMarginBottom(6));
+            } catch (Exception ex) {
+                log.debug("Could not render barcode for dispatch order: {}", ex.getMessage());
+            }
+
+            // References: main waybill and order info
+            String mainWaybillNumber = "VAN-DON-" + orderCode + "-" + dateStr;
+            String mainWaybillIssueDate = new SimpleDateFormat("dd/MM/yyyy").format(new Date());
+            String orderDate = formatDate(getOrderCreatedDate(order));
+
+            Table refTable = new Table(UnitValue.createPercentArray(new float[]{50, 50})).useAllAvailableWidth();
+            refTable.addCell(new Cell().add(new Paragraph("Tham chiếu vận đơn gốc / Reference Waybill").setBold()));
+            refTable.addCell(new Cell().add(new Paragraph("Thông tin đơn hàng / Order information").setBold()));
+            refTable.addCell(new Cell().add(new Paragraph("Số vận đơn: " + mainWaybillNumber)));
+            refTable.addCell(new Cell().add(new Paragraph("Số đơn hàng: " + orderCode)));
+            refTable.addCell(new Cell().add(new Paragraph("Ngày phát hành: " + mainWaybillIssueDate)));
+            refTable.addCell(new Cell().add(new Paragraph("Ngày lập đơn: " + orderDate)));
+            document.add(refTable);
+            document.add(new Paragraph("").setMarginBottom(8));
+
+            // Add delivery and pickup point information
+            addShippingPointsInfo(document, order);
+
+            // Parties and vehicle info
+            UserEntity staff = new UserEntity();
+            staff.setFullName("Staff Member");
+            staff.setPhoneNumber("N/A");
+            try {
+                ContractEntity contract = contractEntityService.getContractByOrderId(order.getId()).orElse(null);
+                if (contract != null && contract.getStaff() != null) staff = contract.getStaff();
+            } catch (Exception ex) {
+                log.debug("No contract found for order {}: {}", order.getId(), ex.getMessage());
+            }
+
+            // Vehicle and driver info block
+            Paragraph vehicleTitle = new Paragraph("THÔNG TIN PHƯƠNG TIỆN VÀ TÀI XẾ")
+                    .setBold()
+                    .setFontSize(11)
+                    .setMarginBottom(4);
+            document.add(vehicleTitle);
+
+            // Retrieve vehicle information including weight capacity
+            VehicleEntity vehicle = assignment.getVehicleEntity();
+            String plateNumber = (vehicle != null ? vehicle.getLicensePlateNumber() : "N/A");
+            String vehicleTypeName = "N/A";
+            String weightCapacity = "N/A";
+
+            if (vehicle != null && vehicle.getVehicleTypeEntity() != null) {
+                vehicleTypeName = vehicle.getVehicleTypeEntity().getVehicleTypeName() != null ?
+                    vehicle.getVehicleTypeEntity().getVehicleTypeName() : "N/A";
+            }
+
+            // Create table for vehicle and driver info
+            Table vehicleTable = new Table(UnitValue.createPercentArray(new float[]{40, 60})).useAllAvailableWidth();
+
+            // Vehicle information
+            vehicleTable.addCell(new Cell().add(new Paragraph("Biển số xe / Plate")));
+            vehicleTable.addCell(new Cell().add(new Paragraph(plateNumber)));
+
+            vehicleTable.addCell(new Cell().add(new Paragraph("Loại xe / Vehicle type")));
+            vehicleTable.addCell(new Cell().add(new Paragraph(vehicleTypeName)));
+
+            vehicleTable.addCell(new Cell().add(new Paragraph("Trọng tải / Weight capacity")));
+            vehicleTable.addCell(new Cell().add(new Paragraph(weightCapacity)));
+
+            // Driver 1 information
+            String driver1Name = "N/A";
+            String driver1Phone = "N/A";
+            String driver1License = "N/A";
+
+            if (assignment.getDriver1() != null) {
+                try {
+                    if (assignment.getDriver1().getUser() != null) {
+                        if (assignment.getDriver1().getUser().getFullName() != null) driver1Name = assignment.getDriver1().getUser().getFullName();
+                        if (assignment.getDriver1().getUser().getPhoneNumber() != null) driver1Phone = assignment.getDriver1().getUser().getPhoneNumber();
+                        if(assignment.getDriver1().getDriverLicenseNumber() != null) driver1License = assignment.getDriver1().getDriverLicenseNumber();
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            vehicleTable.addCell(new Cell().add(new Paragraph("Tài xế 1 / Main Driver")));
+            vehicleTable.addCell(new Cell().add(new Paragraph(driver1Name + " - " + driver1Phone + " - " + driver1License)));
+
+            // Driver 2 information
+            String driver2Name = "N/A";
+            String driver2Phone = "N/A";
+            String driver2License = "N/A";
+
+            if (assignment.getDriver2() != null) {
+                try {
+                    if (assignment.getDriver2().getUser() != null) {
+                        if (assignment.getDriver2().getUser().getFullName() != null) driver2Name = assignment.getDriver2().getUser().getFullName();
+                        if (assignment.getDriver2().getUser().getPhoneNumber() != null) driver2Phone = assignment.getDriver2().getUser().getPhoneNumber();
+                        if(assignment.getDriver2().getDriverLicenseNumber() != null) driver2License = assignment.getDriver2().getDriverLicenseNumber();
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            vehicleTable.addCell(new Cell().add(new Paragraph("Tài xế 2 / Second Driver")));
+            vehicleTable.addCell(new Cell().add(new Paragraph(driver2Name + " - " + driver2Phone + " - " + driver2License)));
+
+            // Estimated departure time: take earliest estimatedStartTime from detailsForTrip if present
+            String departureTime = "N/A";
+            if (detailsForTrip != null && !detailsForTrip.isEmpty()) {
+                OrderDetailEntity d0 = detailsForTrip.get(0);
+                if (d0.getEstimatedStartTime() != null) {
+                    departureTime = d0.getEstimatedStartTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+                }
+            }
+            vehicleTable.addCell(new Cell().add(new Paragraph("Thời gian xuất phát dự kiến")));
+            vehicleTable.addCell(new Cell().add(new Paragraph(departureTime)));
+            document.add(vehicleTable);
+            document.add(new Paragraph("").setMarginBottom(6));
+
+            // Cargo details: only detailsForTrip
+            addCargoInformationPaged(document, detailsForTrip);
+
+            // Totals summary (count, total weight, total volume)
+            DecimalFormat df = new DecimalFormat("#,###.##");
+            int totalPackages = detailsForTrip.size();
+            BigDecimal totalWeight = BigDecimal.ZERO;
+            BigDecimal totalVolume = BigDecimal.ZERO;
+            for (OrderDetailEntity d : detailsForTrip) {
+                if (d.getWeight() != null) totalWeight = totalWeight.add(d.getWeight());
+                // Try to detect volume via reflection fields if present (length*width*height / 1e6..) - fallback to zero
+                // For now, use 0 if not present
+            }
+
+            Table summaryTable = new Table(UnitValue.createPercentArray(new float[]{50, 50})).useAllAvailableWidth();
+            summaryTable.addCell(new Cell().add(new Paragraph("Tổng số kiện hàng trên xe / Total packages").setBold()));
+            summaryTable.addCell(new Cell().add(new Paragraph(String.valueOf(totalPackages)).setBold()));
+            summaryTable.addCell(new Cell().add(new Paragraph("Tổng trọng lượng (kg) / Total weight (kg)").setBold()));
+            summaryTable.addCell(new Cell().add(new Paragraph(df.format(totalWeight)).setBold()));
+            summaryTable.addCell(new Cell().add(new Paragraph("Tổng thể tích (m³) / Total volume (m³)").setBold()));
+            summaryTable.addCell(new Cell().add(new Paragraph(df.format(totalVolume)).setBold()));
+            document.add(summaryTable);
+            document.add(new Paragraph("").setMarginBottom(8));
+
+            // Add approval information and signature
+            addApprovalSection(document, staff);
+
+            // Signatures
+            addSignatureBlocks(document);
+
+            // Footer minimal reference (dispatch order code)
+            addFooterInformation(document, dispatchOrderCode);
+
+            document.close();
+            return baos.toByteArray();
+        } catch (Exception e) {
+            log.error("Error generating dispatch order and manifest PDF: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to generate dispatch order and manifest PDF", e);
+        }
+    }
+
+    private void addShippingPointsInfo(Document document, OrderEntity order) {
+        // Placeholder for shipping points information
+        Paragraph sectionTitle = new Paragraph("Điểm lấy hàng và giao hàng / Pickup and Delivery Points")
+                .setBold()
+                .setFontSize(SECTION_TITLE_FONT_SIZE)
+                .setMarginBottom(5)
+                .setKeepTogether(true);
+        document.add(sectionTitle);
+
+        // You can add tables or paragraphs here to display the pickup and delivery points information
+        // For now, just adding dummy content
+        Table pointsTable = new Table(UnitValue.createPercentArray(1)).useAllAvailableWidth();
+        pointsTable.addCell(new Cell().add(new Paragraph("Điểm lấy hàng: Nhà kho ABC, 123 Đường XYZ, Quận 1").setFontSize(TABLE_CELL_FONT_SIZE)));
+        pointsTable.addCell(new Cell().add(new Paragraph("Điểm giao hàng: 456 Đường DEF, Phường 2, Quận 3").setFontSize(TABLE_CELL_FONT_SIZE)));
+
+        document.add(pointsTable);
+        document.add(new Paragraph("").setMarginBottom(10));
+    }
+
+    private void addApprovalSection(Document document, UserEntity staff) {
+        // Placeholder for approval section
+        Paragraph sectionTitle = new Paragraph("Phê duyệt / Approval")
+                .setBold()
+                .setFontSize(SECTION_TITLE_FONT_SIZE)
+                .setMarginBottom(5)
+                .setKeepTogether(true);
+        document.add(sectionTitle);
+
+        // Approval table
+        Table approvalTable = new Table(UnitValue.createPercentArray(2)).useAllAvailableWidth();
+        approvalTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
+        approvalTable.setKeepTogether(true);
+
+        // Header row
+        Cell roleHeaderCell = new Cell().add(new Paragraph("Chức vụ / Position").setBold());
+        Cell nameHeaderCell = new Cell().add(new Paragraph("Họ tên / Name").setBold());
+        roleHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        nameHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        approvalTable.addCell(roleHeaderCell);
+        approvalTable.addCell(nameHeaderCell);
+
+        // Staff role and name
+        approvalTable.addCell(new Cell().add(new Paragraph("Nhân viên giao nhận / Delivery Staff")));
+        approvalTable.addCell(new Cell().add(new Paragraph(staff.getFullName())));
+
+        // Signature line
+        approvalTable.addCell(new Cell().add(new Paragraph("Chữ ký / Signature").setBold()));
+        approvalTable.addCell(new Cell().add(new Paragraph("")));
+
+        document.add(approvalTable);
+        document.add(new Paragraph("").setMarginBottom(10));
     }
 }

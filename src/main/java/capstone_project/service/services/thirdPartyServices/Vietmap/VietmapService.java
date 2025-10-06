@@ -24,4 +24,6 @@ public interface VietmapService {
                  String avoid);
 
     String styles();
+
+    String mobileStyles();
 }

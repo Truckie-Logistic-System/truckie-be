@@ -23,6 +23,7 @@ public class VietmapServiceImpl implements VietmapService {
     private final String DEFAULT_HCMC_FOCUS;
     private final Integer CityId_HCMC;
     private final String routeEndpoint;
+    private final String mobileStyleEndpoint;
 
     public VietmapServiceImpl(WebClient.Builder webClientBuilder,
                               @Value("${vietmap.base-url}") String baseUrl,
@@ -34,7 +35,8 @@ public class VietmapServiceImpl implements VietmapService {
                               @Value("${vietmap.maps.styles.endpoint}") String styleEndpoint,
                               @Value("${vietmap.parameter.value.default.hcm.focus}") String defaultHcmcFocus,
                               @Value("${vietmap.parameter.value.city.id.hcm}") Integer cityId_HCMC,
-                              @Value("${vietmap.api.route.endpoint}") String routeEndpoint) {
+                              @Value("${vietmap.api.route.endpoint}") String routeEndpoint,
+                              @Value("${vietmap.maps.mobile.styles.endpoint}") String mobileStyleEndpoint) {
         this.baseUrl = baseUrl;
         this.apiKey = apiKey;
         this.autocompleteEndpoint = autocompleteEndpoint;
@@ -46,6 +48,7 @@ public class VietmapServiceImpl implements VietmapService {
         this.DEFAULT_HCMC_FOCUS = defaultHcmcFocus;
         this.CityId_HCMC = cityId_HCMC;
         this.routeEndpoint = routeEndpoint;
+        this.mobileStyleEndpoint = mobileStyleEndpoint;
     }
 
     @Override
@@ -215,7 +218,7 @@ public class VietmapServiceImpl implements VietmapService {
         String uri = builder.build().toUriString();
 
         try {
-            log.info("Calling Vietmap style  API: {}", uri);
+            log.info("Calling Vietmap style API: {}", uri);
             return webClient.get()
                     .uri(uri)
                     .retrieve()
@@ -223,6 +226,27 @@ public class VietmapServiceImpl implements VietmapService {
                     .block();
         } catch (WebClientResponseException ex) {
             throw new RuntimeException("Vietmap Styles API error: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString(), ex);
+        }
+    }
+
+    @Override
+    public String mobileStyles() {
+        log.info("Calling Vietmap Mobile Styles API");
+        UriComponentsBuilder builder = UriComponentsBuilder
+                .fromUriString(baseUrl + mobileStyleEndpoint)
+                .queryParam("apikey", apiKey);
+
+        String uri = builder.build().toUriString();
+
+        try {
+            log.info("Calling Vietmap Mobile Styles API: {}", uri);
+            return webClient.get()
+                    .uri(uri)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+        } catch (WebClientResponseException ex) {
+            throw new RuntimeException("Vietmap Mobile Styles API error: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString(), ex);
         }
     }
 }
