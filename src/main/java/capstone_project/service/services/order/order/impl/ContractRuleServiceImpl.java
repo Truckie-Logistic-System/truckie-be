@@ -4,18 +4,16 @@ import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
+import capstone_project.common.utils.BinPacker;
 import capstone_project.dtos.request.order.ContractRuleRequest;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
-import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
-import capstone_project.dtos.response.order.contract.ContractRuleResponse;
-import capstone_project.dtos.response.order.contract.OrderDetailForPackingResponse;
-import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
+import capstone_project.dtos.response.order.contract.*;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
-import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.pricing.VehicleRuleEntity;
+import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractRuleEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryPricingDetailEntityService;
@@ -24,6 +22,7 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.repository.entityServices.pricing.BasingPriceEntityService;
 import capstone_project.repository.entityServices.pricing.DistanceRuleEntityService;
 import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.mapper.order.ContractRuleMapper;
 import capstone_project.service.services.order.order.ContractRuleService;
 import capstone_project.service.services.order.order.ContractService;
@@ -47,6 +46,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
     private final ContractEntityService contractEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
     private final VehicleRuleEntityService vehicleRuleEntityService;
+    private final VehicleEntityService vehicleEntityService;
     private final ContractService contractService;
     private final OrderEntityService orderEntityService;
     private final DistanceService distanceService;
@@ -140,15 +140,15 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
     }
 
-    private OrderDetailForPackingResponse toPackingResponse(OrderDetailEntity entity) {
-        return new OrderDetailForPackingResponse(
-                entity.getId().toString(),
-                entity.getWeight(),
-                entity.getWeightBaseUnit(),
-                entity.getUnit(),
-                entity.getTrackingCode()
-        );
-    }
+//    private OrderDetailForPackingResponse toPackingResponse(OrderDetailEntity entity) {
+//        return new OrderDetailForPackingResponse(
+//                entity.getId().toString(),
+//                entity.getWeight(),
+//                entity.getWeightBaseUnit(),
+//                entity.getUnit(),
+//                entity.getTrackingCode()
+//        );
+//    }
 
     @Override
     @Transactional
@@ -157,31 +157,23 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                 contractRuleRequests == null ? 0 : contractRuleRequests.size());
 
         if (contractRuleRequests == null || contractRuleRequests.isEmpty()) {
-            log.error("Contract rule requests is null or empty");
             throw new BadRequestException("Contract rule requests must not be null or empty",
                     ErrorEnum.INVALID.getErrorCode());
         }
 
         UUID contractEntityId = UUID.fromString(contractRuleRequests.get(0).contractEntityId());
         ContractEntity contractEntity = contractEntityService.findEntityById(contractEntityId)
-                .orElseThrow(() -> {
-                    log.error("Contract not found with ID {}", contractEntityId);
-                    return new NotFoundException("Contract not found with ID: " + contractEntityId,
-                            ErrorEnum.NOT_FOUND.getErrorCode());
-                });
+                .orElseThrow(() -> new NotFoundException("Contract not found with ID: " + contractEntityId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()));
 
         List<OrderDetailEntity> orderDetails =
                 orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(contractEntity.getOrderEntity().getId());
-
         if (orderDetails.isEmpty()) {
-            log.error("No order details found for contract {}", contractEntityId);
-            throw new NotFoundException("No order details found for this contract",
-                    ErrorEnum.NOT_FOUND.getErrorCode());
+            throw new NotFoundException("No order details found for this contract", ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
         List<ContractRuleEntity> existingRules =
                 contractRuleEntityService.findContractRuleEntityByContractEntityId(contractEntityId);
-
 
         Set<UUID> alreadyAssigned = existingRules.stream()
                 .flatMap(r -> r.getOrderDetails().stream())
@@ -193,137 +185,182 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                 .toList();
 
         if (unassignedDetails.isEmpty()) {
-            log.error("All orderDetails already assigned for contract {}", contractEntityId);
             throw new BadRequestException("All order details have already been assigned for this contract",
                     ErrorEnum.ALREADY_EXISTED.getErrorCode());
         }
 
         List<ContractRuleAssignResponse> responses = new ArrayList<>();
-        int vehicleIndex = existingRules.size(); // tiếp tục đánh index
+        int vehicleIndex = existingRules.size();
         Set<UUID> newlyAssigned = new HashSet<>();
 
         for (ContractRuleRequest request : contractRuleRequests) {
             UUID vehicleRuleId = UUID.fromString(request.vehicleRuleId());
 
             VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
-                    .orElseThrow(() -> {
-                        log.error("Vehicle rule not found with ID {}", request.vehicleRuleId());
-                        return new NotFoundException("Vehicle rule not found: " + request.vehicleRuleId(),
-                                ErrorEnum.NOT_FOUND.getErrorCode());
+                    .orElseThrow(() -> new NotFoundException("Vehicle rule not found: " + request.vehicleRuleId(),
+                            ErrorEnum.NOT_FOUND.getErrorCode()));
+
+            if (!CommonStatusEnum.ACTIVE.name().equals(vehicleRule.getStatus())) {
+                throw new BadRequestException("Vehicle rule " + vehicleRule.getVehicleRuleName() + " is not active",
+                        ErrorEnum.INVALID.getErrorCode());
+            }
+
+            List<VehicleEntity> activeVehicles = vehicleEntityService.findByVehicleTypeAndStatus(
+                    vehicleRule.getVehicleTypeEntity().getId(), CommonStatusEnum.ACTIVE.name());
+
+            if (activeVehicles == null || activeVehicles.isEmpty()) {
+                throw new BadRequestException(
+                        "No ACTIVE vehicles available for type " + vehicleRule.getVehicleTypeEntity().getVehicleTypeName(),
+                        ErrorEnum.INVALID.getErrorCode());
+            }
+
+            int numOfVehicles = request.numOfVehicles();
+            if (numOfVehicles <= 0) {
+                throw new BadRequestException("numOfVehicles must be greater than 0", ErrorEnum.INVALID.getErrorCode());
+            }
+
+            List<BinPacker.ContainerState> containers = new ArrayList<>();
+            for (int i = 0; i < numOfVehicles; i++) {
+                containers.add(new BinPacker.ContainerState(
+                        vehicleRule,
+                        BinPacker.convertToInt(vehicleRule.getMaxLength()),
+                        BinPacker.convertToInt(vehicleRule.getMaxWidth()),
+                        BinPacker.convertToInt(vehicleRule.getMaxHeight())
+                ));
+            }
+
+            BinPacker.ManualResult result = BinPacker.packManual(unassignedDetails, containers);
+
+            BigDecimal maxWeight = vehicleRule.getMaxWeight();
+            boolean overloaded = result.containers.stream()
+                    .anyMatch(c -> {
+                        // Tính currentLoad chính xác từ các detail thực tế
+                        BigDecimal actualCurrentLoad = c.placements.stream()
+                                .map(p -> {
+                                    OrderDetailEntity detail = orderDetails.stream()
+                                            .filter(d -> d.getId().equals(p.box.id))
+                                            .findFirst()
+                                            .orElse(null);
+                                    return detail != null ? detail.getWeight() : BigDecimal.ZERO;
+                                })
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                        return actualCurrentLoad.compareTo(maxWeight) > 0;
                     });
 
-            if (vehicleRule.getStatus() == null || !vehicleRule.getStatus().equals(CommonStatusEnum.ACTIVE.name())) {
-                log.error("Vehicle rule {} is not active", vehicleRule.getVehicleRuleName());
+            if (overloaded) {
                 throw new BadRequestException(
-                        String.format("Vehicle rule %s is not active", vehicleRule.getVehicleRuleName()),
-                        ErrorEnum.INVALID.getErrorCode()
-                );
+                        "Total weight of order details exceeds the max capacity of vehicle type "
+                                + vehicleRule.getVehicleRuleName(),
+                        ErrorEnum.INVALID.getErrorCode());
             }
 
-            boolean exists = existingRules.stream()
-                    .anyMatch(r -> r.getVehicleRuleEntity().getId().equals(vehicleRuleId));
-            if (exists) {
-                log.error("Contract rule for vehicle {} already exists in contract {}",
-                        vehicleRule.getVehicleRuleName(), contractEntityId);
+            boolean anyPacked = result.containers.stream().anyMatch(c -> !c.placements.isEmpty());
+            if (!anyPacked) {
                 throw new BadRequestException(
-                        String.format("Contract rule for vehicle %s already exists in this contract",
-                                vehicleRule.getVehicleRuleName()),
-                        ErrorEnum.ALREADY_EXISTED.getErrorCode()
-                );
+                        "No order details fit into the given vehicle type " + vehicleRule.getVehicleRuleName(),
+                        ErrorEnum.INVALID.getErrorCode());
             }
 
-            Integer numOfVehicles = request.numOfVehicles();
+            Optional<ContractRuleEntity> existingForVehicleOpt = existingRules.stream()
+                    .filter(r -> r.getVehicleRuleEntity().getId().equals(vehicleRuleId))
+                    .findFirst();
 
-            for (int v = 0; v < numOfVehicles; v++) {
-                BigDecimal currentLoad = BigDecimal.ZERO;
-//                List<UUID> assignedDetails = new ArrayList<>();
+            for (BinPacker.ContainerState c : result.containers) {
+                if (c.placements.isEmpty()) continue;
+
                 List<OrderDetailForPackingResponse> assignedDetails = new ArrayList<>();
 
-                ContractRuleEntity contractRule = new ContractRuleEntity();
-                contractRule.setContractEntity(contractEntity);
-                contractRule.setVehicleRuleEntity(vehicleRule);
-                contractRule.setStatus(CommonStatusEnum.ACTIVE.name());
+                ContractRuleEntity ruleEntity = existingForVehicleOpt.orElseGet(() -> {
+                    ContractRuleEntity r = new ContractRuleEntity();
+                    r.setContractEntity(contractEntity);
+                    r.setVehicleRuleEntity(vehicleRule);
+                    r.setStatus(CommonStatusEnum.ACTIVE.name());
+                    r.setOrderDetails(new HashSet<>());
+                    return r;
+                });
 
-                boolean filled = false;
-                for (OrderDetailEntity detail : unassignedDetails) {
-                    if (newlyAssigned.contains(detail.getId())) {
-                        continue;
-                    }
+                BigDecimal actualCurrentLoad = BigDecimal.ZERO;
+                List<PackedDetailResponse> packedDetails = new ArrayList<>();
 
-                    OrderSizeEntity size = detail.getOrderSizeEntity();
-                    if (size == null) {
-                        throw new BadRequestException("All order details must have size information",
-                                ErrorEnum.INVALID.getErrorCode());
-                    }
-
-                    boolean canFit = detail.getWeight().compareTo(vehicleRule.getMaxWeight()) <= 0
-                            && size.getMaxLength().compareTo(vehicleRule.getMaxLength()) <= 0
-                            && size.getMaxWidth().compareTo(vehicleRule.getMaxWidth()) <= 0
-                            && size.getMaxHeight().compareTo(vehicleRule.getMaxHeight()) <= 0
-                            && currentLoad.add(detail.getWeight()).compareTo(vehicleRule.getMaxWeight()) <= 0;
-
-                    if (canFit) {
-                        currentLoad = currentLoad.add(detail.getWeight());
-                        assignedDetails.add(toPackingResponse(detail));
+                for (BinPacker.Placement p : c.placements) {
+                    OrderDetailEntity detail = orderDetails.stream()
+                            .filter(d -> d.getId().equals(p.box.id))
+                            .findFirst()
+                            .orElse(null);
+                    if (detail != null) {
+                        ruleEntity.getOrderDetails().add(detail);
                         newlyAssigned.add(detail.getId());
-                        contractRule.getOrderDetails().add(detail);
+                        assignedDetails.add(toPackingResponse(detail));
+                        actualCurrentLoad = actualCurrentLoad.add(detail.getWeight()); // Cộng dồn weight chính xác
+
+                        packedDetails.add(PackedDetailResponse.builder()
+                                .orderDetailId(detail.getId().toString())
+                                .x(BigDecimal.valueOf(p.x).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                                .y(BigDecimal.valueOf(p.y).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                                .z(BigDecimal.valueOf(p.z).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                                .length(BigDecimal.valueOf(p.lx).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                                .width(BigDecimal.valueOf(p.ly).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                                .height(BigDecimal.valueOf(p.lz).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                                .orientation(p.lx + "x" + p.ly + "x" + p.lz)
+                                .build());
                     }
                 }
 
-                contractRuleEntityService.save(contractRule);
+                contractRuleEntityService.save(ruleEntity);
 
                 responses.add(
                         ContractRuleAssignResponse.builder()
                                 .vehicleIndex(vehicleIndex++)
                                 .vehicleRuleId(vehicleRule.getId())
                                 .vehicleRuleName(vehicleRule.getVehicleRuleName())
-                                .currentLoad(currentLoad)
+                                .currentLoad(actualCurrentLoad) // Dùng currentLoad chính xác
                                 .assignedDetails(assignedDetails)
+                                .packedDetailDetails(packedDetails)
                                 .build()
                 );
             }
+
+            unassignedDetails = unassignedDetails.stream()
+                    .filter(d -> !newlyAssigned.contains(d.getId()))
+                    .toList();
         }
 
-
-        Set<UUID> allAssigned = new HashSet<>(alreadyAssigned);
-        allAssigned.addAll(newlyAssigned);
-
-        List<OrderDetailForPackingResponse> stillUnassigned = orderDetails.stream()
-                .filter(d -> !allAssigned.contains(d.getId()))
+        List<OrderDetailForPackingResponse> stillUnassigned = unassignedDetails.stream()
                 .map(this::toPackingResponse)
                 .toList();
 
         if (!stillUnassigned.isEmpty()) {
-            log.warn("Assignment incomplete: {} orderDetails still unassigned -> {}",
-                    stillUnassigned.size(),
+            log.warn("Still unassigned {} details: {}", stillUnassigned.size(),
                     stillUnassigned.stream().map(OrderDetailForPackingResponse::id).toList());
-        } else {
-            log.info("All orderDetails assigned successfully!");
         }
 
         Map<UUID, Integer> vehicleCountMap = responses.stream()
                 .collect(Collectors.groupingBy(ContractRuleAssignResponse::getVehicleRuleId, Collectors.summingInt(a -> 1)));
 
         OrderEntity order = contractEntity.getOrderEntity();
-
-        PriceCalculationResponse newTotal = contractService.calculateTotalPrice(contractEntity,
+        PriceCalculationResponse newTotal = contractService.calculateTotalPrice(
+                contractEntity,
                 distanceService.getDistanceInKilometers(order.getId()),
-                vehicleCountMap);
+                vehicleCountMap
+        );
 
-
-        BigDecimal newTotalValue = newTotal.getTotalPrice();
-
-        contractEntity.setTotalValue(newTotalValue);
+        contractEntity.setTotalValue(newTotal.getTotalPrice());
         contractEntityService.save(contractEntity);
 
         return ListContractRuleAssignResult.builder()
                 .vehicleAssignments(responses)
-                .unassignedDetails(
-                        stillUnassigned.stream()
-                                .map(r -> UUID.fromString(r.id()))
-                                .toList()
-                )
+                .unassignedDetails(stillUnassigned.stream().map(r -> UUID.fromString(r.id())).toList())
                 .build();
+    }
+
+    private OrderDetailForPackingResponse toPackingResponse(OrderDetailEntity detail) {
+        return new OrderDetailForPackingResponse(
+                detail.getId().toString(),
+                detail.getWeight(),
+                detail.getWeightBaseUnit(),
+                detail.getUnit(),
+                detail.getTrackingCode()
+        );
     }
 
     @Override
@@ -344,13 +381,11 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                     ErrorEnum.INVALID.getErrorCode());
         }
 
-        // lấy vehicleRule mới từ request
         UUID vehicleRuleId = UUID.fromString(contractRuleRequest.vehicleRuleId());
         VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
                 .orElseThrow(() -> new NotFoundException("Vehicle rule not found: " + vehicleRuleId,
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-        // check duplicate contractRule
         Optional<ContractRuleEntity> existing = contractRuleEntityService
                 .findContractRuleEntitiesByContractEntityIdAndVehicleRuleEntityId(contractEntity.getId(), vehicleRule.getId());
 
@@ -362,48 +397,92 @@ public class ContractRuleServiceImpl implements ContractRuleService {
             );
         }
 
-        // lấy order details của contract
-        List<OrderDetailEntity> orderDetails = orderDetailEntityService
+        List<OrderDetailEntity> allOrderDetails = orderDetailEntityService
                 .findOrderDetailEntitiesByOrderEntityId(contractEntity.getOrderEntity().getId());
 
-        if (orderDetails.isEmpty()) {
+        if (allOrderDetails.isEmpty()) {
             throw new NotFoundException("No order details found for this contract",
                     ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
-        // bắt đầu tính lại assignment cho contractRule
-        BigDecimal currentLoad = BigDecimal.ZERO;
-        Set<OrderDetailEntity> assignedDetails = new HashSet<>();
+        Set<UUID> alreadyAssignedToOtherRules = contractRuleEntityService
+                .findContractRuleEntityByContractEntityId(contractEntity.getId())
+                .stream()
+                .filter(r -> !r.getId().equals(id)) // Loại trừ contract rule hiện tại
+                .flatMap(r -> r.getOrderDetails().stream())
+                .map(OrderDetailEntity::getId)
+                .collect(Collectors.toSet());
 
-        for (OrderDetailEntity detail : orderDetails) {
-            OrderSizeEntity size = detail.getOrderSizeEntity();
-            if (size == null) {
-                log.warn("OrderDetail {} has no size info, skipping", detail.getId());
-                continue; // hoặc throw error tùy yêu cầu
-            }
+        List<OrderDetailEntity> availableDetails = allOrderDetails.stream()
+                .filter(d -> !alreadyAssignedToOtherRules.contains(d.getId()))
+                .toList();
 
-            boolean canFit = detail.getWeight().compareTo(vehicleRule.getMaxWeight()) <= 0
-                    && size.getMaxLength().compareTo(vehicleRule.getMaxLength()) <= 0
-                    && size.getMaxWidth().compareTo(vehicleRule.getMaxWidth()) <= 0
-                    && size.getMaxHeight().compareTo(vehicleRule.getMaxHeight()) <= 0
-                    && currentLoad.add(detail.getWeight()).compareTo(vehicleRule.getMaxWeight()) <= 0;
-
-            if (canFit) {
-                currentLoad = currentLoad.add(detail.getWeight());
-                assignedDetails.add(detail);
-            }
+        if (availableDetails.isEmpty()) {
+            throw new BadRequestException("All order details are already assigned to other vehicle rules",
+                    ErrorEnum.ALREADY_EXISTED.getErrorCode());
         }
 
-        if (assignedDetails.isEmpty()) {
-            log.warn("No order details fit into vehicle {}", vehicleRule.getVehicleRuleName());
+        if (!CommonStatusEnum.ACTIVE.name().equals(vehicleRule.getStatus())) {
+            throw new BadRequestException("Vehicle rule " + vehicleRule.getVehicleRuleName() + " is not active",
+                    ErrorEnum.INVALID.getErrorCode());
+        }
+
+        List<BinPacker.ContainerState> containers = new ArrayList<>();
+        containers.add(new BinPacker.ContainerState(
+                vehicleRule,
+                BinPacker.convertToInt(vehicleRule.getMaxLength()),
+                BinPacker.convertToInt(vehicleRule.getMaxWidth()),
+                BinPacker.convertToInt(vehicleRule.getMaxHeight())
+        ));
+
+        BinPacker.ManualResult result = BinPacker.packManual(availableDetails, containers);
+
+        BigDecimal maxWeight = vehicleRule.getMaxWeight();
+        boolean overloaded = result.containers.stream()
+                .anyMatch(c -> {
+                    BigDecimal actualCurrentLoad = c.placements.stream()
+                            .map(p -> {
+                                OrderDetailEntity detail = allOrderDetails.stream()
+                                        .filter(d -> d.getId().equals(p.box.id))
+                                        .findFirst()
+                                        .orElse(null);
+                                return detail != null ? detail.getWeight() : BigDecimal.ZERO;
+                            })
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return actualCurrentLoad.compareTo(maxWeight) > 0;
+                });
+
+        if (overloaded) {
             throw new BadRequestException(
-                    "No order details can be assigned to the selected vehicle",
-                    ErrorEnum.INVALID.getErrorCode()
-            );
+                    "Total weight of assigned order details exceeds the max capacity of vehicle type "
+                            + vehicleRule.getVehicleRuleName(),
+                    ErrorEnum.INVALID.getErrorCode());
+        }
+
+        boolean anyPacked = result.containers.stream().anyMatch(c -> !c.placements.isEmpty());
+        if (!anyPacked) {
+            throw new BadRequestException(
+                    "No order details fit into the given vehicle type " + vehicleRule.getVehicleRuleName(),
+                    ErrorEnum.INVALID.getErrorCode());
+        }
+
+        Set<OrderDetailEntity> assignedDetails = new HashSet<>();
+        BigDecimal actualCurrentLoad = BigDecimal.ZERO;
+
+        BinPacker.ContainerState container = result.containers.get(0);
+
+        for (BinPacker.Placement p : container.placements) {
+            OrderDetailEntity detail = allOrderDetails.stream()
+                    .filter(d -> d.getId().equals(p.box.id))
+                    .findFirst()
+                    .orElse(null);
+            if (detail != null) {
+                assignedDetails.add(detail);
+                actualCurrentLoad = actualCurrentLoad.add(detail.getWeight());
+            }
         }
 
         contractRuleMapper.toContractRuleEntity(contractRuleRequest, existingContractRule);
-
         existingContractRule.setVehicleRuleEntity(vehicleRule);
         existingContractRule.getOrderDetails().clear();
         existingContractRule.getOrderDetails().addAll(assignedDetails);
@@ -423,11 +502,11 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         );
 
         BigDecimal newTotal = newTotalResponse.getTotalPrice();
-
         contractEntity.setTotalValue(newTotal);
         contractEntityService.save(contractEntity);
 
-        log.info("Updated contractRule {} with {} assigned details", saved.getId(), saved.getOrderDetails().size());
+        log.info("Updated contractRule {} with {} assigned details using vehicle {}",
+                saved.getId(), saved.getOrderDetails().size(), vehicleRule.getVehicleRuleName());
 
         return contractRuleMapper.toContractRuleResponse(saved);
     }

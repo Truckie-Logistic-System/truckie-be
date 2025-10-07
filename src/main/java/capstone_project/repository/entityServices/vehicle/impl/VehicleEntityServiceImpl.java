@@ -59,4 +59,8 @@ public class VehicleEntityServiceImpl implements VehicleEntityService {
         return vehicleRepository.getVehicleEntitiesByVehicleTypeEntityAndStatus(vehicleTypeEntity,status);
     }
 
+    @Override
+    public List<VehicleEntity> findByVehicleTypeAndStatus(UUID vehicleTypeId, String status) {
+        return vehicleRepository.findVehicleEntitiesByVehicleTypeEntityIdAndStatus(vehicleTypeId,status);
+    }
 }

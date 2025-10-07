@@ -639,9 +639,10 @@ public class ContractServiceImpl implements ContractService {
 //    }
 
 
+    @Override
     public List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId) {
         final long t0 = System.nanoTime();
-        log.info("Assigning vehicles for order ID: {}", orderId);
+        log.info("[assignVehiclesOptimal] Starting for orderId: {}", orderId);
 
         OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
@@ -655,7 +656,6 @@ public class ContractServiceImpl implements ContractService {
             throw new BadRequestException("Order category is required", ErrorEnum.INVALID.getErrorCode());
         }
 
-        // Lấy vehicle rules theo category, sort từ nhỏ -> lớn
         List<VehicleRuleEntity> sortedVehicleRules = vehicleRuleEntityService
                 .findAllByCategoryId(orderEntity.getCategory().getId())
                 .stream()
@@ -670,99 +670,15 @@ public class ContractServiceImpl implements ContractService {
             throw new NotFoundException("No vehicle rules found for this category", ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
-        // Convert OrderDetailEntity -> BoxItem (BinPacker)
-        // Convert OrderDetailEntity -> BoxItem
-        List<BinPacker.BoxItem> boxes = details.stream()
-                .map(d -> {
-                    OrderSizeEntity s = d.getOrderSizeEntity();
-                    if (s == null) {
-                        throw new BadRequestException("Order detail missing size: " + d.getId(), ErrorEnum.INVALID.getErrorCode());
-                    }
-                    int lx = BinPacker.convertToInt(s.getMaxLength());
-                    int ly = BinPacker.convertToInt(s.getMaxWidth());
-                    int lz = BinPacker.convertToInt(s.getMaxHeight());
-                    long w = BinPacker.convertWeightToLong(d.getWeight());
-                    return new BinPacker.BoxItem(d.getId(), lx, ly, lz, w);
-                })
-                .sorted((a, b) -> {
-                    int cmp = Long.compare(b.weight, a.weight);
-                    if (cmp == 0) cmp = Long.compare(b.volume, a.volume);
-                    return cmp;
-                })
-                .toList();
+        List<BinPacker.ContainerState> containers = BinPacker.pack(details, sortedVehicleRules);
 
-        List<BinPacker.ContainerState> containers = new ArrayList<>();
-
-        // === Packing logic with upgrade ===
-        for (BinPacker.BoxItem box : boxes) {
-            boolean assigned = false;
-
-            for (int ci = 0; ci < containers.size(); ci++) {
-                BinPacker.ContainerState c = containers.get(ci);
-
-                // thử nhét trực tiếp
-                BinPacker.Placement p = BinPacker.tryPlaceBoxInContainer(box, c);
-                if (p != null) {
-                    c.addPlacement(p);
-                    assigned = true;
-                    break;
-                }
-
-                // nếu không vừa → thử upgrade
-                VehicleRuleEntity upgradedRule = findNextBiggerRule(c.rule, sortedVehicleRules);
-                while (upgradedRule != null) {
-                    BinPacker.ContainerState upgraded = BinPacker.upgradeContainer(c, upgradedRule);
-                    if (upgraded == null) {
-                        upgradedRule = findNextBiggerRule(upgradedRule, sortedVehicleRules);
-                        continue; // thử xe lớn hơn nữa
-                    }
-
-                    // thử thêm box mới vào container đã upgrade
-                    BinPacker.Placement up = BinPacker.tryPlaceBoxInContainer(box, upgraded);
-                    if (up != null) {
-                        upgraded.addPlacement(up);
-                        containers.set(ci, upgraded);
-                        assigned = true;
-                        break;
-                    }
-                    upgradedRule = findNextBiggerRule(upgradedRule, sortedVehicleRules);
-                }
-
-                if (assigned) break;
-            }
-
-            // nếu chưa gán được → mở xe mới
-            if (!assigned) {
-                boolean opened = false;
-                for (VehicleRuleEntity rule : sortedVehicleRules) {
-                    int maxX = BinPacker.convertToInt(rule.getMaxLength());
-                    int maxY = BinPacker.convertToInt(rule.getMaxWidth());
-                    int maxZ = BinPacker.convertToInt(rule.getMaxHeight());
-
-                    if (box.lx <= maxX && box.ly <= maxY && box.lz <= maxZ) {
-                        BinPacker.ContainerState newC = new BinPacker.ContainerState(rule, maxX, maxY, maxZ);
-                        BinPacker.Placement p = BinPacker.tryPlaceBoxInContainer(box, newC);
-                        if (p != null) {
-                            newC.addPlacement(p);
-                            containers.add(newC);
-                            opened = true;
-                            break;
-                        }
-                    }
-                }
-                if (!opened) {
-                    throw new RuntimeException("Không có loại xe nào chở được kiện: " + box.id);
-                }
-            }
-        }
-
-        // Convert kết quả packing -> response
         List<ContractRuleAssignResponse> responses = BinPacker.toContractResponses(containers, details);
 
         log.info("[assignVehiclesOptimal] Completed. vehiclesUsed={}, detailsProcessed={}",
                 responses.size(), details.size());
         long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
         log.info("[assignVehiclesOptimal] Finished in {} ms", elapsedMs);
+
         return responses;
     }
 
@@ -811,71 +727,6 @@ public class ContractServiceImpl implements ContractService {
         return null;
     }
 
-
-    /**
-     * Upgrade vehicle if possible
-     */
-//    private int tryUpgrade(OrderDetailEntity detail,
-//                           ContractRuleAssignResponse assignment,
-//                           List<VehicleRuleEntity> sortedVehicleRules,
-//                           Map<Integer, VehicleRuleEntity> vehicleRuleCache) {
-//        int currentIdx = assignment.getVehicleIndex();
-//        log.info("[tryUpgrade] Try upgrade for detailId={} from index={}", detail.getId(), currentIdx);
-//        for (int i = currentIdx + 1; i < sortedVehicleRules.size(); i++) {
-//            VehicleRuleEntity biggerRule = vehicleRuleCache.get(i);
-//            if (biggerRule == null) {
-//                log.warn("[tryUpgrade] Missing vehicle rule at index={}", i);
-//                continue;
-//            }
-//            if (canFitAll(assignment.getAssignedDetails(), biggerRule, detail)) {
-//                log.info("[tryUpgrade] Upgrade possible to index={}, ruleId={}", i, biggerRule.getId());
-//                return i;
-//            }
-//        }
-//        log.info("[tryUpgrade] No upgrade possible for detailId={}", detail.getId());
-//        return -1;
-//    }
-
-//    private VehicleRuleEntity tryUpgrade(OrderDetailEntity detail,
-//                                         ContractRuleAssignResponse assignment,
-//                                         List<VehicleRuleEntity> sortedVehicleRules,
-//                                         Map<UUID, VehicleRuleEntity> vehicleRuleById,
-//                                         Map<UUID, Integer> ruleIndexById) {
-//        UUID currentRuleId = assignment.getVehicleRuleId();
-//        Integer startIdx = ruleIndexById.get(currentRuleId);
-//        if (startIdx == null) {
-//            log.warn("[tryUpgrade] cannot find index for ruleId={}", currentRuleId);
-//            return null;
-//        }
-//        log.info("[tryUpgrade] Try upgrade for detailId={} from ruleIndex={}", detail.getId(), startIdx);
-//        for (int i = startIdx + 1; i < sortedVehicleRules.size(); i++) {
-//            VehicleRuleEntity biggerRule = sortedVehicleRules.get(i);
-//            if (canFitAll(assignment.getAssignedDetails(), biggerRule, detail)) {
-//                log.info("[tryUpgrade] Upgrade possible to index={}, ruleId={}", i, biggerRule.getId());
-//                return biggerRule;
-//            }
-//        }
-//        log.info("[tryUpgrade] No upgrade possible for detailId={}", detail.getId());
-//        return null;
-//    }
-
-//    private VehicleRuleEntity tryUpgrade(OrderDetailEntity detail,
-//                                         ContractRuleAssignResponse assignment,
-//                                         List<VehicleRuleEntity> sortedRules) {
-//
-//        int currentIdx = assignment.getVehicleIndex();
-//
-//        for (int nextIdx = currentIdx + 1; nextIdx < sortedRules.size(); nextIdx++) {
-//            VehicleRuleEntity nextRule = sortedRules.get(nextIdx);
-//
-//            if (canFit(detail, nextRule, assignment)) {
-//                // cập nhật lại index cho assignment
-//                assignment.setVehicleIndex(nextIdx);
-//                return nextRule;
-//            }
-//        }
-//        return null;
-//    }
     @Override
     public PriceCalculationResponse calculateTotalPrice(ContractEntity contract,
                                                         BigDecimal distanceKm,

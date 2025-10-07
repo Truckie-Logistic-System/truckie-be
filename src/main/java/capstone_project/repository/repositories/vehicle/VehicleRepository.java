@@ -27,4 +27,5 @@ public interface    VehicleRepository extends BaseRepository<VehicleEntity> {
 
     List<VehicleEntity> getVehicleEntitiesByVehicleTypeEntityAndStatus(VehicleTypeEntity vehicleTypeEntity, String status);
 
+    List<VehicleEntity> findVehicleEntitiesByVehicleTypeEntityIdAndStatus(UUID vehicleTypeEntityId, String status);
 }

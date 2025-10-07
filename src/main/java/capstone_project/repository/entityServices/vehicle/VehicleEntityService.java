@@ -18,4 +18,6 @@ public interface VehicleEntityService extends BaseEntityService<VehicleEntity, U
     List<VehicleEntity> getVehicleEntitiesByVehicleTypeEntity(VehicleTypeEntity vehicleTypeEntity);
 
     List<VehicleEntity> getVehicleEntitiesByVehicleTypeEntityAndStatus(VehicleTypeEntity vehicleTypeEntity, String status);
+
+    List<VehicleEntity> findByVehicleTypeAndStatus(UUID vehicleTypeId, String status);
 }
