@@ -16,15 +16,20 @@ import capstone_project.repository.entityServices.order.order.SealEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.mapper.order.OrderSealMapper;
 import capstone_project.service.mapper.order.SealMapper;
+import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.seal.OrderSealService;
 import capstone_project.service.services.order.seal.SealService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,45 +43,64 @@ public class OrderSealServiceImpl implements OrderSealService {
     private final SealService sealService;
     private final OrderSealMapper orderSealMapper;
     private final SealMapper sealMapper;
+    private final CloudinaryService cloudinaryService;
 
     @Override
     @Transactional
     public GetSealFullResponse assignSealForVehicleAssignment(OrderSealRequest orderSealRequest) {
         List<OrderSealEntity> orderSealEntities = new ArrayList<>();
 
-        // Lấy tất cả vehicle assignments một lần
-        List<VehicleAssignmentEntity> vehicleAssignments = orderSealRequest.vehicleAssignments().stream()
-                .map(id -> vehicleAssignmentEntityService.findEntityById(id)
-                        .orElseThrow(() -> new NotFoundException(
-                                "Không tìm thấy vehicle assignment với ID: " + id,
-                                ErrorEnum.NOT_FOUND.getErrorCode())))
-                .toList();
+        // Lấy vehicle assignment
+        VehicleAssignmentEntity vehicleAssignment = vehicleAssignmentEntityService.findEntityById(orderSealRequest.vehicleAssignmentId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Không tìm thấy vehicle assignment với ID: " + orderSealRequest.vehicleAssignmentId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()));
 
         // Kiểm tra nếu đã có seal active
-        for (VehicleAssignmentEntity vehicleAssignment : vehicleAssignments) {
-            OrderSealEntity existingSeal = orderSealEntityService.findByVehicleAssignment(vehicleAssignment, CommonStatusEnum.ACTIVE.name());
-            if (existingSeal != null) {
-                throw new BadRequestException(
-                        "Seal này vẫn đang active không thể tạo Seal mới, xóa seal cũ trước khi tạo seal mới cho từng chuyến đi",
-                        ErrorEnum.INVALID_REQUEST.getErrorCode());
-            }
+        OrderSealEntity existingSeal = orderSealEntityService.findByVehicleAssignment(vehicleAssignment, CommonStatusEnum.ACTIVE.name());
+        if (existingSeal != null) {
+            throw new BadRequestException(
+                    "Seal này vẫn đang active không thể tạo Seal mới, xóa seal cũ trước khi tạo seal mới cho chuyến đi",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode());
         }
+
+        // Tự động tạo mô tả
+        String description = "Seal được tạo cho chuyến " + vehicleAssignment.getTrackingCode();
 
         // Tạo mới Seal
-        GetSealResponse getSealResponse = sealService.createSeal(orderSealRequest.description());
+        GetSealResponse getSealResponse = sealService.createSeal(description);
 
-        // Gán seal vừa tạo cho từng vehicle assignment
-        for (VehicleAssignmentEntity vehicleAssignment : vehicleAssignments) {
-            OrderSealEntity orderSealEntity = OrderSealEntity.builder()
-                    .description(orderSealRequest.description())
-                    .sealDate(orderSealRequest.sealDate())
-                    .status(CommonStatusEnum.ACTIVE.name())
-                    .seal(sealMapper.toSealEntity(getSealResponse))
-                    .vehicleAssignment(vehicleAssignment)
-                    .build();
-            orderSealEntities.add(orderSealEntity);
+        // Upload hình ảnh và lấy URL
+        String imageUrl = null;
+        try {
+            MultipartFile sealImage = orderSealRequest.sealImage();
+            String fileName = "seal_" + UUID.randomUUID();
+            Map<String, Object> uploadResult = cloudinaryService.uploadFile(
+                    sealImage.getBytes(),
+                    fileName,
+                    "seals" // folder name on Cloudinary
+            );
+
+            // Lấy URL của ảnh đã upload
+            imageUrl = cloudinaryService.getFileUrl((String) uploadResult.get("public_id"));
+        } catch (IOException e) {
+            log.error("Lỗi khi upload ảnh seal: {}", e.getMessage(), e);
+            throw new BadRequestException(
+                    "Không thể upload ảnh seal: " + e.getMessage(),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode());
         }
 
+        // Tạo OrderSealEntity với ảnh đã upload
+        OrderSealEntity orderSealEntity = OrderSealEntity.builder()
+                .description(description)
+                .sealDate(LocalDateTime.now()) // Tự động set thời gian hiện tại
+                .sealAttachedImage(imageUrl) // Lưu URL của ảnh
+                .status(CommonStatusEnum.ACTIVE.name())
+                .seal(sealMapper.toSealEntity(getSealResponse))
+                .vehicleAssignment(vehicleAssignment)
+                .build();
+
+        orderSealEntities.add(orderSealEntity);
         orderSealEntityService.saveAll(orderSealEntities);
 
         return new GetSealFullResponse(
@@ -96,6 +120,7 @@ public class OrderSealServiceImpl implements OrderSealService {
         List<OrderSealEntity> orderSealEntities = orderSealEntityService.findBySeal(seal.get());
         for (OrderSealEntity orderSealEntity : orderSealEntities) {
             orderSealEntity.setStatus(CommonStatusEnum.DELETED.name());
+            orderSealEntity.setSealRemovalTime(LocalDateTime.now()); // Set thời gian gỡ bỏ seal
             orderSeals.add(orderSealEntity);
         }
         orderSealEntityService.saveAll(orderSeals);

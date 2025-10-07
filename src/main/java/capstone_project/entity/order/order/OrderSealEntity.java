@@ -25,6 +25,17 @@ public class OrderSealEntity extends BaseEntity {
     @Column(name = "description")
     private String description;
 
+    @Size(max = 255)
+    @Column(name = "seal_attached_image")
+    private String sealAttachedImage;
+
+    @Column(name = "seal_removal_time")
+    private LocalDateTime sealRemovalTime;
+
+    @Size(max = 500)
+    @Column(name = "seal_removal_reason")
+    private String sealRemovalReason;
+
     @Size(max = 20)
     @Column(name = "status", length = 20)
     private String status;
