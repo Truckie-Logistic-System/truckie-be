@@ -234,7 +234,7 @@ public class RoomServiceImpl implements RoomService {
 
                 RoomEntity room = snapshot.toObject(RoomEntity.class);
                 if (!RoomEnum.SUPPORT.name().equals(room.getType())) {
-                    throw new BadRequestException("Room is not in SUPPORT state", ErrorEnum.INVALID_REQUEST.getErrorCode());
+                    chatService.getMessagesByRoomId(roomId,10,null);
                 }
 
                 // Load staff info
