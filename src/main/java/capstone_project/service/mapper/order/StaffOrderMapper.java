@@ -409,14 +409,15 @@ public class StaffOrderMapper {
             return vehicleFuelConsumptionEntityService.findByVehicleAssignmentId(vehicleAssignmentId)
                     .map(entity -> new VehicleFuelConsumptionResponse(
                             entity.getId(),
-                            entity.getOdometerReadingAtRefuel(),
+                            entity.getOdometerReadingAtStart(),
                             entity.getOdometerAtStartUrl(),
-                            entity.getOdometerAtFinishUrl(),
+                            entity.getOdometerReadingAtEnd(),
                             entity.getOdometerAtEndUrl(),
+                            entity.getDistanceTraveled(),
                             entity.getDateRecorded(),
                             entity.getNotes(),
-                            entity.getFuelTypeEntity() != null ? entity.getFuelTypeEntity().getName() : null,
-                            entity.getFuelTypeEntity() != null ? entity.getFuelTypeEntity().getDescription() : null
+                            entity.getFuelVolume(),
+                            entity.getCompanyInvoiceImageUrl()
                     ))
                     .orElse(null);
         } catch (Exception e) {
