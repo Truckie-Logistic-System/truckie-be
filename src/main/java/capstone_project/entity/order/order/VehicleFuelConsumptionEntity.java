@@ -22,33 +22,29 @@ public class VehicleFuelConsumptionEntity extends BaseEntity {
     @Column(name = "fuel_volume")
     private BigDecimal fuelVolume;
 
-    @Column(name = "fuel_cost")
-    private BigDecimal fuelCost;
-
-    @Column(name = "fuel_unit_price")
-    private BigDecimal fuelUnitPrice;
-
-    @Column(name = "odometer_reading_at_refuel")
-    private BigDecimal odometerReadingAtRefuel;
+    @Column(name = "company_invoice_image_url", length = Integer.MAX_VALUE)
+    private String companyInvoiceImageUrl;
 
     @Column(name = "odometer_at_start_url", length = Integer.MAX_VALUE)
     private String odometerAtStartUrl;
 
-    @Column(name = "odometer_at_finish_url", length = Integer.MAX_VALUE)
-    private String odometerAtFinishUrl;
+    @Column(name = "odometer_reading_at_start")
+    private BigDecimal odometerReadingAtStart;
 
     @Column(name = "odometer_at_end_url", length = Integer.MAX_VALUE)
     private String odometerAtEndUrl;
+
+    @Column(name = "odometer_reading_at_end")
+    private BigDecimal odometerReadingAtEnd;
+
+    @Column(name = "distance_traveled")
+    private BigDecimal distanceTraveled;
 
     @Column(name = "date_recorded")
     private LocalDateTime dateRecorded;
 
     @Column(name = "notes", length = Integer.MAX_VALUE)
     private String notes;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "fuel_type_id")
-    private FuelTypeEntity fuelTypeEntity;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id", unique = true)
