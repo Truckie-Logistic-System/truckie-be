@@ -8,13 +8,14 @@ import java.util.UUID;
  * Response object for vehicle fuel consumption information
  */
 public record VehicleFuelConsumptionResponse(
-    UUID id,
-    BigDecimal odometerReadingAtRefuel,
-    String odometerAtStartUrl,
-    String odometerAtFinishUrl,
-    String odometerAtEndUrl,
-    LocalDateTime dateRecorded,
-    String notes,
-    String fuelTypeName,
-    String fuelTypeDescription
+        UUID id,
+        BigDecimal odometerReadingAtStart,
+        String odometerAtStartUrl,
+        BigDecimal odometerReadingAtEnd,
+        String odometerAtEndUrl,
+        BigDecimal distanceTraveled,
+        LocalDateTime dateRecorded,
+        String notes,
+        BigDecimal fuelVolume,
+        String companyInvoiceImageUrl
 ) {}
