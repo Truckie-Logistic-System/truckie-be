@@ -22,4 +22,6 @@ public interface RoomService {
     boolean deleteRoomByOrderId(UUID orderId);
 
     boolean isCustomerHasRoomSupported(UUID userId);
+
+    CreateRoomResponse getCustomerHasRoomSupported(UUID userId);
 }

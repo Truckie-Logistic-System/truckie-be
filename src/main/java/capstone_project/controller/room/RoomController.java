@@ -95,4 +95,10 @@ public class RoomController {
         final var hasRoom = roomService.isCustomerHasRoomSupported(userId);
         return ResponseEntity.ok(ApiResponse.ok(hasRoom));
     }
+
+    @GetMapping("customer/{userId}/get-supported-room")
+    public ResponseEntity<ApiResponse<CreateRoomResponse>> getCustomerHasRoomSupported(@PathVariable @Valid UUID userId) {
+        final var hasRoom = roomService.getCustomerHasRoomSupported(userId);
+        return ResponseEntity.ok(ApiResponse.ok(hasRoom));
+    }
 }

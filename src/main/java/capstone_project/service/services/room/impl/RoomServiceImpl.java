@@ -234,7 +234,7 @@ public class RoomServiceImpl implements RoomService {
 
                 RoomEntity room = snapshot.toObject(RoomEntity.class);
                 if (!RoomEnum.SUPPORT.name().equals(room.getType())) {
-                    chatService.getMessagesByRoomId(roomId,10,null);
+                    throw new BadRequestException("Phòng này không phải là SUPPORT", ErrorEnum.NOT_FOUND.getErrorCode());
                 }
 
                 // Load staff info
@@ -333,6 +333,42 @@ public class RoomServiceImpl implements RoomService {
         }
     }
 
+    @Override
+    public CreateRoomResponse getCustomerHasRoomSupported(UUID userId) {
+        try {
+            CollectionReference roomsRef = firestore.collection(FirebaseCollectionEnum.Rooms.name());
+
+            Map<String, Object> participantQuery = new HashMap<>();
+            participantQuery.put(FirebaseCollectionEnum.userId.name(), userId.toString());
+            participantQuery.put(FirebaseCollectionEnum.roleName.name(), RoleTypeEnum.CUSTOMER.name());
+
+            // Query phòng có type = SUPPORTED và có userId trong participants
+            ApiFuture<QuerySnapshot> future = roomsRef
+                    .whereIn(FirebaseCollectionEnum.type.name(), Arrays.asList(RoomEnum.SUPPORT.name(), RoomEnum.SUPPORTED.name()))
+                    .whereArrayContains(FirebaseCollectionEnum.participants.name(), participantQuery )
+                    .whereEqualTo(FirebaseCollectionEnum.status.name(), CommonStatusEnum.ACTIVE.name())
+                    .limit(1)
+                    .get();
+
+
+            QuerySnapshot snapshot = future.get();
+
+            if (!snapshot.isEmpty()) {
+                throw new NotFoundException(
+                        "Phòng này không tìm thấy",
+                        ErrorEnum.NOT_FOUND.getErrorCode());
+            }
+            DocumentSnapshot doc = snapshot.getDocuments().get(0);
+
+            RoomEntity room =  doc.toObject(RoomEntity.class);
+
+            return roomMapper.toCreateRoomResponse(room);
+
+        } catch (Exception e) {
+            log.error("Failed to check supported room for user {}", userId, e);
+            throw new RuntimeException("Cannot check room supported for customer", e);
+        }
+    }
 
 
 }
