@@ -8,7 +8,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -20,7 +19,6 @@ public class VehicleLocationService {
 
     private static final String TOPIC_ALL_VEHICLES = "/topic/vehicles/locations";
     private static final String TOPIC_VEHICLE_PREFIX = "/topic/vehicles/";
-    private static final String TOPIC_ASSIGNMENT_PREFIX = "/topic/assignments/";
 
     /**
      * Broadcast updated vehicle location to all subscribers
@@ -34,7 +32,6 @@ public class VehicleLocationService {
                 .vehicleId(vehicle.getId())
                 .latitude(vehicle.getCurrentLatitude())
                 .longitude(vehicle.getCurrentLongitude())
-                .timestamp(vehicle.getLastUpdated() != null ? vehicle.getLastUpdated() : LocalDateTime.now())
                 .licensePlateNumber(vehicle.getLicensePlateNumber())
                 .build();
 
@@ -45,48 +42,25 @@ public class VehicleLocationService {
      * Broadcast updated vehicle location to all subscribers using the message DTO
      */
     public void broadcastVehicleLocation(VehicleLocationMessage message) {
-        // Broadcast to all vehicles topic
+        // Broadcast to all vehicles topic for web clients
         messagingTemplate.convertAndSend(TOPIC_ALL_VEHICLES, message);
 
-        // Broadcast to specific vehicle topic
+        // Broadcast to specific vehicle topic for clients tracking specific vehicle
         messagingTemplate.convertAndSend(TOPIC_VEHICLE_PREFIX + message.getVehicleId(), message);
-
-        // If assignment is known, broadcast to assignment topic
-        if (message.getAssignmentId() != null) {
-            messagingTemplate.convertAndSend(TOPIC_ASSIGNMENT_PREFIX + message.getAssignmentId(), message);
-        }
 
         log.debug("Broadcast vehicle location: vehicleId={}, lat={}, lng={}",
                 message.getVehicleId(), message.getLatitude(), message.getLongitude());
     }
 
     /**
-     * Broadcast vehicle location update
+     * Broadcast vehicle location update with basic parameters
      */
     public void broadcastVehicleLocation(UUID vehicleId, BigDecimal latitude, BigDecimal longitude, String licensePlateNumber) {
         VehicleLocationMessage message = VehicleLocationMessage.builder()
                 .vehicleId(vehicleId)
                 .latitude(latitude)
                 .longitude(longitude)
-                .timestamp(LocalDateTime.now())
                 .licensePlateNumber(licensePlateNumber)
-                .build();
-
-        broadcastVehicleLocation(message);
-    }
-
-    /**
-     * Broadcast vehicle location update with assignment
-     */
-    public void broadcastVehicleLocation(UUID vehicleId, BigDecimal latitude, BigDecimal longitude,
-                                         String licensePlateNumber, UUID assignmentId) {
-        VehicleLocationMessage message = VehicleLocationMessage.builder()
-                .vehicleId(vehicleId)
-                .latitude(latitude)
-                .longitude(longitude)
-                .timestamp(LocalDateTime.now())
-                .licensePlateNumber(licensePlateNumber)
-                .assignmentId(assignmentId)
                 .build();
 
         broadcastVehicleLocation(message);

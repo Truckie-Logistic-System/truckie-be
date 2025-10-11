@@ -197,7 +197,7 @@ public class SimpleOrderMapper {
                     if (vaEntity.getVehicleEntity() != null) {
                         var vehicleEntity = vaEntity.getVehicleEntity();
                         vehicle = new VehicleResponse(
-                                null,
+                                vehicleEntity.getId(),
                                 vehicleEntity.getManufacturer(),
                                 vehicleEntity.getModel(),
                                 vehicleEntity.getLicensePlateNumber(),
