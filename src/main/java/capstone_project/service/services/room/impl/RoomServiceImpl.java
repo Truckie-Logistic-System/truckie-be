@@ -352,17 +352,16 @@ public class RoomServiceImpl implements RoomService {
 
 
             QuerySnapshot snapshot = future.get();
-
-            if (!snapshot.isEmpty()) {
-                throw new NotFoundException(
-                        "Phòng này không tìm thấy",
-                        ErrorEnum.NOT_FOUND.getErrorCode());
+            if(snapshot.isEmpty()){
+                throw new NotFoundException("Cannot get room supported for customer", ErrorEnum.NOT_FOUND.getErrorCode());
             }
-            DocumentSnapshot doc = snapshot.getDocuments().get(0);
+            DocumentSnapshot document = snapshot.getDocuments().get(0);
 
-            RoomEntity room =  doc.toObject(RoomEntity.class);
+            // Chuyển sang RoomEntity
+            RoomEntity roomEntity = document.toObject(RoomEntity.class);
 
-            return roomMapper.toCreateRoomResponse(room);
+            // Trả về roomEntity
+            return roomMapper.toCreateRoomResponse(roomEntity);
 
         } catch (Exception e) {
             log.error("Failed to check supported room for user {}", userId, e);
