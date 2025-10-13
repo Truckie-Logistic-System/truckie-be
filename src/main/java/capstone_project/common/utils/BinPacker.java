@@ -30,7 +30,10 @@ public class BinPacker {
 
         public BoxItem(UUID id, int lx, int ly, int lz, long weight) {
             this.id = id;
-            this.lx = lx; this.ly = ly; this.lz = lz; this.weight = weight;
+            this.lx = lx;
+            this.ly = ly;
+            this.lz = lz;
+            this.weight = weight;
             this.volume = (long) lx * ly * lz;
         }
     }
@@ -48,8 +51,12 @@ public class BinPacker {
         Placement(BoxItem box, int x, int y, int z,
                   int lx, int ly, int lz) {
             this.box = box;
-            this.x = x; this.y = y; this.z = z;
-            this.lx = lx; this.ly = ly; this.lz = lz;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.lx = lx;
+            this.ly = ly;
+            this.lz = lz;
         }
     }
 
@@ -69,7 +76,7 @@ public class BinPacker {
             this.maxZ = maxZ;
             this.currentWeight = 0;
             // initial extreme point = origin (0,0,0)
-            this.extremePoints.add(new int[]{0,0,0});
+            this.extremePoints.add(new int[]{0, 0, 0});
         }
 
         boolean checkWeightAfterAdd(long addWeight) {
@@ -100,7 +107,10 @@ public class BinPacker {
                 if (p[0] < 0 || p[1] < 0 || p[2] < 0) continue;
                 if (p[0] > maxX || p[1] > maxY || p[2] > maxZ) continue;
                 String k = p[0] + ":" + p[1] + ":" + p[2];
-                if (!seen.contains(k)) { seen.add(k); out.add(p); }
+                if (!seen.contains(k)) {
+                    seen.add(k);
+                    out.add(p);
+                }
             }
             extremePoints = out;
         }
@@ -120,7 +130,10 @@ public class BinPacker {
         List<int[]> uniq = new ArrayList<>();
         for (int[] a : r) {
             String k = a[0] + ":" + a[1] + ":" + a[2];
-            if (!seen.contains(k)) { seen.add(k); uniq.add(a); }
+            if (!seen.contains(k)) {
+                seen.add(k);
+                uniq.add(a);
+            }
         }
         return uniq;
     }
@@ -175,7 +188,7 @@ public class BinPacker {
     }
 
     public static boolean intersect(int ax, int ay, int az, int alx, int aly, int alz,
-                                     int bx, int by, int bz, int blx, int bly, int blz) {
+                                    int bx, int by, int bz, int blx, int bly, int blz) {
         boolean xOverlap = ax < bx + blx && bx < ax + alx;
         boolean yOverlap = ay < by + bly && by < ay + aly;
         boolean zOverlap = az < bz + blz && bz < az + alz;
@@ -184,8 +197,10 @@ public class BinPacker {
 
     /**
      * Main packing function.
-     * @param details order details list (entities)
+     *
+     * @param details      order details list (entities)
      * @param vehicleRules sorted vehicle rules (from small->large or as you prefer)
+     *
      * @return List<ContainerState> each corresponds to one used container (vehicle)
      */
     public static List<ContainerState> pack(List<OrderDetailEntity> details, List<VehicleRuleEntity> vehicleRules) {
@@ -478,7 +493,10 @@ public class BinPacker {
                             BigDecimal.valueOf(pl.lx).divide(BigDecimal.valueOf(UNIT_MULTIPLIER)),
                             BigDecimal.valueOf(pl.ly).divide(BigDecimal.valueOf(UNIT_MULTIPLIER)),
                             BigDecimal.valueOf(pl.lz).divide(BigDecimal.valueOf(UNIT_MULTIPLIER)),
-                            pl.lx + "x" + pl.ly + "x" + pl.lz
+                            pl.lx + "x" + pl.ly + "x" + pl.lz,
+                            pl.lx,
+                            pl.ly,
+                            pl.lz
                     ))
                     .toList();
 
@@ -486,7 +504,7 @@ public class BinPacker {
                     .vehicleIndex(vehicleIndex++)
                     .vehicleRuleId(c.rule.getId())
                     .vehicleRuleName(c.rule.getVehicleRuleName())
-                    .currentLoad(currentLoadPrecise) // 🟢 DÙNG currentLoad chính xác
+                    .currentLoad(currentLoadPrecise)
                     .assignedDetails(assigned)
                     .packedDetailDetails(packedDetails)
                     .build();
@@ -588,5 +606,20 @@ public class BinPacker {
         result.containerLoads = containerLoads;
 
         return result;
+    }
+
+    public static ManualResult packManualForDetails(List<OrderDetailEntity> details,
+                                                    VehicleRuleEntity vehicleRule,
+                                                    int numContainers) {
+        List<ContainerState> containers = new ArrayList<>();
+        for (int i = 0; i < numContainers; i++) {
+            containers.add(new ContainerState(
+                    vehicleRule,
+                    convertToInt(vehicleRule.getMaxLength()),
+                    convertToInt(vehicleRule.getMaxWidth()),
+                    convertToInt(vehicleRule.getMaxHeight())
+            ));
+        }
+        return packManual(details, containers);
     }
 }

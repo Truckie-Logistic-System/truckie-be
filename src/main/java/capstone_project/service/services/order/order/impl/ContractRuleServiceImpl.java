@@ -122,6 +122,8 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                     .map(this::toPackingResponse)
                     .toList();
 
+            List<PackedDetailResponse> packedDetails = recreatePackingDetails(rule);
+
             responses.add(
                     ContractRuleAssignResponse.builder()
                             .vehicleIndex(vehicleIndex++)
@@ -129,6 +131,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                             .vehicleRuleName(rule.getVehicleRuleEntity().getVehicleRuleName())
                             .currentLoad(currentLoad)
                             .assignedDetails(detailResponses)
+                            .packedDetailDetails(packedDetails)
                             .build()
             );
         }
@@ -138,6 +141,43 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                 .unassignedDetails(unassignedDetails)
                 .build();
 
+    }
+
+    private List<PackedDetailResponse> recreatePackingDetails(ContractRuleEntity contractRule) {
+        try {
+            VehicleRuleEntity vehicleRule = contractRule.getVehicleRuleEntity();
+            List<OrderDetailEntity> assignedDetails = new ArrayList<>(contractRule.getOrderDetails());
+
+            BinPacker.ManualResult result = BinPacker.packManualForDetails(
+                    assignedDetails, vehicleRule, 1);
+
+            if (!result.containers.isEmpty()) {
+                BinPacker.ContainerState container = result.containers.get(0);
+                return convertPlacementsToPackedDetails(container.placements);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to recreate packing for contract rule {}: {}",
+                    contractRule.getId(), e.getMessage());
+        }
+        return Collections.emptyList();
+    }
+
+    private List<PackedDetailResponse> convertPlacementsToPackedDetails(List<BinPacker.Placement> placements) {
+        return placements.stream()
+                .map(p -> PackedDetailResponse.builder()
+                        .orderDetailId(p.box.id.toString())
+                        .x(BigDecimal.valueOf(p.x).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                        .y(BigDecimal.valueOf(p.y).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                        .z(BigDecimal.valueOf(p.z).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                        .length(BigDecimal.valueOf(p.lx).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                        .width(BigDecimal.valueOf(p.ly).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                        .height(BigDecimal.valueOf(p.lz).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
+                        .orientation(p.lx + "x" + p.ly + "x" + p.lz)
+                        .orientation_X(p.lx)
+                        .orientation_Y(p.ly)
+                        .orientation_Z(p.lz)
+                        .build())
+                .toList();
     }
 
 //    private OrderDetailForPackingResponse toPackingResponse(OrderDetailEntity entity) {
@@ -302,6 +342,9 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                                 .width(BigDecimal.valueOf(p.ly).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
                                 .height(BigDecimal.valueOf(p.lz).divide(BigDecimal.valueOf(BinPacker.UNIT_MULTIPLIER)))
                                 .orientation(p.lx + "x" + p.ly + "x" + p.lz)
+                                .orientation_X(p.lx)
+                                .orientation_Y(p.ly)
+                                .orientation_Z(p.lz)
                                 .build());
                     }
                 }

@@ -135,6 +135,9 @@ public class SecurityConfigurer {
     @Value("${weight-unit-setting.api.base-path}")
     private String weightUnitSettingApiBasePath;
 
+    @Value("${stipulation-setting.api.base-path}")
+    private String stipulationSettingApiBasePath;
+
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -263,6 +266,7 @@ public class SecurityConfigurer {
                         // ================= SETTING =================
                         .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(weightUnitSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(stipulationSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
                         // ================= SEAL =================
                         .requestMatchers(sealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())

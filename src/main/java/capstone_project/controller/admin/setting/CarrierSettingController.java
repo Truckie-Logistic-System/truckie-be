@@ -1,4 +1,4 @@
-package capstone_project.controller.setting;
+package capstone_project.controller.admin.setting;
 
 import capstone_project.dtos.request.setting.CarrierSettingRequest;
 import capstone_project.dtos.response.setting.CarrierSettingResponse;

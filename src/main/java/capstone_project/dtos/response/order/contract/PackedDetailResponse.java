@@ -13,6 +13,9 @@ public record PackedDetailResponse(
         BigDecimal length,
         BigDecimal width,
         BigDecimal height,
-        String orientation
+        String orientation,
+        int orientation_X,
+        int orientation_Y,
+        int orientation_Z
 ) {
 }
