@@ -21,6 +21,18 @@ public interface OrderDetailRepository extends BaseRepository<OrderDetailEntity>
      */
     Optional<OrderDetailEntity> findByTrackingCode(String trackingCode);
 
+    /**
+     * Find active order details by vehicle assignment ID for real-time tracking
+     * Check Order status instead of OrderDetail status
+     */
+    @Query("SELECT od FROM OrderDetailEntity od " +
+           "JOIN od.orderEntity o " +
+           "WHERE od.vehicleAssignmentEntity.id = :vehicleAssignmentId " +
+           "AND o.status IN :statuses")
+    List<OrderDetailEntity> findActiveOrderDetailsByVehicleAssignmentId(
+            @Param("vehicleAssignmentId") UUID vehicleAssignmentId,
+            @Param("statuses") List<String> statuses);
+
     @Query(value = """
             SELECT SUM(CASE WHEN od.end_time <= od.estimated_end_time THEN 1 ELSE 0 END) AS on_time_count,
                    SUM(CASE WHEN od.end_time > od.estimated_end_time THEN 1 ELSE 0 END)  AS late_count,

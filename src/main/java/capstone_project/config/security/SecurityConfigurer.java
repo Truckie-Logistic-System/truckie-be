@@ -168,7 +168,8 @@ public class SecurityConfigurer {
                     "/actuator/health",
                     "/actuator/info",
                     "/error",
-                    "/chat/**"
+                    "/chat/**",
+                    "/vehicle-tracking-browser/**" // Adding SockJS endpoint for browser connections
             ),
             Arrays.stream(SWAGGER_ENDPOINTS)
     ).toArray(String[]::new);
@@ -301,3 +302,4 @@ public class SecurityConfigurer {
     }
 
 }
+

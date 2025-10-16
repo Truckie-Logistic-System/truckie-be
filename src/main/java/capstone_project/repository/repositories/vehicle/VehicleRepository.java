@@ -17,6 +17,14 @@ import java.util.UUID;
 public interface VehicleRepository extends BaseRepository<VehicleEntity> {
     Optional<VehicleEntity> findByLicensePlateNumber(String licensePlateNumber);
 
+    /**
+     * Find vehicle by ID with eagerly fetched vehicleType relationship
+     */
+    @Query("SELECT v FROM VehicleEntity v " +
+           "LEFT JOIN FETCH v.vehicleTypeEntity vt " +
+           "WHERE v.id = :vehicleId")
+    Optional<VehicleEntity> findByIdWithVehicleType(@Param("vehicleId") UUID vehicleId);
+
     @Query(value = """
         SELECT v.*, va.*,vt.*,vm.*
         FROM vehicles v

@@ -111,4 +111,9 @@ public class OrderEntityServiceImpl implements OrderEntityService {
     public List<Object[]> topDriverByMonthAndYear(Integer month, Integer year, int amount) {
         return orderRepository.topDriverByMonthAndYear(month, year, amount);
     }
+
+    @Override
+    public Optional<OrderEntity> findByOrderCode(String orderCode) {
+        return orderRepository.findByOrderCode(orderCode);
+    }
 }

@@ -15,6 +15,13 @@ public interface OrderRepository extends BaseRepository<OrderEntity> {
 
     List<OrderEntity> findByDeliveryAddressId(UUID deliveryAddressId);
 
+    /**
+     * Find order by its unique order code
+     * @param orderCode the order code
+     * @return Optional containing the order if found
+     */
+    Optional<OrderEntity> findByOrderCode(String orderCode);
+
     @Query(value = """
             SELECT o.*
             FROM orders o

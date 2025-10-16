@@ -52,4 +52,11 @@ public interface OrderEntityService extends BaseEntityService<OrderEntity, UUID>
 //    List<Object[]> topReceiverByMonthAndYear(Integer month, Integer year, int amount);
 
     List<Object[]> topDriverByMonthAndYear(Integer month, Integer year, int amount);
+
+    /**
+     * Find an order by its unique order code
+     * @param orderCode the order code string
+     * @return Optional containing the order if found, empty if not found
+     */
+    Optional<OrderEntity> findByOrderCode(String orderCode);
 }
