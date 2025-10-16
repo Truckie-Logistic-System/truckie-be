@@ -572,68 +572,21 @@ public class SimpleOrderMapper {
             return Collections.emptyList();
         }
 
-        return rawHistories.stream()
-                .map(history -> {
-                    // Filter journey segments to only include customer-relevant ones
-                    List<JourneySegmentResponse> filteredSegments = filterJourneySegmentsForCustomer(history.journeySegments());
-
-                    // Calculate total distance from filtered segments
-                    Double totalDistance = calculateTotalDistance(filteredSegments);
-
-                    // Create new JourneyHistoryResponse with filtered segments
-                    return new JourneyHistoryResponse(
-                            history.id(),
-                            history.journeyName(),
-                            history.journeyType(),
-                            history.status(),
-                            history.totalTollFee(),
-                            history.totalTollCount(),
-                            totalDistance,
-                            history.reasonForReroute(),
-                            history.vehicleAssignmentId(),
-                            filteredSegments,
-                            history.createdAt(),
-                            history.modifiedAt()
-                    );
-                })
-                .collect(Collectors.toList());
+        // Return all journey histories without filtering
+        return rawHistories;
     }
 
     /**
-     * Filter journey segments to only include those related to pickup, delivery, or intermediate points
-     * The filtering logic uses segment names to identify relevant points for customers
+     * Previously filtered journey segments to only include those related to pickup, delivery, or intermediate points
+     * Now returns all journey segments without filtering
      */
     private List<JourneySegmentResponse> filterJourneySegmentsForCustomer(List<JourneySegmentResponse> segments) {
         if (segments == null || segments.isEmpty()) {
             return Collections.emptyList();
         }
 
-        return segments.stream()
-                .filter(segment -> {
-                    // Keep segments that contain keywords related to customer-relevant points
-                    String startPointLower = segment.startPointName() != null ? segment.startPointName().toLowerCase() : "";
-                    String endPointLower = segment.endPointName() != null ? segment.endPointName().toLowerCase() : "";
-
-                    // Keywords that indicate customer-relevant points
-                    boolean isPickupRelated = startPointLower.contains("pickup") || endPointLower.contains("pickup") ||
-                                             startPointLower.contains("điểm đón") || endPointLower.contains("điểm đón");
-
-                    boolean isDeliveryRelated = startPointLower.contains("delivery") || endPointLower.contains("delivery") ||
-                                               startPointLower.contains("điểm giao") || endPointLower.contains("điểm giao") ||
-                                               startPointLower.contains("destination") || endPointLower.contains("destination");
-
-                    boolean isCustomerLocation = startPointLower.contains("customer") || endPointLower.contains("customer") ||
-                                               startPointLower.contains("khách hàng") || endPointLower.contains("khách hàng");
-
-                    // Exclude segments that contain carrier-related keywords
-                    boolean isCarrierRelated = startPointLower.contains("carrier") || endPointLower.contains("carrier") ||
-                                              startPointLower.contains("depot") || endPointLower.contains("depot") ||
-                                              startPointLower.contains("garage") || endPointLower.contains("garage") ||
-                                              startPointLower.contains("parking") || endPointLower.contains("parking");
-
-                    return (isPickupRelated || isDeliveryRelated || isCustomerLocation) && !isCarrierRelated;
-                })
-                .collect(Collectors.toList());
+        // Return all journey segments without filtering
+        return segments;
     }
 
     /**

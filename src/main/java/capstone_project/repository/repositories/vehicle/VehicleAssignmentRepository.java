@@ -16,6 +16,21 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
 
     List<VehicleAssignmentEntity> findByVehicleEntityId(UUID vehicleEntityId);
 
+    /**
+     * Find active vehicle assignments with their orders for real-time tracking
+     * Only return assignments that have active order details
+     */
+    @Query(value = """
+            SELECT DISTINCT va.*, od.order_id as order_id
+            FROM vehicle_assignments va
+            JOIN order_details od ON od.vehicle_assignment_id = va.id
+            WHERE va.vehicle_id = :vehicleId
+            AND od.status IN :orderStatuses
+            """, nativeQuery = true)
+    List<VehicleAssignmentEntity> findActiveAssignmentsWithOrdersByVehicleId(
+            @Param("vehicleId") UUID vehicleId,
+            @Param("orderStatuses") List<String> orderStatuses);
+
     @Query(value = """
         SELECT va.id,
                va.driver_id_1,
@@ -118,4 +133,26 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
      */
     @Query("SELECT va FROM VehicleAssignmentEntity va WHERE va.driver2.id = :driverId ORDER BY va.createdAt DESC")
     Optional<VehicleAssignmentEntity> findLatestAssignmentByDriver2Id(@Param("driverId") UUID driverId);
+
+    /**
+     * Find vehicle assignment with eagerly fetched driver relationships
+     */
+    @Query("SELECT va FROM VehicleAssignmentEntity va " +
+           "LEFT JOIN FETCH va.driver1 d1 " +
+           "LEFT JOIN FETCH d1.user u1 " +
+           "LEFT JOIN FETCH va.driver2 d2 " +
+           "LEFT JOIN FETCH d2.user u2 " +
+           "WHERE va.id = :assignmentId")
+    Optional<VehicleAssignmentEntity> findByIdWithDrivers(@Param("assignmentId") UUID assignmentId);
+
+    /**
+     * Find all vehicle assignments by vehicle ID with eagerly fetched driver relationships
+     */
+    @Query("SELECT va FROM VehicleAssignmentEntity va " +
+           "LEFT JOIN FETCH va.driver1 d1 " +
+           "LEFT JOIN FETCH d1.user u1 " +
+           "LEFT JOIN FETCH va.driver2 d2 " +
+           "LEFT JOIN FETCH d2.user u2 " +
+           "WHERE va.vehicleEntity.id = :vehicleId")
+    List<VehicleAssignmentEntity> findByVehicleEntityIdWithDrivers(@Param("vehicleId") UUID vehicleId);
 }

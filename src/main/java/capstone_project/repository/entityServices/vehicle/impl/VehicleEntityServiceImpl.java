@@ -50,6 +50,11 @@ public class VehicleEntityServiceImpl implements VehicleEntityService {
     }
 
     @Override
+    public Optional<VehicleEntity> findByVehicleIdWithVehicleType(UUID vehicleId) {
+        return vehicleRepository.findByIdWithVehicleType(vehicleId);
+    }
+
+    @Override
     public Optional<VehicleEntity>  findVehicleDetailsById(UUID id) {
         return vehicleRepository.findVehicleWithJoinsById(id);
     }

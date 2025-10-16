@@ -15,6 +15,11 @@ public interface VehicleEntityService extends BaseEntityService<VehicleEntity, U
 
     Optional<VehicleEntity> findByVehicleId(UUID vehicleId);
 
+    /**
+     * Find vehicle by ID with eagerly fetched vehicleType relationship
+     */
+    Optional<VehicleEntity> findByVehicleIdWithVehicleType(UUID vehicleId);
+
     Optional<VehicleEntity>  findVehicleDetailsById(UUID id);
 
     List<VehicleEntity> getVehicleEntitiesByVehicleTypeEntity(VehicleTypeEntity vehicleTypeEntity);
