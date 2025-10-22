@@ -1,7 +1,6 @@
 package capstone_project.repository.entityServices.order.order.impl;
 
 import capstone_project.entity.order.order.OrderSealEntity;
-import capstone_project.entity.order.order.SealEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.order.order.OrderSealEntityService;
 import capstone_project.repository.repositories.order.order.OrderSealRepository;
@@ -38,17 +37,22 @@ public class OrderSealEntityServiceImpl implements OrderSealEntityService {
     }
 
     @Override
-    public List<OrderSealEntity> findBySeal(SealEntity seal) {
-        return orderSealRepository.findBySeal(seal);
+    public List<OrderSealEntity> findBySealCode(String sealCode) {
+        return orderSealRepository.findBySealCode(sealCode);
     }
 
     @Override
     public OrderSealEntity findByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment, String status) {
-        return orderSealRepository.findByVehicleAssignmentAndStatus(vehicleAssignment, status);
+        return orderSealRepository.findFirstByVehicleAssignmentAndStatus(vehicleAssignment, status);
     }
 
     @Override
     public List<OrderSealEntity> findAllByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment) {
         return orderSealRepository.findByVehicleAssignment(vehicleAssignment);
+    }
+
+    @Override
+    public List<OrderSealEntity> findAllByVehicleAssignmentAndStatus(VehicleAssignmentEntity vehicleAssignment, String status) {
+        return orderSealRepository.findAllByVehicleAssignmentAndStatus(vehicleAssignment, status);
     }
 }

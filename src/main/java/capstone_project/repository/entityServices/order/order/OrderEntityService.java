@@ -1,5 +1,6 @@
 package capstone_project.repository.entityServices.order.order;
 
+import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.repository.entityServices.common.BaseEntityService;
 
@@ -59,4 +60,11 @@ public interface OrderEntityService extends BaseEntityService<OrderEntity, UUID>
      * @return Optional containing the order if found, empty if not found
      */
     Optional<OrderEntity> findByOrderCode(String orderCode);
+    
+    /**
+     * Find order detail by vehicle assignment ID
+     * @param vehicleAssignmentId the UUID of the vehicle assignment
+     * @return Optional containing the order detail if found, empty if not found
+     */
+    Optional<OrderDetailEntity> findOrderDetailByVehicleAssignmentId(UUID vehicleAssignmentId);
 }

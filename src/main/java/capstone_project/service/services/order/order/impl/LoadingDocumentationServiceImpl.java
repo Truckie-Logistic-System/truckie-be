@@ -9,7 +9,6 @@ import capstone_project.dtos.request.order.seal.OrderSealRequest;
 import capstone_project.dtos.response.order.LoadingDocumentationResponse;
 import capstone_project.dtos.response.order.PackingProofImageResponse;
 import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
-import capstone_project.dtos.response.order.seal.GetSealFullResponse;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
@@ -75,7 +74,7 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
                 sealImage,
                 request.sealCode()
         );
-        orderSealService.assignSealForVehicleAssignment(sealRequest);
+        orderSealService.confirmSealAttachment(sealRequest);
         GetOrderSealResponse sealInfo = orderSealService.getActiveOrderSealByVehicleAssignmentId(request.vehicleAssignmentId());
 
         // Update order status to TRANSPORTING
@@ -117,12 +116,25 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
      * Updates the order status to TRANSPORTING once loading is documented
      */
     private void updateRelatedOrderStatus(VehicleAssignmentEntity vehicleAssignment) {
-        final var orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
-        if (orderOpt.isPresent()) {
-            final var orderEntity = orderOpt.get();
-            // Use OrderService to update status and send WebSocket notification
-            orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.ON_DELIVERED);
-            log.info("Updated order {} status to ON_DELIVERED after loading documentation", orderEntity.getOrderCode());
+        // Instead of using complex query, get order through OrderDetail relationship
+        // This avoids the "Query did not return a unique result" issue
+        try {
+            // Query OrderDetail by vehicle assignment (should be unique per assignment)
+            var orderDetailOpt = orderEntityService.findOrderDetailByVehicleAssignmentId(vehicleAssignment.getId());
+            
+            if (orderDetailOpt.isPresent()) {
+                var orderDetail = orderDetailOpt.get();
+                var orderEntity = orderDetail.getOrderEntity();
+                
+                if (orderEntity != null) {
+                    // Use OrderService to update status and send WebSocket notification
+                    orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.ON_DELIVERED);
+                    log.info("Updated order {} status to ON_DELIVERED after loading documentation", orderEntity.getOrderCode());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error updating order status after loading documentation: {}", e.getMessage(), e);
+            // Don't throw exception - loading documentation was successful, just status update failed
         }
     }
 }

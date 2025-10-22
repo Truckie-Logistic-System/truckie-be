@@ -1,5 +1,7 @@
 package capstone_project.dtos.request.vehicle;
 
+import capstone_project.dtos.request.seal.SealInfo;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -12,5 +14,6 @@ public record OrderDetailGroupAssignment(
     UUID driverId_1,
     UUID driverId_2,
     String description,
-    RouteInfo routeInfo
+    RouteInfo routeInfo,
+    List<SealInfo> seals
 ) {}

@@ -23,14 +23,15 @@ public interface OrderRepository extends BaseRepository<OrderEntity> {
     Optional<OrderEntity> findByOrderCode(String orderCode);
 
     @Query(value = """
-            SELECT o.*
+            SELECT DISTINCT o.*
             FROM orders o
                      JOIN order_details od ON o.id = od.order_id
                      JOIN vehicle_assignments va ON od.vehicle_assignment_id = va.id
                      LEFT JOIN drivers d1 ON va.driver_id_1 = d1.id
                      LEFT JOIN drivers d2 ON va.driver_id_2 = d2.id
             WHERE d1.id = :driverId
-               OR d2.id = :driverId;
+               OR d2.id = :driverId
+            ORDER BY o.created_at DESC;
             """, nativeQuery = true)
     List<OrderEntity> findOrdersByDriverId(@Param("driverId") UUID driverId);
 
@@ -44,9 +45,12 @@ public interface OrderRepository extends BaseRepository<OrderEntity> {
     @Query(value = """
             SELECT o.*
             FROM orders o
-            JOIN order_details od ON o.id = od.order_id
-            JOIN vehicle_assignments va ON od.vehicle_assignment_id = va.id
-            WHERE va.id = :assignmentId
+            WHERE o.id = (
+                SELECT od.order_id
+                FROM order_details od
+                WHERE od.vehicle_assignment_id = :assignmentId
+                LIMIT 1
+            )
             """, nativeQuery = true)
     Optional<OrderEntity> findVehicleAssignmentOrder(@Param("assignmentId") UUID assignmentId);
 

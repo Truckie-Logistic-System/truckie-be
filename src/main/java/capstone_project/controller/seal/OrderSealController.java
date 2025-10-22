@@ -3,7 +3,6 @@ package capstone_project.controller.seal;
 import capstone_project.dtos.request.order.seal.OrderSealRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
-import capstone_project.dtos.response.order.seal.GetSealFullResponse;
 import capstone_project.service.services.order.seal.OrderSealService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,25 +23,25 @@ import java.util.UUID;
 public class OrderSealController {
     private final OrderSealService orderSealService;
 
-    @PostMapping(value = "/upload-seal-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<GetSealFullResponse>> assignSealForVehicleAssignment(
+    @PostMapping(value = "/confirm-seal-attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<GetOrderSealResponse>> confirmSealAttachment(
             @RequestParam("vehicleAssignmentId") UUID vehicleAssignmentId,
             @RequestParam("sealImage") MultipartFile sealImage,
             @RequestParam("sealCode") String sealCode) {
         OrderSealRequest request = new OrderSealRequest(vehicleAssignmentId, sealImage, sealCode);
-        final var result = orderSealService.assignSealForVehicleAssignment(request);
+        final var result = orderSealService.confirmSealAttachment(request);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @PutMapping("/{sealId}")
-    public ResponseEntity<ApiResponse<GetSealFullResponse>> removeSealBySealId(
+    @DeleteMapping("/{sealId}")
+    public ResponseEntity<ApiResponse<GetOrderSealResponse>> removeSealBySealId(
             @PathVariable UUID sealId) {
         final var result = orderSealService.removeSealBySealId(sealId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @GetMapping("/get-all/{sealId}")
-    public ResponseEntity<ApiResponse<GetSealFullResponse>> getAllBySealId(
+    public ResponseEntity<ApiResponse<GetOrderSealResponse>> getAllBySealId(
             @PathVariable UUID sealId) {
         final var result = orderSealService.getAllBySealId(sealId);
         return ResponseEntity.ok(ApiResponse.ok(result));

@@ -25,10 +25,13 @@ public class LoadingDocumentationController {
     private final LoadingDocumentationService loadingDocumentationService;
 
     /**
-     * Upload both packing proof images and seal image in one API call
-     * When driver arrives at pickup location and completes loading
+     * API tổng hợp để tài xế:
+     * 1. Upload hình ảnh bằng chứng đóng gói (packing proof)
+     * 2. Xác nhận đã gắn seal bằng cách chụp ảnh và cung cấp mã seal
+     *
+     * Được gọi khi tài xế đến địa điểm lấy hàng, hoàn tất việc đóng gói và gắn seal
      */
-    @PostMapping(path = "/pre-delivery", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(path = "/document-loading-and-seal", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<LoadingDocumentationResponse>> documentLoading(
             @RequestPart("packingProofImages") List<MultipartFile> packingProofImages,
             @RequestPart("sealImage") MultipartFile sealImage,

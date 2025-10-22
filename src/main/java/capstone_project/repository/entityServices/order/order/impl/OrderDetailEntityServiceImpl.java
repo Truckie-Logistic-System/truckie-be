@@ -1,6 +1,7 @@
 package capstone_project.repository.entityServices.order.order.impl;
 
 import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.repositories.order.order.OrderDetailRepository;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import lombok.RequiredArgsConstructor;
@@ -71,5 +72,10 @@ public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
     @Override
     public List<Object[]> topLateDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount) {
         return orderDetailRepository.topLateDeliveriesByDriversWithPercentage(month, year, amount);
+    }
+
+    @Override
+    public List<OrderDetailEntity> findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignment) {
+        return orderDetailRepository.findByVehicleAssignmentEntity(vehicleAssignment);
     }
 }

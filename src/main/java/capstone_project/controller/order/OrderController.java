@@ -136,4 +136,44 @@ public class OrderController {
         final var result = orderService.getOrderForDriverByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    /**
+     * Update order status to ONGOING_DELIVERED when vehicle is near delivery point (within 3km)
+     * Only valid when current status is ON_DELIVERED
+     * 
+     * @param orderId the order ID to update
+     * @return updated order response
+     */
+    @PutMapping("/{orderId}/start-ongoing-delivery")
+    public ResponseEntity<ApiResponse<CreateOrderResponse>> startOngoingDelivery(@PathVariable UUID orderId) {
+        final var result = orderService.updateToOngoingDelivered(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Update order status to DELIVERED when vehicle arrives at delivery point
+     * Only valid when current status is ONGOING_DELIVERED
+     * 
+     * @param orderId the order ID to update
+     * @return updated order response
+     */
+    @PutMapping("/{orderId}/arrive-at-delivery")
+    public ResponseEntity<ApiResponse<CreateOrderResponse>> arriveAtDelivery(@PathVariable UUID orderId) {
+        final var result = orderService.updateToDelivered(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Complete the trip and update order status to SUCCESSFUL
+     * Only valid when current status is DELIVERED
+     * Driver confirms successful delivery completion
+     * 
+     * @param orderId the order ID to update
+     * @return updated order response
+     */
+    @PutMapping("/{orderId}/complete-trip")
+    public ResponseEntity<ApiResponse<CreateOrderResponse>> completeTrip(@PathVariable UUID orderId) {
+        final var result = orderService.updateToSuccessful(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }
