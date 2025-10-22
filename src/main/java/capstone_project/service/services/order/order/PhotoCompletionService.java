@@ -14,6 +14,9 @@ public interface PhotoCompletionService {
     PhotoCompletionResponse uploadAndSavePhoto(MultipartFile file,
                                                CreatePhotoCompletionRequest request) throws IOException;
 
+    List<PhotoCompletionResponse> uploadAndSaveMultiplePhotos(List<MultipartFile> files,
+                                               CreatePhotoCompletionRequest request) throws IOException;
+
     PhotoCompletionResponse updatePhoto(UpdatePhotoCompletionRequest request);
 
 

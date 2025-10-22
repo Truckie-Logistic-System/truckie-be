@@ -13,8 +13,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.beans.PropertyEditorSupport;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @RestController
@@ -25,6 +29,20 @@ import java.util.UUID;
 public class VehicleFuelConsumptionController {
 
     private final VehicleFuelConsumptionService vehicleFuelConsumptionService;
+
+    @InitBinder
+    public void initBinder(WebDataBinder binder) {
+        binder.registerCustomEditor(BigDecimal.class, new PropertyEditorSupport() {
+            @Override
+            public void setAsText(String text) {
+                if (text != null && !text.isEmpty()) {
+                    setValue(new BigDecimal(text));
+                } else {
+                    setValue(null);
+                }
+            }
+        });
+    }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<VehicleFuelConsumptionResponse>> createVehicleFuelConsumption(
@@ -44,8 +62,12 @@ public class VehicleFuelConsumptionController {
 
     @PutMapping(value = "/final-reading", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<VehicleFuelConsumptionResponse>> updateFinalReading(
-            @ModelAttribute VehicleFuelConsumptionEndReadingRequest request) {
-        log.info("Received request to update final odometer reading for vehicle fuel consumption ID: {}", request.id());
+            @RequestParam UUID id,
+            @RequestParam BigDecimal odometerReadingAtEnd,
+            @RequestParam MultipartFile odometerAtEndImage) {
+        log.info("Received request to update final odometer reading for vehicle fuel consumption ID: {}", id);
+        log.info("odometerReadingAtEnd: {}", odometerReadingAtEnd);
+        final var request = new VehicleFuelConsumptionEndReadingRequest(id, odometerReadingAtEnd, odometerAtEndImage);
         final var result = vehicleFuelConsumptionService.updateFinalReading(request);
         return ResponseEntity.ok(new ApiResponse<>(true, "Success", 200, result));
     }

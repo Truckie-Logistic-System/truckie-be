@@ -36,6 +36,17 @@ public class PhotoCompletionController {
     }
 
     /**
+     * Upload và lưu nhiều ảnh hoàn thành cùng lúc
+     */
+    @PostMapping(value = "/upload-multiple", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<List<PhotoCompletionResponse>>> uploadAndSaveMultiplePhotos(
+            @RequestPart("files") List<MultipartFile> files,
+            @RequestPart("request") CreatePhotoCompletionRequest request) throws IOException {
+        final var result = photoCompletionService.uploadAndSaveMultiplePhotos(files, request);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
      * Cập nhật mô tả ảnh
      */
     @PutMapping
