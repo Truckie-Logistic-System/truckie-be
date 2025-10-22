@@ -4,4 +4,5 @@ public enum CommonStatusEnum {
     ACTIVE,
     INACTIVE,
     DELETED,
+    AVAILABLE
 }

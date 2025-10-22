@@ -19,6 +19,7 @@ import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.device.CameraTrackingEntityService;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
@@ -29,12 +30,14 @@ import capstone_project.repository.entityServices.order.order.OrderSizeEntitySer
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.mapper.order.*;
 import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
+import capstone_project.service.services.order.seal.OrderSealService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -73,6 +76,7 @@ public class OrderServiceImpl implements OrderService {
     private final CameraTrackingEntityService cameraTrackingEntityService;
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
+    private final OrderSealService orderSealService; // Thêm OrderSealService
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -722,6 +726,30 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
         
+        // Cập nhật trạng thái OrderSeal thành USED khi đơn hàng hoàn thành (DELIVERED hoặc SUCCESSFUL)
+        if (newStatus == OrderStatusEnum.DELIVERED || newStatus == OrderStatusEnum.SUCCESSFUL) {
+            try {
+                // Tìm tất cả OrderDetail liên quan đến Order
+                List<OrderDetailEntity> orderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
+
+                // Cập nhật trạng thái OrderSeal cho từng VehicleAssignment liên quan
+                for (OrderDetailEntity detail : orderDetails) {
+                    VehicleAssignmentEntity vehicleAssignment = detail.getVehicleAssignmentEntity();
+                    if (vehicleAssignment != null) {
+                        // Cập nhật trạng thái các seal từ IN_USE -> USED
+                        int updatedSeals = orderSealService.updateOrderSealsToUsed(vehicleAssignment);
+                        if (updatedSeals > 0) {
+                            log.info("Đã cập nhật {} seal thành USED cho VehicleAssignment {} khi Order {} chuyển sang trạng thái {}",
+                                    updatedSeals, vehicleAssignment.getId(), orderId, newStatus);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // Không throw exception để tránh ảnh hưởng đến luồng xử lý chính
+                log.error("Lỗi khi cập nhật trạng thái seal cho đơn hàng {}: {}", orderId, e.getMessage());
+            }
+        }
+
         // Send WebSocket notification for status change
         try {
             orderStatusWebSocketService.sendOrderStatusChange(
@@ -776,5 +804,140 @@ public class OrderServiceImpl implements OrderService {
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
         return orderMapper.toGetOrderByJpaResponse(order);
+    }
+
+    @Override
+    @Transactional
+    public CreateOrderResponse updateToOngoingDelivered(UUID orderId) {
+        log.info("Updating order {} to ONGOING_DELIVERED status", orderId);
+
+        // Validate order ID
+        if (orderId == null) {
+            throw new BadRequestException(
+                    "Order ID cannot be null",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Find order
+        OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate current status is ON_DELIVERED
+        if (!OrderStatusEnum.ON_DELIVERED.name().equals(order.getStatus())) {
+            throw new BadRequestException(
+                    String.format("Cannot update to ONGOING_DELIVERED. Current status is %s, expected ON_DELIVERED", 
+                            order.getStatus()),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Update status to ONGOING_DELIVERED
+        order.setStatus(OrderStatusEnum.ONGOING_DELIVERED.name());
+        OrderEntity updatedOrder = orderEntityService.save(order);
+
+        log.info("Successfully updated order {} to ONGOING_DELIVERED", orderId);
+
+        // Send WebSocket notification
+//        orderStatusWebSocketService.sendOrderStatusUpdate(
+//                orderId,
+//                OrderStatusEnum.ONGOING_DELIVERED,
+//                "Xe đang trên đường giao hàng (trong phạm vi 3km)"
+//        );
+
+        return orderMapper.toCreateOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional
+    public CreateOrderResponse updateToDelivered(UUID orderId) {
+        log.info("Updating order {} to DELIVERED status", orderId);
+
+        // Validate order ID
+        if (orderId == null) {
+            throw new BadRequestException(
+                    "Order ID cannot be null",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Find order
+        OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate current status is ONGOING_DELIVERED
+        if (!OrderStatusEnum.ONGOING_DELIVERED.name().equals(order.getStatus())) {
+            throw new BadRequestException(
+                    String.format("Cannot update to DELIVERED. Current status is %s, expected ONGOING_DELIVERED", 
+                            order.getStatus()),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Update status to DELIVERED
+        order.setStatus(OrderStatusEnum.DELIVERED.name());
+        OrderEntity updatedOrder = orderEntityService.save(order);
+
+        log.info("Successfully updated order {} to DELIVERED", orderId);
+
+        // Send WebSocket notification
+//        orderStatusWebSocketService.sendOrderStatusUpdate(
+//                orderId,
+//                OrderStatusEnum.DELIVERED,
+//                "Đã đến điểm giao hàng"
+//        );
+
+        return orderMapper.toCreateOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional
+    public CreateOrderResponse updateToSuccessful(UUID orderId) {
+        log.info("Updating order {} to SUCCESSFUL status", orderId);
+
+        // Validate order ID
+        if (orderId == null) {
+            throw new BadRequestException(
+                    "Order ID cannot be null",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Find order
+        OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate current status is DELIVERED
+        if (!OrderStatusEnum.DELIVERED.name().equals(order.getStatus())) {
+            throw new BadRequestException(
+                    String.format("Cannot update to SUCCESSFUL. Current status is %s, expected DELIVERED", 
+                            order.getStatus()),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Update status to SUCCESSFUL
+        order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
+        OrderEntity updatedOrder = orderEntityService.save(order);
+
+        log.info("Successfully updated order {} to SUCCESSFUL", orderId);
+
+        // Send WebSocket notification
+//        orderStatusWebSocketService.sendOrderStatusUpdate(
+//                orderId,
+//                OrderStatusEnum.SUCCESSFUL,
+//                "Chuyến xe đã hoàn thành thành công"
+//        );
+
+        return orderMapper.toCreateOrderResponse(updatedOrder);
     }
 }

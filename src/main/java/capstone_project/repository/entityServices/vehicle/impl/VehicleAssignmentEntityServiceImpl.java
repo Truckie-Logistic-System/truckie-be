@@ -127,4 +127,9 @@ public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEnti
             return asDriver2;
         }
     }
+
+    @Override
+    public List<VehicleAssignmentEntity> findAssignmentsForDriverSince(UUID driverId, LocalDateTime cutoffDate) {
+        return vehicleAssignmentRepository.findAssignmentsForDriverSince(driverId, cutoffDate);
+    }
 }

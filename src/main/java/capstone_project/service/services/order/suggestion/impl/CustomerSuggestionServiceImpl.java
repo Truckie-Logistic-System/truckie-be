@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -47,11 +48,20 @@ public class CustomerSuggestionServiceImpl implements CustomerSuggestionService 
         List<OrderEntity> recentOrders = orderEntityService.findRecentOrdersByCustomerId(currentCustomerId, limit);
         log.info("Found {} recent orders for customer ID: {}", recentOrders.size(), currentCustomerId);
 
-        // Map to receiver suggestions
+        // Map to receiver suggestions and filter duplicates based on name and phone
         return recentOrders.stream()
                 .filter(order -> order.getReceiverName() != null && order.getReceiverPhone() != null)
                 .map(receiverSuggestionMapper::toDto)
-                .collect(Collectors.toList());
+                .collect(Collectors.collectingAndThen(
+                    Collectors.toMap(
+                        // Use composite key of name and phone as the map key to identify duplicates
+                        receiver -> receiver.getReceiverName() + ":" + receiver.getReceiverPhone(),
+                        receiver -> receiver,
+                        // If duplicate key found, keep the first occurrence (which will be the most recent due to order)
+                        (existing, replacement) -> existing
+                    ),
+                    map -> new ArrayList<>(map.values())
+                ));
     }
 
     @Override

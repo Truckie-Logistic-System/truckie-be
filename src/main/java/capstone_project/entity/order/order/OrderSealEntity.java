@@ -19,6 +19,9 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class OrderSealEntity extends BaseEntity {
 
+    @Column(name = "seal_code")
+    private String sealCode;
+
     @Column(name = "seal_date")
     private LocalDateTime sealDate;
 
@@ -43,9 +46,5 @@ public class OrderSealEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id")
     private VehicleAssignmentEntity vehicleAssignment;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "seal_id")
-    private SealEntity seal;
 
 }

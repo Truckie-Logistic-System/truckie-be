@@ -58,6 +58,33 @@ public interface OrderService {
 
     List<GetOrderForDriverResponse> getOrderForDriverByCurrentDrive();
 
+    /**
+     * Update order status to ONGOING_DELIVERED when vehicle is near delivery point
+     * Validates that current status is ON_DELIVERED before updating
+     * 
+     * @param orderId the order ID to update
+     * @return updated order response
+     */
+    CreateOrderResponse updateToOngoingDelivered(UUID orderId);
+
+    /**
+     * Update order status to DELIVERED when vehicle arrives at delivery point
+     * Validates that current status is ONGOING_DELIVERED before updating
+     * 
+     * @param orderId the order ID to update
+     * @return updated order response
+     */
+    CreateOrderResponse updateToDelivered(UUID orderId);
+
+    /**
+     * Update order status to SUCCESSFUL when driver confirms trip completion
+     * Validates that current status is DELIVERED before updating
+     * 
+     * @param orderId the order ID to update
+     * @return updated order response
+     */
+    CreateOrderResponse updateToSuccessful(UUID orderId);
+
     GetOrderByJpaResponse getSimplifiedOrderForCustomerV2ByOrderId(UUID orderId);
 
     OrderForDriverResponse getOrderForDriverByOrderId(UUID orderId);

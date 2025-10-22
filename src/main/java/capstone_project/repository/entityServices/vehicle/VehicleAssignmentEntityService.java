@@ -62,6 +62,14 @@ public interface VehicleAssignmentEntityService extends BaseEntityService<Vehicl
     Optional<VehicleAssignmentEntity> findLatestAssignmentByDriverId(UUID driverId);
 
     /**
+     * Tìm tất cả các assignment của tài xế kể từ một thời điểm cụ thể
+     * @param driverId ID của tài xế
+     * @param cutoffDate Ngày bắt đầu tìm kiếm
+     * @return Danh sách các assignment của tài xế từ cutoffDate đến hiện tại
+     */
+    List<VehicleAssignmentEntity> findAssignmentsForDriverSince(UUID driverId, LocalDateTime cutoffDate);
+
+    /**
      * Find a vehicle assignment by ID
      * @param id the UUID of the vehicle assignment
      * @return Optional containing the vehicle assignment if found, or empty if not found

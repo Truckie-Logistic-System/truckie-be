@@ -158,4 +158,18 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
            "LEFT JOIN FETCH d2.user u2 " +
            "WHERE va.vehicleEntity.id = :vehicleId")
     List<VehicleAssignmentEntity> findByVehicleEntityIdWithDrivers(@Param("vehicleId") UUID vehicleId);
+
+    /**
+     * Tìm tất cả các assignment của tài xế (cả driver1 và driver2) kể từ một thời điểm cụ thể
+     * @param driverId ID của tài xế
+     * @param cutoffDate Ngày bắt đầu tìm kiếm
+     * @return Danh sách các assignment của tài xế từ cutoffDate đến hiện tại
+     */
+    @Query("SELECT va FROM VehicleAssignmentEntity va " +
+           "WHERE (va.driver1.id = :driverId OR va.driver2.id = :driverId) " +
+           "AND va.createdAt >= :cutoffDate " +
+           "ORDER BY va.createdAt DESC")
+    List<VehicleAssignmentEntity> findAssignmentsForDriverSince(
+            @Param("driverId") UUID driverId,
+            @Param("cutoffDate") LocalDateTime cutoffDate);
 }

@@ -1,6 +1,7 @@
 package capstone_project.repository.repositories.order.order;
 
 import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.repositories.common.BaseRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -141,4 +142,18 @@ public interface OrderDetailRepository extends BaseRepository<OrderDetailEntity>
             @Param("year") Integer year,
             @Param("amount") int amount
     );
+
+    /**
+     * Find order details by vehicle assignment entity
+     * @param vehicleAssignment The vehicle assignment entity
+     * @return List of order details associated with the vehicle assignment
+     */
+    List<OrderDetailEntity> findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignment);
+    
+    /**
+     * Find the first order detail associated with a specific vehicle assignment
+     * @param vehicleAssignmentId The ID of the vehicle assignment
+     * @return The first order detail found, if any
+     */
+    Optional<OrderDetailEntity> findFirstByVehicleAssignmentEntityId(UUID vehicleAssignmentId);
 }
