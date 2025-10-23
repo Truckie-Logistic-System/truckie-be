@@ -359,17 +359,18 @@ public class ContractServiceImpl implements ContractService {
         List<ContractRuleAssignResponse> optimal = null;
         List<ContractRuleAssignResponse> realistic = null;
 
-        try {
-            optimal = assignVehiclesOptimal(orderId);
-        } catch (Exception e) {
-            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Optimal assignment failed for orderId={}, reason={}", orderId, e.getMessage());
-        }
+        optimal = assignVehiclesOptimal(orderId);
 
-        try {
-            realistic = assignVehiclesWithAvailability(orderId);
-        } catch (Exception e) {
-            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Realistic assignment failed for orderId={}, reason={}", orderId, e.getMessage());
-        }
+        realistic = assignVehiclesWithAvailability(orderId);
+//        try {
+//        } catch (Exception e) {
+//            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Optimal assignment failed for orderId={}, reason={}", orderId, e.getMessage());
+//        }
+//
+//        try {
+//        } catch (Exception e) {
+//            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Realistic assignment failed for orderId={}, reason={}", orderId, e.getMessage());
+//        }
 
         if (optimal == null && realistic == null) {
             return null;
