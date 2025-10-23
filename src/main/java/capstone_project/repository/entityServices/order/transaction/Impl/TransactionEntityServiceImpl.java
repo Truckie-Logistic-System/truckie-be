@@ -75,6 +75,6 @@ public class TransactionEntityServiceImpl implements TransactionEntityService {
 
     @Override
     public BigDecimal sumPaidAmountByContractId(UUID contractId) {
-        return null;
+        return transactionRepository.sumPaidAmountByContractId(contractId);
     }
 }

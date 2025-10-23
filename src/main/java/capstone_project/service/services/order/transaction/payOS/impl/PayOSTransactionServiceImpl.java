@@ -454,10 +454,18 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 BigDecimal totalValue = validationTotalValue(contract.getId());
                 BigDecimal totalPaidAmount = transactionEntityService.sumPaidAmountByContractId(contract.getId());
 
+                log.info(">>>> DEBUG: Total Value = {}, Total Paid Amount from DB = {}", totalValue, totalPaidAmount);
+
+                if (totalPaidAmount == null) {
+                    totalPaidAmount = BigDecimal.ZERO;
+                }
+
                 if (totalPaidAmount.compareTo(totalValue) >= 0) {
+                    log.info("Test1");
                     contract.setStatus(ContractStatusEnum.PAID.name());
                     orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.FULLY_PAID);
                 } else {
+                    log.info("Test2");
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
                     orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
                 }
@@ -480,6 +488,63 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         contractEntityService.save(contract);
         log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
     }
+
+//    private void updateContractStatusIfNeeded(TransactionEntity transaction) {
+//        ContractEntity contract = transaction.getContractEntity();
+//        if (contract == null) {
+//            log.warn("Transaction {} has no contract linked", transaction.getId());
+//            throw new NotFoundException(
+//                    "No contract linked to transaction",
+//                    ErrorEnum.NOT_FOUND.getErrorCode()
+//            );
+//        }
+//
+//        OrderEntity order = contract.getOrderEntity();
+//        if (order == null) {
+//            log.warn("No order found for contract {}", contract.getId());
+//            throw new NotFoundException(
+//                    "No order found for contract",
+//                    ErrorEnum.NOT_FOUND.getErrorCode());
+//        }
+//
+//        OrderService orderService = orderServiceObjectProvider.getIfAvailable();
+//        if (orderService == null) {
+//            log.warn("No order found for contract {}", contract.getId());
+//            throw new NotFoundException(
+//                    "No order found for contract",
+//                    ErrorEnum.NOT_FOUND.getErrorCode());
+//        }
+//
+//        switch (TransactionEnum.valueOf(transaction.getStatus())) {
+//            case PAID -> {
+//                BigDecimal totalValue = validationTotalValue(contract.getId());
+//
+//                if (transaction.getAmount().compareTo(totalValue) < 0) {
+//                    contract.setStatus(ContractStatusEnum.DEPOSITED.name());
+//                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
+//                } else {
+//                    contract.setStatus(ContractStatusEnum.PAID.name());
+//                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.FULLY_PAID);
+//                }
+//            }
+//
+//            case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
+//
+//            case REFUNDED -> {
+//                contract.setStatus(ContractStatusEnum.REFUNDED.name());
+//                order.setStatus(OrderStatusEnum.RETURNED.name());
+//            }
+//            default -> {
+//            }
+//        }
+//
+//        if (TransactionEnum.valueOf(transaction.getStatus()) == TransactionEnum.REFUNDED) {
+//            orderEntityService.save(order);
+//        }
+//
+//        contractEntityService.save(contract);
+//        log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
+//    }
 
 
     @Override

@@ -22,7 +22,9 @@ public interface TransactionRepository extends BaseRepository<TransactionEntity>
     List<TransactionEntity> findByStatusAndCreatedAtBefore(String status, LocalDateTime time);
 
     @Query(value = """
-            SELECT SUM(t.amount) FROM "transaction" t WHERE t.contract_id = :contractId AND t.status = 'PAID';
+            SELECT SUM(t.amount) 
+            FROM "transaction" t 
+            WHERE t.contract_id = :contractId AND t.status = 'PAID'
             """, nativeQuery = true)
     BigDecimal sumPaidAmountByContractId(@Param("contractId") UUID contractId);
 
