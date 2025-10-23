@@ -32,4 +32,6 @@ public interface VehicleService {
      * @return number of vehicles that were actually updated
      */
     int updateVehicleLocationsInBatch(BatchUpdateLocationRequest batchRequest);
+
+    List<VehicleResponse> generateBulkVehicles(Integer count);
 }

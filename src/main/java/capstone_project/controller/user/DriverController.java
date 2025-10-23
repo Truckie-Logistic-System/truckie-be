@@ -1,5 +1,6 @@
 package capstone_project.controller.user;
 
+import capstone_project.dtos.request.user.BulkDriverGenerationRequest;
 import capstone_project.dtos.request.user.UpdateDriverRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.user.DriverResponse;
@@ -56,4 +57,10 @@ public class DriverController {
         return ResponseEntity.ok(ApiResponse.ok(driver));
     }
 
+    @PostMapping("/generate-bulk")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<DriverResponse>>> generateBulkDrivers(@RequestBody BulkDriverGenerationRequest request) {
+        final var drivers = driverService.generateBulkDrivers(request.getCount());
+        return ResponseEntity.ok(ApiResponse.ok(drivers));
+    }
 }

@@ -49,6 +49,14 @@ public interface UserEntityService extends BaseEntityService<UserEntity, UUID> {
 
     List<UserEntity> getUserEntitiesByRoleRoleName(String roleName);
 
+    /**
+     * Find all users with username starting with the given prefix
+     *
+     * @param prefix the username prefix to search for
+     * @return list of matching users
+     */
+    List<UserEntity> findByUsernameStartingWith(String prefix);
+
     List<UserEntity> findAllByIdIn(List<UUID> ids);
 
     List<Object[]> countAllByUserStatus();

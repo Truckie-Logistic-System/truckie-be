@@ -1,6 +1,7 @@
 package capstone_project.controller.vehicle;
 
 import capstone_project.dtos.request.vehicle.BatchUpdateLocationRequest;
+import capstone_project.dtos.request.vehicle.BulkVehicleGenerationRequest;
 import capstone_project.dtos.request.vehicle.UpdateLocationRequest;
 import capstone_project.dtos.request.vehicle.UpdateVehicleRequest;
 import capstone_project.dtos.request.vehicle.VehicleRequest;
@@ -10,6 +11,7 @@ import capstone_project.service.services.vehicle.VehicleService;
 import capstone_project.dtos.response.common.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -83,6 +85,19 @@ public class VehicleController {
             @RequestBody @Validated BatchUpdateLocationRequest req) {
         int updatedCount = service.updateVehicleLocationsInBatch(req);
         return ResponseEntity.ok(ApiResponse.ok(updatedCount));
+    }
+
+    /**
+     * Generate multiple vehicles in a single operation
+     *
+     * @param request The request containing the count of vehicles to generate
+     * @return List of created vehicle responses
+     */
+    @PostMapping("/generate-bulk")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<VehicleResponse>>> generateBulkVehicles(@RequestBody @Validated BulkVehicleGenerationRequest request) {
+        final var vehicles = service.generateBulkVehicles(request.getCount());
+        return ResponseEntity.ok(ApiResponse.ok(vehicles));
     }
 
 //    @DeleteMapping("/{id}")

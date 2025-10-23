@@ -69,4 +69,12 @@ public interface UserRepository extends BaseRepository<UserEntity> {
             GROUP BY r.role_name;
             """, nativeQuery = true)
     List<Object[]> countUsersByRole();
+
+    /**
+     * Find all users with username starting with the given prefix
+     *
+     * @param prefix username prefix to search for
+     * @return list of matching users
+     */
+    List<UserEntity> findByUsernameStartingWith(String prefix);
 }

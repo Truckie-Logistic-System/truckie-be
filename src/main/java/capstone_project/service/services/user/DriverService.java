@@ -23,4 +23,6 @@ public interface DriverService {
     DriverResponse updateDriverStatus(UUID driverId, String status);
 
     boolean isCheckClassDriverLicenseForVehicleType(DriverEntity driver, VehicleTypeEnum vehicleType);
+
+    List<DriverResponse> generateBulkDrivers(Integer count);
 }

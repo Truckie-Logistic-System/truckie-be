@@ -78,6 +78,11 @@ public class UserEntityServiceImpl implements UserEntityService {
     }
 
     @Override
+    public List<UserEntity> findByUsernameStartingWith(String prefix) {
+        return userRepository.findByUsernameStartingWith(prefix);
+    }
+
+    @Override
     public UserEntity save(UserEntity entity) {
         return userRepository.save(entity);
     }

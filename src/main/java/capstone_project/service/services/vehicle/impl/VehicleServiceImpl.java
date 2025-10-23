@@ -1,6 +1,7 @@
 package capstone_project.service.services.vehicle.impl;
 
 import capstone_project.common.enums.ErrorEnum;
+import capstone_project.common.enums.VehicleStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.BatchUpdateLocationRequest;
@@ -14,6 +15,7 @@ import capstone_project.dtos.response.vehicle.VehicleResponse;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.entity.vehicle.VehicleMaintenanceEntity;
+import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleMaintenanceEntityService;
@@ -31,7 +33,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -268,5 +272,114 @@ public class VehicleServiceImpl implements VehicleService {
         }
 
         return updatedCount;
+    }
+
+    @Override
+    @Transactional
+    public List<VehicleResponse> generateBulkVehicles(Integer count) {
+        log.info("Generating {} bulk vehicles", count);
+
+        List<VehicleEntity> createdVehicles = new ArrayList<>();
+        List<VehicleResponse> vehicleResponses = new ArrayList<>();
+
+        // Find the highest existing vehicle license plate number
+        String prefix = "V";
+        int startNumber = findHighestVehicleNumber() + 1;
+        log.info("Starting vehicle generation from number: {}", startNumber);
+
+        // Array of common truck manufacturers and models
+        String[] manufacturers = {"Isuzu", "Hino", "Hyundai", "Thaco", "Kia", "Mitsubishi", "Ford"};
+        String[] modelPrefixes = {"HD", "FT", "Mighty", "Frontier", "K", "Fuso", "Cargo"};
+
+        // Get vehicle types from the database
+        List<VehicleTypeEntity> vehicleTypes = vehicleTypeEntityService.findAll();
+        if (vehicleTypes.isEmpty()) {
+            throw new BadRequestException(
+                    "No vehicle types found in the database",
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+
+        // Generate vehicles
+        for (int i = 0; i < count; i++) {
+            int currentNumber = startNumber + i;
+
+            // Generate license plate with pattern: 29C-XXXXX (Hanoi truck format)
+            String licensePlate = String.format("29C-%05d", currentNumber % 100000);
+
+            // Rotate through manufacturers and models
+            String manufacturer = manufacturers[i % manufacturers.length];
+            String modelPrefix = modelPrefixes[i % modelPrefixes.length];
+            String model = modelPrefix + "-" + (currentNumber % 1000);
+
+            // Year between 2018 and current year (2025)
+            int year = 2018 + (currentNumber % 8);
+
+            // Capacity based on vehicle type
+            VehicleTypeEntity vehicleType = vehicleTypes.get(i % vehicleTypes.size());
+            BigDecimal capacity = vehicleType.getCapacityM3();
+
+            // Create the vehicle entity
+            VehicleEntity vehicleEntity = VehicleEntity.builder()
+                    .licensePlateNumber(licensePlate)
+                    .model(model)
+                    .manufacturer(manufacturer)
+                    .year(year)
+                    .capacity(capacity)
+                    .status(VehicleStatusEnum.ACTIVE.name())
+                    .vehicleTypeEntity(vehicleType)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            try {
+                VehicleEntity savedVehicle = vehicleEntityService.save(vehicleEntity);
+                createdVehicles.add(savedVehicle);
+                log.info("Created vehicle with license plate: {}", licensePlate);
+            } catch (Exception e) {
+                log.error("Error creating vehicle with license plate {}: {}", licensePlate, e.getMessage());
+            }
+        }
+
+        // Map all created vehicles to response objects
+        for (VehicleEntity vehicle : createdVehicles) {
+            vehicleResponses.add(vehicleMapper.toResponse(vehicle));
+        }
+
+        log.info("Successfully generated {} vehicles", vehicleResponses.size());
+        return vehicleResponses;
+    }
+
+    /**
+     * Find the highest vehicle number based on license plates
+     * Looks for license plates with pattern 29C-XXXXX
+     * @return highest number found, or 10000 as default
+     */
+    private int findHighestVehicleNumber() {
+        int highestNumber = 10000; // Default starting number
+
+        try {
+            List<VehicleEntity> vehicles = vehicleEntityService.findAll();
+
+            for (VehicleEntity vehicle : vehicles) {
+                String licensePlate = vehicle.getLicensePlateNumber();
+                if (licensePlate != null && licensePlate.startsWith("29C-")) {
+                    try {
+                        // Extract the number part from license plate (29C-12345 -> 12345)
+                        int vehicleNumber = Integer.parseInt(licensePlate.substring(4));
+                        if (vehicleNumber > highestNumber) {
+                            highestNumber = vehicleNumber;
+                        }
+                    } catch (NumberFormatException e) {
+                        log.warn("Skipping non-standard license plate format: {}", licensePlate);
+                    }
+                }
+            }
+
+            log.info("Found highest vehicle number: {}", highestNumber);
+        } catch (Exception e) {
+            log.error("Error finding highest vehicle number, using default: {}", highestNumber, e);
+        }
+
+        return highestNumber;
     }
 }

@@ -2,13 +2,18 @@ package capstone_project.service.services.user.impl;
 
 import capstone_project.common.enums.DriverLicenseClassEnum;
 import capstone_project.common.enums.ErrorEnum;
+import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.enums.VehicleTypeEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.dtos.request.user.UpdateDriverRequest;
 import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.dtos.response.user.PenaltyHistoryResponse;
+import capstone_project.entity.auth.RoleEntity;
+import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.user.driver.DriverEntity;
+import capstone_project.repository.entityServices.auth.RoleEntityService;
+import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.user.DriverMapper;
@@ -17,8 +22,13 @@ import capstone_project.service.services.user.PenaltyHistoryService;
 import capstone_project.common.utils.UserContextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -34,6 +44,9 @@ public class DriverServiceImpl implements DriverService {
     private final DriverMapper driverMapper;
     private final PenaltyHistoryService penaltyHistoryService;
     private final UserContextUtils userContextUtils;
+    private final RoleEntityService roleEntityService;
+    private final PasswordEncoder passwordEncoder;
+    private final UserEntityService userEntityService; // Add UserEntityService
 
     @Override
     public List<DriverResponse> getAllDrivers() {
@@ -223,5 +236,148 @@ public class DriverServiceImpl implements DriverService {
         return driverEntities.stream()
                 .map(driverMapper::mapDriverResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public List<DriverResponse> generateBulkDrivers(Integer count) {
+        log.info("Generating {} bulk drivers", count);
+
+        // Prepare lists to store the results
+        List<DriverEntity> createdDrivers = new ArrayList<>();
+        List<DriverResponse> driverResponses = new ArrayList<>();
+
+        // Find the highest existing driver number
+        int startId = findHighestDriverNumber() + 1;
+        log.info("Starting driver generation from ID: {}", startId);
+
+        // Get the DRIVER role
+        RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.DRIVER.name())
+                .orElseThrow(() -> new BadRequestException(
+                        "Role " + RoleTypeEnum.DRIVER.name() + " not found",
+                        ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
+                ));
+
+        // Last name options for generated drivers
+        String[] lastNames = {"Nguyen", "Tran", "Le", "Pham", "Hoang", "Vo", "Dang"};
+
+        // Generate sequential drivers
+        for (int i = 0; i < count; i++) {
+            int currentId = startId + i;
+
+            // Create user and driver with sequential data
+            String username = "driver" + currentId;
+            String email = username + "@gmail.com";
+            String password = username; // Password same as username
+            String lastName = lastNames[i % lastNames.length];
+            String fullName = "Driver " + currentId + " " + lastName;
+            String phoneNumber = "0901" + String.format("%06d", currentId);
+
+            int provinceCode = (currentId % 63) + 1;
+            String identityNumber = String.format("%03d%06d%03d",
+                    provinceCode,
+                    900000 + (currentId % 100000),
+                    currentId % 1000);
+
+            String[] provinceCodes = {"HN", "HCM", "DN", "HP", "CT"};
+            String[] issueCodes = {"CA", "CS", "PA", "GT", "QD"};
+            String provinceLetterCode = provinceCodes[i % provinceCodes.length];
+            String issueLetterCode = issueCodes[i % issueCodes.length];
+            String cardSerialNumber = provinceLetterCode + "-" + issueLetterCode + "-" + String.format("%06d", currentId);
+
+            String licenseNumber = "20ASX" + String.format("%02d", currentId % 100);
+
+            // Create user entity
+            UserEntity user = UserEntity.builder()
+                    .username(username)
+                    .email(email)
+                    .password(passwordEncoder.encode(password))
+                    .fullName(fullName)
+                    .phoneNumber(phoneNumber)
+                    .gender(true) // Default gender
+                    .dateOfBirth(LocalDate.of(1990, 1, 1)) // Default DOB
+                    .status(UserStatusEnum.ACTIVE.name())
+                    .role(role)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            UserEntity savedUser = userEntityService.save(user);
+
+            // Generate random dates for driver documents
+            LocalDateTime dateOfIssue = LocalDateTime.now().minusYears(3 + (i % 5));
+            LocalDateTime dateOfExpiry = dateOfIssue.plusYears(5);
+            LocalDateTime dateOfPassing = dateOfIssue.minusMonths(2);
+
+            // Rotate through license classes and locations
+            String[] licenseClasses = {"B2", "C"};
+            String[] locations = {"HN", "HCM", "DN", "CT", "HP"};
+
+            String licenseClass = licenseClasses[i % licenseClasses.length];
+            String location = locations[i % locations.length];
+
+            // Create driver entity
+            DriverEntity driverEntity = DriverEntity.builder()
+                    .driverLicenseNumber(licenseNumber)
+                    .identityNumber(identityNumber)
+                    .cardSerialNumber(cardSerialNumber)
+                    .placeOfIssue(location)
+                    .dateOfIssue(dateOfIssue)
+                    .dateOfExpiry(dateOfExpiry)
+                    .licenseClass(licenseClass)
+                    .dateOfPassing(dateOfPassing)
+                    .status(UserStatusEnum.ACTIVE.name())
+                    .user(savedUser)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            DriverEntity savedDriver = driverEntityService.save(driverEntity);
+            createdDrivers.add(savedDriver);
+
+            log.info("Created driver: {} with username: {}", fullName, username);
+        }
+
+        // Map the driver entities to responses
+        for (DriverEntity driver : createdDrivers) {
+            driverResponses.add(driverMapper.mapDriverResponse(driver));
+        }
+
+        log.info("Successfully generated {} drivers", driverResponses.size());
+        return driverResponses;
+    }
+
+    /**
+     * Find the highest driver number from existing usernames
+     * Looks for usernames in format "driverXX" and returns the highest XX value
+     * @return the highest driver number, or 20 as default if none found
+     */
+    private int findHighestDriverNumber() {
+        int highestNumber = 20; // Default starting number if no drivers found
+
+        try {
+            // Get all users with username starting with "driver"
+            List<UserEntity> drivers = userEntityService.findByUsernameStartingWith("driver");
+
+            for (UserEntity user : drivers) {
+                String username = user.getUsername();
+                // Extract the number from the username (e.g., "driver21" -> 21)
+                if (username != null && username.startsWith("driver")) {
+                    try {
+                        int driverNumber = Integer.parseInt(username.substring(6)); // Skip "driver" prefix
+                        if (driverNumber > highestNumber) {
+                            highestNumber = driverNumber;
+                        }
+                    } catch (NumberFormatException e) {
+                        // Skip non-numeric usernames
+                        log.warn("Skipping non-standard driver username: {}", username);
+                    }
+                }
+            }
+
+            log.info("Found highest driver number: {}", highestNumber);
+        } catch (Exception e) {
+            log.error("Error finding highest driver number, using default: {}", highestNumber, e);
+        }
+
+        return highestNumber;
     }
 }
