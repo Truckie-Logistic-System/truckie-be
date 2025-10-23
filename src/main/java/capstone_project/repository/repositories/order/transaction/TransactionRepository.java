@@ -2,6 +2,7 @@ package capstone_project.repository.repositories.order.transaction;
 
 import capstone_project.entity.order.transaction.TransactionEntity;
 import capstone_project.repository.repositories.common.BaseRepository;
+import io.lettuce.core.dynamic.annotation.Param;
 import org.springframework.data.jpa.repository.Query;
 
 import java.math.BigDecimal;
@@ -19,6 +20,11 @@ public interface TransactionRepository extends BaseRepository<TransactionEntity>
     boolean existsByContractEntityIdAndStatus(UUID contractEntityId, String status);
 
     List<TransactionEntity> findByStatusAndCreatedAtBefore(String status, LocalDateTime time);
+
+    @Query(value = """
+            SELECT SUM(t.amount) FROM "transaction" t WHERE t.contract_id = :contractId AND t.status = 'PAID';
+            """, nativeQuery = true)
+    BigDecimal sumPaidAmountByContractId(@Param("contractId") UUID contractId);
 
     @Query(value = """
             SELECT COALESCE(SUM(t.amount), 0)

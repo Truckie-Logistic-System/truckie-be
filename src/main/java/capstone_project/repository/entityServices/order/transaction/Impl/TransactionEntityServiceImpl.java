@@ -72,4 +72,9 @@ public class TransactionEntityServiceImpl implements TransactionEntityService {
     public List<Object[]> getTotalRevenueByLast4Weeks() {
         return transactionRepository.getTotalRevenueByLast4Weeks();
     }
+
+    @Override
+    public BigDecimal sumPaidAmountByContractId(UUID contractId) {
+        return null;
+    }
 }

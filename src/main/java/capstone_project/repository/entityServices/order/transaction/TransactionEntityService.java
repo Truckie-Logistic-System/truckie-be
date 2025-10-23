@@ -25,4 +25,6 @@ public interface TransactionEntityService extends BaseEntityService<TransactionE
 
     List<Object[]> getTotalRevenueByLast4Weeks();
 
+    BigDecimal sumPaidAmountByContractId(UUID contractId);
+
 }

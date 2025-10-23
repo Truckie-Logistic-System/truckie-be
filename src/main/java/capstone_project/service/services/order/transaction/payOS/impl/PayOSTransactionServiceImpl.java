@@ -452,13 +452,14 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         switch (TransactionEnum.valueOf(transaction.getStatus())) {
             case PAID -> {
                 BigDecimal totalValue = validationTotalValue(contract.getId());
+                BigDecimal totalPaidAmount = transactionEntityService.sumPaidAmountByContractId(contract.getId());
 
-                if (transaction.getAmount().compareTo(totalValue) < 0) {
-                    contract.setStatus(ContractStatusEnum.DEPOSITED.name());
-                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
-                } else {
+                if (totalPaidAmount.compareTo(totalValue) >= 0) {
                     contract.setStatus(ContractStatusEnum.PAID.name());
                     orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.FULLY_PAID);
+                } else {
+                    contract.setStatus(ContractStatusEnum.DEPOSITED.name());
+                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
                 }
             }
 
