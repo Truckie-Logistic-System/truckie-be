@@ -107,7 +107,29 @@ public class StaffOrderMapper {
                 response.pickupAddress().province()
         );
 
-        // Process order details with enhanced information for staff
+        // Collect unique vehicle assignment IDs from order details
+        Set<UUID> uniqueVehicleAssignmentIds = response.orderDetails().stream()
+                .map(GetOrderDetailResponse::vehicleAssignmentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // Build full vehicle assignment responses for unique IDs
+        List<StaffVehicleAssignmentResponse> vehicleAssignments = uniqueVehicleAssignmentIds.stream()
+                .map(vaId -> {
+                    // Find the first vehicleAssignmentResponse with this ID from response.vehicleAssignments()
+                    VehicleAssignmentResponse vaResponse = response.vehicleAssignments().stream()
+                            .filter(va -> va.id().equals(vaId))
+                            .findFirst()
+                            .orElse(null);
+                    if (vaResponse != null) {
+                        return toStaffVehicleAssignmentResponse(vaResponse);
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        // Process order details with only vehicle assignment ID reference
         List<StaffOrderDetailResponse> staffOrderDetails = response.orderDetails().stream()
                 .map(this::toStaffOrderDetailResponseWithEnhancedInfo)
                 .collect(Collectors.toList());
@@ -130,7 +152,8 @@ public class StaffOrderMapper {
                 response.sender().getRepresentativePhone(),
                 response.sender().getCompanyName(),
                 response.category().categoryName(),
-                staffOrderDetails
+                staffOrderDetails,
+                vehicleAssignments  // Add aggregated vehicle assignments
         );
     }
 
@@ -149,11 +172,6 @@ public class StaffOrderMapper {
             );
         }
 
-        StaffVehicleAssignmentResponse vehicleAssignment = null;
-        if (detail.vehicleAssignmentId() != null) {
-            vehicleAssignment = toStaffVehicleAssignmentResponse(detail.vehicleAssignmentId());
-        }
-
         return new StaffOrderDetailResponse(
                 detail.trackingCode(),
                 detail.weightBaseUnit(),
@@ -167,7 +185,7 @@ public class StaffOrderMapper {
                 detail.createdAt(),
                 detail.trackingCode(),
                 orderSize,
-                vehicleAssignment
+                detail.vehicleAssignmentId()  // Only store ID reference
         );
     }
 

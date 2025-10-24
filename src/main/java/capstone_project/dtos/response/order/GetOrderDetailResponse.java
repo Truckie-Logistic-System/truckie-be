@@ -6,6 +6,7 @@ import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public record GetOrderDetailResponse  (
         BigDecimal weight,
@@ -22,7 +23,7 @@ public record GetOrderDetailResponse  (
         String trackingCode,
         String orderId,
         GetOrderSizeResponse orderSizeId,
-        VehicleAssignmentResponse vehicleAssignmentId
+        UUID vehicleAssignmentId  // Changed from full object to ID reference
 )
 {
 }

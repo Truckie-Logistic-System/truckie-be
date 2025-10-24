@@ -22,5 +22,6 @@ public record SimpleOrderResponse(
     String senderPhone,
     String senderCompanyName,
     String categoryName,
-    List<SimpleOrderDetailResponse> orderDetails
+    List<SimpleOrderDetailResponse> orderDetails,
+    List<SimpleVehicleAssignmentResponse> vehicleAssignments
 ) {}

@@ -1,13 +1,17 @@
 package capstone_project.service.mapper.order;
 
 import capstone_project.dtos.response.order.*;
+import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.user.address.AddressEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.service.mapper.vehicle.VehicleAssignmentMapper;
 import org.mapstruct.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
-@Mapper(componentModel = "spring", uses = {OrderDetailMapper.class})
+@Mapper(componentModel = "spring", uses = {OrderDetailMapper.class, VehicleAssignmentMapper.class})
 public interface OrderMapper {
 
     @Mapping(source = "sender.id", target = "senderId")
@@ -19,7 +23,32 @@ public interface OrderMapper {
     List<CreateOrderResponse> toCreateOrderResponses(List<OrderEntity> orderEntities);
 
     @Mapping(source = "orderDetailEntities", target = "orderDetails")
+    @Mapping(target = "vehicleAssignments", expression = "java(extractUniqueVehicleAssignments(entity))")
     GetOrderResponse toGetOrderResponse(OrderEntity entity);
+
+    default List<VehicleAssignmentResponse> extractUniqueVehicleAssignments(OrderEntity entity) {
+        if (entity == null || entity.getOrderDetailEntities() == null) {
+            return List.of();
+        }
+        return entity.getOrderDetailEntities().stream()
+                .map(orderDetail -> orderDetail.getVehicleAssignmentEntity())
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .map(this::toVehicleAssignmentResponse)
+                .collect(Collectors.toList());
+    }
+
+    default VehicleAssignmentResponse toVehicleAssignmentResponse(VehicleAssignmentEntity entity) {
+        if (entity == null) return null;
+        return new VehicleAssignmentResponse(
+                entity.getId(),
+                entity.getVehicleEntity() != null ? entity.getVehicleEntity().getId() : null,
+                entity.getDriver1() != null && entity.getDriver1().getUser() != null ? entity.getDriver1().getUser().getId() : null,
+                entity.getDriver2() != null && entity.getDriver2().getUser() != null ? entity.getDriver2().getUser().getId() : null,
+                entity.getStatus(),
+                entity.getTrackingCode()
+        );
+    }
 
     @Mapping(source = "pickupAddress.id", target = "pickupAddressId")
     @Mapping(source = "category.id", target = "categoryId")
