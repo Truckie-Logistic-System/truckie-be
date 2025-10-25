@@ -15,6 +15,7 @@ public enum ErrorEnum {
     NULL(13, "This field is null."),
     REQUIRED(14, "This field is required."),
     NOT_FOUND(15, "Not found"),
+    UNAUTHORIZED(401, "Unauthorized - Authentication required"),
     // VEHICLE BASED ERROR
     VEHICLE_TYPE_NOT_FOUND(15, "Vehicle Type Not Found!"),
     NO_VEHICLE_AVAILABLE(24, "No Vehicle Available For This!"),

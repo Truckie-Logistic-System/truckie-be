@@ -462,10 +462,29 @@ public class BinPacker {
 
         for (ContainerState c : used) {
 
+            // Phát hiện đơn vị chủ đạo từ các detail
+            String dominantUnit = c.placements.stream()
+                    .map(pl -> {
+                        OrderDetailEntity detail = detailMap.get(pl.box.id);
+                        return detail != null ? detail.getUnit() : null;
+                    })
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse("Kí"); // Default là Kí
+
+            // Tính currentLoadPrecise bằng weightBaseUnit (tương thích với dữ liệu cũ)
             BigDecimal currentLoadPrecise = c.placements.stream()
                     .map(pl -> {
                         OrderDetailEntity detail = detailMap.get(pl.box.id);
-                        return detail != null ? detail.getWeight() : BigDecimal.ZERO;
+                        if (detail == null) return BigDecimal.ZERO;
+
+                        // Ưu tiên dùng weightBaseUnit
+                        BigDecimal baseWeight = detail.getWeightBaseUnit();
+                        if (baseWeight != null) {
+                            return baseWeight;
+                        }
+                        // Fallback về weight
+                        return detail.getWeight() != null ? detail.getWeight() : BigDecimal.ZERO;
                     })
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -505,6 +524,7 @@ public class BinPacker {
                     .vehicleTypeRuleId(c.rule.getId())
                     .vehicleTypeRuleName(c.rule.getVehicleTypeRuleName())
                     .currentLoad(currentLoadPrecise)
+                    .currentLoadUnit(dominantUnit) // Sử dụng đơn vị động
                     .assignedDetails(assigned)
                     .packedDetailDetails(packedDetails)
                     .build();

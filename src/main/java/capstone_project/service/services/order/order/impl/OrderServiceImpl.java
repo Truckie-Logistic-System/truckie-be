@@ -411,9 +411,9 @@ public class OrderServiceImpl implements OrderService {
 //                        throw new BadRequestException(ErrorEnum.INVALID_REQUEST.getMessage() + "orderSize's max weight have to be more than detail's weight", ErrorEnum.NOT_FOUND.getErrorCode());
 //                    }
                     return OrderDetailEntity.builder()
-                            .weightBaseUnit(request.weight())
+                            .weight(request.weight())  // Trọng lượng gốc người dùng nhập
                             .unit(request.unit())
-                            .weight(convertToTon(request.weight(), request.unit()))
+                            .weightBaseUnit(convertToTon(request.weight(), request.unit()))  // Convert về tấn
                             .description(request.description())
                             .status(savedOrder.getStatus())
                             .trackingCode(generateCode(prefixOrderDetailCode))

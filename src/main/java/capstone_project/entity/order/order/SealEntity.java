@@ -12,7 +12,7 @@ import lombok.experimental.SuperBuilder;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "order_seals", schema = "public", catalog = "capstone-project")
+@Table(name = "seals", schema = "public", catalog = "capstone-project")
 @Data
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor

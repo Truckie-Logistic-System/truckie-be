@@ -14,14 +14,14 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "vehicle_rules", schema = "public", catalog = "capstone-project")
+@Table(name = "vehicle_type_rules", schema = "public", catalog = "capstone-project")
 @Data
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class VehicleTypeRuleEntity extends BaseEntity {
     @Size(max = 100)
-    @Column(name = "vehicle_rule_name", length = 100)
+    @Column(name = "vehicle_type_rule_name", length = 100)
     private String vehicleTypeRuleName;
 
     @Column(name = "min_weight")

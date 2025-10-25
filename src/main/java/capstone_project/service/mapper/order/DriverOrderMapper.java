@@ -333,7 +333,7 @@ public class DriverOrderMapper {
                 contract.effectiveDate(),
                 contract.expirationDate(),
                 contract.totalValue(),
-                contract.supportedValue(),
+                contract.adjustedValue(),
                 contract.description(),
                 contract.attachFileUrl(),
                 contract.status(),

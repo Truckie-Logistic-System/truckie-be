@@ -974,7 +974,7 @@ public class ContractServiceImpl implements ContractService {
         ce.setDescription(req.description());
         ce.setEffectiveDate(req.effectiveDate());
         ce.setExpirationDate(req.expirationDate());
-        ce.setSupportedValue(req.supportedValue());
+        ce.setAdjustedValue(req.adjustedValue());
         ce.setContractName(req.contractName());
 
 

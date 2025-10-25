@@ -7,6 +7,7 @@ import java.util.List;
 public record SimpleOrderResponse(
     String id,
     BigDecimal totalPrice,
+    BigDecimal depositAmount,
     String notes,
     int totalQuantity,
     String orderCode,
