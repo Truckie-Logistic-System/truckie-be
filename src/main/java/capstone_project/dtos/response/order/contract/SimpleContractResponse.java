@@ -9,7 +9,7 @@ public record SimpleContractResponse(
     String effectiveDate,
     String expirationDate,
     BigDecimal totalValue,
-    BigDecimal supportedValue,
+    BigDecimal adjustedValue,
     String description,
     String attachFileUrl,
     String status,

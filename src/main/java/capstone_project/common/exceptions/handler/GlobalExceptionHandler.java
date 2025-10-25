@@ -4,6 +4,7 @@ package capstone_project.common.exceptions.handler;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.InternalServerException;
 import capstone_project.common.exceptions.dto.NotFoundException;
+import capstone_project.common.exceptions.dto.UnauthorizedException;
 import capstone_project.dtos.response.common.ApiResponse;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.stripe.exception.StripeException;
@@ -124,6 +125,13 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.NOT_FOUND)
                 .body(new ApiResponse<>(false, ex.getMessage(), 404, null));
     }
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ApiResponse<?>> handleUnauthorized(UnauthorizedException ex) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(false, ex.getMessage(), 401, null));
+    }
+
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<?>> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {

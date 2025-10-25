@@ -15,6 +15,7 @@ import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
+import capstone_project.repository.entityServices.setting.ContractSettingEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
@@ -24,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,6 +38,7 @@ public class SimpleOrderMapper {
     private final SealService sealService;
     private final JourneyHistoryService journeyHistoryService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
+    private final ContractSettingEntityService contractSettingEntityService;
 
     public SimpleOrderForCustomerResponse toSimpleOrderForCustomerResponse(
             GetOrderResponse orderResponse,
@@ -61,7 +64,7 @@ public class SimpleOrderMapper {
                 if (contractTotal != null && contractTotal.compareTo(BigDecimal.ZERO) > 0) {
                     effectiveTotal = contractTotal;
                 } else {
-                    effectiveTotal = contractResponse.supportedValue();
+                    effectiveTotal = contractResponse.adjustedValue();
                 }
             }
         } catch (Exception ignored) {
@@ -70,12 +73,17 @@ public class SimpleOrderMapper {
             effectiveTotal = orderResponse.totalPrice();
         }
 
+        // Calculate deposit amount based on contract adjusted value or total price
+        BigDecimal adjustedValue = contractResponse != null ? contractResponse.adjustedValue() : null;
+        BigDecimal depositAmount = calculateDepositAmount(effectiveTotal, adjustedValue);
+
         // Convert Order with enhanced vehicle assignments
         SimpleOrderResponse simpleOrderResponse = toSimpleOrderResponseWithTripInfo(
                 orderResponse,
                 issueImageResponses,
                 photoCompletionResponses,
-                effectiveTotal
+                effectiveTotal,
+                depositAmount
         );
 
         return new SimpleOrderForCustomerResponse(
@@ -89,7 +97,8 @@ public class SimpleOrderMapper {
             GetOrderResponse response,
             List<GetIssueImageResponse> issueImageResponses,
             Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses,
-            BigDecimal effectiveTotal
+            BigDecimal effectiveTotal,
+            BigDecimal depositAmount
     ) {
         String deliveryAddress = combineAddress(
                 response.deliveryAddress().street(),
@@ -142,6 +151,7 @@ public class SimpleOrderMapper {
         return new SimpleOrderResponse(
                 response.id(),
                 effectiveTotal,
+                depositAmount,
                 response.notes(),
                 response.totalQuantity(),
                 response.orderCode(),
@@ -414,7 +424,7 @@ public class SimpleOrderMapper {
                 contract.effectiveDate(),
                 contract.expirationDate(),
                 contract.totalValue(),
-                contract.supportedValue(),
+                contract.adjustedValue(),
                 contract.description(),
                 contract.attachFileUrl(),
                 contract.status(),
@@ -564,5 +574,40 @@ public class SimpleOrderMapper {
         return segments.stream()
                 .mapToDouble(segment -> segment.distanceMeters() != null ? segment.distanceMeters() : 0.0)
                 .sum();
+    }
+
+    /**
+     * Calculate deposit amount based on adjusted value (if available) or total price and deposit percent from contract settings
+     * Priority: adjustedValue > totalPrice
+     * @param totalPrice The total price of the order
+     * @param adjustedValue The adjusted value from contract (optional)
+     * @return The calculated deposit amount, or null if total price is null
+     */
+    private BigDecimal calculateDepositAmount(BigDecimal totalPrice, BigDecimal adjustedValue) {
+        // Use adjustedValue if available, otherwise use totalPrice
+        BigDecimal baseAmount = adjustedValue != null && adjustedValue.compareTo(BigDecimal.ZERO) > 0 
+            ? adjustedValue 
+            : totalPrice;
+
+        if (baseAmount == null) {
+            return null;
+        }
+
+        try {
+            // Get the latest contract setting
+            var contractSetting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc().orElse(null);
+            if (contractSetting == null || contractSetting.getDepositPercent() == null) {
+                // Default to 30% if no setting found
+                return baseAmount.multiply(new BigDecimal("0.30")).setScale(0, RoundingMode.HALF_UP);
+            }
+
+            // Calculate deposit amount: baseAmount * (depositPercent / 100)
+            BigDecimal depositPercent = contractSetting.getDepositPercent();
+            return baseAmount.multiply(depositPercent).divide(new BigDecimal("100"), 0, RoundingMode.HALF_UP);
+        } catch (Exception e) {
+            log.warn("Error calculating deposit amount: {}", e.getMessage());
+            // Default to 30% on error
+            return baseAmount.multiply(new BigDecimal("0.30")).setScale(0, RoundingMode.HALF_UP);
+        }
     }
 }

@@ -342,7 +342,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
         BigDecimal totalValue = contractEntity.getTotalValue();
         log.info("Total value for contract {} is {}", contractId, totalValue);
-        BigDecimal supportedValue = contractEntity.getSupportedValue();
+        BigDecimal supportedValue = contractEntity.getAdjustedValue();
         log.info("Supported value for contract {} is {}", contractId, supportedValue);
 
         if (supportedValue != null && supportedValue.compareTo(BigDecimal.ZERO) > 0) {

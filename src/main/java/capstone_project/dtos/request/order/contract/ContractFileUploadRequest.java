@@ -1,6 +1,5 @@
 package capstone_project.dtos.request.order.contract;
 
-import com.google.type.DateTime;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -24,7 +23,7 @@ public record ContractFileUploadRequest(
         LocalDateTime  expirationDate,
         @NotNull(message = "Supported value is required")
         @Min(value = 0)
-        BigDecimal supportedValue,
+        BigDecimal adjustedValue,
         @Size(max = 1000)
         String description
         ) {

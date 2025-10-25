@@ -21,6 +21,7 @@ public class ContractRuleAssignResponse {
 //    private Integer numOfVehicles;
     private String vehicleTypeRuleName;
     private BigDecimal currentLoad;
+    private String currentLoadUnit; // Đơn vị của currentLoad (luôn là "Tấn")
     //    private List<UUID> assignedDetails = new ArrayList<>();
     private List<OrderDetailForPackingResponse> assignedDetails = new ArrayList<>();
     List<PackedDetailResponse> packedDetailDetails;

@@ -17,8 +17,8 @@ public record ContractRequest(
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime expirationDate,
 
-        @Min(value = 0L, message = "The num of supported value must be positive")
-        BigDecimal supportedValue,
+        @Min(value = 0L, message = "The num of adjusted value must be positive")
+        BigDecimal adjustedValue,
 
 //        @NotNull(message = "Total value must not be blank")
 //        @DecimalMin(value = "0.0", inclusive = true, message = "Total value must be >= 0")

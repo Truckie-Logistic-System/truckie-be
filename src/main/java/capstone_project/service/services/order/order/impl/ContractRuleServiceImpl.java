@@ -2,6 +2,7 @@ package capstone_project.service.services.order.order.impl;
 
 import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.ErrorEnum;
+import capstone_project.common.enums.UnitEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.common.utils.BinPacker;
@@ -113,9 +114,25 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         int vehicleIndex = 0;
 
         for (ContractRuleEntity rule : assignedRules) {
-            BigDecimal currentLoad = rule.getOrderDetails().stream()
-                    .map(OrderDetailEntity::getWeight)
+            // Phát hiện đơn vị chủ đạo từ các orderDetail
+            String dominantUnit = rule.getOrderDetails().stream()
+                    .map(OrderDetailEntity::getUnit)
                     .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse("Kí"); // Default là Kí
+
+            // Tính currentLoad bằng weightBaseUnit (để tương thích với dữ liệu cũ)
+            // Dữ liệu cũ: weightBaseUnit lưu theo đơn vị gốc (kg)
+            // Dữ liệu mới: weightBaseUnit lưu theo tấn (đã convert)
+            BigDecimal currentLoad = rule.getOrderDetails().stream()
+                    .map(detail -> {
+                        BigDecimal baseWeight = detail.getWeightBaseUnit();
+                        if (baseWeight != null) {
+                            return baseWeight;
+                        }
+                        // Fallback về weight nếu weightBaseUnit null
+                        return detail.getWeight() != null ? detail.getWeight() : BigDecimal.ZERO;
+                    })
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             List<OrderDetailForPackingResponse> detailResponses = rule.getOrderDetails().stream()
@@ -130,6 +147,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                             .vehicleTypeRuleId(rule.getVehicleTypeRuleEntity().getId())
                             .vehicleTypeRuleName(rule.getVehicleTypeRuleEntity().getVehicleTypeRuleName())
                             .currentLoad(currentLoad)
+                            .currentLoadUnit(dominantUnit) // Sử dụng đơn vị động
                             .assignedDetails(detailResponses)
                             .packedDetailDetails(packedDetails)
                             .build()
@@ -245,6 +263,13 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                         ErrorEnum.INVALID.getErrorCode());
             }
 
+            // Phát hiện đơn vị chủ đạo từ orderDetails (khai báo sớm để dùng cho tất cả containers)
+            String dominantUnit = orderDetails.stream()
+                    .map(OrderDetailEntity::getUnit)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse("Kí");
+
             List<VehicleEntity> activeVehicles = vehicleEntityService.findByVehicleTypeAndStatus(
                     vehicleRule.getVehicleTypeEntity().getId(), CommonStatusEnum.ACTIVE.name());
 
@@ -274,14 +299,31 @@ public class ContractRuleServiceImpl implements ContractRuleService {
             BigDecimal maxWeight = vehicleRule.getMaxWeight();
             boolean overloaded = result.containers.stream()
                     .anyMatch(c -> {
-                        // Tính currentLoad chính xác từ các detail thực tế
+                        // Tính currentLoad chính xác từ weightBaseUnit (đã convert về tấn)
                         BigDecimal actualCurrentLoad = c.placements.stream()
                                 .map(p -> {
                                     OrderDetailEntity detail = orderDetails.stream()
                                             .filter(d -> d.getId().equals(p.box.id))
                                             .findFirst()
                                             .orElse(null);
-                                    return detail != null ? detail.getWeight() : BigDecimal.ZERO;
+                                    if (detail == null) return BigDecimal.ZERO;
+
+                                    // Ưu tiên dùng weightBaseUnit
+                                    BigDecimal baseWeight = detail.getWeightBaseUnit();
+                                    if (baseWeight != null) {
+                                        return baseWeight;
+                                    }
+                                    // Fallback: convert từ weight và unit
+                                    if (detail.getWeight() != null && detail.getUnit() != null) {
+                                        try {
+                                            UnitEnum unitEnum = UnitEnum.valueOf(detail.getUnit());
+                                            return detail.getWeight().multiply(unitEnum.toTon());
+                                        } catch (IllegalArgumentException e) {
+                                            log.warn("Invalid unit for detail {}: {}", detail.getId(), detail.getUnit());
+                                            return BigDecimal.ZERO;
+                                        }
+                                    }
+                                    return BigDecimal.ZERO;
                                 })
                                 .reduce(BigDecimal.ZERO, BigDecimal::add);
                         return actualCurrentLoad.compareTo(maxWeight) > 0;
@@ -331,7 +373,23 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                         ruleEntity.getOrderDetails().add(detail);
                         newlyAssigned.add(detail.getId());
                         assignedDetails.add(toPackingResponse(detail));
-                        actualCurrentLoad = actualCurrentLoad.add(detail.getWeight()); // Cộng dồn weight chính xác
+
+                        // Tính actualCurrentLoad bằng weightBaseUnit (đã convert về tấn)
+                        BigDecimal detailWeight = detail.getWeightBaseUnit();
+                        if (detailWeight == null && detail.getWeight() != null && detail.getUnit() != null) {
+                            // Fallback: convert từ weight và unit nếu chưa có weightBaseUnit
+                            try {
+                                UnitEnum unitEnum = UnitEnum.valueOf(detail.getUnit());
+                                detailWeight = detail.getWeight().multiply(unitEnum.toTon());
+                            } catch (IllegalArgumentException e) {
+                                log.warn("Invalid unit for detail {}: {}", detail.getId(), detail.getUnit());
+                                detailWeight = BigDecimal.ZERO;
+                            }
+                        }
+                        if (detailWeight == null) {
+                            detailWeight = BigDecimal.ZERO;
+                        }
+                        actualCurrentLoad = actualCurrentLoad.add(detailWeight);
 
                         packedDetails.add(PackedDetailResponse.builder()
                                 .orderDetailId(detail.getId().toString())
@@ -356,7 +414,8 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                                 .vehicleIndex(vehicleIndex++)
                                 .vehicleTypeRuleId(vehicleRule.getId())
                                 .vehicleTypeRuleName(vehicleRule.getVehicleTypeRuleName())
-                                .currentLoad(actualCurrentLoad) // Dùng currentLoad chính xác
+                                .currentLoad(actualCurrentLoad)
+                                .currentLoadUnit(dominantUnit) // Sử dụng đơn vị động
                                 .assignedDetails(assignedDetails)
                                 .packedDetailDetails(packedDetails)
                                 .build()
