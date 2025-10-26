@@ -222,11 +222,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         BigDecimal totalValue = contractEntity.getTotalValue();
         log.info("Total value for contract {} is {}", contractId, totalValue);
-        BigDecimal supportedValue = contractEntity.getAdjustedValue();
-        log.info("Supported value for contract {} is {}", contractId, supportedValue);
+        BigDecimal adjustedValue = contractEntity.getAdjustedValue();
+        log.info("Supported value for contract {} is {}", contractId, adjustedValue);
 
-        if (supportedValue != null && supportedValue.compareTo(BigDecimal.ZERO) > 0) {
-            totalValue = supportedValue;
+        if (adjustedValue != null && adjustedValue.compareTo(BigDecimal.ZERO) > 0) {
+            totalValue = adjustedValue;
         }
 
         if (totalValue == null || totalValue.compareTo(BigDecimal.ZERO) <= 0) {

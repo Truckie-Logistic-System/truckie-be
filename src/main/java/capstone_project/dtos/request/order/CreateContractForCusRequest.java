@@ -12,7 +12,7 @@ public record CreateContractForCusRequest(
 
         LocalDateTime expirationDate,
 
-        BigDecimal supportedValue,
+        BigDecimal adjustedValue,
 
         String description,
 
