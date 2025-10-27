@@ -12,8 +12,4 @@ public interface DistanceService {
     RouteInstructionsResponse getRouteInstructions(UUID orderId);
     BigDecimal getDistanceInKilometers(UUID orderId);
     double getTravelTimeInHours(UUID orderId);
-    DistanceTimeResponse calculateDistanceAndTimeByTrackAsia(UUID orderId);
-    RouteInstructionsResponse getRouteInstructionsByTrackAsia(UUID orderId);
-    BigDecimal getDistanceInKilometersByTrackAsia(UUID orderId);
-    double getTravelTimeInHoursByTrackAsia(UUID orderId);
 }

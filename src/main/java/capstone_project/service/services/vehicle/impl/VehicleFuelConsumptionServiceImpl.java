@@ -196,8 +196,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private String uploadImage(MultipartFile file, String folder) {
         try {
             final var uploadResult = cloudinaryService.uploadFile(file.getBytes(), file.getOriginalFilename(), folder);
-            final var publicId = (String) uploadResult.get("public_id");
-            return cloudinaryService.getFileUrl(publicId);
+            return (String) uploadResult.get("secure_url");
         } catch (IOException e) {
             log.error("Error uploading image to Cloudinary: {}", e.getMessage());
             throw new RuntimeException("Failed to upload image", e);

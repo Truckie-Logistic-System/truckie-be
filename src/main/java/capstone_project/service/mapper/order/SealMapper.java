@@ -16,5 +16,5 @@ public interface SealMapper {
     @Mapping(source = "sealRemovalReason", target = "sealRemovalReason")
     GetSealResponse toGetSealResponse(SealEntity sealEntity);
 
-    List<GetSealResponse> toGetSealResponses(List<SealEntity> orderSealEntities);
+    List<GetSealResponse> toGetSealResponses(List<SealEntity> sealEntities);
 }

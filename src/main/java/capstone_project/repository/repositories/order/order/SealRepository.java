@@ -19,10 +19,10 @@ public interface SealRepository extends BaseRepository<SealEntity> {
     List<SealEntity> findByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment);
 
     /**
-     * Tìm tất cả OrderSeal theo VehicleAssignment và trạng thái
+     * Tìm tất cả Seal theo VehicleAssignment và trạng thái
      * @param vehicleAssignment phương tiện vận chuyển
      * @param status trạng thái của seal cần tìm
-     * @return danh sách các OrderSeal tương ứng
+     * @return danh sách các Seal tương ứng
      */
     List<SealEntity> findAllByVehicleAssignmentAndStatus(VehicleAssignmentEntity vehicleAssignment, String status);
 }

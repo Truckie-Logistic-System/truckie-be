@@ -182,13 +182,13 @@ public class DriverOrderMapper {
         }
 
         // Get all order seals for this vehicle assignment (null-safe)
-        List<GetSealResponse> orderSeals = Collections.emptyList();
+        List<GetSealResponse> seals = Collections.emptyList();
         try {
             UUID vehicleAssignmentId = vaResponse.id();
             List<GetSealResponse> raw = sealService.getAllSealsByVehicleAssignmentId(vehicleAssignmentId);
-            if (raw != null) orderSeals = raw;
+            if (raw != null) seals = raw;
         } catch (Exception e) {
-            // Keep orderSeals as empty list
+            // Keep seals as empty list
         }
 
         // Ensure photoCompletions and issue lists are non-null
@@ -205,7 +205,7 @@ public class DriverOrderMapper {
                 vaResponse.trackingCode(),
                 issuesList,
                 safePhotoCompletions,
-                orderSeals,
+                seals,
                 journeyHistories
         );
     }

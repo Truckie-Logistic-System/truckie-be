@@ -34,10 +34,7 @@ public class AppConfig {
         config.addAllowedMethod("*");
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        // Specific TrackAsia proxy endpoints and API
-        source.registerCorsConfiguration("/api/trackasia/**", config);
         source.registerCorsConfiguration("/api/**", config);
-        // Optional: keep a global fallback
         source.registerCorsConfiguration("/**", config);
 
         FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(source));

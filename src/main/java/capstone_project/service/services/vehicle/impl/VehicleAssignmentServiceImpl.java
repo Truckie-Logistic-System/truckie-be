@@ -1506,14 +1506,14 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             finalDescription = "Seal for " + assignment.getTrackingCode();
         }
 
-        SealEntity orderSeal = SealEntity.builder()
+        SealEntity seals = SealEntity.builder()
                 .sealCode(sealCode)
                 .description(finalDescription)
                 .status(SealEnum.ACTIVE.name())
                 .vehicleAssignment(assignment)
                 .build();
 
-        SealEntity savedSeal = sealEntityService.save(orderSeal);
+        SealEntity savedSeal = sealEntityService.save(seals);
         log.info("Created order seal with ID: {} and code: {}, linked to vehicle assignment: {}",
                 savedSeal.getId(), savedSeal.getSealCode(), assignment.getId());
     }

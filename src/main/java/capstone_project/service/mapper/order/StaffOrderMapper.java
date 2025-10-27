@@ -292,16 +292,16 @@ public class StaffOrderMapper {
         }
 
         // Get order seals (null-safe)
-        List<GetSealResponse> orderSeals = Collections.emptyList();
+        List<GetSealResponse> seals = Collections.emptyList();
         try {
             List<GetSealResponse> raw = sealService.getAllSealsByVehicleAssignmentId(vehicleAssignmentId);
-            if (raw != null) orderSeals = raw;
+            if (raw != null) seals = raw;
         } catch (Exception e) {
             log.warn("Could not fetch order seals for {}: {}", vehicleAssignmentId, e.getMessage());
         }
 
         // Ensure lists are non-null
-        if (orderSeals == null) orderSeals = Collections.emptyList();
+        if (seals == null) seals = Collections.emptyList();
         if (journeyHistories == null) journeyHistories = Collections.emptyList();
         if (issues == null) issues = Collections.emptyList();
         if (photoCompletions == null) photoCompletions = Collections.emptyList();
@@ -318,7 +318,7 @@ public class StaffOrderMapper {
                 trackingCode,
                 penalties,
                 fuelConsumption,
-                orderSeals,
+                seals,
                 journeyHistories,
                 photoCompletions,
                 issues

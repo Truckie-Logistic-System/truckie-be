@@ -32,8 +32,8 @@ public class SealEntityServiceImpl implements SealEntityService {
     }
 
     @Override
-    public List<SealEntity> saveAll(List<SealEntity> orderSealEntities) {
-        return sealRepository.saveAll(orderSealEntities);
+    public List<SealEntity> saveAll(List<SealEntity> sealEntities) {
+        return sealRepository.saveAll(sealEntities);
     }
 
     @Override

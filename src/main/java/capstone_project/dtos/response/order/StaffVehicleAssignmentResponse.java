@@ -17,7 +17,7 @@ public record StaffVehicleAssignmentResponse(
     String trackingCode,
     List<PenaltyHistoryResponse> penalties,
     VehicleFuelConsumptionResponse fuelConsumption,
-    List<GetSealResponse> orderSeals,
+    List<GetSealResponse> seals,
     List<JourneyHistoryResponse> journeyHistories,
     List<String> photoCompletions,
     List<SimpleIssueImageResponse> issues

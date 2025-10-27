@@ -269,8 +269,6 @@ public class SecurityConfigurer {
                         // ================= SEAL =================
                         .requestMatchers(sealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())
 
-                        // ================= TRACKASIA-PROXY =================
-                        .requestMatchers("/api/trackasia/**").permitAll() // allow all TrackAsia proxy requests
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
                         .anyRequest().authenticated())

@@ -8,10 +8,7 @@ import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
-import capstone_project.service.services.thirdPartyServices.TrackAsia.TrackAsiaService;
 import capstone_project.service.services.user.DistanceService;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,7 +29,6 @@ public class DistanceServiceImpl implements DistanceService {
 
     private final WebClient webClient;
     private final OrderEntityService orderEntityService;
-    private final TrackAsiaService trackAsiaService;
 
     @Value("${vietmap.base-url}")
     private String baseUrl;
@@ -42,113 +38,6 @@ public class DistanceServiceImpl implements DistanceService {
 
     @Value("${vietmap.api.route.endpoint}")
     private String routeEndpoint;
-
-    @Value("${trackasia.api.directions.v2.endpoint}")
-    private String trackAsiaBaseUrl;
-
-    @Value("${trackasia.api.key}")
-    private String trackAsiapiKey;
-
-    @Override
-    public DistanceTimeResponse calculateDistanceAndTimeByTrackAsia(UUID orderId) {
-        RouteResponse response = callTrackAsiaApi(orderId);
-        return DistanceTimeResponse.fromRouteResponse(response);
-    }
-
-    @Override
-    public RouteInstructionsResponse getRouteInstructionsByTrackAsia(UUID orderId) {
-        RouteResponse response = callTrackAsiaApi(orderId);
-        return RouteInstructionsResponse.fromRouteResponse(response);
-    }
-
-    @Override
-    public BigDecimal getDistanceInKilometersByTrackAsia(UUID orderId) {
-        return calculateDistanceAndTime(orderId).distance();
-    }
-
-    @Override
-    public double getTravelTimeInHoursByTrackAsia(UUID orderId) {
-        return calculateDistanceAndTime(orderId).time();
-    }
-
-    private RouteResponse callTrackAsiaApi(UUID orderId) {
-        log.info("Fetching order with ID: {}", orderId);
-        OrderEntity order = orderEntityService.findEntityById(orderId)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage(),
-                        ErrorEnum.NOT_FOUND.getErrorCode()
-                ));
-
-        AddressEntity pickup = order.getPickupAddress();
-        AddressEntity delivery = order.getDeliveryAddress();
-
-        log.info("Pickup address: {}", pickup);
-        log.info("Delivery address: {}", delivery);
-
-        if (pickup == null || delivery == null) {
-            log.error("Order {} is missing pickup or delivery address", orderId);
-            throw new IllegalStateException("Order is missing pickup or delivery address");
-        }
-
-        if (pickup.getLatitude() == null || pickup.getLongitude() == null ||
-                delivery.getLatitude() == null || delivery.getLongitude() == null) {
-            log.error("Order {} has null coordinates. Pickup: lat={}, lng={}, Delivery: lat={}, lng={}",
-                    orderId,
-                    pickup.getLatitude(), pickup.getLongitude(),
-                    delivery.getLatitude(), delivery.getLongitude());
-            throw new IllegalStateException("Order has invalid coordinates");
-        }
-
-        String origin = String.format(Locale.US, "%f,%f", pickup.getLatitude().doubleValue(), pickup.getLongitude().doubleValue());
-        String destination = String.format(Locale.US, "%f,%f", delivery.getLatitude().doubleValue(), delivery.getLongitude().doubleValue());
-
-        log.info("Calling TrackAsia directions: origin='{}' destination='{}' endpoint='{}'", origin, destination, trackAsiaBaseUrl);
-
-        try {
-            JsonNode body = trackAsiaService.directions(origin, destination, "car", "json", true);
-            log.info("TrackAsia directions response: {}", body);
-
-            if (body == null || body.isMissingNode()) {
-                log.error("Empty TrackAsia response for order {}", orderId);
-                return new RouteResponse(
-                        List.of(new RouteResponse.Path(
-                                0.0, 0, 0.0,
-                                false,
-                                List.of(),
-                                List.of()
-                        )),
-                        "ERROR",
-                        "Empty TrackAsia response"
-                );
-            }
-
-            // Try to map TrackAsia response directly to RouteResponse if shapes match
-            ObjectMapper mapper = new ObjectMapper();
-            try {
-                RouteResponse mapped = mapper.treeToValue(body, RouteResponse.class);
-                if (mapped != null) {
-                    return mapped;
-                }
-            } catch (Exception e) {
-                log.debug("Direct mapping from TrackAsia response to RouteResponse failed: {}", e.getMessage());
-            }
-
-            // Fallback: if mapping fails, return an error-like RouteResponse so callers can handle it.
-            return new RouteResponse(
-                    List.of(new RouteResponse.Path(
-                            0.0, 0, 0.0,
-                            false,
-                            List.of(),
-                            List.of()
-                    )),
-                    "ERROR",
-                    "Failed to convert TrackAsia response to internal RouteResponse"
-            );
-        } catch (Exception e) {
-            log.error("Unexpected error calling TrackAsia directions: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
 
     @Override
     public DistanceTimeResponse calculateDistanceAndTime(UUID orderId) {

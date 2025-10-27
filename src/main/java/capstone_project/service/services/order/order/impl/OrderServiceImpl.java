@@ -661,13 +661,13 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
         
-        // Cập nhật trạng thái OrderSeal thành USED khi đơn hàng hoàn thành (DELIVERED hoặc SUCCESSFUL)
+        // Cập nhật trạng thái Seal thành USED khi đơn hàng hoàn thành (DELIVERED hoặc SUCCESSFUL)
         if (newStatus == OrderStatusEnum.DELIVERED || newStatus == OrderStatusEnum.SUCCESSFUL) {
             try {
-                // Tìm tất cả OrderDetail liên quan đến Order
+                // Tìm tất cả Seal liên quan đến Order
                 List<OrderDetailEntity> orderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
 
-                // Cập nhật trạng thái OrderSeal cho từng VehicleAssignment liên quan
+                // Cập nhật trạng thái Seal cho từng VehicleAssignment liên quan
                 for (OrderDetailEntity detail : orderDetails) {
                     VehicleAssignmentEntity vehicleAssignment = detail.getVehicleAssignmentEntity();
                     if (vehicleAssignment != null) {

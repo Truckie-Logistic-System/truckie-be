@@ -15,7 +15,7 @@ public record SimpleVehicleAssignmentResponse(
     // Trip-related information
     List<SimpleIssueImageResponse> issues,
     List<String> photoCompletions,
-    List<GetSealResponse> orderSeals,
+    List<GetSealResponse> seals,
     List<JourneyHistoryResponse> journeyHistories
 ) {
     // Constructor for backward compatibility

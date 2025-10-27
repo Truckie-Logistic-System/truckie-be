@@ -87,7 +87,7 @@ public class SealServiceImpl implements SealService {
             );
 
             // Lấy URL của ảnh đã upload
-            imageUrl = cloudinaryService.getFileUrl((String) uploadResult.get("public_id"));
+            imageUrl = (String) uploadResult.get("secure_url");
         } catch (IOException e) {
             log.error("Lỗi khi upload ảnh seal: {}", e.getMessage(), e);
             throw new BadRequestException(
@@ -109,14 +109,14 @@ public class SealServiceImpl implements SealService {
 
     @Override
     public GetSealResponse removeSealBySealId(UUID sealId) {
-        List<SealEntity> orderSeals = new ArrayList<>();
+        List<SealEntity> sealEntities = new ArrayList<>();
         SealEntity seal = sealEntityService.findEntityById(sealId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy seal với ID: " + sealId, ErrorEnum.NOT_FOUND.getErrorCode()));
 
         seal.setStatus(SealEnum.REMOVED.name());
         seal.setSealRemovalTime(LocalDateTime.now()); // Set thời gian gỡ bỏ seal
-        orderSeals.add(seal);
-        sealEntityService.saveAll(orderSeals);
+        sealEntities.add(seal);
+        sealEntityService.saveAll(sealEntities);
 
         return sealMapper.toGetSealResponse(seal);
     }
@@ -148,10 +148,10 @@ public class SealServiceImpl implements SealService {
         }
 
         // Get all order seals for this vehicle assignment, regardless of status
-        List<SealEntity> orderSeals = sealEntityService.findAllByVehicleAssignment(vehicleAssignment.get());
+        List<SealEntity> seals = sealEntityService.findAllByVehicleAssignment(vehicleAssignment.get());
 
         // Convert to response DTOs
-        return sealMapper.toGetSealResponses(orderSeals);
+        return sealMapper.toGetSealResponses(seals);
     }
 
     @Override
