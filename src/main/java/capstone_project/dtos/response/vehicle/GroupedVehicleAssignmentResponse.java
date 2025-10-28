@@ -25,9 +25,9 @@ public record GroupedVehicleAssignmentResponse(
     public record OrderDetailInfo(
         UUID id,
         String trackingCode,
-        String originAddress,
-        String destinationAddress,
-        Double totalWeight
+        Double weightBaseUnit,
+        String unit,
+        String description
     ) {}
 
     /**

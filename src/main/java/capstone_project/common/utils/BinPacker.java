@@ -348,7 +348,7 @@ public class BinPacker {
             } else {
                 log.error("CRITICAL ERROR: No vehicle can carry box {} ({}x{}x{}, weight={})",
                         box.id, box.lx, box.ly, box.lz, box.weight);
-                throw new RuntimeException("Không có loại xe nào chứa được kiện: " + box.id);
+                throw new RuntimeException("Không có loại xe nào chứa được kiện  : " + box.id);
             }
         }
 

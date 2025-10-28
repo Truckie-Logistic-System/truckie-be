@@ -597,7 +597,7 @@
 ////            ruleIndexById.put(sortedVehicleRules.get(i).getId(), i);
 ////        }
 ////
-////        // Sort details (FFD: kiện to trước)
+////        // Sort details (FFD: kiện   to trước)
 ////        details.sort((a, b) -> {
 ////            int cmp = b.getWeight().compareTo(a.getWeight());
 ////            if (cmp == 0) cmp = b.getOrderSizeEntity().getMaxLength().compareTo(a.getOrderSizeEntity().getMaxLength());
@@ -609,7 +609,7 @@
 ////        List<ContractRuleAssignResponse> assignments = new ArrayList<>();
 ////        int processed = 0;
 ////
-////        // Gán kiện vào xe
+////        // Gán kiện   vào xe
 ////        for (OrderDetailEntity detail : details) {
 ////            processed++;
 ////            if (detail.getOrderSizeEntity() == null) {
@@ -678,7 +678,7 @@
 ////
 ////            if (!assigned) {
 ////                log.error("[assignVehicles] No vehicle can carry detail {}", detail.getId());
-////                throw new RuntimeException("Không có loại xe nào chở được kiện " + detail.getId());
+////                throw new RuntimeException("Không có loại xe nào chở được kiện   " + detail.getId());
 ////            }
 ////        }
 ////
@@ -784,7 +784,7 @@
 //                if (newContainer != null) {
 //                    containers.add(newContainer);
 //                } else {
-//                    throw new RuntimeException("Không có loại xe nào chở được kiện: " + box.id);
+//                    throw new RuntimeException("Không có loại xe nào chở được kiện  : " + box.id);
 //                }
 //            }
 //        }
