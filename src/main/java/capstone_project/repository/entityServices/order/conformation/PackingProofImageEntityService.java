@@ -1,6 +1,6 @@
 package capstone_project.repository.entityServices.order.conformation;
 
-import capstone_project.entity.order.conformation.PackingProofImageEntity;
+import capstone_project.entity.order.confirmation.PackingProofImageEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 
 import java.util.List;

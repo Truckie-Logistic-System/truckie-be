@@ -1,7 +1,7 @@
 package capstone_project.dtos.response.order;
 
 import capstone_project.dtos.response.issue.SimpleIssueImageResponse;
-import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
+import capstone_project.dtos.response.order.seal.GetSealResponse;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,9 +16,8 @@ public record StaffVehicleAssignmentResponse(
     String status,
     String trackingCode,
     List<PenaltyHistoryResponse> penalties,
-    List<CameraTrackingResponse> cameraTrackings,
     VehicleFuelConsumptionResponse fuelConsumption,
-    List<GetOrderSealResponse> orderSeals,
+    List<GetSealResponse> seals,
     List<JourneyHistoryResponse> journeyHistories,
     List<String> photoCompletions,
     List<SimpleIssueImageResponse> issues

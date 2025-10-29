@@ -77,7 +77,7 @@ public class OrderStatusWebSocketService {
             case ON_DELIVERED:
                 return "Đang trên đường giao hàng";
             case ONGOING_DELIVERED:
-                return "Đang trong quá trình giao hàng";
+                return "Sắp giao hàng tới";
             case IN_DELIVERED:
                 return "Đang giao hàng";
             case DELIVERED:

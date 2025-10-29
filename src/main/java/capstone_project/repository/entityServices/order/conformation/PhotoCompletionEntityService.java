@@ -1,6 +1,6 @@
 package capstone_project.repository.entityServices.order.conformation;
 
-import capstone_project.entity.order.conformation.PhotoCompletionEntity;
+import capstone_project.entity.order.confirmation.PhotoCompletionEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.common.BaseEntityService;
 

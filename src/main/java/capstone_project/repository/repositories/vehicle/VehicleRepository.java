@@ -61,7 +61,10 @@ public interface VehicleRepository extends BaseRepository<VehicleEntity> {
 
     /**
      * Same as updateLocationDirectly but adds rate limiting: only updates if last_updated is older than the specified threshold
-     * @return number of rows affected (1 if updated, 0 if skipped due to rate limit or unchanged location)
+     * Updates in two cases:
+     * 1. Location changed (lat/lng different) - always update regardless of rate limit
+     * 2. Location unchanged but last_updated is null or older than threshold - update last_updated to mark as received
+     * @return number of rows affected (1 if updated, 0 if skipped due to rate limit)
      */
     @Modifying
     @Transactional
@@ -69,8 +72,10 @@ public interface VehicleRepository extends BaseRepository<VehicleEntity> {
         UPDATE vehicles 
         SET current_latitude = :latitude, current_longitude = :longitude, last_updated = :lastUpdated 
         WHERE id = :id AND 
-        (current_latitude != :latitude OR current_longitude != :longitude) AND
-        (last_updated IS NULL OR last_updated < :minLastUpdated)
+        (
+            (current_latitude != :latitude OR current_longitude != :longitude) OR
+            (last_updated IS NULL OR last_updated < :minLastUpdated)
+        )
         """, nativeQuery = true)
     int updateLocationWithRateLimit(
             @Param("id") UUID id,

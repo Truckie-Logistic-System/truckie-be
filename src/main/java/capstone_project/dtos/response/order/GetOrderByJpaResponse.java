@@ -9,7 +9,6 @@ import java.util.List;
 
 public record GetOrderByJpaResponse(
         String id,
-        BigDecimal totalPrice,
         String notes,
         Integer totalQuantity,
         String orderCode,

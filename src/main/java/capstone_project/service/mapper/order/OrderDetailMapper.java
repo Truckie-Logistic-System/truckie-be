@@ -12,7 +12,7 @@ import java.util.List;
 public interface OrderDetailMapper {
     @Mapping(source = "orderEntity.id", target = "orderId")
     @Mapping(source = "orderSizeEntity", target = "orderSizeId")
-    @Mapping(source = "vehicleAssignmentEntity", target = "vehicleAssignmentId")
+    @Mapping(source = "vehicleAssignmentEntity.id", target = "vehicleAssignmentId")
     GetOrderDetailResponse toGetOrderDetailResponse(OrderDetailEntity entity);
 
     List<GetOrderDetailResponse> toGetOrderDetailResponseList(List<OrderDetailEntity> entityList);

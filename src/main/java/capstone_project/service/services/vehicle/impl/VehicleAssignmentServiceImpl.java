@@ -9,7 +9,7 @@ import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.dtos.response.vehicle.*;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.*;
-import capstone_project.entity.pricing.VehicleRuleEntity;
+import capstone_project.entity.pricing.VehicleTypeRuleEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -18,8 +18,8 @@ import capstone_project.repository.entityServices.order.contract.ContractEntityS
 import capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
-import capstone_project.repository.entityServices.order.order.OrderSealEntityService;
-import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
+import capstone_project.repository.entityServices.order.order.SealEntityService;
+import capstone_project.repository.entityServices.pricing.VehicleTypeRuleEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
@@ -59,7 +59,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final OrderDetailEntityService orderDetailEntityService;
     private final ContractEntityService contractEntityService;
     private final ContractRuleService contractRuleService;
-    private final VehicleRuleEntityService vehicleRuleEntityService;
+    private final VehicleTypeRuleEntityService vehicleTypeRuleEntityService;
     private final DriverService driverService;
     private final VehicleAssignmentMapper mapper;
     private final VehicleMapper vehicleMapper;
@@ -70,7 +70,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final OrderDetailService orderDetailService;
     private final JourneyHistoryEntityService journeyHistoryEntityService;
     private final VietmapService vietmapService;
-    private final OrderSealEntityService orderSealEntityService;
+    private final SealEntityService sealEntityService;
 
     private final ObjectMapper objectMapper;
 
@@ -215,8 +215,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         }
 
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
-            UUID vehicleRuleId = response.getVehicleRuleId();
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
+            UUID vehicleRuleId = response.getVehicleTypeRuleId();
+            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
@@ -605,6 +605,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     /**
      * Lấy danh sách gợi ý xe và tài xế cho order với các order detail được nhóm lại
+     * Sử dụng cả 2 thuật toán: Optimal (BinPacker) và Realistic (First-Fit + Upgrade)
+     * Ưu tiên sử dụng Optimal nếu có, fallback sang Realistic nếu Optimal thất bại
      *
      * @param orderID ID của order
      * @return Danh sách gợi ý với các order detail được nhóm lại thành các chuyến
@@ -625,11 +627,32 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode());
         }
 
-        // Sử dụng trực tiếp phương thức assignVehicles từ ContractService
-        // Phương thức này đã triển khai thuật toán First-Fit Decreasing (FFD) tối ưu
-        List<ContractRuleAssignResponse> vehicleAssignments = contractService.assignVehiclesWithAvailability(orderID);
+        // Sử dụng cả 2 thuật toán giống như endpoint /contracts/{orderId}/get-both-optimal-and-realistic-assign-vehicles
+        List<ContractRuleAssignResponse> optimalAssignments = null;
+        List<ContractRuleAssignResponse> realisticAssignments = null;
 
-        if (vehicleAssignments.isEmpty()) {
+        try {
+            optimalAssignments = contractService.assignVehiclesOptimal(orderID);
+            log.info("[getGroupedSuggestionsForOrder] Optimal assignment succeeded for orderId={}, vehicles used={}",
+                    orderID, optimalAssignments.size());
+        } catch (Exception e) {
+            log.warn("[getGroupedSuggestionsForOrder] Optimal assignment failed for orderId={}, reason={}, fallback to realistic",
+                    orderID, e.getMessage());
+        }
+
+        try {
+            realisticAssignments = contractService.assignVehiclesWithAvailability(orderID);
+            log.info("[getGroupedSuggestionsForOrder] Realistic assignment succeeded for orderId={}, vehicles used={}",
+                    orderID, realisticAssignments.size());
+        } catch (Exception e) {
+            log.warn("[getGroupedSuggestionsForOrder] Realistic assignment failed for orderId={}, reason={}",
+                    orderID, e.getMessage());
+        }
+
+        // Ưu tiên optimal, fallback sang realistic
+        List<ContractRuleAssignResponse> vehicleAssignments = optimalAssignments != null ? optimalAssignments : realisticAssignments;
+
+        if (vehicleAssignments == null || vehicleAssignments.isEmpty()) {
             log.error("Không tìm thấy gợi ý phân bổ xe cho đơn hàng ID={}", orderID);
             throw new NotFoundException(
                     "Không tìm thấy gợi ý phân bổ xe cho đơn hàng này",
@@ -642,7 +665,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 convertAssignmentsToGroups(vehicleAssignments);
 
         long elapsedMs = (System.nanoTime() - startTime) / 1_000_000;
-        log.info("Completed generating suggestions for order {} in {} ms", orderID, elapsedMs);
+        log.info("Completed generating suggestions for order {} in {} ms using {} algorithm",
+                orderID, elapsedMs, optimalAssignments != null ? "OPTIMAL" : "REALISTIC");
 
         return new GroupedVehicleAssignmentResponse(groups);
     }
@@ -658,8 +682,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
         for (ContractRuleAssignResponse assignment : assignments) {
             // Lấy thông tin về vehicle rule
-            UUID vehicleRuleId = assignment.getVehicleRuleId();
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
+            UUID vehicleRuleId = assignment.getVehicleTypeRuleId();
+            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
@@ -693,7 +717,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             } else {
                 groupingReason = String.format(
                         "Các đơn hàng được gộp tối ưu cho xe %s (%.1f/%.1f kg - %.1f%%)",
-                        vehicleRule.getVehicleRuleName(),
+                        vehicleRule.getVehicleTypeRuleName(),
                         totalWeight.doubleValue(),
                         vehicleRule.getMaxWeight().doubleValue(),
                         totalWeight.doubleValue() * 100 / vehicleRule.getMaxWeight().doubleValue()
@@ -717,7 +741,41 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      */
     @Override
     public List<VehicleAssignmentResponse> createGroupedAssignments(GroupedAssignmentRequest request) {
-        log.info("Creating grouped vehicle assignments");
+        log.info("Creating grouped vehicle assignments for {} groups", request.groupAssignments().size());
+        
+        // VALIDATION: Check all groups have required data
+        List<String> validationErrors = new ArrayList<>();
+        
+        for (int i = 0; i < request.groupAssignments().size(); i++) {
+            OrderDetailGroupAssignment groupAssignment = request.groupAssignments().get(i);
+            int groupNumber = i + 1;
+            
+            if (groupAssignment.orderDetailIds() == null || groupAssignment.orderDetailIds().isEmpty()) {
+                validationErrors.add("Group " + groupNumber + ": Missing order details");
+            }
+            if (groupAssignment.vehicleId() == null) {
+                validationErrors.add("Group " + groupNumber + ": Missing vehicle");
+            }
+            if (groupAssignment.driverId_1() == null) {
+                validationErrors.add("Group " + groupNumber + ": Missing driver 1");
+            }
+            if (groupAssignment.driverId_2() == null) {
+                validationErrors.add("Group " + groupNumber + ": Missing driver 2");
+            }
+            if (groupAssignment.routeInfo() == null || groupAssignment.routeInfo().segments() == null || groupAssignment.routeInfo().segments().isEmpty()) {
+                validationErrors.add("Group " + groupNumber + ": Missing route information");
+            }
+            if (groupAssignment.seals() == null || groupAssignment.seals().isEmpty()) {
+                validationErrors.add("Group " + groupNumber + ": Missing seals (at least 1 seal required)");
+            }
+        }
+        
+        if (!validationErrors.isEmpty()) {
+            String errorMessage = "Cannot create vehicle assignments. Validation errors: " + String.join("; ", validationErrors);
+            log.error(errorMessage);
+            throw new NotFoundException(errorMessage, ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+        
         List<VehicleAssignmentResponse> createdAssignments = new ArrayList<>();
         // Keep track of orders that need status update
         Set<UUID> orderIdsToUpdate = new HashSet<>();
@@ -802,10 +860,15 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 try {
                     // Tạo nhiều seal cho assignment
                     for (capstone_project.dtos.request.seal.SealInfo sealInfo : groupAssignment.seals()) {
+                        // Validate seal data
+                        if (sealInfo.sealCode() == null || sealInfo.sealCode().trim().isEmpty()) {
+                            log.warn("Skipping seal with empty code for assignment {}", savedAssignment.getId());
+                            continue;
+                        }
                         createSealForAssignment(savedAssignment, sealInfo.sealCode(), sealInfo.description());
                     }
                 } catch (Exception e) {
-                    log.error("Failed to create seals for assignment: {}", e.getMessage());
+                    log.error("Failed to create seals for assignment {}: {}", savedAssignment.getId(), e.getMessage(), e);
                     // continue without failing the operation
                 }
             }
@@ -1102,48 +1165,18 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
 
-            // Lấy thông tin địa chỉ từ order
-            String originAddress = "";
-            String destinationAddress = "";
-            double weight = 0;
-            double volume = 0;
-
-            if (orderDetail.getOrderEntity() != null) {
-                OrderEntity order = orderDetail.getOrderEntity();
-
-                // Xử lý địa chỉ đón hàng
-                if (order.getPickupAddress() != null) {
-                    AddressEntity pickupAddr = order.getPickupAddress();
-                    originAddress = combineAddress(pickupAddr.getStreet(), pickupAddr.getWard(), pickupAddr.getProvince());
-                }
-
-                // Xử lý địa chỉ giao hàng
-                if (order.getDeliveryAddress() != null) {
-                    AddressEntity deliveryAddr = order.getDeliveryAddress();
-                    destinationAddress = combineAddress(deliveryAddr.getStreet(), deliveryAddr.getWard(), deliveryAddr.getProvince());
-                }
-            }
-
-            // Lấy khối lượng từ orderDetail
-            if (orderDetail.getWeight() != null) {
-                weight = orderDetail.getWeight().doubleValue();
-            }
-
-            // Tính thể tích từ orderSize nếu có
-            if (orderDetail.getOrderSizeEntity() != null) {
-                OrderSizeEntity size = orderDetail.getOrderSizeEntity();
-                // Tính thể tích nếu có đủ thông tin
-                if (size.getMaxLength() != null && size.getMaxWidth() != null && size.getMaxHeight() != null) {
-                    volume = size.getMaxLength().doubleValue() * size.getMaxWidth().doubleValue() * size.getMaxHeight().doubleValue() / 1000000; // chuyển đổi sang m³
-                }
+            // Lấy weightBaseUnit từ orderDetail
+            Double weightBaseUnit = null;
+            if (orderDetail.getWeightBaseUnit() != null) {
+                weightBaseUnit = orderDetail.getWeightBaseUnit().doubleValue();
             }
 
             detailInfos.add(new GroupedVehicleAssignmentResponse.OrderDetailInfo(
                     orderDetail.getId(),
                     orderDetail.getTrackingCode(),
-                    originAddress,
-                    destinationAddress,
-                    weight
+                    weightBaseUnit,
+                    orderDetail.getUnit(),
+                    orderDetail.getDescription()
             ));
         }
 
@@ -1180,7 +1213,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      * @return Danh sách gợi ý xe và tài xế phù hợp cho nhóm
      */
     private List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> findSuitableVehiclesForGroup(
-            List<UUID> detailIds, VehicleRuleEntity vehicleRule, UUID vehicleTypeId) {
+            List<UUID> detailIds, VehicleTypeRuleEntity vehicleRule, UUID vehicleTypeId) {
 
         List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions = new ArrayList<>();
 
@@ -1491,13 +1524,14 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         log.info("Creating seal for vehicle assignment {}: sealCode={}", assignment.getId(), sealCode);
 
         // Kiểm tra seal code đã tồn tại chưa
-        List<OrderSealEntity> existingSeals = orderSealEntityService.findBySealCode(sealCode);
+        List<SealEntity> existingSeals = sealEntityService.findBySealCode(sealCode);
+        String finalSealCode = sealCode;
+        
         if (!existingSeals.isEmpty()) {
-            log.warn("Seal with code {} already exists ({} instances found)", sealCode, existingSeals.size());
-            throw new NotFoundException(
-                    "Seal code đã tồn tại: " + sealCode,
-                    ErrorEnum.ALREADY_EXISTED.getErrorCode()
-            );
+            log.warn("Seal with code {} already exists ({} instances found), generating unique code", sealCode, existingSeals.size());
+            // Generate unique code by appending timestamp and random number
+            finalSealCode = sealCode + "-" + System.currentTimeMillis() + "-" + (int)(Math.random() * 1000);
+            log.info("Generated unique seal code: {}", finalSealCode);
         }
 
         // Improve description null check to also handle empty strings and whitespace
@@ -1506,14 +1540,14 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             finalDescription = "Seal for " + assignment.getTrackingCode();
         }
 
-        OrderSealEntity orderSeal = OrderSealEntity.builder()
-                .sealCode(sealCode)
+        SealEntity seals = SealEntity.builder()
+                .sealCode(finalSealCode)
                 .description(finalDescription)
-                .status(OrderSealEnum.ACTIVE.name())
+                .status(SealEnum.ACTIVE.name())
                 .vehicleAssignment(assignment)
                 .build();
 
-        OrderSealEntity savedSeal = orderSealEntityService.save(orderSeal);
+        SealEntity savedSeal = sealEntityService.save(seals);
         log.info("Created order seal with ID: {} and code: {}, linked to vehicle assignment: {}",
                 savedSeal.getId(), savedSeal.getSealCode(), assignment.getId());
     }

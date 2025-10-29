@@ -12,7 +12,7 @@ import java.util.UUID;
  */
 public record StaffOrderResponse(
     String id,
-    BigDecimal totalPrice,
+    BigDecimal depositAmount,
     String notes,
     int totalQuantity,
     String orderCode,
@@ -28,5 +28,6 @@ public record StaffOrderResponse(
     String senderRepresentativePhone,
     String senderCompanyName,
     String categoryName,
-    List<StaffOrderDetailResponse> orderDetails
+    List<StaffOrderDetailResponse> orderDetails,
+    List<StaffVehicleAssignmentResponse> vehicleAssignments  // Moved from orderDetail level
 ) {}

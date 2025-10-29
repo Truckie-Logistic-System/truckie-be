@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,9 +18,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderEntity extends BaseEntity {
-    @Column(name = "total_price")
-    private BigDecimal totalPrice;
-
     @Size(max = 100)
     @Column(name = "notes", length = 100)
     private String notes;

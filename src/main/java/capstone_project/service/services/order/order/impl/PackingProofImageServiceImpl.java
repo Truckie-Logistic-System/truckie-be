@@ -5,7 +5,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreatePackingProofImageRequest;
 import capstone_project.dtos.request.order.UpdatePackingProofImageRequest;
 import capstone_project.dtos.response.order.PackingProofImageResponse;
-import capstone_project.entity.order.conformation.PackingProofImageEntity;
+import capstone_project.entity.order.confirmation.PackingProofImageEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.order.conformation.PackingProofImageEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;

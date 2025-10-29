@@ -19,14 +19,14 @@ import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
-import capstone_project.entity.pricing.VehicleRuleEntity;
+import capstone_project.entity.pricing.VehicleTypeRuleEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.order.order.OrderSizeEntityService;
-import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
+import capstone_project.repository.entityServices.pricing.VehicleTypeRuleEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.order.OrderDetailMapper;
@@ -54,7 +54,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     private final ContractEntityService contractEntityService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final ObjectProvider<VehicleAssignmentService> vehicleAssignmentServiceProvider;
-    private final VehicleRuleEntityService vehicleRuleEntityService;
+    private final VehicleTypeRuleEntityService vehicleTypeRuleEntityService;
     private final ContractRuleService contractRuleService;
     private final VehicleTypeEntityService vehicleTypeEntityService;
     private final OrderService orderService;
@@ -288,7 +288,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 //        List<ContractRuleAssignResponse> assignResponses = contractService.assignVehicles(orderId);
 //        Map<UUID,List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
 //        for(ContractRuleAssignResponse contractRuleAssignResponse : assignResponses){
-//            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findContractRuleEntitiesById(vehicleRuleEntityService.findContractRuleEntitiesById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
+//            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findContractRuleEntitiesById(vehicleTypeRuleEntityService.findContractRuleEntitiesById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
 //            mapVehicleTypeAndOrderDetail.put(
 //                    vehicleTypeEntity.getId(),
 //                    contractRuleAssignResponse.getAssignedDetails()
@@ -339,7 +339,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         List<ContractRuleAssignResponse> assignResponses = contractService.assignVehiclesWithAvailability(orderId);
         Map<UUID, List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
         for(ContractRuleAssignResponse contractRuleAssignResponse : assignResponses){
-            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findEntityById(vehicleRuleEntityService.findEntityById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
+            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findEntityById(vehicleTypeRuleEntityService.findEntityById(contractRuleAssignResponse.getVehicleTypeRuleId()).get().getId()).get();
             mapVehicleTypeAndOrderDetail.put(
                     vehicleTypeEntity.getId(),
                     contractRuleAssignResponse.getAssignedDetails()
@@ -362,8 +362,8 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
         // 3. Map VehicleTypeId -> List<OrderDetailId>
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
-            UUID vehicleRuleId = response.getVehicleRuleId();
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
+            UUID vehicleRuleId = response.getVehicleTypeRuleId();
+            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()

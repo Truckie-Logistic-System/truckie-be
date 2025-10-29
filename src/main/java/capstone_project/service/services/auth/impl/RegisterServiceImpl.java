@@ -6,6 +6,7 @@ import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
+import capstone_project.common.exceptions.dto.UnauthorizedException;
 import capstone_project.common.utils.JWTUtil;
 import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
@@ -439,20 +440,22 @@ public class RegisterServiceImpl implements RegisterService {
     @Override
     public RefreshTokenResponse refreshAccessToken(String refreshToken) {
         RefreshTokenEntity tokenEntity = refreshTokenEntityService.findByToken(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Refresh token not found"));
+                .orElseThrow(() -> new UnauthorizedException(ErrorEnum.UNAUTHORIZED));
 
         LocalDateTime now = LocalDateTime.now();
 
         if (tokenEntity.getRevoked()) {
-            throw new RuntimeException("Refresh token revoked");
+            log.warn("[refreshAccessToken] Refresh token has been revoked");
+            throw new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
         }
 
         if (tokenEntity.getExpiredAt().isBefore(now)) {
-            throw new RuntimeException("Refresh token expired");
+            log.warn("[refreshAccessToken] Refresh token has expired");
+            throw new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
         }
 
         UserEntity user = userEntityService.findEntityById(tokenEntity.getUser().getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UnauthorizedException(ErrorEnum.UNAUTHORIZED));
 
         String newAccessToken = JWTUtil.generateToken(user);
 
@@ -472,7 +475,8 @@ public class RegisterServiceImpl implements RegisterService {
             }
         }
 
-        throw new RuntimeException("Refresh token not found in cookies");
+        log.warn("[extractRefreshTokenFromCookies] Refresh token not found in cookies");
+        throw new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
     }
 
     @Override

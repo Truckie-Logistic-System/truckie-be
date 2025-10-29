@@ -52,8 +52,8 @@ public class SecurityConfigurer {
     @Value("${category-pricing-detail.api.base-path}")
     private String categoryPricingDetailApiBasePath;
 
-    @Value("${vehicle-rule.api.base-path}")
-    private String vehicleRuleApiBasePath;
+    @Value("${vehicle-type-rule.api.base-path}")
+    private String vehicleTypeRuleApiBasePath;
 
     @Value("${distance-rule.api.base-path}")
     private String distanceRuleApiBasePath;
@@ -118,9 +118,6 @@ public class SecurityConfigurer {
 
     @Value("${seal.api.base-path}")
     private String sealApiBasePath;
-
-    @Value("${order-detail-seal.api.base-path}")
-    private String orderDetailSealApiBasePath;
 
     @Value("${notification.api.base-path}")
     private String notificationApiBasePath;
@@ -201,9 +198,9 @@ public class SecurityConfigurer {
 
                         // ================= VEHICLE =================
                         .requestMatchers(HttpMethod.GET, vehicleTypeApiBasePath + "/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, vehicleRuleApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, vehicleTypeRuleApiBasePath + "/**").authenticated()
                         .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(vehicleRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(vehicleTypeRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
                         // ================= CATEGORY =================
                         .requestMatchers(HttpMethod.GET, categoryApiBasePath + "/**").authenticated()
@@ -271,10 +268,7 @@ public class SecurityConfigurer {
 
                         // ================= SEAL =================
                         .requestMatchers(sealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())
-                        .requestMatchers(orderDetailSealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())
 
-                        // ================= TRACKASIA-PROXY =================
-                        .requestMatchers("/api/trackasia/**").permitAll() // allow all TrackAsia proxy requests
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
                         .anyRequest().authenticated())

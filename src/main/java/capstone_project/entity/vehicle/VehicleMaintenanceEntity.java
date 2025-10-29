@@ -25,9 +25,6 @@ public class VehicleMaintenanceEntity extends BaseEntity {
     @Column(name = "description", length = 200)
     private String description;
 
-    @Column(name = "cost", precision = 10, scale = 2)
-    private BigDecimal cost;
-
     @Column(name = "next_maintenance_date")
     private LocalDateTime nextMaintenanceDate;
 
@@ -37,9 +34,24 @@ public class VehicleMaintenanceEntity extends BaseEntity {
     @Column(name = "odometer_reading")
     private Integer odometerReading;
 
-    @Size(max = 200)
-    @Column(name = "service_center", length = 200)
-    private String serviceCenter;
+    @Size(max = 20)
+    @Column(name = "status", length = 20)
+    private String Status;
+
+    @Column(name = "request_at")
+    private LocalDateTime requestAt;
+
+    @Column(name = "started_at")
+    private LocalDateTime startedAt;
+
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
+    @Column(name = "failed_at")
+    private LocalDateTime failedAt;
+
+    @Column(name ="failure_reason", length = 200)
+    private String failureReason;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_id")

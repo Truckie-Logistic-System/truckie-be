@@ -112,6 +112,8 @@ public class VehicleLocationService {
 
     /**
      * Broadcast vehicle location to all order topics that have this vehicle assigned
+     * IMPORTANT: Deduplicates orders to prevent sending duplicate vehicle messages
+     * when multiple order details share the same vehicle assignment
      */
     private void broadcastToOrderTopics(VehicleLocationMessage message) {
         if (message == null || message.getVehicleId() == null) {
@@ -125,6 +127,9 @@ public class VehicleLocationService {
             
             log.debug("=== [broadcastToOrderTopics] Found {} assignments for vehicle {}", 
                     assignments.size(), message.getVehicleId());
+
+            // Track which orders we've already broadcast to (to avoid duplicates)
+            java.util.Set<UUID> broadcastedOrders = new java.util.HashSet<>();
 
             // For each assignment, find active order details
             for (VehicleAssignmentEntity assignment : assignments) {
@@ -143,7 +148,7 @@ public class VehicleLocationService {
                 log.debug("=== [broadcastToOrderTopics] Found {} active order details for assignment {}", 
                         activeOrderDetails.size(), assignment.getId());
 
-                // Broadcast to each order's topic
+                // Group order details by order ID to avoid duplicate broadcasts
                 for (OrderDetailEntity orderDetail : activeOrderDetails) {
                     String orderStatus = orderDetail.getOrderEntity() != null ? 
                             orderDetail.getOrderEntity().getStatus() : "NULL";
@@ -152,6 +157,14 @@ public class VehicleLocationService {
                     
                     if (orderDetail.getOrderEntity() != null && orderDetail.getOrderEntity().getId() != null) {
                         UUID orderId = orderDetail.getOrderEntity().getId();
+                        
+                        // Skip if we've already broadcast to this order
+                        if (broadcastedOrders.contains(orderId)) {
+                            log.debug("=== [broadcastToOrderTopics] Skipping duplicate broadcast to order {} (already sent)", 
+                                    orderId);
+                            continue;
+                        }
+                        
                         String orderTopic = TOPIC_ORDER_VEHICLES_PREFIX + orderId + "/vehicles";
                         
                         log.debug("=== [broadcastToOrderTopics] Broadcasting to order {} topic: {}", 
@@ -169,7 +182,29 @@ public class VehicleLocationService {
                             enhancedMessage.setVelocityLat(message.getVelocityLat());
                             enhancedMessage.setVelocityLng(message.getVelocityLng());
                             
+                            // DEBUG: Log the complete message being sent
+                            log.info("=== [broadcastToOrderTopics] Enhanced message details:");
+                            log.info("    - vehicleId: {}", enhancedMessage.getVehicleId());
+                            log.info("    - latitude: {}", enhancedMessage.getLatitude());
+                            log.info("    - longitude: {}", enhancedMessage.getLongitude());
+                            log.info("    - licensePlateNumber: {}", enhancedMessage.getLicensePlateNumber());
+                            log.info("    - manufacturer: {}", enhancedMessage.getManufacturer());
+                            log.info("    - vehicleTypeName: {}", enhancedMessage.getVehicleTypeName());
+                            log.info("    - vehicleAssignmentId: {}", enhancedMessage.getVehicleAssignmentId());
+                            log.info("    - trackingCode: {}", enhancedMessage.getTrackingCode());
+                            log.info("    - assignmentStatus: {}", enhancedMessage.getAssignmentStatus());
+                            log.info("    - driver1Name: {}", enhancedMessage.getDriver1Name());
+                            log.info("    - driver1Phone: {}", enhancedMessage.getDriver1Phone());
+                            log.info("    - driver2Name: {}", enhancedMessage.getDriver2Name());
+                            log.info("    - driver2Phone: {}", enhancedMessage.getDriver2Phone());
+                            log.info("    - lastUpdated: {}", enhancedMessage.getLastUpdated());
+                            log.info("    - bearing: {}", enhancedMessage.getBearing());
+                            log.info("    - speed: {}", enhancedMessage.getSpeed());
+                            log.info("    - velocityLat: {}", enhancedMessage.getVelocityLat());
+                            log.info("    - velocityLng: {}", enhancedMessage.getVelocityLng());
+                            
                             messagingTemplate.convertAndSend(orderTopic, enhancedMessage);
+                            broadcastedOrders.add(orderId); // Mark as broadcast
                             log.info("=== [broadcastToOrderTopics] SUCCESSFULLY broadcast vehicle {} location to order {} topic: {}", 
                                     message.getVehicleId(), orderId, orderTopic);
                         } else {
@@ -182,6 +217,9 @@ public class VehicleLocationService {
                     }
                 }
             }
+            
+            log.debug("=== [broadcastToOrderTopics] Broadcast complete. Sent to {} unique orders", 
+                    broadcastedOrders.size());
         } catch (Exception e) {
             log.error("Error broadcasting to order topics for vehicle {}: {}", 
                     message.getVehicleId(), e.getMessage(), e);
@@ -348,8 +386,10 @@ public class VehicleLocationService {
 
     /**
      * Get locations of all vehicles for a specific order with enhanced details
+     * IMPORTANT: Deduplicates vehicles by vehicleId to prevent duplicate entries
+     * when multiple order details share the same vehicle assignment
      * @param orderId Order ID
-     * @return List of enhanced vehicle location messages or empty list if none found
+     * @return List of unique enhanced vehicle location messages or empty list if none found
      */
     public List<VehicleLocationMessage> getOrderVehicleLocations(UUID orderId) {
         if (orderId == null) {
@@ -359,9 +399,18 @@ public class VehicleLocationService {
         // Get all vehicle assignments for this order
         List<VehicleAssignmentResponse> assignments = vehicleAssignmentService.getListVehicleAssignmentByOrderID(orderId);
         List<VehicleLocationMessage> vehicleLocations = new ArrayList<>();
+        
+        // Track which vehicles we've already added (to avoid duplicates)
+        java.util.Set<UUID> processedVehicles = new java.util.HashSet<>();
 
         for (VehicleAssignmentResponse assignment : assignments) {
             if (assignment.vehicleId() != null) {
+                // Skip if we've already processed this vehicle
+                if (processedVehicles.contains(assignment.vehicleId())) {
+                    log.debug("Skipping duplicate vehicle {} for order {}", assignment.vehicleId(), orderId);
+                    continue;
+                }
+                
                 try {
                     // Get vehicle entity with eagerly fetched vehicle type
                     VehicleEntity vehicle = vehicleEntityService.findByVehicleIdWithVehicleType(assignment.vehicleId()).orElse(null);
@@ -407,6 +456,7 @@ public class VehicleLocationService {
                         // Add the built message to the list
                         VehicleLocationMessage locationMessage = builder.build();
                         vehicleLocations.add(locationMessage);
+                        processedVehicles.add(assignment.vehicleId()); // Mark as processed
                     }
                 } catch (Exception e) {
                     log.error("Error processing vehicle location for assignment {}: {}",
@@ -416,6 +466,7 @@ public class VehicleLocationService {
             }
         }
 
+        log.debug("Returning {} unique vehicle locations for order {}", vehicleLocations.size(), orderId);
         return vehicleLocations;
     }
 

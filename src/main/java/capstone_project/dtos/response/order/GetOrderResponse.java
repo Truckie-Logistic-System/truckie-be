@@ -2,6 +2,7 @@ package capstone_project.dtos.response.order;
 
 import capstone_project.dtos.response.user.AddressResponse;
 import capstone_project.dtos.response.user.CustomerResponse;
+import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
@@ -12,7 +13,6 @@ import java.util.List;
 
 public record GetOrderResponse(
     String id,
-    BigDecimal totalPrice,
     String notes,
     Integer totalQuantity,
     String orderCode,
@@ -26,6 +26,7 @@ public record GetOrderResponse(
     AddressResponse pickupAddress,
     CustomerResponse sender,
     CategoryResponse category,
-    List<GetOrderDetailResponse> orderDetails
+    List<GetOrderDetailResponse> orderDetails,
+    List<VehicleAssignmentResponse> vehicleAssignments  // Moved from orderDetail level
 ) {
 }

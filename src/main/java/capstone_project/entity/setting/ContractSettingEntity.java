@@ -27,4 +27,7 @@ public class ContractSettingEntity extends BaseEntity {
 
     @Column(name = "insurance_rate")
     private BigDecimal insuranceRate;
+
+    @Column(name = "vat_rate")
+    private BigDecimal vatRate;
 }

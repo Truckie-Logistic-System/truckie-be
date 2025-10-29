@@ -1,7 +1,7 @@
 package capstone_project.service.services.vehicle.impl;
 
 import capstone_project.common.enums.ErrorEnum;
-import capstone_project.common.enums.OrderSealEnum;
+import capstone_project.common.enums.SealEnum;
 import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionCreateRequest;
@@ -11,7 +11,7 @@ import capstone_project.dtos.response.vehicle.VehicleFuelConsumptionResponse;
 import capstone_project.entity.order.order.VehicleFuelConsumptionEntity;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
-import capstone_project.repository.entityServices.order.order.OrderSealEntityService;
+import capstone_project.repository.entityServices.order.order.SealEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.OrderService;
@@ -38,7 +38,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private final CloudinaryService cloudinaryService;
     private final OrderEntityService orderEntityService;
     private final OrderService orderService;
-    private final OrderSealEntityService orderSealEntityService;
+    private final SealEntityService sealEntityService;
 
     @Override
     @Transactional
@@ -67,12 +67,23 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
         final var savedEntity = vehicleFuelConsumptionEntityService.save(entity);
 
-        // Update order status to PICKING_UP and send WebSocket notification
+        // Update order status to PICKING_UP and then to ONGOING_DELIVERED
         final var orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignmentEntity.getId());
         if (orderOpt.isPresent()) {
             final var orderEntity = orderOpt.get();
+            
+            // First update to PICKING_UP
             orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.PICKING_UP);
             log.info("Updated order {} status to PICKING_UP after driver submitted odometer start", orderEntity.getOrderCode());
+            
+            // Then update to ONGOING_DELIVERED to show delivery confirmation button
+            try {
+                orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.ONGOING_DELIVERED);
+                log.info("Updated order {} status to ONGOING_DELIVERED for delivery confirmation", orderEntity.getOrderCode());
+            } catch (Exception e) {
+                log.warn("Could not update order {} to ONGOING_DELIVERED: {}", orderEntity.getOrderCode(), e.getMessage());
+                // Don't throw - PICKING_UP is sufficient for the flow to work
+            }
         }
 
         return mapToResponse(savedEntity);
@@ -154,13 +165,13 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
             // Update the IN_USE seal to USED (there should be only one)
             final var vehicleAssignment = entity.getVehicleAssignmentEntity();
-            final var inUseSeal = orderSealEntityService.findByVehicleAssignment(
+            final var inUseSeal = sealEntityService.findByVehicleAssignment(
                     vehicleAssignment,
-                    OrderSealEnum.IN_USE.name());
+                    SealEnum.IN_USE.name());
 
             if (inUseSeal != null) {
-                inUseSeal.setStatus(OrderSealEnum.USED.name());
-                orderSealEntityService.save(inUseSeal);
+                inUseSeal.setStatus(SealEnum.USED.name());
+                sealEntityService.save(inUseSeal);
                 log.info("Updated seal {} status from IN_USE to USED for order {}",
                         inUseSeal.getSealCode(), orderEntity.getOrderCode());
             }
@@ -196,8 +207,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private String uploadImage(MultipartFile file, String folder) {
         try {
             final var uploadResult = cloudinaryService.uploadFile(file.getBytes(), file.getOriginalFilename(), folder);
-            final var publicId = (String) uploadResult.get("public_id");
-            return cloudinaryService.getFileUrl(publicId);
+            return (String) uploadResult.get("secure_url");
         } catch (IOException e) {
             log.error("Error uploading image to Cloudinary: {}", e.getMessage());
             throw new RuntimeException("Failed to upload image", e);

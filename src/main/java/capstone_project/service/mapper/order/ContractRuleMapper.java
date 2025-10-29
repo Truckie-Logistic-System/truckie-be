@@ -4,7 +4,7 @@ import capstone_project.dtos.request.order.ContractRuleRequest;
 import capstone_project.dtos.response.order.contract.ContractRuleResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
-import capstone_project.entity.pricing.VehicleRuleEntity;
+import capstone_project.entity.pricing.VehicleTypeRuleEntity;
 import org.mapstruct.*;
 
 import java.util.UUID;
@@ -13,21 +13,21 @@ import java.util.UUID;
 public interface ContractRuleMapper {
 
     @Mapping(source = "contractEntity.id", target = "contractEntityId")
-    @Mapping(source = "vehicleRuleEntity.id", target = "vehicleRuleId")
+    @Mapping(source = "vehicleTypeRuleEntity.id", target = "vehicleRuleId")
     ContractRuleResponse toContractRuleResponse(ContractRuleEntity contractRuleEntity);
 
-    @Mapping(source = "vehicleRuleId", target = "vehicleRuleEntity", qualifiedByName = "vehicleRuleFromId")
+    @Mapping(source = "vehicleRuleId", target = "vehicleTypeRuleEntity", qualifiedByName = "vehicleRuleFromId")
     @Mapping(source = "contractEntityId", target = "contractEntity", qualifiedByName = "contractFromId")
     ContractRuleEntity mapRequestToEntity(ContractRuleRequest contractRuleRequest);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    @Mapping(source = "vehicleRuleId", target = "vehicleRuleEntity", qualifiedByName = "vehicleRuleFromId")
+    @Mapping(source = "vehicleRuleId", target = "vehicleTypeRuleEntity", qualifiedByName = "vehicleRuleFromId")
     @Mapping(source = "contractEntityId", target = "contractEntity", qualifiedByName = "contractFromId")
     void toContractRuleEntity(ContractRuleRequest request, @MappingTarget ContractRuleEntity entity);
 
     @Named("vehicleRuleFromId")
-    default VehicleRuleEntity mapVehicleRuleFromId(String vehicleRuleId) {
-        VehicleRuleEntity entity = new VehicleRuleEntity();
+    default VehicleTypeRuleEntity mapVehicleTypeRuleFromId(String vehicleRuleId) {
+        VehicleTypeRuleEntity entity = new VehicleTypeRuleEntity();
         entity.setId(UUID.fromString(vehicleRuleId));
         return entity;
     }

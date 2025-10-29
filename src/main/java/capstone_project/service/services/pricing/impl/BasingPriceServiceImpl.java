@@ -118,7 +118,7 @@ public class BasingPriceServiceImpl implements BasingPriceService {
             );
         }
 
-        Optional<BasingPriceEntity> existingBasingPrice = basingPriceEntityService.findBasingPriceEntityByVehicleRuleEntityIdAndDistanceRuleEntityId(
+        Optional<BasingPriceEntity> existingBasingPrice = basingPriceEntityService.findBasingPriceEntityByVehicleTypeRuleEntityIdAndDistanceRuleEntityId(
                 vehicleRuleId, distanceRuleId);
 
         if (existingBasingPrice.isPresent()) {

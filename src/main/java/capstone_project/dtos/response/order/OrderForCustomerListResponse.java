@@ -7,7 +7,6 @@ import java.util.UUID;
 public record OrderForCustomerListResponse(
         UUID id,
         String orderCode,
-        BigDecimal totalPrice,
         Integer totalQuantity,
         String status,
         String notes,

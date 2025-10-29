@@ -7,32 +7,32 @@ import capstone_project.dtos.response.issue.SimpleStaffResponse;
 import capstone_project.dtos.response.order.*;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.SimpleContractResponse;
-import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
+import capstone_project.dtos.response.order.seal.GetSealResponse;
 import capstone_project.dtos.response.order.transaction.SimpleTransactionResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.dtos.response.order.PhotoCompletionResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.entity.auth.UserEntity;
-import capstone_project.entity.device.CameraTrackingEntity;
 import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.user.driver.PenaltyHistoryEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
-import capstone_project.repository.entityServices.device.CameraTrackingEntityService;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
+import capstone_project.repository.entityServices.setting.ContractSettingEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
-import capstone_project.service.services.order.seal.OrderSealService;
+import capstone_project.service.services.order.seal.SealService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -42,17 +42,17 @@ import java.util.stream.Collectors;
 public class StaffOrderMapper {
 
     private final PenaltyHistoryEntityService penaltyHistoryEntityService;
-    private final CameraTrackingEntityService cameraTrackingEntityService;
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
     private final UserEntityService userEntityService;
     private final DriverEntityService driverEntityService;
     private final VehicleEntityService vehicleEntityService;
-    private final OrderSealService orderSealService;
+    private final SealService sealService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final JourneyHistoryService journeyHistoryService;
     private final IssueImageService issueImageService;
     // PhotoCompletionService may not exist in every project; if not present remove this field and helper below
     private final PhotoCompletionService photoCompletionService;
+    private final ContractSettingEntityService contractSettingEntityService;
 
     public OrderForStaffResponse toStaffOrderForStaffResponse(
             GetOrderResponse orderResponse,
@@ -66,17 +66,18 @@ public class StaffOrderMapper {
                 if (contractTotal != null && contractTotal.compareTo(BigDecimal.ZERO) > 0) {
                     effectiveTotal = contractTotal;
                 } else {
-                    effectiveTotal = contractResponse.supportedValue();
+                    effectiveTotal = contractResponse.adjustedValue();
                 }
             }
         } catch (Exception ignored) {
         }
-        if (effectiveTotal == null && orderResponse != null) {
-            effectiveTotal = orderResponse.totalPrice();
-        }
+
+        // Calculate deposit amount based on contract adjusted value
+        BigDecimal adjustedValue = contractResponse != null ? contractResponse.adjustedValue() : null;
+        BigDecimal depositAmount = calculateDepositAmount(effectiveTotal, adjustedValue);
 
         // Convert Order with enhanced information for staff, passing effective total
-        StaffOrderResponse staffOrderResponse = toStaffOrderResponseWithEnhancedInfo(orderResponse, effectiveTotal);
+        StaffOrderResponse staffOrderResponse = toStaffOrderResponseWithEnhancedInfo(orderResponse, effectiveTotal, depositAmount);
 
         // Convert Contract
         SimpleContractResponse simpleContractResponse = contractResponse != null ?
@@ -94,7 +95,7 @@ public class StaffOrderMapper {
         );
     }
 
-    private StaffOrderResponse toStaffOrderResponseWithEnhancedInfo(GetOrderResponse response, BigDecimal effectiveTotal) {
+    private StaffOrderResponse toStaffOrderResponseWithEnhancedInfo(GetOrderResponse response, BigDecimal effectiveTotal, BigDecimal depositAmount) {
         String deliveryAddress = combineAddress(
                 response.deliveryAddress().street(),
                 response.deliveryAddress().ward(),
@@ -107,14 +108,36 @@ public class StaffOrderMapper {
                 response.pickupAddress().province()
         );
 
-        // Process order details with enhanced information for staff
+        // Collect unique vehicle assignment IDs from order details
+        Set<UUID> uniqueVehicleAssignmentIds = response.orderDetails().stream()
+                .map(GetOrderDetailResponse::vehicleAssignmentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // Build full vehicle assignment responses for unique IDs
+        List<StaffVehicleAssignmentResponse> vehicleAssignments = uniqueVehicleAssignmentIds.stream()
+                .map(vaId -> {
+                    // Find the first vehicleAssignmentResponse with this ID from response.vehicleAssignments()
+                    VehicleAssignmentResponse vaResponse = response.vehicleAssignments().stream()
+                            .filter(va -> va.id().equals(vaId))
+                            .findFirst()
+                            .orElse(null);
+                    if (vaResponse != null) {
+                        return toStaffVehicleAssignmentResponse(vaResponse);
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        // Process order details with only vehicle assignment ID reference
         List<StaffOrderDetailResponse> staffOrderDetails = response.orderDetails().stream()
                 .map(this::toStaffOrderDetailResponseWithEnhancedInfo)
                 .collect(Collectors.toList());
 
         return new StaffOrderResponse(
                 response.id(),
-                effectiveTotal,
+                depositAmount,
                 response.notes(),
                 response.totalQuantity(),
                 response.orderCode(),
@@ -130,7 +153,8 @@ public class StaffOrderMapper {
                 response.sender().getRepresentativePhone(),
                 response.sender().getCompanyName(),
                 response.category().categoryName(),
-                staffOrderDetails
+                staffOrderDetails,
+                vehicleAssignments  // Add aggregated vehicle assignments
         );
     }
 
@@ -149,11 +173,6 @@ public class StaffOrderMapper {
             );
         }
 
-        StaffVehicleAssignmentResponse vehicleAssignment = null;
-        if (detail.vehicleAssignmentId() != null) {
-            vehicleAssignment = toStaffVehicleAssignmentResponse(detail.vehicleAssignmentId());
-        }
-
         return new StaffOrderDetailResponse(
                 detail.trackingCode(),
                 detail.weightBaseUnit(),
@@ -167,7 +186,7 @@ public class StaffOrderMapper {
                 detail.createdAt(),
                 detail.trackingCode(),
                 orderSize,
-                vehicleAssignment
+                detail.vehicleAssignmentId()  // Only store ID reference
         );
     }
 
@@ -192,7 +211,6 @@ public class StaffOrderMapper {
                 vehicleAssignmentEntity != null && vehicleAssignmentEntity.getDriver2() != null ?
                         vehicleAssignmentEntity.getDriver2().getUser().getId() : vehicleAssignmentResponse.driver_id_2());
 
-        List<CameraTrackingResponse> cameraTrackings = getCameraTrackingsByVehicleAssignmentId(vehicleAssignmentId);
         VehicleFuelConsumptionResponse fuelConsumption = getFuelConsumptionByVehicleAssignmentId(vehicleAssignmentId);
         List<String> photoCompletions = getPhotoCompletionsByVehicleAssignmentId(vehicleAssignmentId);
         // Get issues for this vehicle assignment (null-safe, full lookup)
@@ -274,16 +292,16 @@ public class StaffOrderMapper {
         }
 
         // Get order seals (null-safe)
-        List<GetOrderSealResponse> orderSeals = Collections.emptyList();
+        List<GetSealResponse> seals = Collections.emptyList();
         try {
-            List<GetOrderSealResponse> raw = orderSealService.getAllOrderSealsByVehicleAssignmentId(vehicleAssignmentId);
-            if (raw != null) orderSeals = raw;
+            List<GetSealResponse> raw = sealService.getAllSealsByVehicleAssignmentId(vehicleAssignmentId);
+            if (raw != null) seals = raw;
         } catch (Exception e) {
             log.warn("Could not fetch order seals for {}: {}", vehicleAssignmentId, e.getMessage());
         }
 
         // Ensure lists are non-null
-        if (orderSeals == null) orderSeals = Collections.emptyList();
+        if (seals == null) seals = Collections.emptyList();
         if (journeyHistories == null) journeyHistories = Collections.emptyList();
         if (issues == null) issues = Collections.emptyList();
         if (photoCompletions == null) photoCompletions = Collections.emptyList();
@@ -299,9 +317,8 @@ public class StaffOrderMapper {
                 status,
                 trackingCode,
                 penalties,
-                cameraTrackings,
                 fuelConsumption,
-                orderSeals,
+                seals,
                 journeyHistories,
                 photoCompletions,
                 issues
@@ -380,27 +397,6 @@ public class StaffOrderMapper {
         }
     }
 
-    private List<CameraTrackingResponse> getCameraTrackingsByVehicleAssignmentId(UUID vehicleAssignmentId) {
-        if (vehicleAssignmentId == null) return new ArrayList<>();
-
-        try {
-            List<CameraTrackingEntity> cameraTrackings = cameraTrackingEntityService.findByVehicleAssignmentId(vehicleAssignmentId);
-            return cameraTrackings.stream()
-                    .map(entity -> new CameraTrackingResponse(
-                            entity.getId(),
-                            entity.getVideoUrl(),
-                            entity.getTrackingAt(),
-                            entity.getStatus(),
-                            null,
-                            entity.getDeviceEntity() != null ?
-                                    entity.getDeviceEntity().getDeviceCode() + " " + entity.getDeviceEntity().getModel() : null
-                    ))
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.warn("Could not fetch camera trackings for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
-            return new ArrayList<>();
-        }
-    }
 
     private VehicleFuelConsumptionResponse getFuelConsumptionByVehicleAssignmentId(UUID vehicleAssignmentId) {
         if (vehicleAssignmentId == null) return null;
@@ -447,7 +443,7 @@ public class StaffOrderMapper {
                 contract.effectiveDate(),
                 contract.expirationDate(),
                 contract.totalValue(),
-                contract.supportedValue(),
+                contract.adjustedValue(),
                 contract.description(),
                 contract.attachFileUrl(),
                 contract.status(),
@@ -562,5 +558,40 @@ public class StaffOrderMapper {
         return segments.stream()
                 .mapToDouble(segment -> segment.distanceMeters() != null ? segment.distanceMeters() : 0.0)
                 .sum();
+    }
+
+    /**
+     * Calculate deposit amount based on adjusted value (if available) or total price and deposit percent from contract settings
+     * Priority: adjustedValue > totalPrice
+     * @param totalPrice The total price of the order
+     * @param adjustedValue The adjusted value from contract (optional)
+     * @return The calculated deposit amount, or null if total price is null
+     */
+    private BigDecimal calculateDepositAmount(BigDecimal totalPrice, BigDecimal adjustedValue) {
+        // Use adjustedValue if available, otherwise use totalPrice
+        BigDecimal baseAmount = adjustedValue != null && adjustedValue.compareTo(BigDecimal.ZERO) > 0 
+            ? adjustedValue 
+            : totalPrice;
+
+        if (baseAmount == null) {
+            return null;
+        }
+
+        try {
+            // Get the latest contract setting
+            var contractSetting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc().orElse(null);
+            if (contractSetting == null || contractSetting.getDepositPercent() == null) {
+                // Default to 30% if no setting found
+                return baseAmount.multiply(new BigDecimal("0.30")).setScale(0, RoundingMode.HALF_UP);
+            }
+
+            // Calculate deposit amount: baseAmount * (depositPercent / 100)
+            BigDecimal depositPercent = contractSetting.getDepositPercent();
+            return baseAmount.multiply(depositPercent).divide(new BigDecimal("100"), 0, RoundingMode.HALF_UP);
+        } catch (Exception e) {
+            log.warn("Error calculating deposit amount: {}", e.getMessage());
+            // Default to 30% on error
+            return baseAmount.multiply(new BigDecimal("0.30")).setScale(0, RoundingMode.HALF_UP);
+        }
     }
 }

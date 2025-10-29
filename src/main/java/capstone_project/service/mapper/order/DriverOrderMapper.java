@@ -5,7 +5,7 @@ import capstone_project.dtos.response.issue.SimpleIssueResponse;
 import capstone_project.dtos.response.issue.SimpleStaffResponse;
 import capstone_project.dtos.response.order.*;
 import capstone_project.dtos.response.order.contract.SimpleContractResponse;
-import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
+import capstone_project.dtos.response.order.seal.GetSealResponse;
 import capstone_project.dtos.response.order.transaction.SimpleTransactionResponse;
 import capstone_project.dtos.response.issue.GetIssueImageResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
@@ -14,12 +14,11 @@ import capstone_project.dtos.response.order.PhotoCompletionResponse;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.entity.auth.UserEntity;
-import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
-import capstone_project.service.services.order.seal.OrderSealService;
+import capstone_project.service.services.order.seal.SealService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -33,7 +32,7 @@ import java.util.stream.Collectors;
 public class DriverOrderMapper {
     private final UserEntityService userEntityService;
     private final VehicleEntityService vehicleEntityService;
-    private final OrderSealService orderSealService;
+    private final SealService sealService;
     private final JourneyHistoryService journeyHistoryService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
 
@@ -62,7 +61,7 @@ public class DriverOrderMapper {
         String deliveryAddress = combineAddress(
                 response.deliveryAddress().street(),
                 response.deliveryAddress().ward(),
-                response.deliveryAddress().province()
+                response.pickupAddress().province()
         );
 
         String pickupAddress = combineAddress(
@@ -77,29 +76,34 @@ public class DriverOrderMapper {
         Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache = new HashMap<>();
         Map<UUID, UserEntity> userCache = new HashMap<>();
 
-        // Process order details with enhanced vehicle assignments
-        List<SimpleOrderDetailResponse> simpleOrderDetails = response.orderDetails().stream()
-                .map(detail -> {
-                    if (detail.vehicleAssignmentId() != null) {
-                        UUID vehicleAssignmentId = detail.vehicleAssignmentId().id();
+        // Collect unique vehicle assignment IDs from order details
+        Set<UUID> uniqueVehicleAssignmentIds = response.orderDetails().stream()
+                .map(GetOrderDetailResponse::vehicleAssignmentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
 
+        // Build full vehicle assignment responses for unique IDs
+        List<SimpleVehicleAssignmentResponse> vehicleAssignments = uniqueVehicleAssignmentIds.stream()
+                .map(vaId -> {
+                    // Find the vehicleAssignmentResponse with this ID from response.vehicleAssignments()
+                    var vaResponse = response.vehicleAssignments().stream()
+                            .filter(va -> va.id().equals(vaId))
+                            .findFirst()
+                            .orElse(null);
+                    if (vaResponse != null) {
                         // Get issue for this vehicle assignment
-                        SimpleIssueImageResponse issue = issuesByVehicleAssignment.get(vehicleAssignmentId);
-
-                        List<String> photoCompletions = getPhotoCompletionsFor(photoCompletionResponses, vehicleAssignmentId);
-
-                        // Pass caches so entity lookups are memoized
-                        return toSimpleOrderDetailResponseWithTripInfo(
-                                detail,
-                                issue,
-                                photoCompletions,
-                                vehicleCache,
-                                userCache
-                        );
-                    } else {
-                        return toSimpleOrderDetailResponse(detail);
+                        SimpleIssueImageResponse issue = issuesByVehicleAssignment.get(vaId);
+                        List<String> photoCompletions = getPhotoCompletionsFor(photoCompletionResponses, vaId);
+                        return toSimpleVehicleAssignmentResponse(vaResponse, issue, photoCompletions, vehicleCache, userCache);
                     }
+                    return null;
                 })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        // Process order details with only vehicle assignment ID reference
+        List<SimpleOrderDetailResponse> simpleOrderDetails = response.orderDetails().stream()
+                .map(this::toSimpleOrderDetailResponse)
                 .collect(Collectors.toList());
 
         return new DriverOrderResponse(
@@ -119,176 +123,90 @@ public class DriverOrderMapper {
                 response.sender().getRepresentativePhone(),
                 response.sender().getCompanyName(),
                 response.category().categoryName(),
-                simpleOrderDetails
+                simpleOrderDetails,
+                vehicleAssignments  // Add aggregated vehicle assignments
         );
     }
 
-    private SimpleOrderDetailResponse toSimpleOrderDetailResponseWithTripInfo(
-            GetOrderDetailResponse detail,
+    private SimpleVehicleAssignmentResponse toSimpleVehicleAssignmentResponse(
+            capstone_project.dtos.response.vehicle.VehicleAssignmentResponse vaResponse,
             SimpleIssueImageResponse issue,
             List<String> photoCompletions,
             Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache,
             Map<UUID, UserEntity> userCache
     ) {
-        SimpleOrderSizeResponse orderSize = null;
-        if (detail.orderSizeId() != null) {
-            orderSize = new SimpleOrderSizeResponse(
-                    detail.orderSizeId().id().toString(),
-                    detail.orderSizeId().description(),
-                    detail.orderSizeId().minLength(),
-                    detail.orderSizeId().maxLength(),
-                    detail.orderSizeId().minHeight(),
-                    detail.orderSizeId().maxHeight(),
-                    detail.orderSizeId().minWidth(),
-                    detail.orderSizeId().maxWidth()
-            );
-        }
-
-        SimpleVehicleAssignmentResponse vehicleAssignment = null;
         VehicleResponse vehicle = null;
-        if (detail.vehicleAssignmentId() != null) {
-            VehicleAssignmentEntity vaEntity = null;
-            try {
-                UUID vaId = detail.vehicleAssignmentId().id();
-                if (vaId != null) {
-                    vaEntity = vehicleAssignmentEntityService.findEntityById(vaId).orElse(null);
-                }
-            } catch (Exception ignored) {
+        SimpleDriverResponse primaryDriver = null;
+        SimpleDriverResponse secondaryDriver = null;
+
+        // Get vehicle info
+        try {
+            UUID vehicleId = vaResponse.vehicleId();
+            var vehicleEntity = getVehicleFromCache(vehicleId, vehicleCache);
+            if (vehicleEntity != null) {
+                vehicle = new VehicleResponse(
+                        vehicleEntity.getId(),
+                        vehicleEntity.getManufacturer(),
+                        vehicleEntity.getModel(),
+                        vehicleEntity.getLicensePlateNumber(),
+                        vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null
+                );
             }
-            SimpleDriverResponse primaryDriver = null;
-            SimpleDriverResponse secondaryDriver = null;
-            if (vaEntity != null) {
-                try {
-                    // Vehicle from assignment entity
-                    if (vaEntity.getVehicleEntity() != null) {
-                        var vehicleEntity = vaEntity.getVehicleEntity();
-                        vehicle = new VehicleResponse(
-                                vehicleEntity.getId(),
-                                vehicleEntity.getManufacturer(),
-                                vehicleEntity.getModel(),
-                                vehicleEntity.getLicensePlateNumber(),
-                                vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null
-                        );
-                    } else {
-                        // fallback to vehicle id in DTO -> use cached vehicle entity
-                        UUID vehicleId = detail.vehicleAssignmentId().vehicleId();
-                        var vehicleEntity = getVehicleFromCache(vehicleId, vehicleCache);
-                        vehicle = new VehicleResponse(
-                                null,
-                                vehicleEntity.getManufacturer(),
-                                vehicleEntity.getModel(),
-                                vehicleEntity.getLicensePlateNumber(),
-                                vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null
-                        );
-                    }
-                } catch (Exception ignored) {
-                }
-
-                try {
-                    if (vaEntity.getDriver1() != null) {
-                        var d = vaEntity.getDriver1();
-                        primaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getUser().getFullName(), d.getUser().getPhoneNumber());
-                    } else {
-                        UUID d1 = detail.vehicleAssignmentId().driver_id_1();
-                        var d = getUserFromCache(d1, userCache);
-                        if (d != null) primaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
-                    }
-                } catch (Exception ignored) {
-                }
-
-                try {
-                    if (vaEntity.getDriver2() != null) {
-                        var d = vaEntity.getDriver2();
-                        secondaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getUser().getFullName(), d.getUser().getPhoneNumber());
-                    } else {
-                        UUID d2 = detail.vehicleAssignmentId().driver_id_2();
-                        var d = getUserFromCache(d2, userCache);
-                        if (d != null) secondaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
-                    }
-                } catch (Exception ignored) {
-                }
-            } else {
-                try {
-                    UUID vehicleId = detail.vehicleAssignmentId().vehicleId();
-                    var vehicleFromCache = getVehicleFromCache(vehicleId, vehicleCache);
-                    vehicle = new VehicleResponse(
-                            null,
-                            vehicleFromCache.getManufacturer(),
-                            vehicleFromCache.getModel(),
-                            vehicleFromCache.getLicensePlateNumber(),
-                            vehicleFromCache.getVehicleTypeEntity() != null ? vehicleFromCache.getVehicleTypeEntity().getVehicleTypeName() : null
-                    );
-                } catch (Exception ignored) {
-                }
-
-                try {
-                    UUID d1 = detail.vehicleAssignmentId().driver_id_1();
-                    var d = getUserFromCache(d1, userCache);
-                    if (d != null) primaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
-                } catch (Exception ignored) {
-                }
-
-                try {
-                    UUID d2 = detail.vehicleAssignmentId().driver_id_2();
-                    var d = getUserFromCache(d2, userCache);
-                    if (d != null) secondaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
-                } catch (Exception ignored) {
-                }
-            }
-
-            // Retrieve journey history for the vehicle assignment (null-safe)
-            List<JourneyHistoryResponse> journeyHistories = Collections.emptyList();
-            try {
-                UUID vehicleAssignmentId = detail.vehicleAssignmentId().id();
-                List<JourneyHistoryResponse> raw = journeyHistoryService.getByVehicleAssignmentId(vehicleAssignmentId);
-                if (raw != null) journeyHistories = raw;
-            } catch (Exception e) {
-                // Keep journeyHistories as empty list
-            }
-
-            // Get all order seals for this vehicle assignment (null-safe)
-            List<GetOrderSealResponse> orderSeals = Collections.emptyList();
-            try {
-                UUID vehicleAssignmentId = detail.vehicleAssignmentId().id();
-                List<GetOrderSealResponse> raw = orderSealService.getAllOrderSealsByVehicleAssignmentId(vehicleAssignmentId);
-                if (raw != null) orderSeals = raw;
-            } catch (Exception e) {
-                // Keep orderSeals as empty list
-            }
-
-            // Ensure photoCompletions and issue lists are non-null
-            List<String> safePhotoCompletions = photoCompletions != null ? photoCompletions : Collections.emptyList();
-            List<SimpleIssueImageResponse> issuesList = issue != null ? List.of(issue) : Collections.emptyList();
-
-            // Build vehicleAssignment response
-            vehicleAssignment = new SimpleVehicleAssignmentResponse(
-                    detail.vehicleAssignmentId().id().toString(),
-                    vehicle,
-                    primaryDriver,
-                    secondaryDriver,
-                    detail.vehicleAssignmentId().status(),
-                    detail.vehicleAssignmentId().trackingCode(),
-                    issuesList,
-                    safePhotoCompletions,
-                    orderSeals,
-                    journeyHistories
-            );
+        } catch (Exception ignored) {
         }
 
-        return new SimpleOrderDetailResponse(
-                detail.trackingCode(), // Using trackingCode as an identifier since there's no id field
-                detail.weightBaseUnit(),
-                detail.unit(),
-                detail.description(),
-                detail.status(),
-                detail.startTime(),
-                detail.estimatedStartTime(),
-                detail.endTime(),
-                detail.estimatedEndTime(),
-                detail.createdAt(),
-                detail.trackingCode(),
-                orderSize,
-                vehicleAssignment
+        // Get primary driver info
+        try {
+            UUID d1 = vaResponse.driver_id_1();
+            var d = getUserFromCache(d1, userCache);
+            if (d != null) primaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
+        } catch (Exception ignored) {
+        }
+
+        // Get secondary driver info
+        try {
+            UUID d2 = vaResponse.driver_id_2();
+            var d = getUserFromCache(d2, userCache);
+            if (d != null) secondaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
+        } catch (Exception ignored) {
+        }
+
+        // Retrieve journey history for the vehicle assignment (null-safe)
+        List<JourneyHistoryResponse> journeyHistories = Collections.emptyList();
+        try {
+            UUID vehicleAssignmentId = vaResponse.id();
+            List<JourneyHistoryResponse> raw = journeyHistoryService.getByVehicleAssignmentId(vehicleAssignmentId);
+            if (raw != null) journeyHistories = raw;
+        } catch (Exception e) {
+            // Keep journeyHistories as empty list
+        }
+
+        // Get all order seals for this vehicle assignment (null-safe)
+        List<GetSealResponse> seals = Collections.emptyList();
+        try {
+            UUID vehicleAssignmentId = vaResponse.id();
+            List<GetSealResponse> raw = sealService.getAllSealsByVehicleAssignmentId(vehicleAssignmentId);
+            if (raw != null) seals = raw;
+        } catch (Exception e) {
+            // Keep seals as empty list
+        }
+
+        // Ensure photoCompletions and issue lists are non-null
+        List<String> safePhotoCompletions = photoCompletions != null ? photoCompletions : Collections.emptyList();
+        List<SimpleIssueImageResponse> issuesList = issue != null ? List.of(issue) : Collections.emptyList();
+
+        // Build vehicleAssignment response
+        return new SimpleVehicleAssignmentResponse(
+                vaResponse.id().toString(),
+                vehicle,
+                primaryDriver,
+                secondaryDriver,
+                vaResponse.status(),
+                vaResponse.trackingCode(),
+                issuesList,
+                safePhotoCompletions,
+                seals,
+                journeyHistories
         );
     }
 
@@ -343,7 +261,7 @@ public class DriverOrderMapper {
                 detail.createdAt(),
                 detail.trackingCode(),
                 orderSize,
-                null // No vehicle assignment
+                detail.vehicleAssignmentId()  // Only store ID reference
         );
     }
 
@@ -415,7 +333,7 @@ public class DriverOrderMapper {
                 contract.effectiveDate(),
                 contract.expirationDate(),
                 contract.totalValue(),
-                contract.supportedValue(),
+                contract.adjustedValue(),
                 contract.description(),
                 contract.attachFileUrl(),
                 contract.status(),

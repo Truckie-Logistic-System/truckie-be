@@ -11,6 +11,7 @@ import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -250,7 +251,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             addCargoInformationPaged(document, orderDetails);
 
             // Transport info - list all vehicle assignments
-            addTransportInformation(document, vehicleAssignments);
+            addTransportInformation(document, vehicleAssignments, order);
 
             // Financial summary - try to get contract for details (financials only on main waybill)
             ContractEntity contract = null;
@@ -391,27 +392,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
 
             // Cargo details: only detailsForTrip
             addCargoInformationPaged(document, detailsForTrip);
-
-            // Totals summary (count, total weight, total volume)
-            DecimalFormat df = new DecimalFormat("#,###.##");
-            int totalPackages = detailsForTrip.size();
-            BigDecimal totalWeight = BigDecimal.ZERO;
-            BigDecimal totalVolume = BigDecimal.ZERO;
-            for (OrderDetailEntity d : detailsForTrip) {
-                if (d.getWeight() != null) totalWeight = totalWeight.add(d.getWeight());
-                // Try to detect volume via reflection fields if present (length*width*height / 1e6..) - fallback to zero
-                // For now, use 0 if not present
-            }
-
-            Table summaryTable = new Table(UnitValue.createPercentArray(new float[]{50, 50})).useAllAvailableWidth();
-            summaryTable.addCell(new Cell().add(new Paragraph("Tổng số kiện hàng trên xe / Total packages").setBold()));
-            summaryTable.addCell(new Cell().add(new Paragraph(String.valueOf(totalPackages)).setBold()));
-            summaryTable.addCell(new Cell().add(new Paragraph("Tổng trọng lượng (kg) / Total weight (kg)").setBold()));
-            summaryTable.addCell(new Cell().add(new Paragraph(df.format(totalWeight)).setBold()));
-            summaryTable.addCell(new Cell().add(new Paragraph("Tổng thể tích (m³) / Total volume (m³)").setBold()));
-            summaryTable.addCell(new Cell().add(new Paragraph(df.format(totalVolume)).setBold()));
-            document.add(summaryTable);
-            document.add(new Paragraph("").setMarginBottom(8));
 
             // Signatures
             addSignatureBlocks(document);
@@ -605,17 +585,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 deliveryAddress.getWard() + ", " +
                 deliveryAddress.getProvince();
         deliveryDetailsCell.add(new Paragraph("Địa chỉ / Address: " + deliveryAddressStr));
-
-        // Get estimated end time from the first order detail's estimatedEndTime if available
-        String deliveryTimeStr = "N/A";
-        if (order.getOrderDetailEntities() != null && !order.getOrderDetailEntities().isEmpty()) {
-            OrderDetailEntity firstDetail = order.getOrderDetailEntities().get(0);
-            LocalDateTime estimatedEndTime = firstDetail.getEstimatedEndTime();
-            if (estimatedEndTime != null) {
-                deliveryTimeStr = estimatedEndTime.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-            }
-        }
-        deliveryDetailsCell.add(new Paragraph("Thời gian giao hàng dự kiến / Expected delivery time: " + deliveryTimeStr));
         addressTable.addCell(deliveryDetailsCell);
 
         Div addressBlock = new Div().setKeepTogether(true);
@@ -632,7 +601,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         BigDecimal totalWeight = BigDecimal.ZERO;
         BigDecimal totalVolume = BigDecimal.ZERO;
         for (OrderDetailEntity d : orderDetails) {
-            if (d.getWeight() != null) totalWeight = totalWeight.add(d.getWeight());
+            if (d.getWeightBaseUnit() != null) totalWeight = totalWeight.add(d.getWeightBaseUnit());
         }
 
         int totalRows = orderDetails.size();
@@ -657,29 +626,30 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                         .setKeepTogether(true);
             }
 
-            Table cargoTable = new Table(UnitValue.createPercentArray(new float[]{5, 30, 15, 15, 15, 20})).useAllAvailableWidth();
+            Table cargoTable = new Table(UnitValue.createPercentArray(new float[]{5, 35, 12, 15, 12, 21})).useAllAvailableWidth();
             cargoTable.setKeepTogether(true);
+            cargoTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
 
             Cell noHeaderCell = new Cell().add(new Paragraph("STT").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
             Cell descHeaderCell = new Cell().add(new Paragraph("Mô tả hàng hóa / Description").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
             Cell quantityHeaderCell = new Cell().add(new Paragraph("Số lượng / Quantity").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
-            Cell weightHeaderCell = new Cell().add(new Paragraph("Khối lượng (kg) / Weight").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
-            Cell volumeHeaderCell = new Cell().add(new Paragraph("Thể tích (m³) / Volume").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
-            Cell valueHeaderCell = new Cell().add(new Paragraph("Giá trị / Value (VND)").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell weightHeaderCell = new Cell().add(new Paragraph("Trọng lượng (kg) / Weight").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell unitHeaderCell = new Cell().add(new Paragraph("Đơn vị / Unit").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell sizeHeaderCell = new Cell().add(new Paragraph("Kích thước / Size (cm)").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
 
             noHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
             descHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
             quantityHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
             weightHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-            volumeHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-            valueHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+            unitHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+            sizeHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
 
             cargoTable.addCell(noHeaderCell);
             cargoTable.addCell(descHeaderCell);
             cargoTable.addCell(quantityHeaderCell);
             cargoTable.addCell(weightHeaderCell);
-            cargoTable.addCell(volumeHeaderCell);
-            cargoTable.addCell(valueHeaderCell);
+            cargoTable.addCell(unitHeaderCell);
+            cargoTable.addCell(sizeHeaderCell);
 
             for (int i = start; i < end; i++) {
                 OrderDetailEntity detail = orderDetails.get(i);
@@ -703,20 +673,39 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 qtyCell.setKeepTogether(true);
                 cargoTable.addCell(qtyCell);
 
-                BigDecimal weight = detail.getWeight() != null ? detail.getWeight() : BigDecimal.ZERO;
+                // Weight - get from detail
+                BigDecimal weight = detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit() : BigDecimal.ZERO;
                 Cell weightCell = new Cell().add(new Paragraph(df.format(weight)).setFontSize(TABLE_CELL_FONT_SIZE));
                 weightCell.setKeepTogether(true);
                 cargoTable.addCell(weightCell);
 
-                BigDecimal volume = BigDecimal.ZERO;
-                Cell volCell = new Cell().add(new Paragraph(df.format(volume)).setFontSize(TABLE_CELL_FONT_SIZE));
-                volCell.setKeepTogether(true);
-                cargoTable.addCell(volCell);
+                // Unit - get from detail or default to "Kiện"
+                String unit = detail.getUnit() != null && !detail.getUnit().isBlank() ? detail.getUnit() : "Kiện";
+                Cell unitCell = new Cell().add(new Paragraph(unit).setFontSize(TABLE_CELL_FONT_SIZE));
+                unitCell.setKeepTogether(true);
+                cargoTable.addCell(unitCell);
 
-                BigDecimal value = BigDecimal.ZERO;
-                Cell valCell = new Cell().add(new Paragraph(df.format(value)).setFontSize(TABLE_CELL_FONT_SIZE));
-                valCell.setKeepTogether(true);
-                cargoTable.addCell(valCell);
+                // Size (dimensions) - get from OrderSizeEntity
+                // Format: min dài x min rộng x min cao - max dài x max rộng x max cao (đơn vị m)
+                String size = "N/A";
+                if (detail.getOrderSizeEntity() != null) {
+                    OrderSizeEntity sizeEntity = detail.getOrderSizeEntity();
+                    BigDecimal minLength = sizeEntity.getMinLength();
+                    BigDecimal minWidth = sizeEntity.getMinWidth();
+                    BigDecimal minHeight = sizeEntity.getMinHeight();
+                    BigDecimal maxLength = sizeEntity.getMaxLength();
+                    BigDecimal maxWidth = sizeEntity.getMaxWidth();
+                    BigDecimal maxHeight = sizeEntity.getMaxHeight();
+                    
+                    if (minLength != null && minWidth != null && minHeight != null && 
+                        maxLength != null && maxWidth != null && maxHeight != null) {
+                        size = df.format(minLength) + "x" + df.format(minWidth) + "x" + df.format(minHeight) + 
+                               " - " + df.format(maxLength) + "x" + df.format(maxWidth) + "x" + df.format(maxHeight) + " m";
+                    }
+                }
+                Cell sizeCell = new Cell().add(new Paragraph(size).setFontSize(TABLE_CELL_FONT_SIZE));
+                sizeCell.setKeepTogether(true);
+                cargoTable.addCell(sizeCell);
             }
 
             if (p == pages - 1) {
@@ -733,14 +722,14 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 totalWeightCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
                 cargoTable.addCell(totalWeightCell);
 
-                Cell totalVolumeCell = new Cell().add(new Paragraph(df.format(totalVolume)).setBold().setFontSize(TABLE_CELL_FONT_SIZE));
-                totalVolumeCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-                cargoTable.addCell(totalVolumeCell);
+                // Empty cells for unit and size columns in total row
+                Cell emptyUnitCell = new Cell().add(new Paragraph(""));
+                emptyUnitCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+                cargoTable.addCell(emptyUnitCell);
 
-                BigDecimal totalValue = BigDecimal.ZERO;
-                Cell totalValueCell = new Cell().add(new Paragraph(df.format(totalValue)).setBold().setFontSize(TABLE_CELL_FONT_SIZE));
-                totalValueCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-                cargoTable.addCell(totalValueCell);
+                Cell emptySizeCell = new Cell().add(new Paragraph(""));
+                emptySizeCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+                cargoTable.addCell(emptySizeCell);
             }
 
             Div cargoBlock = new Div().setKeepTogether(true);
@@ -788,70 +777,79 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         document.add(new Paragraph("").setMarginBottom(10));
     }
 
-    private void addTransportInformation(Document document, List<VehicleAssignmentEntity> vehicleAssignments) {
-        Paragraph sectionTitle = new Paragraph("4. THÔNG TIN PHƯƠNG TIỆN / TRANSPORT INFORMATION")
+    private void addTransportInformation(Document document, List<VehicleAssignmentEntity> vehicleAssignments, OrderEntity order) {
+        Paragraph sectionTitle = new Paragraph("4. THÔNG TIN PHƯƠNG TIỆN VÀ TÀI XẾ / VEHICLE AND DRIVER INFORMATION")
                 .setBold()
-                .setFontSize(11)
+                .setFontSize(SECTION_TITLE_FONT_SIZE)
                 .setMarginBottom(5)
                 .setKeepTogether(true);
 
-        Table transportTable = new Table(UnitValue.createPercentArray(new float[]{5, 20, 20, 20, 35})).useAllAvailableWidth();
+        Table transportTable = new Table(UnitValue.createPercentArray(new float[]{5, 15, 15, 30, 35})).useAllAvailableWidth();
         transportTable.setKeepTogether(true);
+        transportTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
 
         // Header row
-        Cell noHeaderCell = new Cell().add(new Paragraph("STT").setBold());
-        Cell vehicleTypeHeaderCell = new Cell().add(new Paragraph("Loại xe / Vehicle type").setBold());
-        Cell plateNumberHeaderCell = new Cell().add(new Paragraph("Biển số xe / Plate number").setBold());
-        Cell driverHeaderCell = new Cell().add(new Paragraph("Tài xế / Driver").setBold());
-        Cell routeHeaderCell = new Cell().add(new Paragraph("Tuyến đường / Route").setBold());
+        Cell noHeaderCell = new Cell().add(new Paragraph("STT").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+        Cell vehicleTypeHeaderCell = new Cell().add(new Paragraph("Loại xe / Vehicle type").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+        Cell plateNumberHeaderCell = new Cell().add(new Paragraph("Biển số xe / Plate").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+        Cell driver1HeaderCell = new Cell().add(new Paragraph("Tài xế 1 / Driver 1 (Tên - SĐT - GPLX)").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+        Cell driver2HeaderCell = new Cell().add(new Paragraph("Tài xế 2 / Driver 2 (Tên - SĐT - GPLX)").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
 
         // Style header cells
         noHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
         vehicleTypeHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
         plateNumberHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        driverHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        routeHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        driver1HeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        driver2HeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
 
         transportTable.addCell(noHeaderCell);
         transportTable.addCell(vehicleTypeHeaderCell);
         transportTable.addCell(plateNumberHeaderCell);
-        transportTable.addCell(driverHeaderCell);
-        transportTable.addCell(routeHeaderCell);
+        transportTable.addCell(driver1HeaderCell);
+        transportTable.addCell(driver2HeaderCell);
 
         // Add vehicle assignment rows
         if (vehicleAssignments.isEmpty()) {
             Cell emptyCell = new Cell(1, 5);
-            emptyCell.add(new Paragraph("Chưa có thông tin phương tiện / No vehicle information available"));
+            emptyCell.add(new Paragraph("Chưa có thông tin phương tiện / No vehicle information available").setFontSize(TABLE_CELL_FONT_SIZE));
             transportTable.addCell(emptyCell);
         } else {
             for (int i = 0; i < vehicleAssignments.size(); i++) {
                 VehicleAssignmentEntity assignment = vehicleAssignments.get(i);
-                VehicleEntity vehicle = assignment.getVehicleEntity(); // Using the correct property name
+                VehicleEntity vehicle = assignment.getVehicleEntity();
 
-                transportTable.addCell(new Cell().add(new Paragraph(String.valueOf(i + 1))));
+                transportTable.addCell(new Cell().add(new Paragraph(String.valueOf(i + 1)).setFontSize(TABLE_CELL_FONT_SIZE)));
 
-                // Vehicle type - using the correct property names or defaults
+                // Vehicle type
                 String vehicleType = "N/A";
-                if (vehicle != null && vehicle.getVehicleTypeEntity() != null) {
-                    vehicleType = "Standard";
+                if (vehicle != null && vehicle.getVehicleTypeEntity() != null && vehicle.getVehicleTypeEntity().getVehicleTypeName() != null) {
+                    vehicleType = vehicle.getVehicleTypeEntity().getVehicleTypeName();
                 }
-                transportTable.addCell(new Cell().add(new Paragraph(vehicleType)));
+                transportTable.addCell(new Cell().add(new Paragraph(vehicleType).setFontSize(TABLE_CELL_FONT_SIZE)));
 
-                // Plate number - using the correct property name
-                String plateNumber = vehicle != null ? vehicle.getLicensePlateNumber() : "N/A"; // Fixed: getLicensePlate() -> getLicensePlateNumber()
-                transportTable.addCell(new Cell().add(new Paragraph(plateNumber)));
+                // Plate number
+                String plateNumber = vehicle != null ? vehicle.getLicensePlateNumber() : "N/A";
+                transportTable.addCell(new Cell().add(new Paragraph(plateNumber).setFontSize(TABLE_CELL_FONT_SIZE)));
 
-                // Driver info - using the correct property names and a safe approach
-                String driverInfo = "N/A";
+                // Driver 1 info
+                String driver1Info = "N/A";
                 if (assignment.getDriver1() != null && assignment.getDriver1().getUser() != null) {
-                    String driverName = assignment.getDriver1().getUser().getFullName();
-                    String driverPhone = assignment.getDriver1().getUser().getPhoneNumber(); // Fixed: getPhone() -> getPhoneNumber()
-                    driverInfo = driverName + " (" + driverPhone + ")";
+                    String driverName = assignment.getDriver1().getUser().getFullName() != null ? assignment.getDriver1().getUser().getFullName() : "N/A";
+                    String driverPhone = assignment.getDriver1().getUser().getPhoneNumber() != null ? assignment.getDriver1().getUser().getPhoneNumber() : "N/A";
+                    String driverLicense = assignment.getDriver1().getDriverLicenseNumber() != null ? assignment.getDriver1().getDriverLicenseNumber() : "N/A";
+                    driver1Info = driverName + " - " + driverPhone + " - " + driverLicense;
                 }
-                transportTable.addCell(new Cell().add(new Paragraph(driverInfo)));
+                transportTable.addCell(new Cell().add(new Paragraph(driver1Info).setFontSize(TABLE_CELL_FONT_SIZE)));
 
-                // Route info (simplified)
-                transportTable.addCell(new Cell().add(new Paragraph("Standard route")));
+                // Driver 2 info
+                String driver2Info = "N/A";
+                if (assignment.getDriver2() != null && assignment.getDriver2().getUser() != null) {
+                    String driverName = assignment.getDriver2().getUser().getFullName() != null ? assignment.getDriver2().getUser().getFullName() : "N/A";
+                    String driverPhone = assignment.getDriver2().getUser().getPhoneNumber() != null ? assignment.getDriver2().getUser().getPhoneNumber() : "N/A";
+                    String driverLicense = assignment.getDriver2().getDriverLicenseNumber() != null ? assignment.getDriver2().getDriverLicenseNumber() : "N/A";
+                    driver2Info = driverName + " - " + driverPhone + " - " + driverLicense;
+                }
+                transportTable.addCell(new Cell().add(new Paragraph(driver2Info).setFontSize(TABLE_CELL_FONT_SIZE)));
             }
         }
 
@@ -860,56 +858,71 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         transportBlock.add(transportTable);
         document.add(transportBlock);
 
-        document.add(new Paragraph("").setMarginBottom(10));
+        document.add(new Paragraph("").setMarginBottom(8));
     }
 
     private void addFinancialInformation(Document document, ContractEntity contract, OrderEntity order) {
         Paragraph sectionTitle = new Paragraph("5. THÔNG TIN TÀI CHÍNH / FINANCIAL INFORMATION")
                 .setBold()
-                .setFontSize(11)
+                .setFontSize(SECTION_TITLE_FONT_SIZE)
                 .setMarginBottom(5)
                 .setKeepTogether(true);
 
         Table financialTable = new Table(UnitValue.createPercentArray(new float[]{70, 30})).useAllAvailableWidth();
         financialTable.setKeepTogether(true);
+        financialTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
 
         // Header
-        Cell serviceCostHeaderCell = new Cell().add(new Paragraph("Mô tả / Description").setBold());
-        Cell amountHeaderCell = new Cell().add(new Paragraph("Số tiền / Amount (VND)").setBold());
+        Cell serviceCostHeaderCell = new Cell().add(new Paragraph("Mô tả / Description").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+        Cell amountHeaderCell = new Cell().add(new Paragraph("Số tiền / Amount (VND)").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
         serviceCostHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
         amountHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
         financialTable.addCell(serviceCostHeaderCell);
         financialTable.addCell(amountHeaderCell);
 
         DecimalFormat df = new DecimalFormat("#,###.##");
-        BigDecimal totalAmount = order.getTotalPrice() != null ? order.getTotalPrice() : BigDecimal.ZERO;
+        
+        // Get freight charge: use adjustedValue if available, otherwise use totalValue
+        BigDecimal freightCharge = BigDecimal.ZERO;
+        if (contract != null) {
+            if (contract.getAdjustedValue() != null && contract.getAdjustedValue().compareTo(BigDecimal.ZERO) > 0) {
+                freightCharge = contract.getAdjustedValue();
+            } else if (contract.getTotalValue() != null) {
+                freightCharge = contract.getTotalValue();
+            }
+        }
 
-        // Use enhanced transaction summarization that compares amount and createdAt vs order total
-        BigDecimal depositAmount = BigDecimal.ZERO;
+        // Calculate deposit: assume standard deposit rate (e.g., 30% of freight charge)
+        // If no contract settings available, use 30% as default
+        BigDecimal depositRate = new BigDecimal("0.30"); // 30% default
+        BigDecimal depositAmount = freightCharge.multiply(depositRate);
+
+        // Get actual paid amount from transactions
         BigDecimal totalPaid = BigDecimal.ZERO;
         if (contract != null) {
-            Map<String, BigDecimal> txnSummary = sumTransactionsFromContract(contract, totalAmount);
+            Map<String, BigDecimal> txnSummary = sumTransactionsFromContract(contract, freightCharge);
             if (txnSummary != null) {
-                depositAmount = txnSummary.getOrDefault("deposit", BigDecimal.ZERO);
                 totalPaid = txnSummary.getOrDefault("paid", BigDecimal.ZERO);
             }
         }
 
-        // If no explicit deposit found but there are payments, assume deposit equals payments (best-effort)
-        if (depositAmount.compareTo(BigDecimal.ZERO) == 0 && totalPaid.compareTo(BigDecimal.ZERO) > 0) {
-            depositAmount = totalPaid;
+        // If no transactions found, assume paid in full (system only accepts bank transfer)
+        if (totalPaid.compareTo(BigDecimal.ZERO) == 0) {
+            totalPaid = freightCharge;
         }
 
-        BigDecimal remainingAmount = totalAmount.subtract(depositAmount);
+        BigDecimal remainingAmount = freightCharge.subtract(totalPaid);
+        BigDecimal amountToCollect = remainingAmount.max(BigDecimal.ZERO);
 
-        financialTable.addCell(new Cell().add(new Paragraph("Cước vận chuyển / Freight charge")));
-        financialTable.addCell(new Cell().add(new Paragraph(df.format(totalAmount))));
+        // Display only essential financial information
+        financialTable.addCell(new Cell().add(new Paragraph("Cước vận chuyển / Freight charge").setFontSize(TABLE_CELL_FONT_SIZE)));
+        financialTable.addCell(new Cell().add(new Paragraph(df.format(freightCharge)).setFontSize(TABLE_CELL_FONT_SIZE)));
 
-        financialTable.addCell(new Cell().add(new Paragraph("Đã thanh toán (tiền đặt cọc) / Paid (deposit)")));
-        financialTable.addCell(new Cell().add(new Paragraph(df.format(depositAmount))));
+        financialTable.addCell(new Cell().add(new Paragraph("Đã thanh toán / Paid").setFontSize(TABLE_CELL_FONT_SIZE)));
+        financialTable.addCell(new Cell().add(new Paragraph(df.format(totalPaid)).setFontSize(TABLE_CELL_FONT_SIZE)));
 
-        Cell totalLabelCell = new Cell().add(new Paragraph("Còn lại / Remaining").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        Cell totalAmountCell = new Cell().add(new Paragraph(df.format(remainingAmount)).setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        Cell totalLabelCell = new Cell().add(new Paragraph("Phải thu / Amount to collect").setBold().setFontSize(TABLE_HEADER_FONT_SIZE)).setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        Cell totalAmountCell = new Cell().add(new Paragraph(df.format(amountToCollect)).setBold().setFontSize(TABLE_CELL_FONT_SIZE)).setBackgroundColor(ColorConstants.LIGHT_GRAY);
         financialTable.addCell(totalLabelCell);
         financialTable.addCell(totalAmountCell);
 
@@ -918,17 +931,19 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         financialBlock.add(financialTable);
         document.add(financialBlock);
 
-        // Payment method - default tick on bank transfer
+        // Payment method - only bank transfer is accepted
         Paragraph paymentTitle = new Paragraph("Hình thức thanh toán / Payment method:")
                 .setBold()
+                .setFontSize(TABLE_CELL_FONT_SIZE)
                 .setMarginTop(5);
         document.add(paymentTitle);
 
-        // Use checked box for bank transfer
-        Paragraph paymentChoices = new Paragraph("☐ Thanh toán online / Online payment   ☑ Chuyển khoản / Bank transfer   ☐ Tiền mặt / Cash");
+        // Only bank transfer is checked (system only accepts bank transfer)
+        Paragraph paymentChoices = new Paragraph("☑ Chuyển khoản / Bank transfer (Đã thanh toán đầy đủ / Paid in full)")
+                .setFontSize(TABLE_CELL_FONT_SIZE);
         document.add(paymentChoices);
 
-        document.add(new Paragraph("").setMarginBottom(10));
+        document.add(new Paragraph("").setMarginBottom(8));
     }
 
     private void addSignatureBlocks(Document document) {
@@ -986,31 +1001,12 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
     }
 
     private void addFooterInformation(Document document, String billOfLadingCode) {
-        Paragraph qrTitle = new Paragraph("Quét mã QR để tra cứu / Scan QR code to track:")
-                .setFontSize(FOOTER_FONT_SIZE)
-                .setTextAlignment(TextAlignment.CENTER);
-        document.add(qrTitle);
-
-        Paragraph qrPlaceholder = new Paragraph("[QR Code for: " + billOfLadingCode + "]")
-                .setTextAlignment(TextAlignment.CENTER)
-                .setFontSize(FOOTER_FONT_SIZE + 2);
-        document.add(qrPlaceholder);
-
-        Paragraph termsTitle = new Paragraph("ĐIỀU KHOẢN VẬN CHUYỂN / TERMS AND CONDITIONS")
-                .setBold()
-                .setFontSize(FOOTER_FONT_SIZE)
-                .setTextAlignment(TextAlignment.CENTER);
-        document.add(termsTitle);
-
-        Paragraph terms = new Paragraph(/* same text */)
-                .setFontSize(FOOTER_FONT_SIZE - 2)
-                .setTextAlignment(TextAlignment.JUSTIFIED);
-        document.add(terms);
-
+        // Simple footer without QR code and Terms and Conditions
         Paragraph footer = new Paragraph("TRUCKIE LOGISTICS - Đồng hành cùng doanh nghiệp / Your reliable logistics partner")
                 .setFontSize(FOOTER_FONT_SIZE)
                 .setTextAlignment(TextAlignment.CENTER)
-                .setMarginTop(10);
+                .setMarginTop(10)
+                .setItalic();
         document.add(footer);
     }
 
@@ -1205,10 +1201,11 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                     .setMarginBottom(12);
             document.add(title);
 
-            // --- Barcode for dispatch order ---
+            // --- Barcode for dispatch order: use order tracking code (same as main waybill) ---
+            String orderTracking = extractTrackingCodeFromOrder(order);
             try {
                 Barcode128 barcode = new Barcode128(pdf);
-                String barcodeValue = dispatchOrderCode != null ? dispatchOrderCode : orderCode;
+                String barcodeValue = orderTracking != null ? orderTracking : orderCode;
                 barcode.setCode(barcodeValue);
                 PdfFormXObject barcodeObject = barcode.createFormXObject(pdf);
                 Image barcodeImage = new Image(barcodeObject).setWidth(220).setHorizontalAlignment(HorizontalAlignment.CENTER);
@@ -1252,106 +1249,78 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                     .setMarginBottom(6);
             document.add(staffInCharge);
 
-            // Vehicle and driver info block
-            Paragraph vehicleTitle = new Paragraph("THÔNG TIN PHƯƠNG TIỆN VÀ TÀI XẾ")
+            // Vehicle and driver info block - use same table format as main waybill
+            Paragraph vehicleTitle = new Paragraph("THÔNG TIN PHƯƠNG TIỆN VÀ TÀI XẾ / VEHICLE AND DRIVER INFORMATION")
                     .setBold()
-                    .setFontSize(11)
-                    .setMarginBottom(4);
+                    .setFontSize(SECTION_TITLE_FONT_SIZE)
+                    .setMarginBottom(5);
             document.add(vehicleTitle);
 
-            // Retrieve vehicle information including weight capacity
+            // Create table with 5 columns: STT, Loại xe, Biển số, Tài xế 1, Tài xế 2
+            Table vehicleTable = new Table(UnitValue.createPercentArray(new float[]{5, 15, 15, 30, 35})).useAllAvailableWidth();
+            vehicleTable.setKeepTogether(true);
+            vehicleTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
+
+            // Header row
+            Cell noHeaderCell = new Cell().add(new Paragraph("STT").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell vehicleTypeHeaderCell = new Cell().add(new Paragraph("Loại xe / Vehicle type").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell plateNumberHeaderCell = new Cell().add(new Paragraph("Biển số xe / Plate").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell driver1HeaderCell = new Cell().add(new Paragraph("Tài xế 1 / Driver 1 (Tên - SĐT - GPLX)").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+            Cell driver2HeaderCell = new Cell().add(new Paragraph("Tài xế 2 / Driver 2 (Tên - SĐT - GPLX)").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+
+            // Style header cells
+            noHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+            vehicleTypeHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+            plateNumberHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+            driver1HeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+            driver2HeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+
+            vehicleTable.addCell(noHeaderCell);
+            vehicleTable.addCell(vehicleTypeHeaderCell);
+            vehicleTable.addCell(plateNumberHeaderCell);
+            vehicleTable.addCell(driver1HeaderCell);
+            vehicleTable.addCell(driver2HeaderCell);
+
+            // Vehicle data row
+            vehicleTable.addCell(new Cell().add(new Paragraph("1").setFontSize(TABLE_CELL_FONT_SIZE)));
+
+            // Vehicle type
             VehicleEntity vehicle = assignment.getVehicleEntity();
-            String plateNumber = (vehicle != null ? vehicle.getLicensePlateNumber() : "N/A");
-            String vehicleTypeName = "N/A";
-            String weightCapacity = "N/A";
-
-            if (vehicle != null && vehicle.getVehicleTypeEntity() != null) {
-                vehicleTypeName = vehicle.getVehicleTypeEntity().getVehicleTypeName() != null ?
-                    vehicle.getVehicleTypeEntity().getVehicleTypeName() : "N/A";
+            String vehicleType = "N/A";
+            if (vehicle != null && vehicle.getVehicleTypeEntity() != null && vehicle.getVehicleTypeEntity().getVehicleTypeName() != null) {
+                vehicleType = vehicle.getVehicleTypeEntity().getVehicleTypeName();
             }
+            vehicleTable.addCell(new Cell().add(new Paragraph(vehicleType).setFontSize(TABLE_CELL_FONT_SIZE)));
 
-            // Create table for vehicle and driver info
-            Table vehicleTable = new Table(UnitValue.createPercentArray(new float[]{40, 60})).useAllAvailableWidth();
+            // Plate number
+            String plateNumber = vehicle != null ? vehicle.getLicensePlateNumber() : "N/A";
+            vehicleTable.addCell(new Cell().add(new Paragraph(plateNumber).setFontSize(TABLE_CELL_FONT_SIZE)));
 
-            // Vehicle information
-            vehicleTable.addCell(new Cell().add(new Paragraph("Biển số xe / Plate")));
-            vehicleTable.addCell(new Cell().add(new Paragraph(plateNumber)));
-
-            vehicleTable.addCell(new Cell().add(new Paragraph("Loại xe / Vehicle type")));
-            vehicleTable.addCell(new Cell().add(new Paragraph(vehicleTypeName)));
-
-            // Driver 1 information
-            String driver1Name = "N/A";
-            String driver1Phone = "N/A";
-            String driver1License = "N/A";
-
-            if (assignment.getDriver1() != null) {
-                try {
-                    if (assignment.getDriver1().getUser() != null) {
-                        if (assignment.getDriver1().getUser().getFullName() != null) driver1Name = assignment.getDriver1().getUser().getFullName();
-                        if (assignment.getDriver1().getUser().getPhoneNumber() != null) driver1Phone = assignment.getDriver1().getUser().getPhoneNumber();
-                        if(assignment.getDriver1().getDriverLicenseNumber() != null) driver1License = assignment.getDriver1().getDriverLicenseNumber();
-                    }
-                } catch (Exception ignored) {}
+            // Driver 1 info
+            String driver1Info = "N/A";
+            if (assignment.getDriver1() != null && assignment.getDriver1().getUser() != null) {
+                String driverName = assignment.getDriver1().getUser().getFullName() != null ? assignment.getDriver1().getUser().getFullName() : "N/A";
+                String driverPhone = assignment.getDriver1().getUser().getPhoneNumber() != null ? assignment.getDriver1().getUser().getPhoneNumber() : "N/A";
+                String driverLicense = assignment.getDriver1().getDriverLicenseNumber() != null ? assignment.getDriver1().getDriverLicenseNumber() : "N/A";
+                driver1Info = driverName + " - " + driverPhone + " - " + driverLicense;
             }
+            vehicleTable.addCell(new Cell().add(new Paragraph(driver1Info).setFontSize(TABLE_CELL_FONT_SIZE)));
 
-            vehicleTable.addCell(new Cell().add(new Paragraph("Tài xế 1 / Main Driver")));
-            vehicleTable.addCell(new Cell().add(new Paragraph(driver1Name + " - " + driver1Phone + " - " + driver1License)));
-
-            // Driver 2 information
-            String driver2Name = "N/A";
-            String driver2Phone = "N/A";
-            String driver2License = "N/A";
-
-            if (assignment.getDriver2() != null) {
-                try {
-                    if (assignment.getDriver2().getUser() != null) {
-                        if (assignment.getDriver2().getUser().getFullName() != null) driver2Name = assignment.getDriver2().getUser().getFullName();
-                        if (assignment.getDriver2().getUser().getPhoneNumber() != null) driver2Phone = assignment.getDriver2().getUser().getPhoneNumber();
-                        if(assignment.getDriver2().getDriverLicenseNumber() != null) driver2License = assignment.getDriver2().getDriverLicenseNumber();
-                    }
-                } catch (Exception ignored) {}
+            // Driver 2 info
+            String driver2Info = "N/A";
+            if (assignment.getDriver2() != null && assignment.getDriver2().getUser() != null) {
+                String driverName = assignment.getDriver2().getUser().getFullName() != null ? assignment.getDriver2().getUser().getFullName() : "N/A";
+                String driverPhone = assignment.getDriver2().getUser().getPhoneNumber() != null ? assignment.getDriver2().getUser().getPhoneNumber() : "N/A";
+                String driverLicense = assignment.getDriver2().getDriverLicenseNumber() != null ? assignment.getDriver2().getDriverLicenseNumber() : "N/A";
+                driver2Info = driverName + " - " + driverPhone + " - " + driverLicense;
             }
+            vehicleTable.addCell(new Cell().add(new Paragraph(driver2Info).setFontSize(TABLE_CELL_FONT_SIZE)));
 
-            vehicleTable.addCell(new Cell().add(new Paragraph("Tài xế 2 / Second Driver")));
-            vehicleTable.addCell(new Cell().add(new Paragraph(driver2Name + " - " + driver2Phone + " - " + driver2License)));
-
-            // Estimated departure time: take earliest estimatedStartTime from detailsForTrip if present
-            String departureTime = "N/A";
-            if (detailsForTrip != null && !detailsForTrip.isEmpty()) {
-                OrderDetailEntity d0 = detailsForTrip.get(0);
-                if (d0.getEstimatedStartTime() != null) {
-                    departureTime = d0.getEstimatedStartTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-                }
-            }
-            vehicleTable.addCell(new Cell().add(new Paragraph("Thời gian xuất phát dự kiến")));
-            vehicleTable.addCell(new Cell().add(new Paragraph(departureTime)));
             document.add(vehicleTable);
-            document.add(new Paragraph("").setMarginBottom(6));
+            document.add(new Paragraph("").setMarginBottom(8));
 
             // Cargo details: only detailsForTrip
             addCargoInformationPaged(document, detailsForTrip);
-
-            // Totals summary (count, total weight, total volume)
-            DecimalFormat df = new DecimalFormat("#,###.##");
-            int totalPackages = detailsForTrip.size();
-            BigDecimal totalWeight = BigDecimal.ZERO;
-            BigDecimal totalVolume = BigDecimal.ZERO;
-            for (OrderDetailEntity d : detailsForTrip) {
-                if (d.getWeight() != null) totalWeight = totalWeight.add(d.getWeight());
-                // Try to detect volume via reflection fields if present (length*width*height / 1e6..) - fallback to zero
-                // For now, use 0 if not present
-            }
-
-            Table summaryTable = new Table(UnitValue.createPercentArray(new float[]{50, 50})).useAllAvailableWidth();
-            summaryTable.addCell(new Cell().add(new Paragraph("Tổng số kiện hàng trên xe / Total packages").setBold()));
-            summaryTable.addCell(new Cell().add(new Paragraph(String.valueOf(totalPackages)).setBold()));
-            summaryTable.addCell(new Cell().add(new Paragraph("Tổng trọng lượng (kg) / Total weight (kg)").setBold()));
-            summaryTable.addCell(new Cell().add(new Paragraph(df.format(totalWeight)).setBold()));
-            summaryTable.addCell(new Cell().add(new Paragraph("Tổng thể tích (m³) / Total volume (m³)").setBold()));
-            summaryTable.addCell(new Cell().add(new Paragraph(df.format(totalVolume)).setBold()));
-            document.add(summaryTable);
-            document.add(new Paragraph("").setMarginBottom(8));
 
             // Signatures
             addSignatureBlocks(document);
@@ -1368,21 +1337,69 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
     }
 
     private void addShippingPointsInfo(Document document, OrderEntity order) {
-        // Placeholder for shipping points information
-        Paragraph sectionTitle = new Paragraph("Điểm lấy hàng và giao hàng / Pickup and Delivery Points")
+        Paragraph sectionTitle = new Paragraph("2. THÔNG TIN VẬN CHUYỂN / SHIPPING INFORMATION")
                 .setBold()
                 .setFontSize(SECTION_TITLE_FONT_SIZE)
                 .setMarginBottom(5)
                 .setKeepTogether(true);
-        document.add(sectionTitle);
 
-        // You can add tables or paragraphs here to display the pickup and delivery points information
-        // For now, just adding dummy content
-        Table pointsTable = new Table(UnitValue.createPercentArray(1)).useAllAvailableWidth();
-        pointsTable.addCell(new Cell().add(new Paragraph("Điểm lấy hàng: Nhà kho ABC, 123 Đường XYZ, Quận 1").setFontSize(TABLE_CELL_FONT_SIZE)));
-        pointsTable.addCell(new Cell().add(new Paragraph("Điểm giao hàng: 456 Đường DEF, Phường 2, Quận 3").setFontSize(TABLE_CELL_FONT_SIZE)));
+        Table addressTable = new Table(UnitValue.createPercentArray(2)).useAllAvailableWidth();
+        addressTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
+        addressTable.setKeepTogether(true);
 
-        document.add(pointsTable);
-        document.add(new Paragraph("").setMarginBottom(10));
+        // Pickup address header
+        Cell pickupHeaderCell = new Cell();
+        pickupHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        pickupHeaderCell.setBold();
+        pickupHeaderCell.add(new Paragraph("ĐỊA ĐIỂM LẤY HÀNG / PICKUP LOCATION").setFontSize(TABLE_HEADER_FONT_SIZE));
+        addressTable.addCell(pickupHeaderCell);
+
+        // Delivery address header
+        Cell deliveryHeaderCell = new Cell();
+        deliveryHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        deliveryHeaderCell.setBold();
+        deliveryHeaderCell.add(new Paragraph("ĐỊA ĐIỂM GIAO HÀNG / DELIVERY LOCATION").setFontSize(TABLE_HEADER_FONT_SIZE));
+        addressTable.addCell(deliveryHeaderCell);
+
+        // Pickup details
+        Cell pickupDetailsCell = new Cell();
+        AddressEntity pickupAddress = order.getPickupAddress();
+        if (pickupAddress != null) {
+            String pickupAddressStr = pickupAddress.getStreet() + ", " +
+                    pickupAddress.getWard() + ", " +
+                    pickupAddress.getProvince();
+            pickupDetailsCell.add(new Paragraph("Địa chỉ / Address: " + pickupAddressStr).setFontSize(TABLE_CELL_FONT_SIZE));
+
+            // Get estimated start time
+            String pickupTimeStr = "N/A";
+            if (order.getOrderDetailEntities() != null && !order.getOrderDetailEntities().isEmpty()) {
+                OrderDetailEntity firstDetail = order.getOrderDetailEntities().get(0);
+                LocalDateTime estimatedStartTime = firstDetail.getEstimatedStartTime();
+                if (estimatedStartTime != null) {
+                    pickupTimeStr = estimatedStartTime.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+                }
+            }
+            pickupDetailsCell.add(new Paragraph("Thời gian lấy hàng dự kiến / Pickup time: " + pickupTimeStr).setFontSize(TABLE_CELL_FONT_SIZE));
+        }
+        addressTable.addCell(pickupDetailsCell);
+
+        // Delivery details (without delivery time - as requested)
+        Cell deliveryDetailsCell = new Cell();
+        AddressEntity deliveryAddress = order.getDeliveryAddress();
+        if (deliveryAddress != null) {
+            String deliveryAddressStr = deliveryAddress.getStreet() + ", " +
+                    deliveryAddress.getWard() + ", " +
+                    deliveryAddress.getProvince();
+            deliveryDetailsCell.add(new Paragraph("Địa chỉ / Address: " + deliveryAddressStr).setFontSize(TABLE_CELL_FONT_SIZE));
+        } else {
+            deliveryDetailsCell.add(new Paragraph("Địa chỉ / Address: N/A").setFontSize(TABLE_CELL_FONT_SIZE));
+        }
+        addressTable.addCell(deliveryDetailsCell);
+
+        Div addressBlock = new Div().setKeepTogether(true);
+        addressBlock.add(sectionTitle);
+        addressBlock.add(addressTable);
+        document.add(addressBlock);
+        document.add(new Paragraph("").setMarginBottom(8));
     }
 }

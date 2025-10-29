@@ -87,8 +87,12 @@ public class VehicleLocationWebSocketController {
             @DestinationVariable("vehicleId") UUID vehicleId,
             @Payload MobileLocationUpdateMessage message) {
 
-        log.debug("Received rate-limited location update via WebSocket for vehicle: {}, plate: {}",
-                vehicleId, message.getLicensePlateNumber());
+        log.info("🔵 [WebSocket] Received rate-limited location update for vehicle: {}", vehicleId);
+        log.info("   - License Plate: {}", message.getLicensePlateNumber());
+        log.info("   - Latitude: {}", message.getLatitude());
+        log.info("   - Longitude: {}", message.getLongitude());
+        log.info("   - Bearing: {}", message.getBearing());
+        log.info("   - Speed: {}", message.getSpeed());
 
         // Validate input
         if (message.getLatitude() == null || message.getLongitude() == null) {
@@ -98,9 +102,10 @@ public class VehicleLocationWebSocketController {
             );
         }
 
-        // DEMO OPTIMIZATION: Use 2 second rate limit to prevent visual glitches
+        // DEMO OPTIMIZATION: Use 1 second rate limit to prevent visual glitches
+        // Reduced from 2s to 1s for faster initial location updates
         boolean updated = vehicleEntityService.updateLocationWithRateLimit(
-                vehicleId, message.getLatitude(), message.getLongitude(), 2);
+                vehicleId, message.getLatitude(), message.getLongitude(), 1);
 
         if (updated) {
             // Broadcast directly with provided license plate number, bearing, and speed from mobile
@@ -112,7 +117,7 @@ public class VehicleLocationWebSocketController {
                     message.getBearing(),
                     message.getSpeed()
             );
-            log.info("Successfully updated and broadcast rate-limited location for vehicle: {} ({}), speed: {}km/h",
+            log.info("✅ [WebSocket] Successfully updated and broadcast location for vehicle: {} ({}), speed: {}km/h",
                     vehicleId, message.getLicensePlateNumber(), message.getSpeed());
         } else {
             // Check if vehicle exists
@@ -122,7 +127,7 @@ public class VehicleLocationWebSocketController {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 );
             }
-            log.debug("Rate-limited location update skipped for vehicle: {} ({})",
+            log.warn("⚠️ [WebSocket] Rate-limited location update SKIPPED for vehicle: {} ({}) - too soon since last update",
                     vehicleId, message.getLicensePlateNumber());
         }
 

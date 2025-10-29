@@ -1,6 +1,6 @@
 package capstone_project.repository.entityServices.order.conformation.impl;
 
-import capstone_project.entity.order.conformation.SignatureRequestEntity;
+import capstone_project.entity.order.confirmation.SignatureRequestEntity;
 import capstone_project.repository.repositories.order.conformation.SignatureRequestRepository;
 import capstone_project.repository.entityServices.order.conformation.SignatureRequestEntityService;
 import lombok.RequiredArgsConstructor;

@@ -7,7 +7,6 @@ import java.util.UUID;
 
 public record CreateOrderResponse(
         UUID id,
-        BigDecimal totalPrice,
         String notes,
         int totalQuantity,
         BigDecimal totalWeight,

@@ -33,8 +33,8 @@ public class ContractEntity extends BaseEntity {
     @Column(name = "total_value")
     private BigDecimal totalValue;
 
-    @Column(name = "supported_value")
-    private BigDecimal supportedValue;
+    @Column(name = "adjusted_value")
+    private BigDecimal adjustedValue;
 
     @Column(name = "attach_file_url", length = Integer.MAX_VALUE)
     private String attachFileUrl;

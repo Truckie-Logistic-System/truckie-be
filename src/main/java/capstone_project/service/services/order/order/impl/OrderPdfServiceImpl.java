@@ -63,12 +63,12 @@ public class OrderPdfServiceImpl implements OrderPdfService {
             log.info("Assignments total: {}", assignResult.size());
             assignResult.forEach(a ->
                     log.info("Assignment => ruleId={}, ruleName={}, index={}, load={}",
-                            a.getVehicleRuleId(), a.getVehicleRuleName(), a.getVehicleIndex(), a.getCurrentLoad())
+                            a.getVehicleTypeRuleId(), a.getVehicleTypeRuleName(), a.getVehicleIndex(), a.getCurrentLoad())
             );
 
             Map<UUID, Integer> vehicleCountMap = assignResult.stream()
                     .collect(Collectors.groupingBy(
-                            ContractRuleAssignResponse::getVehicleRuleId,
+                            ContractRuleAssignResponse::getVehicleTypeRuleId,
                             Collectors.summingInt(a -> 1)
                     ));
 
@@ -141,7 +141,7 @@ public class OrderPdfServiceImpl implements OrderPdfService {
 
         Map<UUID, Integer> vehicleCountMap = assignResult.stream()
                 .collect(Collectors.groupingBy(
-                        ContractRuleAssignResponse::getVehicleRuleId,
+                        ContractRuleAssignResponse::getVehicleTypeRuleId,
                         Collectors.summingInt(a -> 1)
                 ));
 

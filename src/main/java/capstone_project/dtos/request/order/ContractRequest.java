@@ -1,12 +1,14 @@
 package capstone_project.dtos.request.order;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record ContractRequest(
         @NotBlank(message = "Contract name must not be blank")
         String contractName,
@@ -17,8 +19,8 @@ public record ContractRequest(
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime expirationDate,
 
-        @Min(value = 0L, message = "The num of supported value must be positive")
-        BigDecimal supportedValue,
+        @Min(value = 0L, message = "The num of adjusted value must be positive")
+        BigDecimal adjustedValue,
 
 //        @NotNull(message = "Total value must not be blank")
 //        @DecimalMin(value = "0.0", inclusive = true, message = "Total value must be >= 0")

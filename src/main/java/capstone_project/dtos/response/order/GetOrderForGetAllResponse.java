@@ -8,7 +8,6 @@ import java.util.UUID;
 
 public record GetOrderForGetAllResponse (
         UUID id,
-        BigDecimal totalPrice,
         String notes,
         int totalQuantity,
         BigDecimal totalWeight,

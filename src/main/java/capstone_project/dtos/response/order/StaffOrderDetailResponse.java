@@ -3,6 +3,7 @@ package capstone_project.dtos.response.order;
 import capstone_project.dtos.response.issue.SimpleIssueImageResponse;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Enhanced order detail response with full information for staff
@@ -20,5 +21,5 @@ public record StaffOrderDetailResponse(
     LocalDateTime createdAt,
     String trackingCode,
     SimpleOrderSizeResponse orderSize,
-    StaffVehicleAssignmentResponse vehicleAssignment
+    UUID vehicleAssignmentId  // Changed from full object to ID reference
 ) {}

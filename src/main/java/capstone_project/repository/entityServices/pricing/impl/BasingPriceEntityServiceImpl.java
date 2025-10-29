@@ -32,12 +32,12 @@ public class BasingPriceEntityServiceImpl implements BasingPriceEntityService {
     }
 
     @Override
-    public Optional<BasingPriceEntity> findBasingPriceEntityByVehicleRuleEntityIdAndDistanceRuleEntityId(UUID vehicleRuleEntityId, UUID distanceRuleEntityId) {
-        return basingPriceRepository.findBasingPriceEntityByVehicleRuleEntityIdAndDistanceRuleEntityId(vehicleRuleEntityId, distanceRuleEntityId);
+    public Optional<BasingPriceEntity> findBasingPriceEntityByVehicleTypeRuleEntityIdAndDistanceRuleEntityId(UUID vehicleRuleEntityId, UUID distanceRuleEntityId) {
+        return basingPriceRepository.findBasingPriceEntityByVehicleTypeRuleEntityIdAndDistanceRuleEntityId(vehicleRuleEntityId, distanceRuleEntityId);
     }
 
     @Override
-    public List<BasingPriceEntity> findAllByVehicleRuleEntityId(UUID vehicleRuleEntityId) {
-        return basingPriceRepository.findAllByVehicleRuleEntityId(vehicleRuleEntityId);
+    public List<BasingPriceEntity> findAllByVehicleTypeRuleEntityId(UUID vehicleRuleEntityId) {
+        return basingPriceRepository.findAllByVehicleTypeRuleEntityId(vehicleRuleEntityId);
     }
 }

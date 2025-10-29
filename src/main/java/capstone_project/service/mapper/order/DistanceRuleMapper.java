@@ -9,7 +9,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Mapper(componentModel = "spring", uses = {VehicleRuleMapper.class})
+@Mapper(componentModel = "spring", uses = {VehicleTypeRuleMapper.class})
 public interface DistanceRuleMapper {
 
     DistanceRuleResponse toDistanceRuleResponse(final DistanceRuleEntity distanceRuleEntity);
@@ -19,7 +19,7 @@ public interface DistanceRuleMapper {
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void toDistanceRuleEntity(UpdateDistanceRuleRequest request, @MappingTarget DistanceRuleEntity entity);
 
-//    @Mapping(source = "pricingRuleEntity", target = "vehicleRuleResponse")
+//    @Mapping(source = "pricingRuleEntity", target = "vehicleTypeRuleResponse")
 //    BasingPriceResponse toGetPricingTierResponse(final DistanceRuleEntity distanceRuleEntity);
 //
 //    @Mapping(source = "pricingRuleEntity.id", target = "pricingRuleId")
@@ -33,8 +33,8 @@ public interface DistanceRuleMapper {
 //    void toPricingTierEntity(PricingTierRequest request, @MappingTarget DistanceRuleEntity entity);
 //
 //    @Named("pricingRuleFromID")
-//    default VehicleRuleEntity mapPricingRuleFromId(String pricingRuleId) {
-//        VehicleRuleEntity entity = new VehicleRuleEntity();
+//    default VehicleTypeRuleEntity mapPricingRuleFromId(String pricingRuleId) {
+//        VehicleTypeRuleEntity entity = new VehicleTypeRuleEntity();
 //        entity.setId(UUID.fromString(pricingRuleId));
 //        return entity;
 //    }

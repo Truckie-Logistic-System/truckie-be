@@ -1,7 +1,7 @@
 package capstone_project.service.mapper.order;
 
 import capstone_project.dtos.response.order.PackingProofImageResponse;
-import capstone_project.entity.order.conformation.PackingProofImageEntity;
+import capstone_project.entity.order.confirmation.PackingProofImageEntity;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

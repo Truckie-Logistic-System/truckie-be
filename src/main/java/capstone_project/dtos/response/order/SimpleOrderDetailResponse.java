@@ -2,6 +2,7 @@ package capstone_project.dtos.response.order;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public record SimpleOrderDetailResponse(
     String id,
@@ -16,5 +17,5 @@ public record SimpleOrderDetailResponse(
     LocalDateTime createdAt,
     String trackingCode,
     SimpleOrderSizeResponse orderSize,
-    SimpleVehicleAssignmentResponse vehicleAssignment
+    UUID vehicleAssignmentId
 ) {}
