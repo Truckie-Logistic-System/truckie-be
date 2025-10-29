@@ -21,6 +21,7 @@ public class BinPacker {
     private static final boolean ALLOW_ROTATION = true;
     public static final int UNIT_MULTIPLIER = 10;
 
+    // * đại diện cho 1 kiện hàng theo chuẩn hóa (dài rộng cao, trọng lượng)
     public static class BoxItem {
 
         public final UUID id;
@@ -38,6 +39,10 @@ public class BinPacker {
         }
     }
 
+    // * đại diện cho 1 vị trí đặt kiện hàng trong container
+    /* x, y, z: tọa độ điểm của kiện trong container
+     * lx, ly, lz: kích thước thực tế của kiện theo từng trục X, Y, Z
+     * */
     public static class Placement {
 
         public int x;
@@ -60,14 +65,21 @@ public class BinPacker {
         }
     }
 
-    // 1 xe
+    // * đại diện cho trạng thái hiện tại của container (xe)
+
+    /**
+     * Kích thước xe (maxLength, maxWidth, maxHeight)
+     * Trọng lượng hiện đang chở (currentWeight)
+     * Các kiện hàng (Placement) đã được sắp xếp bên trong
+     * Quy tắc xe (VehicleRuleEntity rule) — để tham chiếu đến các thông số khác
+     * */
     public static class ContainerState {
 
         public final VehicleRuleEntity rule;
         final int maxX, maxY, maxZ;
         public long currentWeight;
-        public List<Placement> placements = new ArrayList<>();
-        List<int[]> extremePoints = new ArrayList<>(); // each point [x,y,z]
+        public List<Placement> placements = new ArrayList<>();  // check kiện đã đặt -->
+        List<int[]> extremePoints = new ArrayList<>(); // each point [x,y,z] - điểm cực trị để đặt kiện tiếp theo
 
         public ContainerState(VehicleRuleEntity rule, int maxX, int maxY, int maxZ) {
             this.rule = rule;
@@ -79,12 +91,23 @@ public class BinPacker {
             this.extremePoints.add(new int[]{0, 0, 0});
         }
 
+        // * Sau khi thêm kiện  --> update lại trọng lượng --> kiểm tra trọng lượng có vượt quá giới hạn không
         boolean checkWeightAfterAdd(long addWeight) {
             BigDecimal maxW = rule.getMaxWeight() == null ? BigDecimal.valueOf(Long.MAX_VALUE) : rule.getMaxWeight();
             long maxWeightGram = Math.round(maxW.doubleValue() * 1000.0);
             return (currentWeight + addWeight) <= maxWeightGram;
         }
 
+        // * Thêm kiện vào container và cập nhật các điểm cực trị mới
+
+        /**
+         * Trước khi đặt [(0,0,0)]
+         * Đặt kiện có kích thước (lx,ly,lz // 4, 3, 2) tại (x,y,z)
+         * 3 điểm cực trị mới được thêm vào:
+         * - (lx,0,0)  //  (4,0,0)
+         * - (0,ly,0)  //  (0,3,0)
+         * - (0,0,lz)  //  (0,0,2)
+         * */
         public void addPlacement(Placement p) {
             placements.add(p);
             currentWeight += p.box.weight;
@@ -99,13 +122,14 @@ public class BinPacker {
             pruneExtremePoints();
         }
 
+        // * Loại bỏ các điểm cực trị không hợp lệ or trùng lặp or nằm ngoài container
         private void pruneExtremePoints() {
             // remove points outside container or duplicates
             Set<String> seen = new HashSet<>();
             List<int[]> out = new ArrayList<>();
             for (int[] p : extremePoints) {
-                if (p[0] < 0 || p[1] < 0 || p[2] < 0) continue;
-                if (p[0] > maxX || p[1] > maxY || p[2] > maxZ) continue;
+                if (p[0] < 0 || p[1] < 0 || p[2] < 0) continue;   // sinh ra điểm âm -> bỏ
+                if (p[0] > maxX || p[1] > maxY || p[2] > maxZ) continue;   // ngoài công -> bỏ
                 String k = p[0] + ":" + p[1] + ":" + p[2];
                 if (!seen.contains(k)) {
                     seen.add(k);
@@ -116,7 +140,7 @@ public class BinPacker {
         }
     }
 
-    // Generate 6 rotation permutations
+    // * Tạo 6 cách xoay kiện --> bỏ các cách trùng lặp
     public static List<int[]> rotations(int lx, int ly, int lz) {
         List<int[]> r = new ArrayList<>();
         r.add(new int[]{lx, ly, lz});
@@ -138,7 +162,10 @@ public class BinPacker {
         return uniq;
     }
 
-    // Try place box into container; returns Placement if success
+    // * thử đặt kiện vào container, trả về Placement nếu thành công (chỉ là hàm mô phỏng và không làm thay đổi dữ liệu thật)
+    /**
+     *
+     * */
     public static Placement tryPlaceBoxInContainer(BoxItem box, ContainerState container) {
         log.debug("Trying to place box {} ({}x{}x{}) in container {} ({}x{}x{}) with {} existing placements",
                 box.id, box.lx, box.ly, box.lz,
@@ -148,6 +175,7 @@ public class BinPacker {
         // iterate extreme points
         for (int[] p : container.extremePoints) {
             int px = p[0], py = p[1], pz = p[2];
+            // * kiểm tra hướng xoay phù hợp
             List<int[]> rots = ALLOW_ROTATION ? rotations(box.lx, box.ly, box.lz) : Collections.singletonList(new int[]{box.lx, box.ly, box.lz});
 
             for (int[] dim : rots) {
@@ -159,7 +187,7 @@ public class BinPacker {
                     continue;
                 }
 
-                // collision check
+                // * kiểm tra va chạm với các kiện đã đặt
                 boolean collide = false;
                 for (Placement ex : container.placements) {
                     if (intersect(px, py, pz, lx, ly, lz, ex.x, ex.y, ex.z, ex.lx, ex.ly, ex.lz)) {
@@ -203,8 +231,14 @@ public class BinPacker {
      *
      * @return List<ContainerState> each corresponds to one used container (vehicle)
      */
+
+
+    // * đầu vào là danh sách kiện hàng (OrderDetailEntity) và quy tắc xe (VehicleRuleEntity)
+    // * đầu ra là danh sách trạng thái container đã sử dụng (ContainerState) --> ContractRuleAssignResponse
     public static List<ContainerState> pack(List<OrderDetailEntity> details, List<VehicleRuleEntity> vehicleRules) {
         // convert OrderDetailEntity -> BoxItem (SỬA LỖI CONVERT WEIGHT)
+
+        // * Chuyển đổi OrderDetailEntity thành BoxItem
         List<BoxItem> boxes = new ArrayList<>();
         for (OrderDetailEntity d : details) {
             OrderSizeEntity s = d.getOrderSizeEntity();
@@ -223,15 +257,20 @@ public class BinPacker {
 
         // Sắp xếp tối ưu hơn
         boxes.sort((a, b) -> {
-            int cmp = Long.compare(b.weight, a.weight);
+            int cmp = Long.compare(b.weight, a.weight); // * so sánh theo trọng lượng giảm dần
             if (cmp != 0) return cmp;
 
             int aMaxDim = Math.max(a.lx, Math.max(a.ly, a.lz));
             int bMaxDim = Math.max(b.lx, Math.max(b.ly, b.lz));
-            cmp = Integer.compare(bMaxDim, aMaxDim);
+            cmp = Integer.compare(bMaxDim, aMaxDim);  // * Nếu trọng lượng bằng nhau → so theo chiều (dài, rộng, cao) lớn nhất giảm dần
             if (cmp != 0) return cmp;
 
-            return Long.compare(b.volume, a.volume);
+            return Long.compare(b.volume, a.volume);  // * Nếu vẫn bằng → so theo thể tích lỡn nhất giảm dần
+            /**
+             * b.volume > a.volume -> return positive -> b trước a
+             * b.volume < a.volume -> return negative -> a trước b
+             * b.volume == a.volume -> return 0
+             * */
         });
 
         List<ContainerState> used = new ArrayList<>();
@@ -239,12 +278,15 @@ public class BinPacker {
         for (BoxItem box : boxes) {
             boolean placed = false;
 
-            // 1. Thử thêm vào xe hiện có TRƯỚC
+            // * 1. Thử đặt kiện vào các xe hiện có TRƯỚC
             log.info("=== STEP 1: Trying to place box {} in existing vehicles ===", box.id);
             if (!used.isEmpty()) {
                 for (ContainerState c : used) {
                     log.info("  - Trying vehicle: {}", c.rule.getVehicleRuleName());
-                    Placement p = tryPlaceBoxInContainer(box, c);
+                    Placement p = tryPlaceBoxInContainer(box, c);  // * thử đặt kiện vào container hiện tại, mô phỏng nếu thành công thì trả về Placement --> sử dụng chính placement này
+                                                                        // * để thêm thật vào container
+//                    new Placement(box, px, py, pz, lx, ly, lz);
+
                     if (p != null) {
                         c.addPlacement(p);
                         placed = true;
@@ -263,7 +305,7 @@ public class BinPacker {
                 continue;
             }
 
-            // 2. Thử UPGRADE từng xe hiện có
+            // 2. Thử UPGRADE từng xe hiện có lên xe lớn hơn
             log.info("=== STEP 2: Trying to upgrade existing vehicles for box {} ===", box.id);
             if (!used.isEmpty()) {
                 for (int i = 0; i < used.size(); i++) {
@@ -271,8 +313,11 @@ public class BinPacker {
                     log.info("Considering upgrade for vehicle: {}", current.rule.getVehicleRuleName());
 
                     VehicleRuleEntity upgradedRule = findNextBiggerRule(current.rule, vehicleRules);
+
+                    // * thử nâng cấp liên tục cho đến khi không còn rule lớn hơn
                     while (upgradedRule != null && !placed) {
                         log.info("    - Trying upgrade to: {}", upgradedRule.getVehicleRuleName());
+                        // * thử nâng cấp container hiện tại lên quy tắc xe mới
                         ContainerState upgraded = upgradeContainer(current, upgradedRule);
                         if (upgraded != null) {
                             Placement p = tryPlaceBoxInContainer(box, upgraded);
@@ -315,8 +360,12 @@ public class BinPacker {
                 log.info("  - Vehicle rule: {} - max_dims={}x{}x{}, max_weight={}",
                         rule.getVehicleRuleName(), maxX, maxY, maxZ, rule.getMaxWeight());
 
+                // * Kiểm tra xem kích thước kiện hàng có nhỏ hơn hoặc bằng kích thước xe không
                 if (box.lx <= maxX && box.ly <= maxY && box.lz <= maxZ) {
+
+                    // Tạo "container" mô phỏng chiếc xe mới theo quy tắc này
                     ContainerState candidate = new ContainerState(rule, maxX, maxY, maxZ);
+
                     if (!candidate.checkWeightAfterAdd(box.weight)) {
                         log.info("Weight limit exceeded: box weight={}, max weight={}",
                                 box.weight, Math.round(rule.getMaxWeight().doubleValue() * 1000.0));
