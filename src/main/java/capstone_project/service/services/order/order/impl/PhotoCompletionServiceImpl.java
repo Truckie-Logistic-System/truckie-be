@@ -2,6 +2,7 @@ package capstone_project.service.services.order.order.impl;
 
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.OrderStatusEnum;
+import capstone_project.common.enums.OrderDetailStatusEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreatePhotoCompletionRequest;
 import capstone_project.dtos.request.order.UpdatePhotoCompletionRequest;
@@ -14,6 +15,7 @@ import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntit
 import capstone_project.service.mapper.order.PhotoCompletionMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.order.order.OrderDetailStatusService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -35,6 +37,7 @@ public class PhotoCompletionServiceImpl implements PhotoCompletionService {
     private final CloudinaryService cloudinaryService;
     private final OrderEntityService orderEntityService;
     private final OrderService orderService;
+    private final OrderDetailStatusService orderDetailStatusService;
 
     public PhotoCompletionServiceImpl(
             PhotoCompletionEntityService photoCompletionEntityService,
@@ -42,13 +45,15 @@ public class PhotoCompletionServiceImpl implements PhotoCompletionService {
             VehicleAssignmentEntityService vehicleAssignmentEntityService,
             CloudinaryService cloudinaryService,
             OrderEntityService orderEntityService,
-            @Lazy OrderService orderService) {
+            @Lazy OrderService orderService,
+            OrderDetailStatusService orderDetailStatusService) {
         this.photoCompletionEntityService = photoCompletionEntityService;
         this.photoCompletionMapper = photoCompletionMapper;
         this.vehicleAssignmentEntityService = vehicleAssignmentEntityService;
         this.cloudinaryService = cloudinaryService;
         this.orderEntityService = orderEntityService;
         this.orderService = orderService;
+        this.orderDetailStatusService = orderDetailStatusService;
     }
 
 
@@ -106,14 +111,19 @@ public class PhotoCompletionServiceImpl implements PhotoCompletionService {
             savedEntities.add(entity);
         }
 
-        // Update order status to DELIVERED after photos are uploaded
-        var orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
-        if (orderOpt.isPresent()) {
-            var orderEntity = orderOpt.get();
-            orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.DELIVERED);
-            log.info("Updated order {} status to DELIVERED after uploading completion photos", orderEntity.getOrderCode());
-        } else {
-            log.warn("No order found for vehicle assignment ID: {}", vehicleAssignment.getId());
+        // ✅ CRITICAL: Auto-update OrderDetail status to DELIVERED after photo upload
+        // This also triggers Order status aggregation (multi-trip logic)
+        try {
+            orderDetailStatusService.updateOrderDetailStatusByAssignment(
+                    request.vehicleAssignmentId(),
+                    OrderDetailStatusEnum.DELIVERED
+            );
+            log.info("✅ Auto-updated OrderDetail status to DELIVERED for assignment: {}", 
+                    request.vehicleAssignmentId());
+            log.info("   - Order status will be aggregated based on ALL trips");
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to auto-update OrderDetail status: {}", e.getMessage());
+            // Don't fail the main operation - photos were uploaded successfully
         }
 
         return photoCompletionMapper.toPhotoCompletionResponses(savedEntities);

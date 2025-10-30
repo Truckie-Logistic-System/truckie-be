@@ -3,6 +3,7 @@ package capstone_project.service.services.vehicle.impl;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.SealEnum;
 import capstone_project.common.enums.OrderStatusEnum;
+import capstone_project.common.enums.OrderDetailStatusEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionCreateRequest;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionEndReadingRequest;
@@ -15,6 +16,7 @@ import capstone_project.repository.entityServices.order.order.SealEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.order.order.OrderDetailStatusService;
 import capstone_project.service.services.vehicle.VehicleFuelConsumptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +41,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private final OrderEntityService orderEntityService;
     private final OrderService orderService;
     private final SealEntityService sealEntityService;
+    private final OrderDetailStatusService orderDetailStatusService;
 
     @Override
     @Transactional
@@ -67,23 +70,17 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
         final var savedEntity = vehicleFuelConsumptionEntityService.save(entity);
 
-        // Update order status to PICKING_UP and then to ONGOING_DELIVERED
-        final var orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignmentEntity.getId());
-        if (orderOpt.isPresent()) {
-            final var orderEntity = orderOpt.get();
-            
-            // First update to PICKING_UP
-            orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.PICKING_UP);
-            log.info("Updated order {} status to PICKING_UP after driver submitted odometer start", orderEntity.getOrderCode());
-            
-            // Then update to ONGOING_DELIVERED to show delivery confirmation button
-            try {
-                orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.ONGOING_DELIVERED);
-                log.info("Updated order {} status to ONGOING_DELIVERED for delivery confirmation", orderEntity.getOrderCode());
-            } catch (Exception e) {
-                log.warn("Could not update order {} to ONGOING_DELIVERED: {}", orderEntity.getOrderCode(), e.getMessage());
-                // Don't throw - PICKING_UP is sufficient for the flow to work
-            }
+        // ✅ NEW: Auto-update OrderDetail status to PICKING_UP when driver starts trip
+        try {
+            orderDetailStatusService.updateOrderDetailStatusByAssignment(
+                    request.vehicleAssignmentId(),
+                    OrderDetailStatusEnum.PICKING_UP
+            );
+            log.info("✅ Auto-updated OrderDetail status: ASSIGNED_TO_DRIVER → PICKING_UP for assignment: {}", 
+                    request.vehicleAssignmentId());
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to auto-update OrderDetail status: {}", e.getMessage());
+            // Don't fail the main operation - fuel consumption was created successfully
         }
 
         return mapToResponse(savedEntity);
@@ -156,13 +153,16 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
         final var updatedEntity = vehicleFuelConsumptionEntityService.save(entity);
 
-        // Update order status to SUCCESSFUL and send WebSocket notification
-        final var orderOpt = orderEntityService.findVehicleAssignmentOrder(entity.getVehicleAssignmentEntity().getId());
-        if (orderOpt.isPresent()) {
-            final var orderEntity = orderOpt.get();
-            orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.SUCCESSFUL);
-            log.info("Updated order {} status to SUCCESSFUL after driver submitted final odometer reading", orderEntity.getOrderCode());
-
+        // ✅ NEW: Auto-update OrderDetail status to SUCCESSFUL after odometer end upload
+        try {
+            UUID vehicleAssignmentId = entity.getVehicleAssignmentEntity().getId();
+            orderDetailStatusService.updateOrderDetailStatusByAssignment(
+                    vehicleAssignmentId,
+                    OrderDetailStatusEnum.SUCCESSFUL
+            );
+            log.info("✅ Auto-updated OrderDetail status: DELIVERED → SUCCESSFUL for assignment: {}", 
+                    vehicleAssignmentId);
+            
             // Update the IN_USE seal to USED (there should be only one)
             final var vehicleAssignment = entity.getVehicleAssignmentEntity();
             final var inUseSeal = sealEntityService.findByVehicleAssignment(
@@ -172,9 +172,11 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
             if (inUseSeal != null) {
                 inUseSeal.setStatus(SealEnum.USED.name());
                 sealEntityService.save(inUseSeal);
-                log.info("Updated seal {} status from IN_USE to USED for order {}",
-                        inUseSeal.getSealCode(), orderEntity.getOrderCode());
+                log.info("Updated seal {} status from IN_USE to USED", inUseSeal.getSealCode());
             }
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to auto-update OrderDetail status or seal: {}", e.getMessage());
+            // Don't fail the main operation - odometer was updated successfully
         }
 
         return mapToResponse(updatedEntity);

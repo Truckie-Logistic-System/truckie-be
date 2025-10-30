@@ -2,6 +2,7 @@ package capstone_project.service.services.order.order.impl;
 
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.OrderStatusEnum;
+import capstone_project.common.enums.OrderDetailStatusEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreatePackingProofImageRequest;
 import capstone_project.dtos.request.order.LoadingDocumentationRequest;
@@ -14,6 +15,7 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.services.order.order.LoadingDocumentationService;
 import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.order.order.OrderDetailStatusService;
 import capstone_project.service.services.order.order.PackingProofImageService;
 import capstone_project.service.services.order.seal.SealService;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,7 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final OrderEntityService orderEntityService;
     private final OrderService orderService;
+    private final OrderDetailStatusService orderDetailStatusService;
 
     @Override
     @Transactional
@@ -111,28 +114,22 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
     }
 
     /**
-     * Updates the order status to TRANSPORTING once loading is documented
+     * Updates the OrderDetail status to ON_DELIVERED once loading is documented
+     * Order status will be auto-synced by OrderDetailStatusService
      */
     private void updateRelatedOrderStatus(VehicleAssignmentEntity vehicleAssignment) {
-        // Instead of using complex query, get order through OrderDetail relationship
-        // This avoids the "Query did not return a unique result" issue
         try {
-            // Query OrderDetail by vehicle assignment (should be unique per assignment)
-            var orderDetailOpt = orderEntityService.findOrderDetailByVehicleAssignmentId(vehicleAssignment.getId());
-            
-            if (orderDetailOpt.isPresent()) {
-                var orderDetail = orderDetailOpt.get();
-                var orderEntity = orderDetail.getOrderEntity();
-                
-                if (orderEntity != null) {
-                    // Use OrderService to update status and send WebSocket notification
-                    orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.ON_DELIVERED);
-                    log.info("Updated order {} status to ON_DELIVERED after loading documentation", orderEntity.getOrderCode());
-                }
-            }
+            // Update OrderDetail status instead of Order status
+            orderDetailStatusService.updateOrderDetailStatusByAssignment(
+                    vehicleAssignment.getId(),
+                    OrderDetailStatusEnum.ON_DELIVERED
+            );
+            log.info("Auto-updated OrderDetail status: PICKING_UP → ON_DELIVERED for assignment: {}", 
+                    vehicleAssignment.getId());
+            // Order status will be auto-synced by OrderDetailStatusService
         } catch (Exception e) {
-            log.error("Error updating order status after loading documentation: {}", e.getMessage(), e);
-            // Don't throw exception - loading documentation was successful, just status update failed
+            log.error("Failed to update OrderDetail status after loading documentation: {}", e.getMessage());
+            // Don't throw exception - loading documentation was successful
         }
     }
 }

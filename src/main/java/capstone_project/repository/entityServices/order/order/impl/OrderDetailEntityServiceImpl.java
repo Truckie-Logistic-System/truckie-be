@@ -4,6 +4,7 @@ import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.repositories.order.order.OrderDetailRepository;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.util.UUID;
 public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
 
     private final OrderDetailRepository orderDetailRepository;
+    private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
 
     @Override
     public OrderDetailEntity save(OrderDetailEntity entity) {
@@ -77,5 +79,12 @@ public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
     @Override
     public List<OrderDetailEntity> findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignment) {
         return orderDetailRepository.findByVehicleAssignmentEntity(vehicleAssignment);
+    }
+    
+    @Override
+    public List<OrderDetailEntity> findByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        VehicleAssignmentEntity assignment = vehicleAssignmentEntityService.findById(vehicleAssignmentId)
+            .orElseThrow(() -> new RuntimeException("Vehicle assignment not found: " + vehicleAssignmentId));
+        return orderDetailRepository.findByVehicleAssignmentEntity(assignment);
     }
 }

@@ -468,15 +468,21 @@ public class OrderDetailServiceImpl implements OrderDetailService {
             case PROCESSING:
                 return next == OrderStatusEnum.ASSIGNED_TO_DRIVER;
             case ASSIGNED_TO_DRIVER:
-                return next == OrderStatusEnum.PICKED_UP;
-            case PICKED_UP:
-                return next == OrderStatusEnum.SEALED_COMPLETED;
-            case SEALED_COMPLETED:
-                return next == OrderStatusEnum.ONGOING_DELIVERED;
+                return next == OrderStatusEnum.PICKING_UP
+                        || next == OrderStatusEnum.IN_TROUBLES;
+            case PICKING_UP:
+                return next == OrderStatusEnum.ON_DELIVERED
+                        || next == OrderStatusEnum.ONGOING_DELIVERED
+                        || next == OrderStatusEnum.IN_TROUBLES;
+            case ON_DELIVERED:
+                return next == OrderStatusEnum.ONGOING_DELIVERED
+                        || next == OrderStatusEnum.IN_TROUBLES;
             case ONGOING_DELIVERED:
-                return next == OrderStatusEnum.DELIVERED;
+                return next == OrderStatusEnum.DELIVERED
+                        || next == OrderStatusEnum.IN_TROUBLES;
             case DELIVERED:
-                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.RETURNING;
+                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.RETURNING
+                        || next == OrderStatusEnum.IN_TROUBLES;
             case RETURNING:
                 return next == OrderStatusEnum.RETURNED;
             case RETURNED:

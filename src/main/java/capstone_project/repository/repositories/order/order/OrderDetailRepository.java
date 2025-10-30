@@ -156,4 +156,11 @@ public interface OrderDetailRepository extends BaseRepository<OrderDetailEntity>
      * @return The first order detail found, if any
      */
     Optional<OrderDetailEntity> findFirstByVehicleAssignmentEntityId(UUID vehicleAssignmentId);
+
+    /**
+     * Find all order details by vehicle assignment ID
+     * @param vehicleAssignmentId The ID of the vehicle assignment
+     * @return List of order details associated with the vehicle assignment
+     */
+    List<OrderDetailEntity> findByVehicleAssignmentEntityId(UUID vehicleAssignmentId);
 }

@@ -1523,16 +1523,11 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private void createSealForAssignment(VehicleAssignmentEntity assignment, String sealCode, String sealDescription) {
         log.info("Creating seal for vehicle assignment {}: sealCode={}", assignment.getId(), sealCode);
 
-        // Kiểm tra seal code đã tồn tại chưa
-        List<SealEntity> existingSeals = sealEntityService.findBySealCode(sealCode);
-        String finalSealCode = sealCode;
+        // FIXED: Seal code không cần unique toàn hệ thống
+        // Chỉ cần unique trong cùng 1 vehicle assignment
+        // Cho phép tái sử dụng seal code cho các vehicle assignment khác nhau
         
-        if (!existingSeals.isEmpty()) {
-            log.warn("Seal with code {} already exists ({} instances found), generating unique code", sealCode, existingSeals.size());
-            // Generate unique code by appending timestamp and random number
-            finalSealCode = sealCode + "-" + System.currentTimeMillis() + "-" + (int)(Math.random() * 1000);
-            log.info("Generated unique seal code: {}", finalSealCode);
-        }
+        String finalSealCode = sealCode;
 
         // Improve description null check to also handle empty strings and whitespace
         String finalDescription = sealDescription;
@@ -1560,15 +1555,48 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      * @return A consolidated list with exactly 3 segments that includes all the intermediate points
      */
     private List<RouteSegmentInfo> consolidateRouteSegments(List<RouteSegmentInfo> originalSegments) {
-        if (originalSegments == null || originalSegments.size() <= 3) {
-            return originalSegments; // No need to consolidate if there are 3 or fewer segments
+        if (originalSegments == null || originalSegments.isEmpty()) {
+            return originalSegments;
         }
 
         log.info("Consolidating {} route segments into standard 3-segment format", originalSegments.size());
 
-        // Sort segments by segmentOrder to ensure proper sequence
+        // Sort segments by point names to ensure proper sequence (Carrier→Pickup→Delivery→Carrier)
         List<RouteSegmentInfo> sortedSegments = new ArrayList<>(originalSegments);
-        sortedSegments.sort(Comparator.comparing(RouteSegmentInfo::segmentOrder));
+        sortedSegments.sort((s1, s2) -> {
+            // Define the order of transitions
+            String[] pointOrder = {"Carrier", "Pickup", "Delivery", "Carrier"};
+            
+            // Find position of s1's end point
+            int s1EndPos = -1;
+            for (int i = 0; i < pointOrder.length - 1; i++) {
+                if (pointOrder[i].equals(s1.startPointName()) && pointOrder[i + 1].equals(s1.endPointName())) {
+                    s1EndPos = i;
+                    break;
+                }
+            }
+            
+            // Find position of s2's end point
+            int s2EndPos = -1;
+            for (int i = 0; i < pointOrder.length - 1; i++) {
+                if (pointOrder[i].equals(s2.startPointName()) && pointOrder[i + 1].equals(s2.endPointName())) {
+                    s2EndPos = i;
+                    break;
+                }
+            }
+            
+            // If we can't determine position by point names, use segmentOrder as fallback
+            if (s1EndPos == -1 || s2EndPos == -1) {
+                return Integer.compare(s1.segmentOrder() != null ? s1.segmentOrder() : 0,
+                                      s2.segmentOrder() != null ? s2.segmentOrder() : 0);
+            }
+            
+            return Integer.compare(s1EndPos, s2EndPos);
+        });
+
+        log.info("Sorted segments: {}", sortedSegments.stream()
+            .map(s -> s.startPointName() + "->" + s.endPointName())
+            .toList());
 
         // Identify key segments by their point names
         String carrierPointName = "Carrier";
@@ -1601,7 +1629,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
         // Validate that we found all key transitions
         if (firstPickupIndex == -1 || firstDeliveryIndex == -1 || lastDeliveryIndex == -1) {
-            log.warn("Could not identify all key segments in the route. Using original segments.");
+            log.warn("Could not identify all key segments in the route. firstPickupIndex={}, firstDeliveryIndex={}, lastDeliveryIndex={}",
+                firstPickupIndex, firstDeliveryIndex, lastDeliveryIndex);
             return originalSegments;
         }
 

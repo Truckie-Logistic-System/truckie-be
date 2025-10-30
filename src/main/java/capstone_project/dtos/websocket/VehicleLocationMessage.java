@@ -27,7 +27,7 @@ public class VehicleLocationMessage {
     // Assignment information
     private UUID vehicleAssignmentId;
     private String trackingCode;
-    private String assignmentStatus;
+    private String orderDetailStatus;
 
     // Driver information
     private String driver1Name;

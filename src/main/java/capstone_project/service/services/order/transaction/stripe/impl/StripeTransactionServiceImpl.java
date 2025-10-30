@@ -307,10 +307,14 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
                 if (transaction.getAmount().compareTo(totalValue) < 0) {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
-                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
+                    // Update Order status only (OrderDetail will be updated when assigned to driver)
+                    order.setStatus(OrderStatusEnum.ON_PLANNING.name());
+                    orderEntityService.save(order);
                 } else {
                     contract.setStatus(ContractStatusEnum.PAID.name());
-                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.FULLY_PAID);
+                    // Update Order status only (OrderDetail will be updated when assigned to driver)
+                    order.setStatus(OrderStatusEnum.FULLY_PAID.name());
+                    orderEntityService.save(order);
                 }
             }
 

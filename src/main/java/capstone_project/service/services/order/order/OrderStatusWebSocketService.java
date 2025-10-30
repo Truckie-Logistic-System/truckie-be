@@ -70,16 +70,10 @@ public class OrderStatusWebSocketService {
                 return "Đơn hàng đã thanh toán đầy đủ";
             case PICKING_UP:
                 return "Tài xế đã bắt đầu lấy hàng";
-            case PICKED_UP:
-                return "Đã lấy hàng thành công";
-            case SEALED_COMPLETED:
-                return "Đã niêm phong hàng hóa";
             case ON_DELIVERED:
                 return "Đang trên đường giao hàng";
             case ONGOING_DELIVERED:
                 return "Sắp giao hàng tới";
-            case IN_DELIVERED:
-                return "Đang giao hàng";
             case DELIVERED:
                 return "Đã giao hàng thành công";
             case IN_TROUBLES:

@@ -11,6 +11,8 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -38,10 +40,16 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
         String path = request.getRequestURI();
 
+        Logger log = LoggerFactory.getLogger(this.getClass());
+        log.info("[JwtRequestFilter] ➡️ Request: {} {}", request.getMethod(), path);
+
         if (isPublicEndpoint(path)) {
+            log.info("[JwtRequestFilter] Public endpoint - skipping token validation");
             filterChain.doFilter(request, response);
             return;
         }
+
+        log.info("[JwtRequestFilter] Protected endpoint - validating token");
 
         final String authorizationHeader = request.getHeader("Authorization");
 

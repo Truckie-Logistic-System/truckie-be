@@ -172,7 +172,8 @@ public class VehicleLocationService {
                         
                         // Get enhanced message with assignment details using eager-fetched vehicle
                         VehicleEntity vehicle = vehicleEntityService.findByVehicleIdWithVehicleType(message.getVehicleId()).orElse(null);
-                        VehicleLocationMessage enhancedMessage = buildEnhancedLocationMessage(vehicle, assignment);
+                        String orderDetailStatus = orderDetail.getStatus() != null ? orderDetail.getStatus() : "UNKNOWN";
+                        VehicleLocationMessage enhancedMessage = buildEnhancedLocationMessage(vehicle, assignment, orderDetailStatus);
                         
                         if (enhancedMessage != null) {
                             // CRITICAL: Copy bearing, speed, and velocity from original message
@@ -192,7 +193,7 @@ public class VehicleLocationService {
                             log.info("    - vehicleTypeName: {}", enhancedMessage.getVehicleTypeName());
                             log.info("    - vehicleAssignmentId: {}", enhancedMessage.getVehicleAssignmentId());
                             log.info("    - trackingCode: {}", enhancedMessage.getTrackingCode());
-                            log.info("    - assignmentStatus: {}", enhancedMessage.getAssignmentStatus());
+                            log.info("    - orderDetailStatus: {}", enhancedMessage.getOrderDetailStatus());
                             log.info("    - driver1Name: {}", enhancedMessage.getDriver1Name());
                             log.info("    - driver1Phone: {}", enhancedMessage.getDriver1Phone());
                             log.info("    - driver2Name: {}", enhancedMessage.getDriver2Name());
@@ -306,9 +307,10 @@ public class VehicleLocationService {
      * Get enhanced location information for a vehicle with its assignment details
      * @param vehicle Vehicle entity
      * @param assignmentEntity Assignment entity with driver information
+     * @param orderDetailStatus Status of the order detail for this assignment
      * @return Enhanced vehicle location message
      */
-    private VehicleLocationMessage buildEnhancedLocationMessage(VehicleEntity vehicle, VehicleAssignmentEntity assignmentEntity) {
+    private VehicleLocationMessage buildEnhancedLocationMessage(VehicleEntity vehicle, VehicleAssignmentEntity assignmentEntity, String orderDetailStatus) {
         if (vehicle == null || vehicle.getCurrentLatitude() == null || vehicle.getCurrentLongitude() == null) {
             return null;
         }
@@ -347,7 +349,7 @@ public class VehicleLocationService {
         if (assignmentEntity != null) {
             builder.vehicleAssignmentId(assignmentEntity.getId())
                    .trackingCode(assignmentEntity.getTrackingCode())
-                   .assignmentStatus(assignmentEntity.getStatus());
+                   .orderDetailStatus(orderDetailStatus);
 
             // Add driver information - handle lazy loading safely
             try {
@@ -437,8 +439,15 @@ public class VehicleLocationService {
                         // Add assignment info if available
                         if (assignmentEntity != null) {
                             builder.vehicleAssignmentId(assignmentEntity.getId())
-                                   .trackingCode(assignmentEntity.getTrackingCode())
-                                   .assignmentStatus(assignmentEntity.getStatus());
+                                   .trackingCode(assignmentEntity.getTrackingCode());
+
+                            // Get first order detail status for this assignment
+                            List<OrderDetailEntity> orderDetails = orderDetailRepository
+                                    .findByVehicleAssignmentEntityId(assignmentEntity.getId());
+                            String orderDetailStatus = !orderDetails.isEmpty() && orderDetails.get(0).getStatus() != null
+                                    ? orderDetails.get(0).getStatus() 
+                                    : "UNKNOWN";
+                            builder.orderDetailStatus(orderDetailStatus);
 
                             // Add driver1 info - now eagerly loaded
                             if (assignmentEntity.getDriver1() != null && assignmentEntity.getDriver1().getUser() != null) {

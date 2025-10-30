@@ -34,4 +34,11 @@ public interface OrderDetailEntityService extends BaseEntityService<OrderDetailE
      * @return List of order details associated with the vehicle assignment
      */
     List<OrderDetailEntity> findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignment);
+    
+    /**
+     * Find order details by vehicle assignment ID
+     * @param vehicleAssignmentId The vehicle assignment ID
+     * @return List of order details associated with the vehicle assignment
+     */
+    List<OrderDetailEntity> findByVehicleAssignmentId(UUID vehicleAssignmentId);
 }

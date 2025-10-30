@@ -274,25 +274,16 @@ public class OrderServiceImpl implements OrderService {
             case ON_PLANNING:
                 return next == OrderStatusEnum.ASSIGNED_TO_DRIVER;
             case ASSIGNED_TO_DRIVER:
-                return next == OrderStatusEnum.DRIVER_CONFIRM
-                        || next == OrderStatusEnum.FULLY_PAID
-                        || next == OrderStatusEnum.PICKING_UP;
-            case DRIVER_CONFIRM:
-                return next == OrderStatusEnum.PICKED_UP
+                return next == OrderStatusEnum.FULLY_PAID
                         || next == OrderStatusEnum.PICKING_UP;
             case FULLY_PAID:
                 return next == OrderStatusEnum.PICKING_UP
-                        || next == OrderStatusEnum.ON_DELIVERED;
+                        || next == OrderStatusEnum.ON_DELIVERED
+                        || next == OrderStatusEnum.IN_TROUBLES;
             case PICKING_UP:
                 return next == OrderStatusEnum.ON_DELIVERED
                         || next == OrderStatusEnum.ONGOING_DELIVERED
-                        || next == OrderStatusEnum.SEALED_COMPLETED
                         || next == OrderStatusEnum.IN_TROUBLES;
-            case PICKED_UP:
-                return next == OrderStatusEnum.SEALED_COMPLETED;
-            case SEALED_COMPLETED:
-                return next == OrderStatusEnum.ON_DELIVERED
-                        || next == OrderStatusEnum.ONGOING_DELIVERED;
             case ON_DELIVERED:
                 return next == OrderStatusEnum.ONGOING_DELIVERED || next == OrderStatusEnum.IN_TROUBLES;
             case ONGOING_DELIVERED:
@@ -302,8 +293,8 @@ public class OrderServiceImpl implements OrderService {
             case RESOLVED:
                 return next == OrderStatusEnum.COMPENSATION;
             case DELIVERED:
-                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.REJECT_ORDER;
-            case REJECT_ORDER:
+                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.REJECTED || next == OrderStatusEnum.IN_TROUBLES;
+            case REJECTED:
                 return next == OrderStatusEnum.RETURNING;
             case RETURNING:
                 return next == OrderStatusEnum.RETURNED;

@@ -15,11 +15,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("${auth.api.base-path}")
+@Slf4j
 @RequiredArgsConstructor
 public class AuthsController {
 
@@ -58,10 +60,30 @@ public class AuthsController {
     }
 
     @PostMapping("/token/refresh")
-    public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshAccessToken(HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<AccessTokenResponse>> refreshAccessToken(
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        log.info("[refreshAccessToken] START - Refresh token endpoint called");
         String refreshToken = registerService.extractRefreshTokenFromCookies(request);
+        log.info("[refreshAccessToken] Extracted refresh token from cookies: {}...", refreshToken.substring(0, Math.min(20, refreshToken.length())));
+
         final var refreshTokenResponse = registerService.refreshAccessToken(refreshToken);
-        return ResponseEntity.ok(ApiResponse.ok(refreshTokenResponse));
+        log.info("[refreshAccessToken] Got new tokens from service");
+
+        // SECURITY: Set new refresh token as HttpOnly cookie, NOT in response body
+        // This prevents XSS attacks from stealing the refresh token
+        log.info("[refreshAccessToken] Setting new refresh token cookie");
+        registerService.addRefreshTokenCookie(response, refreshTokenResponse.getRefreshToken());
+        log.info("[refreshAccessToken] ✅ Refresh token cookie set");
+
+        // Return ONLY access token in body (refresh token is in HttpOnly cookie)
+        // Never expose refresh token in JSON response - XSS vulnerability!
+        var accessTokenResponse = AccessTokenResponse.builder()
+                .authToken(refreshTokenResponse.getAccessToken())
+                .build();
+        
+        log.info("[refreshAccessToken] ✅ Returning access token response (refresh token in cookie only)");
+        return ResponseEntity.ok(ApiResponse.ok(accessTokenResponse));
     }
 
     @PostMapping("/customer/register")
@@ -104,7 +126,19 @@ public class AuthsController {
     @PostMapping("/mobile/token/refresh")
     public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshAccessTokenMobile(
             @RequestBody @Valid RefreshTokenRequest refreshTokenRequest) {
+        org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(this.getClass());
+        log.info("[refreshAccessTokenMobile] START - Received mobile token refresh request");
+        log.info("[refreshAccessTokenMobile] Refresh token: {}...", refreshTokenRequest.getRefreshToken().substring(0, Math.min(20, refreshTokenRequest.getRefreshToken().length())));
+        
         final var refreshTokenResponse = registerService.refreshAccessToken(refreshTokenRequest.getRefreshToken());
+        
+        log.info("[refreshAccessTokenMobile] ✅ Returning new tokens with user info");
+        log.info("[refreshAccessTokenMobile] New access token: {}...", refreshTokenResponse.getAccessToken().substring(0, 20));
+        log.info("[refreshAccessTokenMobile] New refresh token: {}...", refreshTokenResponse.getRefreshToken().substring(0, 20));
+        log.info("[refreshAccessTokenMobile] User info included: username={}, role={}", 
+                refreshTokenResponse.getUser() != null ? refreshTokenResponse.getUser().getUsername() : "null",
+                refreshTokenResponse.getUser() != null && refreshTokenResponse.getUser().getRole() != null ? refreshTokenResponse.getUser().getRole().getRoleName() : "null");
+        
         return ResponseEntity.ok(ApiResponse.ok(refreshTokenResponse));
     }
 }
