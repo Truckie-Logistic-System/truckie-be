@@ -1,5 +1,6 @@
 package capstone_project.entity.issue;
 
+import capstone_project.common.enums.IssueCategoryEnum;
 import capstone_project.entity.common.BaseEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -22,6 +23,9 @@ public class IssueTypeEntity extends BaseEntity {
     @Size(max = 200)
     @Column(name = "description", length = 200)
     private String description;
+
+    @Column(name = "issue_category", length = 30)
+    private String issueCategory; // GENERAL, SEAL_REPLACEMENT, ACCIDENT, PENALTY, etc.
 
     @Column(name = "is_active")
     private Boolean isActive;

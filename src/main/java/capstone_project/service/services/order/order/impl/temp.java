@@ -21,7 +21,7 @@
 //import capstone_project.entity.order.order.OrderSizeEntity;
 //import capstone_project.entity.pricing.BasingPriceEntity;
 //import capstone_project.entity.pricing.DistanceRuleEntity;
-//import capstone_project.entity.pricing.VehicleTypeRuleEntity;
+//import capstone_project.entity.pricing.sizeRuleEntity;
 //import capstone_project.entity.user.address.AddressEntity;
 //import capstone_project.repository.entityServices.auth.impl.UserEntityServiceImpl;
 //import capstone_project.repository.entityServices.order.contract.ContractEntityService;
@@ -31,7 +31,7 @@
 //import capstone_project.repository.entityServices.order.order.OrderEntityService;
 //import capstone_project.repository.entityServices.pricing.BasingPriceEntityService;
 //import capstone_project.repository.entityServices.pricing.DistanceRuleEntityService;
-//import capstone_project.repository.entityServices.pricing.VehicleTypeRuleEntityService;
+//import capstone_project.repository.entityServices.pricing.sizeRuleEntityService;
 //import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 //import capstone_project.service.mapper.order.ContractMapper;
 //import capstone_project.service.services.cloudinary.CloudinaryService;
@@ -54,7 +54,7 @@
 //
 //    private final ContractEntityService contractEntityService;
 //    private final ContractRuleEntityService contractRuleEntityService;
-//    private final VehicleTypeRuleEntityService vehicleRuleEntityService;
+//    private final sizeRuleEntityService sizeRuleEntityService;
 //    private final CategoryPricingDetailEntityService categoryPricingDetailEntityService;
 //    private final OrderEntityService orderEntityService;
 //    private final DistanceRuleEntityService distanceRuleEntityService;
@@ -193,29 +193,29 @@
 //        List<ContractRuleAssignResponse> assignments = assignVehiclesWithAvailability(orderUuid);
 //
 //        Map<UUID, Integer> vehicleCountMap = assignments.stream()
-//                .collect(Collectors.groupingBy(ContractRuleAssignResponse::getVehicleRuleId, Collectors.summingInt(a -> 1)));
+//                .collect(Collectors.groupingBy(ContractRuleAssignResponse::getsizeRuleId, Collectors.summingInt(a -> 1)));
 //
 //
 //        for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
-//            UUID vehicleRuleId = entry.getKey();
+//            UUID sizeRuleId = entry.getKey();
 //            Integer count = entry.getValue();
 //
-//            VehicleTypeRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
+//            sizeRuleEntity sizeRule = sizeRuleEntityService.findEntityById(sizeRuleId)
 //                    .orElseThrow(() -> {
-//                        log.error("[createBoth] Vehicle rule not found: {}", vehicleRuleId);
+//                        log.error("[createBoth] Vehicle rule not found: {}", sizeRuleId);
 //                        return new NotFoundException("Vehicle rule not found", ErrorEnum.NOT_FOUND.getErrorCode());
 //                    });
 //
 //            ContractRuleEntity contractRule = ContractRuleEntity.builder()
 //                    .contractEntity(savedContract)
-//                    .vehicleTypeRuleEntity(vehicleRule)
+//                    .sizeRuleEntity(sizeRule)
 //                    .numOfVehicles(count)
 //                    .status(CommonStatusEnum.ACTIVE.name())
 //                    .build();
 //
 //            // 🔑 Lấy các orderDetails từ assignments
 //            List<OrderDetailForPackingResponse> detailResponses = assignments.stream()
-//                    .filter(a -> a.getVehicleRuleId().equals(vehicleRuleId))
+//                    .filter(a -> a.getsizeRuleId().equals(sizeRuleId))
 //                    .flatMap(a -> a.getAssignedDetails().stream())
 //                    .toList();
 //
@@ -298,29 +298,29 @@
 //        List<ContractRuleAssignResponse> assignments = assignVehiclesWithAvailability(orderUuid);
 //
 //        Map<UUID, Integer> vehicleCountMap = assignments.stream()
-//                .collect(Collectors.groupingBy(ContractRuleAssignResponse::getVehicleRuleId, Collectors.summingInt(a -> 1)));
+//                .collect(Collectors.groupingBy(ContractRuleAssignResponse::getsizeRuleId, Collectors.summingInt(a -> 1)));
 //
 //
 //        for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
-//            UUID vehicleRuleId = entry.getKey();
+//            UUID sizeRuleId = entry.getKey();
 //            Integer count = entry.getValue();
 //
-//            VehicleTypeRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
+//            sizeRuleEntity sizeRule = sizeRuleEntityService.findEntityById(sizeRuleId)
 //                    .orElseThrow(() -> {
-//                        log.error("[createBoth] Vehicle rule not found: {}", vehicleRuleId);
+//                        log.error("[createBoth] Vehicle rule not found: {}", sizeRuleId);
 //                        return new NotFoundException("Vehicle rule not found", ErrorEnum.NOT_FOUND.getErrorCode());
 //                    });
 //
 //            ContractRuleEntity contractRule = ContractRuleEntity.builder()
 //                    .contractEntity(savedContract)
-//                    .vehicleTypeRuleEntity(vehicleRule)
+//                    .sizeRuleEntity(sizeRule)
 //                    .numOfVehicles(count)
 //                    .status(CommonStatusEnum.ACTIVE.name())
 //                    .build();
 //
 //            // 🔑 Lấy các orderDetails từ assignments
 //            List<OrderDetailForPackingResponse> detailResponses = assignments.stream()
-//                    .filter(a -> a.getVehicleRuleId().equals(vehicleRuleId))
+//                    .filter(a -> a.getsizeRuleId().equals(sizeRuleId))
 //                    .flatMap(a -> a.getAssignedDetails().stream())
 //                    .toList();
 //
@@ -420,19 +420,19 @@
 //                .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
 //
 //        // Lấy danh sách vehicle rules và sắp xếp từ NHỎ -> LỚN
-//        List<VehicleTypeRuleEntity> sortedVehicleRules = vehicleRuleEntityService
+//        List<sizeRuleEntity> sortedsizeRules = sizeRuleEntityService
 //                .findAllByCategoryId(orderEntity.getCategory().getId())
 //                .stream()
 //                .filter(rule -> CommonStatusEnum.ACTIVE.name().equals(rule.getStatus()))
-//                .sorted(Comparator.comparing(VehicleTypeRuleEntity::getMaxWeight)
-//                        .thenComparing(VehicleTypeRuleEntity::getMaxLength)
-//                        .thenComparing(VehicleTypeRuleEntity::getMaxWidth)
-//                        .thenComparing(VehicleTypeRuleEntity::getMaxHeight))
+//                .sorted(Comparator.comparing(sizeRuleEntity::getMaxWeight)
+//                        .thenComparing(sizeRuleEntity::getMaxLength)
+//                        .thenComparing(sizeRuleEntity::getMaxWidth)
+//                        .thenComparing(sizeRuleEntity::getMaxHeight))
 //                .toList();
 //
 //        // Map ruleId -> số lượng xe khả dụng
 //        Map<UUID, Integer> availableVehicles = new HashMap<>();
-//        for (VehicleTypeRuleEntity rule : sortedVehicleRules) {
+//        for (sizeRuleEntity rule : sortedsizeRules) {
 //            int count = vehicleEntityService
 //                    .getVehicleEntitiesByVehicleTypeEntityAndStatus(
 //                            rule.getVehicleTypeEntity(),
@@ -446,7 +446,7 @@
 //        List<ContractRuleAssignResponse> realisticAssignments = new ArrayList<>();
 //
 //        for (ContractRuleAssignResponse optimalAssignment : optimal) {
-//            UUID optimalRuleId = optimalAssignment.getVehicleRuleId();
+//            UUID optimalRuleId = optimalAssignment.getsizeRuleId();
 //            int used = usedVehicles.getOrDefault(optimalRuleId, 0);
 //            int available = availableVehicles.getOrDefault(optimalRuleId, 0);
 //
@@ -456,8 +456,8 @@
 //                usedVehicles.put(optimalRuleId, used + 1);
 //            } else {
 //                // Hết xe → UPGRADE lên xe LỚN HƠN
-//                VehicleTypeRuleEntity currentRule = findVehicleRuleById(optimalRuleId, sortedVehicleRules);
-//                VehicleTypeRuleEntity upgradedRule = findNextBiggerRule(currentRule, sortedVehicleRules);
+//                sizeRuleEntity currentRule = findsizeRuleById(optimalRuleId, sortedsizeRules);
+//                sizeRuleEntity upgradedRule = findNextBiggerRule(currentRule, sortedsizeRules);
 //
 //                boolean upgraded = false;
 //                while (upgradedRule != null && !upgraded) {
@@ -467,21 +467,21 @@
 //                    if (upgradedUsed < upgradedAvailable) {
 //                        // Tạo assignment mới với xe upgraded
 //                        ContractRuleAssignResponse upgradedAssignment = createUpgradedAssignment(
-//                                optimalAssignment, upgradedRule, sortedVehicleRules);
+//                                optimalAssignment, upgradedRule, sortedsizeRules);
 //                        realisticAssignments.add(upgradedAssignment);
 //                        usedVehicles.put(upgradedRule.getId(), upgradedUsed + 1);
 //                        upgraded = true;
 //                        log.info("[assignVehiclesWithAvailability] Upgraded vehicle from {} to {} for order {}",
-//                                currentRule.getVehicleRuleName(), upgradedRule.getVehicleRuleName(), orderId);
+//                                currentRule.getsizeRuleName(), upgradedRule.getsizeRuleName(), orderId);
 //                    } else {
 //                        // Thử xe lớn hơn nữa
-//                        upgradedRule = findNextBiggerRule(upgradedRule, sortedVehicleRules);
+//                        upgradedRule = findNextBiggerRule(upgradedRule, sortedsizeRules);
 //                    }
 //                }
 //
 //                if (!upgraded) {
 //                    log.error("[assignVehiclesWithAvailability] No available vehicles for order {}, optimal rule: {}",
-//                            orderId, currentRule.getVehicleRuleName());
+//                            orderId, currentRule.getsizeRuleName());
 //                    throw new BadRequestException(
 //                            ErrorEnum.NO_VEHICLE_AVAILABLE.getMessage(),
 //                            ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode()
@@ -501,7 +501,7 @@
 //    /**
 //     * Tìm vehicle rule bằng ID
 //     */
-//    private VehicleTypeRuleEntity findVehicleRuleById(UUID ruleId, List<VehicleTypeRuleEntity> sortedRules) {
+//    private sizeRuleEntity findsizeRuleById(UUID ruleId, List<sizeRuleEntity> sortedRules) {
 //        return sortedRules.stream()
 //                .filter(rule -> rule.getId().equals(ruleId))
 //                .findFirst()
@@ -512,13 +512,13 @@
 //     * Tạo assignment mới với xe đã upgrade
 //     */
 //    private ContractRuleAssignResponse createUpgradedAssignment(ContractRuleAssignResponse original,
-//                                                                VehicleTypeRuleEntity upgradedRule,
-//                                                                List<VehicleTypeRuleEntity> sortedRules) {
+//                                                                sizeRuleEntity upgradedRule,
+//                                                                List<sizeRuleEntity> sortedRules) {
 //        ContractRuleAssignResponse upgraded = new ContractRuleAssignResponse();
 //
 //        // Copy tất cả thông tin từ original
-//        upgraded.setVehicleRuleId(upgradedRule.getId());
-//        upgraded.setVehicleRuleName(upgradedRule.getVehicleRuleName());
+//        upgraded.setsizeRuleId(upgradedRule.getId());
+//        upgraded.setsizeRuleName(upgradedRule.getsizeRuleName());
 //        upgraded.setCurrentLoad(original.getCurrentLoad());
 //        upgraded.setAssignedDetails(new ArrayList<>(original.getAssignedDetails()));
 //        upgraded.setPackedDetailDetails(new ArrayList<>(original.getPackedDetailDetails()));
@@ -530,16 +530,16 @@
 //    }
 //
 //
-//    private VehicleTypeRuleEntity tryUpgradeUntilAvailable(ContractRuleAssignResponse assignment,
-//                                                       VehicleTypeRuleEntity currentRule,
-//                                                       List<VehicleTypeRuleEntity> sortedRules,
+//    private sizeRuleEntity tryUpgradeUntilAvailable(ContractRuleAssignResponse assignment,
+//                                                       sizeRuleEntity currentRule,
+//                                                       List<sizeRuleEntity> sortedRules,
 //                                                       Map<UUID, Integer> availableVehicles,
 //                                                       Map<UUID, Integer> usedVehicles) {
 //
 //        int currentIdx = sortedRules.indexOf(currentRule);
 //
 //        for (int nextIdx = currentIdx + 1; nextIdx < sortedRules.size(); nextIdx++) {
-//            VehicleTypeRuleEntity nextRule = sortedRules.get(nextIdx);
+//            sizeRuleEntity nextRule = sortedRules.get(nextIdx);
 //            int used = usedVehicles.getOrDefault(nextRule.getId(), 0);
 //            int available = availableVehicles.getOrDefault(nextRule.getId(), 0);
 //
@@ -574,27 +574,27 @@
 ////        }
 ////
 ////        // Lấy rule theo category, sort theo kluong + kích thước
-////        List<VehicleTypeRuleEntity> sortedVehicleRules = vehicleRuleEntityService
+////        List<sizeRuleEntity> sortedsizeRules = sizeRuleEntityService
 ////                .findAllByCategoryId(orderEntity.getCategory().getId())
 ////                .stream()
 ////                .filter(rule -> CommonStatusEnum.ACTIVE.name().equals(rule.getStatus()))
-////                .sorted(Comparator.comparing(VehicleTypeRuleEntity::getMaxWeight)
-////                        .thenComparing(VehicleTypeRuleEntity::getMaxLength)
-////                        .thenComparing(VehicleTypeRuleEntity::getMaxWidth)
-////                        .thenComparing(VehicleTypeRuleEntity::getMaxHeight))
+////                .sorted(Comparator.comparing(sizeRuleEntity::getMaxWeight)
+////                        .thenComparing(sizeRuleEntity::getMaxLength)
+////                        .thenComparing(sizeRuleEntity::getMaxWidth)
+////                        .thenComparing(sizeRuleEntity::getMaxHeight))
 ////                .toList();
 ////
-////        if (sortedVehicleRules.isEmpty()) {
+////        if (sortedsizeRules.isEmpty()) {
 ////            log.error("[assignVehicles] No vehicle rules found for categoryId={}", orderEntity.getCategory().getId());
 ////            throw new NotFoundException("No vehicle rules found for this category", ErrorEnum.NOT_FOUND.getErrorCode());
 ////        }
 ////
 ////        // Map ruleId -> rule, ruleId -> index
-////        Map<UUID, VehicleTypeRuleEntity> ruleById = sortedVehicleRules.stream()
-////                .collect(Collectors.toMap(VehicleTypeRuleEntity::getId, Function.identity()));
+////        Map<UUID, sizeRuleEntity> ruleById = sortedsizeRules.stream()
+////                .collect(Collectors.toMap(sizeRuleEntity::getId, Function.identity()));
 ////        Map<UUID, Integer> ruleIndexById = new HashMap<>();
-////        for (int i = 0; i < sortedVehicleRules.size(); i++) {
-////            ruleIndexById.put(sortedVehicleRules.get(i).getId(), i);
+////        for (int i = 0; i < sortedsizeRules.size(); i++) {
+////            ruleIndexById.put(sortedsizeRules.get(i).getId(), i);
 ////        }
 ////
 ////        // Sort details (FFD: kiện   to trước)
@@ -627,9 +627,9 @@
 ////
 ////            // thử gán vào xe đã mở
 ////            for (ContractRuleAssignResponse assignment : assignments) {
-////                VehicleTypeRuleEntity currentRule = ruleById.get(assignment.getVehicleRuleId());
+////                sizeRuleEntity currentRule = ruleById.get(assignment.getsizeRuleId());
 ////                if (currentRule == null) {
-////                    log.error("[assignVehicles] Missing rule for id={}", assignment.getVehicleRuleId());
+////                    log.error("[assignVehicles] Missing rule for id={}", assignment.getsizeRuleId());
 ////                    continue;
 ////                }
 ////
@@ -643,10 +643,10 @@
 ////                }
 ////
 ////                // thử upgrade
-////                VehicleTypeRuleEntity upgradedRule = tryUpgrade(detail, assignment, sortedVehicleRules);
+////                sizeRuleEntity upgradedRule = tryUpgrade(detail, assignment, sortedsizeRules);
 ////                if (upgradedRule != null) {
-////                    assignment.setVehicleRuleId(upgradedRule.getId());
-////                    assignment.setVehicleRuleName(upgradedRule.getVehicleRuleName());
+////                    assignment.setsizeRuleId(upgradedRule.getId());
+////                    assignment.setsizeRuleName(upgradedRule.getsizeRuleName());
 ////                    assignment.setCurrentLoad(calculateTotalWeight(assignment, detail));
 ////                    assignment.getAssignedDetails().add(toPackingResponse(detail));
 ////                    log.info("[assignVehicles] Upgraded vehicle for detail {} -> ruleId={}, maxWeight={}, newLoad={}",
@@ -658,12 +658,12 @@
 ////
 ////            // nếu chưa gán được -> mở xe mới
 ////            if (!assigned) {
-////                for (VehicleTypeRuleEntity rule : sortedVehicleRules) {
+////                for (sizeRuleEntity rule : sortedsizeRules) {
 ////                    if (canFit(detail, rule)) {
 ////                        ContractRuleAssignResponse newAssignment = new ContractRuleAssignResponse(
 ////                                ruleIndexById.get(rule.getId()),
 ////                                rule.getId(),
-////                                rule.getVehicleRuleName(),
+////                                rule.getsizeRuleName(),
 ////                                detail.getWeight(),
 ////                                new ArrayList<>(List.of(toPackingResponse(detail)))
 ////                        );
@@ -708,17 +708,17 @@
 //        }
 //
 //        // 2. Lấy danh sách vehicle rules và sắp xếp từ NHỎ -> LỚN
-//        List<VehicleTypeRuleEntity> sortedVehicleRules = vehicleRuleEntityService
+//        List<sizeRuleEntity> sortedsizeRules = sizeRuleEntityService
 //                .findAllByCategoryId(orderEntity.getCategory().getId())
 //                .stream()
 //                .filter(rule -> CommonStatusEnum.ACTIVE.name().equals(rule.getStatus()))
-//                .sorted(Comparator.comparing(VehicleTypeRuleEntity::getMaxWeight)
-//                        .thenComparing(VehicleTypeRuleEntity::getMaxLength)
-//                        .thenComparing(VehicleTypeRuleEntity::getMaxWidth)
-//                        .thenComparing(VehicleTypeRuleEntity::getMaxHeight))
+//                .sorted(Comparator.comparing(sizeRuleEntity::getMaxWeight)
+//                        .thenComparing(sizeRuleEntity::getMaxLength)
+//                        .thenComparing(sizeRuleEntity::getMaxWidth)
+//                        .thenComparing(sizeRuleEntity::getMaxHeight))
 //                .toList();
 //
-//        if (sortedVehicleRules.isEmpty()) {
+//        if (sortedsizeRules.isEmpty()) {
 //            throw new NotFoundException("No vehicle rules found for this category", ErrorEnum.NOT_FOUND.getErrorCode());
 //        }
 //
@@ -757,8 +757,8 @@
 //                }
 //
 //                // Nếu không vừa, thử upgrade xe hiện tại lên loại lớn hơn
-//                VehicleTypeRuleEntity currentRule = currentContainer.rule;
-//                VehicleTypeRuleEntity upgradedRule = findNextBiggerRule(currentRule, sortedVehicleRules);
+//                sizeRuleEntity currentRule = currentContainer.rule;
+//                sizeRuleEntity upgradedRule = findNextBiggerRule(currentRule, sortedsizeRules);
 //
 //                while (upgradedRule != null && !assigned) {
 //                    BinPacker.ContainerState upgradedContainer = BinPacker.upgradeContainer(currentContainer, upgradedRule);
@@ -772,7 +772,7 @@
 //                        }
 //                    }
 //                    // Thử loại xe lớn hơn nữa
-//                    upgradedRule = findNextBiggerRule(upgradedRule, sortedVehicleRules);
+//                    upgradedRule = findNextBiggerRule(upgradedRule, sortedsizeRules);
 //                }
 //
 //                if (assigned) break;
@@ -780,7 +780,7 @@
 //
 //            // 5. Nếu chưa gán được, mở xe mới với loại xe NHỎ NHẤT có thể chở
 //            if (!assigned) {
-//                BinPacker.ContainerState newContainer = openNewContainerForBox(box, sortedVehicleRules);
+//                BinPacker.ContainerState newContainer = openNewContainerForBox(box, sortedsizeRules);
 //                if (newContainer != null) {
 //                    containers.add(newContainer);
 //                } else {
@@ -803,9 +803,9 @@
 //    /**
 //     * Mở container mới với loại xe NHỎ NHẤT có thể chở box
 //     */
-//    private BinPacker.ContainerState openNewContainerForBox(BinPacker.BoxItem box, List<VehicleTypeRuleEntity> sortedRules) {
+//    private BinPacker.ContainerState openNewContainerForBox(BinPacker.BoxItem box, List<sizeRuleEntity> sortedRules) {
 //        // Tìm xe NHỎ NHẤT có thể chở box này
-//        for (VehicleTypeRuleEntity rule : sortedRules) {
+//        for (sizeRuleEntity rule : sortedRules) {
 //            int maxX = BinPacker.convertToInt(rule.getMaxLength());
 //            int maxY = BinPacker.convertToInt(rule.getMaxWidth());
 //            int maxZ = BinPacker.convertToInt(rule.getMaxHeight());
@@ -821,7 +821,7 @@
 //                if (placement != null) {
 //                    newContainer.addPlacement(placement);
 //                    log.info("[openNewContainerForBox] Selected smallest vehicle: {} for box {}",
-//                            rule.getVehicleRuleName(), box.id);
+//                            rule.getsizeRuleName(), box.id);
 //                    return newContainer;
 //                }
 //            }
@@ -832,7 +832,7 @@
 //    /**
 //     * Tìm vehicle rule lớn hơn tiếp theo
 //     */
-//    private VehicleTypeRuleEntity findNextBiggerRule(VehicleTypeRuleEntity current, List<VehicleTypeRuleEntity> sorted) {
+//    private sizeRuleEntity findNextBiggerRule(sizeRuleEntity current, List<sizeRuleEntity> sorted) {
 //        int currentIndex = -1;
 //        for (int i = 0; i < sorted.size(); i++) {
 //            if (sorted.get(i).getId().equals(current.getId())) {
@@ -854,7 +854,7 @@
 //            BinPacker.Placement placement = BinPacker.tryPlaceBoxInContainer(box, container);
 //            if (placement != null) {
 //                log.debug("[findFittingContainer] Box {} fits in existing vehicle {}",
-//                        box.id, container.rule.getVehicleRuleName());
+//                        box.id, container.rule.getsizeRuleName());
 //                return container;
 //            }
 //        }
@@ -864,7 +864,7 @@
 //    /**
 //     * Tìm vehicle rule lớn hơn rule hiện tại trong sorted list
 //     */
-////    private VehicleTypeRuleEntity findNextBiggerRule(VehicleTypeRuleEntity current, List<VehicleTypeRuleEntity> sorted) {
+////    private sizeRuleEntity findNextBiggerRule(sizeRuleEntity current, List<sizeRuleEntity> sorted) {
 ////        for (int i = 0; i < sorted.size(); i++) {
 ////            if (sorted.get(i).getId().equals(current.getId()) && i + 1 < sorted.size()) {
 ////                return sorted.get(i + 1);
@@ -888,14 +888,14 @@
 //        return assignment.getCurrentLoad().add(newDetail.getWeight());
 //    }
 //
-//    private VehicleTypeRuleEntity tryUpgrade(OrderDetailEntity detail,
+//    private sizeRuleEntity tryUpgrade(OrderDetailEntity detail,
 //                                         ContractRuleAssignResponse assignment,
-//                                         List<VehicleTypeRuleEntity> sortedRules) {
+//                                         List<sizeRuleEntity> sortedRules) {
 //
 //        int currentIdx = assignment.getVehicleIndex();
 //
 //        for (int nextIdx = currentIdx + 1; nextIdx < sortedRules.size(); nextIdx++) {
-//            VehicleTypeRuleEntity nextRule = sortedRules.get(nextIdx);
+//            sizeRuleEntity nextRule = sortedRules.get(nextIdx);
 //
 //            if (canFit(detail, nextRule, assignment)) {
 //                // cập nhật lại index cho assignment
@@ -912,12 +912,12 @@
 //     */
 ////    private int tryUpgrade(OrderDetailEntity detail,
 ////                           ContractRuleAssignResponse assignment,
-////                           List<VehicleTypeRuleEntity> sortedVehicleRules,
-////                           Map<Integer, VehicleTypeRuleEntity> vehicleRuleCache) {
+////                           List<sizeRuleEntity> sortedsizeRules,
+////                           Map<Integer, sizeRuleEntity> sizeRuleCache) {
 ////        int currentIdx = assignment.getVehicleIndex();
 ////        log.info("[tryUpgrade] Try upgrade for detailId={} from index={}", detail.getId(), currentIdx);
-////        for (int i = currentIdx + 1; i < sortedVehicleRules.size(); i++) {
-////            VehicleTypeRuleEntity biggerRule = vehicleRuleCache.get(i);
+////        for (int i = currentIdx + 1; i < sortedsizeRules.size(); i++) {
+////            sizeRuleEntity biggerRule = sizeRuleCache.get(i);
 ////            if (biggerRule == null) {
 ////                log.warn("[tryUpgrade] Missing vehicle rule at index={}", i);
 ////                continue;
@@ -931,20 +931,20 @@
 ////        return -1;
 ////    }
 //
-////    private VehicleTypeRuleEntity tryUpgrade(OrderDetailEntity detail,
+////    private sizeRuleEntity tryUpgrade(OrderDetailEntity detail,
 ////                                         ContractRuleAssignResponse assignment,
-////                                         List<VehicleTypeRuleEntity> sortedVehicleRules,
-////                                         Map<UUID, VehicleTypeRuleEntity> vehicleRuleById,
+////                                         List<sizeRuleEntity> sortedsizeRules,
+////                                         Map<UUID, sizeRuleEntity> sizeRuleById,
 ////                                         Map<UUID, Integer> ruleIndexById) {
-////        UUID currentRuleId = assignment.getVehicleRuleId();
+////        UUID currentRuleId = assignment.getsizeRuleId();
 ////        Integer startIdx = ruleIndexById.get(currentRuleId);
 ////        if (startIdx == null) {
 ////            log.warn("[tryUpgrade] cannot find index for ruleId={}", currentRuleId);
 ////            return null;
 ////        }
 ////        log.info("[tryUpgrade] Try upgrade for detailId={} from ruleIndex={}", detail.getId(), startIdx);
-////        for (int i = startIdx + 1; i < sortedVehicleRules.size(); i++) {
-////            VehicleTypeRuleEntity biggerRule = sortedVehicleRules.get(i);
+////        for (int i = startIdx + 1; i < sortedsizeRules.size(); i++) {
+////            sizeRuleEntity biggerRule = sortedsizeRules.get(i);
 ////            if (canFitAll(assignment.getAssignedDetails(), biggerRule, detail)) {
 ////                log.info("[tryUpgrade] Upgrade possible to index={}, ruleId={}", i, biggerRule.getId());
 ////                return biggerRule;
@@ -954,14 +954,14 @@
 ////        return null;
 ////    }
 //
-////    private VehicleTypeRuleEntity tryUpgrade(OrderDetailEntity detail,
+////    private sizeRuleEntity tryUpgrade(OrderDetailEntity detail,
 ////                                         ContractRuleAssignResponse assignment,
-////                                         List<VehicleTypeRuleEntity> sortedRules) {
+////                                         List<sizeRuleEntity> sortedRules) {
 ////
 ////        int currentIdx = assignment.getVehicleIndex();
 ////
 ////        for (int nextIdx = currentIdx + 1; nextIdx < sortedRules.size(); nextIdx++) {
-////            VehicleTypeRuleEntity nextRule = sortedRules.get(nextIdx);
+////            sizeRuleEntity nextRule = sortedRules.get(nextIdx);
 ////
 ////            if (canFit(detail, nextRule, assignment)) {
 ////                // cập nhật lại index cho assignment
@@ -994,11 +994,11 @@
 //        List<PriceCalculationResponse.CalculationStep> steps = new ArrayList<>();
 //
 //        for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
-//            UUID vehicleRuleId = entry.getKey();
+//            UUID sizeRuleId = entry.getKey();
 //            int numOfVehicles = entry.getValue();
 //
-//            VehicleTypeRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
-//                    .orElseThrow(() -> new NotFoundException("Vehicle rule not found: " + vehicleRuleId,
+//            sizeRuleEntity sizeRule = sizeRuleEntityService.findEntityById(sizeRuleId)
+//                    .orElseThrow(() -> new NotFoundException("Vehicle rule not found: " + sizeRuleId,
 //                            ErrorEnum.NOT_FOUND.getErrorCode()));
 //
 //            BigDecimal ruleTotal = BigDecimal.ZERO;
@@ -1011,10 +1011,10 @@
 //                BigDecimal to = distanceRule.getToKm();
 //
 //                BasingPriceEntity basePriceEntity = basingPriceEntityService
-//                        .findBasingPriceEntityByVehicleRuleEntityIdAndDistanceRuleEntityId(
-//                                vehicleRule.getId(), distanceRule.getId())
+//                        .findBasingPriceEntityBysizeRuleEntityIdAndDistanceRuleEntityId(
+//                                sizeRule.getId(), distanceRule.getId())
 //                        .orElseThrow(() -> new RuntimeException("No base price found for tier "
-//                                + from + "-" + to + " and vehicleRule=" + vehicleRule.getId()));
+//                                + from + "-" + to + " and sizeRule=" + sizeRule.getId()));
 //
 //                if (from.compareTo(BigDecimal.ZERO) == 0 && to.compareTo(BigDecimal.valueOf(4)) == 0) {
 //                    // fixed tier
@@ -1022,7 +1022,7 @@
 //                    remaining = remaining.subtract(to);
 //
 //                    steps.add(PriceCalculationResponse.CalculationStep.builder()
-//                            .vehicleRuleName(vehicleRule.getVehicleRuleName())
+//                            .sizeRuleName(sizeRule.getsizeRuleName())
 //                            .numOfVehicles(numOfVehicles)
 //                            .distanceRange("0-4 km")
 //                            .unitPrice(basePriceEntity.getBasePrice())
@@ -1037,7 +1037,7 @@
 //                    remaining = remaining.subtract(tierDistance);
 //
 //                    steps.add(PriceCalculationResponse.CalculationStep.builder()
-//                            .vehicleRuleName(vehicleRule.getVehicleRuleName())
+//                            .sizeRuleName(sizeRule.getsizeRuleName())
 //                            .numOfVehicles(numOfVehicles)
 //                            .distanceRange(from + "-" + (to == null ? "∞" : to) + " km")
 //                            .unitPrice(basePriceEntity.getBasePrice())
@@ -1067,7 +1067,7 @@
 //            BigDecimal adjustedTotal = total.multiply(categoryMultiplier).add(categoryExtraFee);
 //
 //            steps.add(PriceCalculationResponse.CalculationStep.builder()
-//                    .vehicleRuleName("Điều chỉnh loại hàng: " + contract.getOrderEntity().getCategory().getCategoryName())
+//                    .sizeRuleName("Điều chỉnh loại hàng: " + contract.getOrderEntity().getCategory().getCategoryName())
 //                    .numOfVehicles(0)
 //                    .distanceRange("×" + categoryMultiplier + " + " + categoryExtraFee + " VND")
 //                    .unitPrice(categoryMultiplier)
@@ -1080,7 +1080,7 @@
 //
 //        if (promotionDiscount.compareTo(BigDecimal.ZERO) > 0) {
 //            steps.add(PriceCalculationResponse.CalculationStep.builder()
-//                    .vehicleRuleName("Khuyến mãi")
+//                    .sizeRuleName("Khuyến mãi")
 //                    .numOfVehicles(0)
 //                    .distanceRange("N/A")
 //                    .unitPrice(promotionDiscount.negate())
@@ -1111,7 +1111,7 @@
 //    }
 //
 //
-//    private boolean canFit(OrderDetailEntity detail, VehicleTypeRuleEntity rule) {
+//    private boolean canFit(OrderDetailEntity detail, sizeRuleEntity rule) {
 //        OrderSizeEntity size = detail.getOrderSizeEntity();
 //        if (size == null) return false;
 //
@@ -1121,7 +1121,7 @@
 //                && size.getMaxHeight().compareTo(rule.getMaxHeight()) <= 0;
 //    }
 //
-//    private boolean canFit(OrderDetailEntity detail, VehicleTypeRuleEntity rule, ContractRuleAssignResponse assignment) {
+//    private boolean canFit(OrderDetailEntity detail, sizeRuleEntity rule, ContractRuleAssignResponse assignment) {
 //        OrderSizeEntity size = detail.getOrderSizeEntity();
 //        if (size == null) return false;
 //
@@ -1132,7 +1132,7 @@
 //                && size.getMaxHeight().compareTo(rule.getMaxHeight()) <= 0;
 //    }
 //
-//    private boolean canFitAll(List<UUID> detailIds, VehicleTypeRuleEntity newRule, OrderDetailEntity newDetail) {
+//    private boolean canFitAll(List<UUID> detailIds, sizeRuleEntity newRule, OrderDetailEntity newDetail) {
 //        BigDecimal totalWeight = newDetail.getWeight();
 //
 //        for (UUID id : detailIds) {
@@ -1217,7 +1217,7 @@
 //        ce.setDescription(req.description());
 //        ce.setEffectiveDate(req.effectiveDate());
 //        ce.setExpirationDate(req.expirationDate());
-//        ce.setSupportedValue(req.adjustedValue());
+//        ce.setadjustedValue(req.adjustedValue());
 //        ce.setContractName(req.contractName());
 //
 //

@@ -5,5 +5,5 @@ import capstone_project.repository.repositories.common.BaseRepository;
 
 public interface DistanceRuleRepository extends BaseRepository<DistanceRuleEntity> {
 //    Optional<PricingTierEntity> findByPricingTierEntityId(UUID id);
-//    List<DistanceRuleEntity> findAllByV(UUID vehicleRuleEntityId);
+//    List<DistanceRuleEntity> findAllByV(UUID sizeRuleEntityId);
 }

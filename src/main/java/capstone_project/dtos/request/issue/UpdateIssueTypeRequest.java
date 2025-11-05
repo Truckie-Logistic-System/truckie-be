@@ -8,6 +8,7 @@ public record UpdateIssueTypeRequest(
         @NotNull @UUID String id,
         @NotBlank String name,
         @NotBlank String description,
+        @NotBlank String issueCategory,
         @NotNull Boolean status
 ) {
 }

@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface BasingPriceRepository extends BaseRepository<BasingPriceEntity> {
-    Optional<BasingPriceEntity> findBasingPriceEntityByVehicleTypeRuleEntityIdAndDistanceRuleEntityId(UUID vehicleRuleEntityId, UUID distanceRuleEntityId);
+    Optional<BasingPriceEntity> findBasingPriceEntityBysizeRuleEntityIdAndDistanceRuleEntityId(UUID sizeRuleEntityId, UUID distanceRuleEntityId);
 
-    List<BasingPriceEntity> findAllByVehicleTypeRuleEntityId(UUID vehicleRuleEntityId);
+    List<BasingPriceEntity> findAllBysizeRuleEntityId(UUID sizeRuleEntityId);
 }

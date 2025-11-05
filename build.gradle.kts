@@ -39,6 +39,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-quartz:3.4.3")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-thymeleaf:3.5.5")
+    
+    // FILE UPLOAD
+    implementation("commons-fileupload:commons-fileupload:1.5")
 
     // DATABASE
     implementation("org.postgresql:postgresql")

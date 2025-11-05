@@ -12,7 +12,7 @@ public record BasingPriceRequest(
         BigDecimal basePrice,
 
         @NotNull(message = "Vehicle rule ID cannot be null")
-        String vehicleRuleId,
+        String sizeRuleId,
 
         @NotNull(message = "Distance rule ID cannot be null")
         String distanceRuleId

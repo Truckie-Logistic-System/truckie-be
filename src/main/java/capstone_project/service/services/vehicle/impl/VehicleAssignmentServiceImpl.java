@@ -9,7 +9,7 @@ import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.dtos.response.vehicle.*;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.*;
-import capstone_project.entity.pricing.VehicleTypeRuleEntity;
+import capstone_project.entity.pricing.SizeRuleEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -19,7 +19,7 @@ import capstone_project.repository.entityServices.order.order.JourneyHistoryEnti
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.order.order.SealEntityService;
-import capstone_project.repository.entityServices.pricing.VehicleTypeRuleEntityService;
+import capstone_project.repository.entityServices.pricing.SizeRuleEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
@@ -59,7 +59,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final OrderDetailEntityService orderDetailEntityService;
     private final ContractEntityService contractEntityService;
     private final ContractRuleService contractRuleService;
-    private final VehicleTypeRuleEntityService vehicleTypeRuleEntityService;
+    private final SizeRuleEntityService sizeRuleEntityService;
     private final DriverService driverService;
     private final VehicleAssignmentMapper mapper;
     private final VehicleMapper vehicleMapper;
@@ -215,14 +215,14 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         }
 
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
-            UUID vehicleRuleId = response.getVehicleTypeRuleId();
-            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
+            UUID sizeRuleId = response.getSizeRuleId();
+            SizeRuleEntity sizeRule = sizeRuleEntityService.findEntityById(sizeRuleId)
                     .orElseThrow(() -> new NotFoundException(
-                            "Vehicle rule not found: " + vehicleRuleId,
+                            "Vehicle rule not found: " + sizeRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
-            VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(vehicleRule.getVehicleTypeEntity().getVehicleTypeName());
-            List<VehicleEntity> getVehiclesByVehicleType = vehicleEntityService.getVehicleEntitiesByVehicleTypeEntityAndStatus(vehicleRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name());
+            VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(sizeRule.getVehicleTypeEntity().getVehicleTypeName());
+            List<VehicleEntity> getVehiclesByVehicleType = vehicleEntityService.getVehicleEntitiesByVehicleTypeEntityAndStatus(sizeRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name());
             log.info("Tìm thấy {} xe ACTIVE cho loại {}", getVehiclesByVehicleType.size(), vehicleTypeEnum);
 
             // Lấy tất cả các tài xế hợp lệ cho loại xe này
@@ -682,10 +682,10 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
         for (ContractRuleAssignResponse assignment : assignments) {
             // Lấy thông tin về vehicle rule
-            UUID vehicleRuleId = assignment.getVehicleTypeRuleId();
-            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
+            UUID sizeRuleId = assignment.getSizeRuleId();
+            SizeRuleEntity sizeRule = sizeRuleEntityService.findEntityById(sizeRuleId)
                     .orElseThrow(() -> new NotFoundException(
-                            "Vehicle rule not found: " + vehicleRuleId,
+                            "Vehicle rule not found: " + sizeRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
 
@@ -699,8 +699,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     getOrderDetailInfos(detailIds);
 
             List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions =
-                    findSuitableVehiclesForGroup(detailIds, vehicleRule, vehicleRule.getVehicleTypeEntity() != null
-                            ? vehicleRule.getVehicleTypeEntity().getId() : null);
+                    findSuitableVehiclesForGroup(detailIds, sizeRule, sizeRule.getVehicleTypeEntity() != null
+                            ? sizeRule.getVehicleTypeEntity().getId() : null);
 
             BigDecimal totalWeight = detailIds.stream()
                     .map(id -> orderDetailEntityService.findEntityById(id).orElse(null))
@@ -717,10 +717,10 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             } else {
                 groupingReason = String.format(
                         "Các đơn hàng được gộp tối ưu cho xe %s (%.1f/%.1f kg - %.1f%%)",
-                        vehicleRule.getVehicleTypeRuleName(),
+                        sizeRule.getSizeRuleName(),
                         totalWeight.doubleValue(),
-                        vehicleRule.getMaxWeight().doubleValue(),
-                        totalWeight.doubleValue() * 100 / vehicleRule.getMaxWeight().doubleValue()
+                        sizeRule.getMaxWeight().doubleValue(),
+                        totalWeight.doubleValue() * 100 / sizeRule.getMaxWeight().doubleValue()
                 );
             }
 
@@ -1209,18 +1209,18 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     /**
      * Tìm xe và tài xế phù hợp cho nhóm order detail
      * @param detailIds Danh sách ID của order details
-     * @param vehicleRule Quy tắc về loại xe
+     * @param sizeRule Quy tắc về loại xe
      * @return Danh sách gợi ý xe và tài xế phù hợp cho nhóm
      */
     private List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> findSuitableVehiclesForGroup(
-            List<UUID> detailIds, VehicleTypeRuleEntity vehicleRule, UUID vehicleTypeId) {
+            List<UUID> detailIds, SizeRuleEntity sizeRule, UUID vehicleTypeId) {
 
         List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions = new ArrayList<>();
 
         // Lấy danh sách xe phù hợp với loại xe từ rule
-        VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(vehicleRule.getVehicleTypeEntity().getVehicleTypeName());
+        VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(sizeRule.getVehicleTypeEntity().getVehicleTypeName());
         List<VehicleEntity> availableVehicles = vehicleEntityService.getVehicleEntitiesByVehicleTypeEntityAndStatus(
-                vehicleRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name());
+                sizeRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name());
 
         // Lấy danh sách tài xế hợp lệ cho loại xe này
         List<DriverEntity> allEligibleDrivers = driverEntityService.findByStatus(CommonStatusEnum.ACTIVE.name())
@@ -1267,7 +1267,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
                 String vehicleTypeName = vehicle.getVehicleTypeEntity() != null
                         ? vehicle.getVehicleTypeEntity().getVehicleTypeName()
-                        : vehicleRule.getVehicleTypeEntity().getVehicleTypeName();
+                        : sizeRule.getVehicleTypeEntity().getVehicleTypeName();
 
                 vehicleSuggestions.add(new GroupedVehicleAssignmentResponse.VehicleSuggestionResponse(
                         vehicle.getId(),

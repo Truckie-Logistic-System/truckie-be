@@ -8,12 +8,9 @@ public record GetSealResponse(
         String description,
         LocalDateTime sealDate,
         String status,
-        UUID sealId,
         // Added additional fields for more complete seal information
         String sealCode,
-        String sealAttachedImage,
-        LocalDateTime sealRemovalTime,
-        String sealRemovalReason
+        String sealAttachedImage
 ) {
 
 }

@@ -16,10 +16,10 @@ import java.util.UUID;
 @Builder
 public class ContractRuleAssignResponse {
     private int vehicleIndex;
-    private UUID vehicleTypeRuleId;
+    private UUID sizeRuleId;
     //    private int numOfVehicles;
 //    private Integer numOfVehicles;
-    private String vehicleTypeRuleName;
+    private String sizeRuleName;
     private BigDecimal currentLoad;
     private String currentLoadUnit; // Đơn vị của currentLoad (luôn là "Tấn")
     //    private List<UUID> assignedDetails = new ArrayList<>();

@@ -105,24 +105,24 @@ public class BasingPriceServiceImpl implements BasingPriceService {
             );
         }
 
-        UUID vehicleRuleId;
+        UUID sizeRuleId;
         UUID distanceRuleId;
         try {
-            vehicleRuleId = UUID.fromString(basingPriceRequest.vehicleRuleId());
+            sizeRuleId = UUID.fromString(basingPriceRequest.sizeRuleId());
             distanceRuleId = UUID.fromString(basingPriceRequest.distanceRuleId());
         } catch (IllegalArgumentException e) {
-            log.error("Invalid vehicle rule ID or distance rule ID format: {}", basingPriceRequest.vehicleRuleId());
+            log.error("Invalid vehicle rule ID or distance rule ID format: {}", basingPriceRequest.sizeRuleId());
             throw new BadRequestException(
                     "Invalid vehicle rule ID or distance rule ID format",
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
 
-        Optional<BasingPriceEntity> existingBasingPrice = basingPriceEntityService.findBasingPriceEntityByVehicleTypeRuleEntityIdAndDistanceRuleEntityId(
-                vehicleRuleId, distanceRuleId);
+        Optional<BasingPriceEntity> existingBasingPrice = basingPriceEntityService.findBasingPriceEntityBysizeRuleEntityIdAndDistanceRuleEntityId(
+                sizeRuleId, distanceRuleId);
 
         if (existingBasingPrice.isPresent()) {
-            log.error("Basing price already exists for vehicle rule ID: {} and distance rule ID: {}", vehicleRuleId, distanceRuleId);
+            log.error("Basing price already exists for vehicle rule ID: {} and distance rule ID: {}", sizeRuleId, distanceRuleId);
             throw new BadRequestException(
                     "Basing price already exists for the given vehicle rule and distance rule",
                     ErrorEnum.ALREADY_EXISTED.getErrorCode()

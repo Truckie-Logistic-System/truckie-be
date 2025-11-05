@@ -317,7 +317,6 @@ public class VehicleServiceImpl implements VehicleService {
 
             // Capacity based on vehicle type
             VehicleTypeEntity vehicleType = vehicleTypes.get(i % vehicleTypes.size());
-            BigDecimal capacity = vehicleType.getCapacityM3();
 
             // Create the vehicle entity
             VehicleEntity vehicleEntity = VehicleEntity.builder()
@@ -325,7 +324,7 @@ public class VehicleServiceImpl implements VehicleService {
                     .model(model)
                     .manufacturer(manufacturer)
                     .year(year)
-                    .capacity(capacity)
+                    .capacity(null)
                     .status(VehicleStatusEnum.ACTIVE.name())
                     .vehicleTypeEntity(vehicleType)
                     .createdAt(LocalDateTime.now())

@@ -37,6 +37,9 @@ public abstract class VehicleAssignmentMapper {
     @Mapping(target = "vehicleId", source = "vehicleEntity.id")
     @Mapping(target = "driver_id_1",  source = "driver1.id")
     @Mapping(target = "driver_id_2",  source = "driver2.id")
+    @Mapping(target = "vehicle", source = "vehicleEntity", qualifiedByName = "mapVehicleInfo")
+    @Mapping(target = "driver1", source = "driver1", qualifiedByName = "mapDriverInfo")
+    @Mapping(target = "driver2", source = "driver2", qualifiedByName = "mapDriverInfo")
     public abstract VehicleAssignmentResponse toResponse(VehicleAssignmentEntity entity);
 
     public abstract GetVehicleAssignmentForBillOfLandingResponse toGetVehicleAssignmentForBillOfLandingResponse(VehicleAssignmentEntity entity);
@@ -55,5 +58,50 @@ public abstract class VehicleAssignmentMapper {
         return driverService.findEntityById(UUID.fromString(id))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
+    }
+    
+    @Named("mapVehicleInfo")
+    protected VehicleAssignmentResponse.VehicleInfo mapVehicleInfo(VehicleEntity vehicle) {
+        if (vehicle == null) return null;
+        
+        var vehicleType = vehicle.getVehicleTypeEntity() != null
+            ? new VehicleAssignmentResponse.VehicleTypeInfo(
+                vehicle.getVehicleTypeEntity().getId(),
+                vehicle.getVehicleTypeEntity().getVehicleTypeName()
+            )
+            : null;
+        
+        return new VehicleAssignmentResponse.VehicleInfo(
+            vehicle.getId(),
+            vehicle.getLicensePlateNumber(),
+            vehicle.getModel(),
+            vehicle.getManufacturer(),
+            vehicle.getYear(),
+            vehicleType
+        );
+    }
+    
+    @Named("mapDriverInfo")
+    protected VehicleAssignmentResponse.DriverInfo mapDriverInfo(DriverEntity driver) {
+        if (driver == null) return null;
+        
+        // Calculate experience years from dateOfPassing if available
+        String experienceYears = null;
+        if (driver.getDateOfPassing() != null) {
+            long years = java.time.temporal.ChronoUnit.YEARS.between(
+                driver.getDateOfPassing(), 
+                java.time.LocalDateTime.now()
+            );
+            experienceYears = String.valueOf(years);
+        }
+        
+        return new VehicleAssignmentResponse.DriverInfo(
+            driver.getId(),
+            driver.getUser() != null ? driver.getUser().getFullName() : null,
+            driver.getUser() != null ? driver.getUser().getPhoneNumber() : null,
+            driver.getDriverLicenseNumber(),
+            driver.getLicenseClass(),
+            experienceYears
+        );
     }
 }

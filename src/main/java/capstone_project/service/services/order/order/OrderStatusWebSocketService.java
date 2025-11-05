@@ -78,8 +78,6 @@ public class OrderStatusWebSocketService {
                 return "Đã giao hàng thành công";
             case IN_TROUBLES:
                 return "Đơn hàng gặp sự cố";
-            case RESOLVED:
-                return "Sự cố đã được giải quyết";
             case COMPENSATION:
                 return "Đang xử lý bồi thường";
             case SUCCESSFUL:

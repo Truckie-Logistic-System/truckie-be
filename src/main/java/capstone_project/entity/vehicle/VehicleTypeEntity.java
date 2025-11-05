@@ -28,13 +28,10 @@ public class VehicleTypeEntity extends BaseEntity {
     @Column(name = "description", length = 200)
     private String description;
 
-    @Column(name = "capacity_m3")
-    private BigDecimal capacityM3;
-
     @Column(name = "weight_limit_ton")
     private BigDecimal weightLimitTon;
 
-    @Column(name = "average_fuel_consumption_l_per_100km")
+    @Column(name = "average_fuel_consumption_l_per_100km", precision = 5, scale = 3)
     private BigDecimal averageFuelConsumptionLPer100km;
 
     @ManyToOne(fetch = FetchType.LAZY)

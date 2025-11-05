@@ -13,7 +13,7 @@ public record ContractRuleRequest(
         String info2,
 
         @NotNull(message = "Vehicle rule ID cannot be null")
-        String vehicleRuleId,
+        String sizeRuleId,
 
         @NotNull(message = "Contract entity ID cannot be null")
         String contractEntityId

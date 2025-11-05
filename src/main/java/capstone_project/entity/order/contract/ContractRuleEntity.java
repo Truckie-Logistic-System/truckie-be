@@ -2,7 +2,7 @@ package capstone_project.entity.order.contract;
 
 import capstone_project.entity.common.BaseEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
-import capstone_project.entity.pricing.VehicleTypeRuleEntity;
+import capstone_project.entity.pricing.SizeRuleEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -39,8 +39,8 @@ public class ContractRuleEntity extends BaseEntity {
     private String info2;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vehicle_type_rule_id")
-    private VehicleTypeRuleEntity vehicleTypeRuleEntity;
+    @JoinColumn(name = "size_rule_id")
+    private SizeRuleEntity sizeRuleEntity;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contract_id")

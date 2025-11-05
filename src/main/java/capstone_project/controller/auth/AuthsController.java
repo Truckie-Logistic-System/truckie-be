@@ -68,21 +68,19 @@ public class AuthsController {
         log.info("[refreshAccessToken] Extracted refresh token from cookies: {}...", refreshToken.substring(0, Math.min(20, refreshToken.length())));
 
         final var refreshTokenResponse = registerService.refreshAccessToken(refreshToken);
-        log.info("[refreshAccessToken] Got new tokens from service");
+        log.info("[refreshAccessToken] Got new access token from service");
 
-        // SECURITY: Set new refresh token as HttpOnly cookie, NOT in response body
-        // This prevents XSS attacks from stealing the refresh token
-        log.info("[refreshAccessToken] Setting new refresh token cookie");
-        registerService.addRefreshTokenCookie(response, refreshTokenResponse.getRefreshToken());
-        log.info("[refreshAccessToken] ✅ Refresh token cookie set");
+        // NO NEED to set refresh token cookie again since we're keeping the same token
+        // This prevents cookie sync issues on page reload
+        // The existing refresh token cookie is still valid and will continue to work
+        log.info("[refreshAccessToken] Keeping existing refresh token cookie (no rotation)");
 
-        // Return ONLY access token in body (refresh token is in HttpOnly cookie)
-        // Never expose refresh token in JSON response - XSS vulnerability!
+        // Return ONLY access token in body
         var accessTokenResponse = AccessTokenResponse.builder()
                 .authToken(refreshTokenResponse.getAccessToken())
                 .build();
         
-        log.info("[refreshAccessToken] ✅ Returning access token response (refresh token in cookie only)");
+        log.info("[refreshAccessToken] ✅ Returning access token response");
         return ResponseEntity.ok(ApiResponse.ok(accessTokenResponse));
     }
 

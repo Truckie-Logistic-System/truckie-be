@@ -366,7 +366,7 @@
             <tbody>
             <tr th:each="step, iter : ${calculationDetails}">
                 <td class="text-center" th:text="${iter.index + 1}"></td>
-                <td th:text="${step.vehicleRuleName}"></td>
+                <td th:text="${step.sizeRuleName}"></td>
                 <td class="text-center" th:text="${step.numOfVehicles > 0 ? step.numOfVehicles : '-'}"></td>
                 <td class="text-center" th:text="${step.distanceRange}"></td>
                 <td class="text-right" th:text="${#numbers.formatDecimal(step.unitPrice, 0, 'POINT', 0, 'COMMA')}"></td>

@@ -3,11 +3,11 @@ package capstone_project.service.mapper.order;
 import capstone_project.dtos.request.pricing.BasingPriceRequest;
 import capstone_project.dtos.request.pricing.UpdateBasingPriceRequest;
 import capstone_project.dtos.response.pricing.BasingPriceResponse;
-import capstone_project.dtos.response.pricing.GetBasingPriceNoVehicleTypeRuleResponse;
+import capstone_project.dtos.response.pricing.GetBasingPriceNoSizeRuleResponse;
 import capstone_project.dtos.response.pricing.GetBasingPriceResponse;
 import capstone_project.entity.pricing.BasingPriceEntity;
 import capstone_project.entity.pricing.DistanceRuleEntity;
-import capstone_project.entity.pricing.VehicleTypeRuleEntity;
+import capstone_project.entity.pricing.SizeRuleEntity;
 import org.mapstruct.*;
 
 import java.util.UUID;
@@ -16,23 +16,23 @@ import java.util.UUID;
 public interface BasingPriceMapper {
 
     @Mapping(source = "distanceRuleEntity.id", target = "distanceRuleId")
-    @Mapping(source = "vehicleTypeRuleEntity.id", target = "vehicleRuleId")
+    @Mapping(source = "sizeRuleEntity.id", target = "sizeRuleId")
     BasingPriceResponse toBasingPriceResponse(final BasingPriceEntity basingPriceEntity);
 
     @Mapping(source = "distanceRuleEntity", target = "distanceRuleResponse")
-    @Mapping(source = "vehicleTypeRuleEntity", target = "vehicleTypeRuleResponse")
+    @Mapping(source = "sizeRuleEntity", target = "sizeRuleResponse")
     GetBasingPriceResponse toGetBasingPriceResponse(final BasingPriceEntity basingPriceEntity);
 
     @Mapping(source = "distanceRuleEntity", target = "distanceRuleResponse")
-    GetBasingPriceNoVehicleTypeRuleResponse toGetBasingPriceNoVehicleTypeRuleResponse(final BasingPriceEntity basingPriceEntity);
+    GetBasingPriceNoSizeRuleResponse toGetBasingPriceNoSizeRuleResponse(final BasingPriceEntity basingPriceEntity);
 
     @Mapping(target = "distanceRuleEntity", source = "distanceRuleId", qualifiedByName = "distanceRuleFromId")
-    @Mapping(target = "vehicleTypeRuleEntity", source = "vehicleRuleId", qualifiedByName = "vehicleRuleFromId")
+    @Mapping(target = "sizeRuleEntity", source = "sizeRuleId", qualifiedByName = "sizeRuleFromId")
     BasingPriceEntity mapRequestToEntity(final BasingPriceRequest basingPriceRequest);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "distanceRuleEntity", source = "distanceRuleId", qualifiedByName = "distanceRuleFromId")
-    @Mapping(target = "vehicleTypeRuleEntity", source = "vehicleRuleId", qualifiedByName = "vehicleRuleFromId")
+    @Mapping(target = "sizeRuleEntity", source = "sizeRuleId", qualifiedByName = "sizeRuleFromId")
     void toBasingPriceEntity(UpdateBasingPriceRequest request, @MappingTarget BasingPriceEntity entity);
 
     @Named("distanceRuleFromId")
@@ -42,10 +42,10 @@ public interface BasingPriceMapper {
         return entity;
     }
 
-    @Named("vehicleRuleFromId")
-    default VehicleTypeRuleEntity mapVehicleTypeRuleFromId(String vehicleRuleId) {
-        VehicleTypeRuleEntity entity = new VehicleTypeRuleEntity();
-        entity.setId(UUID.fromString(vehicleRuleId));
+    @Named("sizeRuleFromId")
+    default SizeRuleEntity mapSizeRuleFromId(String sizeRuleId) {
+        SizeRuleEntity entity = new SizeRuleEntity();
+        entity.setId(UUID.fromString(sizeRuleId));
         return entity;
     }
 }

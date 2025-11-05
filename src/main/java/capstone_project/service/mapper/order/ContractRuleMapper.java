@@ -4,7 +4,7 @@ import capstone_project.dtos.request.order.ContractRuleRequest;
 import capstone_project.dtos.response.order.contract.ContractRuleResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
-import capstone_project.entity.pricing.VehicleTypeRuleEntity;
+import capstone_project.entity.pricing.SizeRuleEntity;
 import org.mapstruct.*;
 
 import java.util.UUID;
@@ -13,22 +13,22 @@ import java.util.UUID;
 public interface ContractRuleMapper {
 
     @Mapping(source = "contractEntity.id", target = "contractEntityId")
-    @Mapping(source = "vehicleTypeRuleEntity.id", target = "vehicleRuleId")
+    @Mapping(source = "sizeRuleEntity.id", target = "sizeRuleId")
     ContractRuleResponse toContractRuleResponse(ContractRuleEntity contractRuleEntity);
 
-    @Mapping(source = "vehicleRuleId", target = "vehicleTypeRuleEntity", qualifiedByName = "vehicleRuleFromId")
+    @Mapping(source = "sizeRuleId", target = "sizeRuleEntity", qualifiedByName = "sizeRuleFromId")
     @Mapping(source = "contractEntityId", target = "contractEntity", qualifiedByName = "contractFromId")
     ContractRuleEntity mapRequestToEntity(ContractRuleRequest contractRuleRequest);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    @Mapping(source = "vehicleRuleId", target = "vehicleTypeRuleEntity", qualifiedByName = "vehicleRuleFromId")
+    @Mapping(source = "sizeRuleId", target = "sizeRuleEntity", qualifiedByName = "sizeRuleFromId")
     @Mapping(source = "contractEntityId", target = "contractEntity", qualifiedByName = "contractFromId")
     void toContractRuleEntity(ContractRuleRequest request, @MappingTarget ContractRuleEntity entity);
 
-    @Named("vehicleRuleFromId")
-    default VehicleTypeRuleEntity mapVehicleTypeRuleFromId(String vehicleRuleId) {
-        VehicleTypeRuleEntity entity = new VehicleTypeRuleEntity();
-        entity.setId(UUID.fromString(vehicleRuleId));
+    @Named("sizeRuleFromId")
+    default SizeRuleEntity mapSizeRuleFromId(String sizeRuleId) {
+        SizeRuleEntity entity = new SizeRuleEntity();
+        entity.setId(UUID.fromString(sizeRuleId));
         return entity;
     }
 

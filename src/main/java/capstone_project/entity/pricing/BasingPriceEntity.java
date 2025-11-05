@@ -20,8 +20,8 @@ public class BasingPriceEntity extends BaseEntity {
     private BigDecimal basePrice;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vehicle_type_rule_id")
-    private VehicleTypeRuleEntity vehicleTypeRuleEntity;
+    @JoinColumn(name = "size_rule_id")
+    private SizeRuleEntity sizeRuleEntity;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "distance_rule_id")

@@ -155,19 +155,29 @@ public class DriverOrderMapper {
         } catch (Exception ignored) {
         }
 
-        // Get primary driver info
+        // Get primary driver info from nested object (already populated by VehicleAssignmentMapper)
         try {
-            UUID d1 = vaResponse.driver_id_1();
-            var d = getUserFromCache(d1, userCache);
-            if (d != null) primaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
+            var driver1 = vaResponse.driver1();
+            if (driver1 != null) {
+                primaryDriver = new SimpleDriverResponse(
+                    driver1.id().toString(), 
+                    driver1.fullName(), 
+                    driver1.phoneNumber()
+                );
+            }
         } catch (Exception ignored) {
         }
 
-        // Get secondary driver info
+        // Get secondary driver info from nested object (already populated by VehicleAssignmentMapper)
         try {
-            UUID d2 = vaResponse.driver_id_2();
-            var d = getUserFromCache(d2, userCache);
-            if (d != null) secondaryDriver = new SimpleDriverResponse(d.getId().toString(), d.getFullName(), d.getPhoneNumber());
+            var driver2 = vaResponse.driver2();
+            if (driver2 != null) {
+                secondaryDriver = new SimpleDriverResponse(
+                    driver2.id().toString(), 
+                    driver2.fullName(), 
+                    driver2.phoneNumber()
+                );
+            }
         } catch (Exception ignored) {
         }
 

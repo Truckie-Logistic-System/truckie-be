@@ -18,8 +18,8 @@ public class ContractRuleEntityServiceImpl implements ContractRuleEntityService 
     private final ContractRuleRepository contractRuleRepository;
 
     @Override
-    public Optional<ContractRuleEntity> findContractRuleEntitiesByContractEntityIdAndVehicleTypeRuleEntityId(UUID vehicleRuleEntityId, UUID contractRuleId) {
-        return contractRuleRepository.findContractRuleEntitiesByContractEntityIdAndVehicleTypeRuleEntityId(vehicleRuleEntityId, contractRuleId);
+    public Optional<ContractRuleEntity> findContractRuleEntitiesByContractEntityIdAndSizeRuleEntityId(UUID sizeRuleEntityId, UUID contractRuleId) {
+        return contractRuleRepository.findContractRuleEntitiesByContractEntityIdAndSizeRuleEntityId(sizeRuleEntityId, contractRuleId);
     }
 
     @Override
