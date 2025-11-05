@@ -9,7 +9,5 @@ public record SealResponse(
     String description,
     LocalDateTime sealDate,
     String sealAttachedImage,
-    LocalDateTime sealRemovalTime,
-    String sealRemovalReason,
     String status
 ) {}

@@ -12,8 +12,9 @@ public interface SealRepository extends BaseRepository<SealEntity> {
     /**
      * Find the first order seal by vehicle assignment and status
      * Use findFirst to avoid "Query did not return a unique result" error when multiple seals exist
+     * Orders by createdAt DESC to get the most recent seal
      */
-    SealEntity findFirstByVehicleAssignmentAndStatus(VehicleAssignmentEntity vehicleAssignment, String status);
+    SealEntity findFirstByVehicleAssignmentAndStatusOrderByCreatedAtDesc(VehicleAssignmentEntity vehicleAssignment, String status);
 
     // New method to find all order seals for a vehicle assignment
     List<SealEntity> findByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment);

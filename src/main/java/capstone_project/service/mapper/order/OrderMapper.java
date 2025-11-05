@@ -40,13 +40,66 @@ public interface OrderMapper {
 
     default VehicleAssignmentResponse toVehicleAssignmentResponse(VehicleAssignmentEntity entity) {
         if (entity == null) return null;
+        
+        // Map vehicle info
+        VehicleAssignmentResponse.VehicleInfo vehicleInfo = null;
+        if (entity.getVehicleEntity() != null) {
+            var vehicle = entity.getVehicleEntity();
+            var vehicleType = vehicle.getVehicleTypeEntity() != null
+                ? new VehicleAssignmentResponse.VehicleTypeInfo(
+                    vehicle.getVehicleTypeEntity().getId(),
+                    vehicle.getVehicleTypeEntity().getVehicleTypeName()
+                )
+                : null;
+                
+            vehicleInfo = new VehicleAssignmentResponse.VehicleInfo(
+                vehicle.getId(),
+                vehicle.getLicensePlateNumber(),
+                vehicle.getModel(),
+                vehicle.getManufacturer(),
+                vehicle.getYear(),
+                vehicleType
+            );
+        }
+        
+        // Map driver 1
+        VehicleAssignmentResponse.DriverInfo driver1 = null;
+        if (entity.getDriver1() != null) {
+            var d1 = entity.getDriver1();
+            driver1 = new VehicleAssignmentResponse.DriverInfo(
+                d1.getId(),
+                d1.getUser() != null ? d1.getUser().getFullName() : "N/A",
+                d1.getUser() != null ? d1.getUser().getPhoneNumber() : null,
+                d1.getDriverLicenseNumber(),
+                d1.getLicenseClass(),
+                null
+            );
+        }
+        
+        // Map driver 2
+        VehicleAssignmentResponse.DriverInfo driver2 = null;
+        if (entity.getDriver2() != null) {
+            var d2 = entity.getDriver2();
+            driver2 = new VehicleAssignmentResponse.DriverInfo(
+                d2.getId(),
+                d2.getUser() != null ? d2.getUser().getFullName() : "N/A",
+                d2.getUser() != null ? d2.getUser().getPhoneNumber() : null,
+                d2.getDriverLicenseNumber(),
+                d2.getLicenseClass(),
+                null
+            );
+        }
+        
         return new VehicleAssignmentResponse(
                 entity.getId(),
                 entity.getVehicleEntity() != null ? entity.getVehicleEntity().getId() : null,
-                entity.getDriver1() != null && entity.getDriver1().getUser() != null ? entity.getDriver1().getUser().getId() : null,
-                entity.getDriver2() != null && entity.getDriver2().getUser() != null ? entity.getDriver2().getUser().getId() : null,
+                entity.getDriver1() != null ? entity.getDriver1().getId() : null,
+                entity.getDriver2() != null ? entity.getDriver2().getId() : null,
                 entity.getStatus(),
-                entity.getTrackingCode()
+                entity.getTrackingCode(),
+                vehicleInfo,
+                driver1,
+                driver2
         );
     }
 

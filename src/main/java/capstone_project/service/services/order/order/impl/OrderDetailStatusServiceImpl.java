@@ -148,50 +148,41 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
         // Define valid transitions based on actual driver flow
         return switch (currentStatus) {
             case PENDING -> newStatus == OrderDetailStatusEnum.ON_PLANNING;
-            case ON_PLANNING -> 
-                newStatus == OrderDetailStatusEnum.ASSIGNED_TO_DRIVER
-                || newStatus == OrderDetailStatusEnum.IN_TROUBLES;
-                
-            case ASSIGNED_TO_DRIVER -> 
-                newStatus == OrderDetailStatusEnum.PICKING_UP 
-                || newStatus == OrderDetailStatusEnum.IN_TROUBLES;
-                
-            case PICKING_UP -> 
+            case ON_PLANNING ->
+                newStatus == OrderDetailStatusEnum.ASSIGNED_TO_DRIVER;
+
+            case ASSIGNED_TO_DRIVER ->
+                newStatus == OrderDetailStatusEnum.PICKING_UP;
+
+            case PICKING_UP ->
                 newStatus == OrderDetailStatusEnum.ON_DELIVERED  // After seal confirmation
                 || newStatus == OrderDetailStatusEnum.IN_TROUBLES;
-                
-            case ON_DELIVERED -> 
+
+            case ON_DELIVERED ->
                 newStatus == OrderDetailStatusEnum.ONGOING_DELIVERED  // Auto-triggered by proximity
                 || newStatus == OrderDetailStatusEnum.IN_TROUBLES;
-                
-            case ONGOING_DELIVERED -> 
-                newStatus == OrderDetailStatusEnum.DELIVERED  // After photo upload
-                || newStatus == OrderDetailStatusEnum.IN_TROUBLES;
-                
-            case DELIVERED -> 
-                newStatus == OrderDetailStatusEnum.SUCCESSFUL  // After odometer end upload
-                || newStatus == OrderDetailStatusEnum.RETURNING  // Start return process
+
+            case ONGOING_DELIVERED ->
+                newStatus == OrderDetailStatusEnum.DELIVERED
                 || newStatus == OrderDetailStatusEnum.IN_TROUBLES
-                || newStatus == OrderDetailStatusEnum.REJECTED;
-                
-            case IN_TROUBLES -> 
-                newStatus == OrderDetailStatusEnum.RESOLVED
-                || newStatus == OrderDetailStatusEnum.COMPENSATION;  // Can go to compensation if issue requires it
-                
-            case RESOLVED -> 
-                // Can resume from where it was interrupted
+                || newStatus == OrderDetailStatusEnum.RETURNING;
+
+            case DELIVERED ->
+                newStatus == OrderDetailStatusEnum.SUCCESSFUL;
+
+            case IN_TROUBLES ->
                 newStatus == OrderDetailStatusEnum.PICKING_UP
-                || newStatus == OrderDetailStatusEnum.ON_DELIVERED
+                ||  newStatus == OrderDetailStatusEnum.ON_DELIVERED
                 || newStatus == OrderDetailStatusEnum.ONGOING_DELIVERED
-                || newStatus == OrderDetailStatusEnum.DELIVERED
-                || newStatus == OrderDetailStatusEnum.COMPENSATION;  // Can go to compensation after resolution
-                
-            case RETURNING -> 
+                || newStatus == OrderDetailStatusEnum.RETURNING
+                || newStatus == OrderDetailStatusEnum.COMPENSATION;  // Can go to compensation if issue requires it
+
+            case RETURNING ->
                 newStatus == OrderDetailStatusEnum.RETURNED
                 || newStatus == OrderDetailStatusEnum.IN_TROUBLES;
                 
             // Terminal states - no further transitions allowed
-            case SUCCESSFUL, REJECTED, RETURNED, COMPENSATION -> false;
+            case SUCCESSFUL, RETURNED, COMPENSATION -> false;
         };
     }
     
@@ -268,23 +259,23 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
      * 
      * Priority Order (highest to lowest):
      * 1. COMPENSATION - terminal state (ANY trip)
-     * 2. IN_TROUBLES - all trips must be in troubles (require ALL)
+     * 2. IN_TROUBLES - any trip has troubles (require ANY)
      * 3. RETURNING - all trips must be returning (require ALL)
      * 4. RETURNED - all trips must be returned (require ALL)
-     * 5. DELIVERED - ALL trips must be DELIVERED (not just furthest progress)
-     * 6. SUCCESSFUL - ALL trips must be SUCCESSFUL (not just furthest progress)
+     * 5. SUCCESSFUL - ANY trip is SUCCESSFUL (at least 1 trip successful)
+     * 6. DELIVERED - ALL trips must be DELIVERED (not just furthest progress)
      * 7. Progressive states (PICKING_UP, ON_DELIVERED, ONGOING_DELIVERED) - use MAX
      * 
      * Business Rules:
      * - COMPENSATION: ANY trip → Order COMPENSATION (terminal, highest priority)
-     * - IN_TROUBLES: ALL trips must be in troubles
+     * - IN_TROUBLES: ANY trip has troubles → Order IN_TROUBLES (problem takes priority)
      * - RETURNING/RETURNED: ALL trips must be returning/returned
+     * - SUCCESSFUL: ANY trip SUCCESSFUL → Order SUCCESSFUL (at least 1 trip successful)
+     *   + If 1 trip SUCCESSFUL, others DELIVERED → Order SUCCESSFUL
+     *   + If ALL trips SUCCESSFUL → Order SUCCESSFUL
      * - DELIVERED: Requires ALL trips DELIVERED (not just one)
      *   + If 1 trip DELIVERED, others ONGOING_DELIVERED → Order ONGOING_DELIVERED (wait for all)
      *   + If ALL trips DELIVERED → Order DELIVERED
-     * - SUCCESSFUL: Requires ALL trips SUCCESSFUL (not just one)
-     *   + If 1 trip SUCCESSFUL, others DELIVERED → Order DELIVERED (wait for all)
-     *   + If ALL trips SUCCESSFUL → Order SUCCESSFUL
      * - Progressive states: Use MAX (furthest progress)
      * - REJECTED doesn't affect Order status, only visible in OrderDetails
      */
@@ -352,12 +343,12 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
             return OrderDetailStatusEnum.SUCCESSFUL;
         }
         
-        // If SOME trips SUCCESSFUL but not all → Order stays at DELIVERED (wait for all)
+        // If ANY trip is SUCCESSFUL → Order is SUCCESSFUL (at least 1 trip successful)
         boolean hasSomeSuccessful = statuses.stream()
             .anyMatch(s -> s == OrderDetailStatusEnum.SUCCESSFUL);
         if (hasSomeSuccessful) {
-            log.debug("Some trips SUCCESSFUL but not all → Order DELIVERED (waiting for all trips to complete)");
-            return OrderDetailStatusEnum.DELIVERED;
+            log.debug("Some trips SUCCESSFUL → Order SUCCESSFUL (partial success is success)");
+            return OrderDetailStatusEnum.SUCCESSFUL;
         }
         
         // ============================================
@@ -410,9 +401,7 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
             case DELIVERED -> OrderStatusEnum.DELIVERED;
             case SUCCESSFUL -> OrderStatusEnum.SUCCESSFUL;
             case IN_TROUBLES -> OrderStatusEnum.IN_TROUBLES;
-            case RESOLVED -> OrderStatusEnum.RESOLVED;
             case COMPENSATION -> OrderStatusEnum.COMPENSATION;
-            case REJECTED -> OrderStatusEnum.REJECTED;
             case RETURNING -> OrderStatusEnum.RETURNING;
             case RETURNED -> OrderStatusEnum.RETURNED;
         };

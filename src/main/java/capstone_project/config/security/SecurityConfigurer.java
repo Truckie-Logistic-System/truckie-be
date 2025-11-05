@@ -55,8 +55,8 @@ public class SecurityConfigurer {
     @Value("${category-pricing-detail.api.base-path}")
     private String categoryPricingDetailApiBasePath;
 
-    @Value("${vehicle-type-rule.api.base-path}")
-    private String vehicleTypeRuleApiBasePath;
+    @Value("${size-rule.api.base-path}")
+    private String sizeRuleApiBasePath;
 
     @Value("${distance-rule.api.base-path}")
     private String distanceRuleApiBasePath;
@@ -221,9 +221,9 @@ public class SecurityConfigurer {
 
                         // ================= VEHICLE =================
                         .requestMatchers(HttpMethod.GET, vehicleTypeApiBasePath + "/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, vehicleTypeRuleApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, sizeRuleApiBasePath + "/**").authenticated()
                         .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(vehicleTypeRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(sizeRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
                         // ================= CATEGORY =================
                         .requestMatchers(HttpMethod.GET, categoryApiBasePath + "/**").authenticated()

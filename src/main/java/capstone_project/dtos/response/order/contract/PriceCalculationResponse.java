@@ -29,7 +29,7 @@ public class PriceCalculationResponse {
     @AllArgsConstructor
     @NoArgsConstructor
     public static class CalculationStep {
-        private String vehicleRuleName;
+        private String sizeRuleName;
         private int numOfVehicles;
         private String distanceRange;
         private BigDecimal unitPrice;

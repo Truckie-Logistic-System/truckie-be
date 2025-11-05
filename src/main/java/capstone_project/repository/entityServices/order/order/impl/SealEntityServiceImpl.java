@@ -43,7 +43,7 @@ public class SealEntityServiceImpl implements SealEntityService {
 
     @Override
     public SealEntity findByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment, String status) {
-        return sealRepository.findFirstByVehicleAssignmentAndStatus(vehicleAssignment, status);
+        return sealRepository.findFirstByVehicleAssignmentAndStatusOrderByCreatedAtDesc(vehicleAssignment, status);
     }
 
     @Override

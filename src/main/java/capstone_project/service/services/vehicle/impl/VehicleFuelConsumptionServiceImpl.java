@@ -170,7 +170,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
                     SealEnum.IN_USE.name());
 
             if (inUseSeal != null) {
-                inUseSeal.setStatus(SealEnum.USED.name());
+                inUseSeal.setStatus(SealEnum.REMOVED.name());
                 sealEntityService.save(inUseSeal);
                 log.info("Updated seal {} status from IN_USE to USED", inUseSeal.getSealCode());
             }

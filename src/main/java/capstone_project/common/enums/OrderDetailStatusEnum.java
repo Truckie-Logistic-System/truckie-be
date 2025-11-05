@@ -10,9 +10,7 @@ public enum OrderDetailStatusEnum {
     DELIVERED,
     SUCCESSFUL,
     IN_TROUBLES,
-    RESOLVED,
     COMPENSATION,
-    REJECTED,
     RETURNING,
     RETURNED
 }

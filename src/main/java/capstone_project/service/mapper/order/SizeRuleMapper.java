@@ -2,13 +2,13 @@ package capstone_project.service.mapper.order;
 
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
-import capstone_project.dtos.request.pricing.UpdateVehicleTypeRuleRequest;
-import capstone_project.dtos.request.pricing.VehicleTypeRuleRequest;
-import capstone_project.dtos.response.pricing.FullVehicleTypeRuleResponse;
-import capstone_project.dtos.response.pricing.GetBasingPriceNoVehicleTypeRuleResponse;
-import capstone_project.dtos.response.pricing.VehicleTypeRuleResponse;
+import capstone_project.dtos.request.pricing.SizeRuleRequest;
+import capstone_project.dtos.request.pricing.UpdateSizeRuleRequest;
+import capstone_project.dtos.response.pricing.FullSizeRuleResponse;
+import capstone_project.dtos.response.pricing.GetBasingPriceNoSizeRuleResponse;
+import capstone_project.dtos.response.pricing.SizeRuleResponse;
 import capstone_project.entity.order.order.CategoryEntity;
-import capstone_project.entity.pricing.VehicleTypeRuleEntity;
+import capstone_project.entity.pricing.SizeRuleEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
@@ -21,7 +21,7 @@ import java.util.UUID;
 
 //@Mapper(componentModel = "spring", uses = {CategoryMapper.class, VehicleTypeMapper.class})
 @Mapper(componentModel = "spring", uses = {CategoryMapper.class, VehicleTypeMapper.class, BasingPriceMapper.class})
-public abstract class VehicleTypeRuleMapper {
+public abstract class SizeRuleMapper {
 
     @Autowired
     protected CategoryEntityService categoryService;
@@ -31,7 +31,7 @@ public abstract class VehicleTypeRuleMapper {
 
     @Mapping(target = "category", source = "categoryId", qualifiedByName = "categoryFromId")
     @Mapping(target = "vehicleTypeEntity", source = "vehicleTypeId", qualifiedByName = "vehicleTypeFromId")
-    public abstract VehicleTypeRuleEntity mapRequestToEntity(VehicleTypeRuleRequest request);
+    public abstract SizeRuleEntity mapRequestToEntity(SizeRuleRequest request);
 
     @Named("categoryFromId")
     protected CategoryEntity mapCategoryIdToCategoryEntity(String categoryId) {
@@ -53,19 +53,19 @@ public abstract class VehicleTypeRuleMapper {
 
 //    @Mapping(source = "category", target = "categoryResponse")
 //    @Mapping(source = "vehicleTypeEntity", target = "vehicleTypeResponse")
-    public abstract VehicleTypeRuleResponse toVehicleTypeRuleResponse(final VehicleTypeRuleEntity vehicleTypeRuleEntity);
+    public abstract SizeRuleResponse toSizeRuleResponse(final SizeRuleEntity sizeRuleEntity);
 
     @Mapping(target = "id", source = "entity.id")
     @Mapping(target = "basingPrices", expression = "java(basingPriceResponses)")
-    public abstract FullVehicleTypeRuleResponse toFullVehicleTypeRuleResponse(
-            VehicleTypeRuleEntity entity,
-            List<GetBasingPriceNoVehicleTypeRuleResponse> basingPriceResponses
+    public abstract FullSizeRuleResponse toFullsizeRuleResponse(
+            SizeRuleEntity entity,
+            List<GetBasingPriceNoSizeRuleResponse> basingPriceResponses
     );
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "category", source = "categoryId", qualifiedByName = "categoryFromId")
     @Mapping(target = "vehicleTypeEntity", source = "vehicleTypeId", qualifiedByName = "vehicleTypeFromId")
-    public abstract void toVehicleTypeRuleEntity(UpdateVehicleTypeRuleRequest request, @MappingTarget VehicleTypeRuleEntity entity);
+    public abstract void toSizeRuleEntity(UpdateSizeRuleRequest request, @MappingTarget SizeRuleEntity entity);
 
 //    protected abstract CategoryResponse toCategoryResponse(CategoryEntity entity);
 //

@@ -9,11 +9,9 @@ import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface SealMapper {
-    @Mapping(source = "id", target = "sealId")
+    @Mapping(source = "id", target = "id")
     @Mapping(source = "sealCode", target = "sealCode")
     @Mapping(source = "sealAttachedImage", target = "sealAttachedImage")
-    @Mapping(source = "sealRemovalTime", target = "sealRemovalTime")
-    @Mapping(source = "sealRemovalReason", target = "sealRemovalReason")
     GetSealResponse toGetSealResponse(SealEntity sealEntity);
 
     List<GetSealResponse> toGetSealResponses(List<SealEntity> sealEntities);

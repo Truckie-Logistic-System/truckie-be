@@ -94,6 +94,7 @@ public class IssueTypeServiceImpl implements IssueTypeService {
             IssueTypeEntity issueTypeEntity = IssueTypeEntity.builder()
                     .issueTypeName(createIssueTypeRequest.name())
                     .description(createIssueTypeRequest.description())
+                    .issueCategory(createIssueTypeRequest.issueCategory())
                     .isActive(Boolean.TRUE)
                     .build();
 
@@ -132,6 +133,7 @@ public class IssueTypeServiceImpl implements IssueTypeService {
         try {
             current.setIssueTypeName(updateIssueTypeRequest.name());
             current.setDescription(updateIssueTypeRequest.description());
+            current.setIssueCategory(updateIssueTypeRequest.issueCategory());
             current.setIsActive(updateIssueTypeRequest.status());
 
             return issueMapper.toIssueTypeResponse(issueTypeEntityService.save(current));

@@ -9,6 +9,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -26,12 +27,18 @@ public class AppConfig {
         if (allowed != null && !allowed.isEmpty()) {
             allowed.forEach(config::addAllowedOrigin);
         } else {
-            // allow all origins if none configured (use with caution)
-            config.addAllowedOriginPattern("*");
+            // IMPORTANT: Cannot use wildcard "*" with allowCredentials=true
+            // Use specific origins instead or configure in properties
+            config.addAllowedOrigin("http://localhost:3000");
+            config.addAllowedOrigin("http://localhost:3001");
+            config.addAllowedOrigin("http://localhost:5173");
+            config.addAllowedOrigin("http://localhost:5174");
         }
 
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
+        // IMPORTANT: Set SameSite=Lax for cookie handling during page refresh
+        config.setExposedHeaders(Arrays.asList("Set-Cookie"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", config);

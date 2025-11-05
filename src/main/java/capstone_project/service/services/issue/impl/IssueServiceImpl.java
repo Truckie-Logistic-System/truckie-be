@@ -2,9 +2,11 @@ package capstone_project.service.services.issue.impl;
 
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.IssueEnum;
+import capstone_project.common.enums.IssueCategoryEnum;
+import capstone_project.common.enums.OrderDetailStatusEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
-import capstone_project.dtos.request.issue.CreateBasicIssueRequest;
-import capstone_project.dtos.request.issue.UpdateBasicIssueRequest;
+import capstone_project.service.services.websocket.IssueWebSocketService;
+import capstone_project.dtos.request.issue.*;
 import capstone_project.dtos.response.issue.GetBasicIssueResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.issue.IssueEntity;
@@ -12,7 +14,14 @@ import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.repository.entityServices.issue.IssueTypeEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
+import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
+import capstone_project.repository.entityServices.order.order.SealEntityService;
+import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.order.order.SealEntity;
+import capstone_project.common.enums.SealEnum;
+import org.springframework.transaction.annotation.Transactional;
 import capstone_project.service.mapper.issue.IssueMapper;
+import capstone_project.service.mapper.order.SealMapper;
 import capstone_project.service.services.issue.IssueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,12 +39,111 @@ public class IssueServiceImpl implements IssueService {
     private final IssueEntityService issueEntityService;
     private final IssueTypeEntityService issueTypeEntityService;
     private final IssueMapper issueMapper;
+    private final IssueWebSocketService issueWebSocketService;
+    private final OrderDetailEntityService orderDetailEntityService;
+    private final SealEntityService sealEntityService;
+    private final SealMapper sealMapper;
+    private final capstone_project.service.services.cloudinary.CloudinaryService cloudinaryService;
 
 
     @Override
     public GetBasicIssueResponse getBasicIssue(UUID issueId) {
         IssueEntity getIssue = issueEntityService.findEntityById(issueId).get();
-        return issueMapper.toIssueBasicResponse(getIssue);
+        GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(getIssue);
+        
+        // Populate vehicle assignment với nested objects
+        if (getIssue.getVehicleAssignmentEntity() != null) {
+            var vehicleAssignment = getIssue.getVehicleAssignmentEntity();
+            var enrichedVA = mapVehicleAssignmentWithDetails(vehicleAssignment);
+            
+            // Create new response with enriched vehicle assignment
+            return new GetBasicIssueResponse(
+                response.id(),
+                response.description(),
+                response.locationLatitude(),
+                response.locationLongitude(),
+                response.status(),
+                response.issueCategory(),
+                response.reportedAt(),
+                response.resolvedAt(),
+                enrichedVA,
+                response.staff(),
+                response.issueTypeEntity(),
+                response.oldSeal(),
+                response.newSeal(),
+                response.sealRemovalImage(),
+                response.newSealAttachedImage(),
+                response.newSealConfirmedAt()
+            );
+        }
+        
+        return response;
+    }
+    
+    private capstone_project.dtos.response.vehicle.VehicleAssignmentResponse mapVehicleAssignmentWithDetails(
+            capstone_project.entity.vehicle.VehicleAssignmentEntity entity) {
+        if (entity == null) return null;
+        
+        // Map vehicle info
+        capstone_project.dtos.response.vehicle.VehicleAssignmentResponse.VehicleInfo vehicleInfo = null;
+        if (entity.getVehicleEntity() != null) {
+            var vehicle = entity.getVehicleEntity();
+            var vehicleType = vehicle.getVehicleTypeEntity() != null
+                ? new capstone_project.dtos.response.vehicle.VehicleAssignmentResponse.VehicleTypeInfo(
+                    vehicle.getVehicleTypeEntity().getId(),
+                    vehicle.getVehicleTypeEntity().getVehicleTypeName()
+                )
+                : null;
+                
+            vehicleInfo = new capstone_project.dtos.response.vehicle.VehicleAssignmentResponse.VehicleInfo(
+                vehicle.getId(),
+                vehicle.getLicensePlateNumber(),
+                vehicle.getModel(),
+                vehicle.getManufacturer(),
+                vehicle.getYear(),
+                vehicleType
+            );
+        }
+        
+        // Map driver 1
+        capstone_project.dtos.response.vehicle.VehicleAssignmentResponse.DriverInfo driver1 = null;
+        if (entity.getDriver1() != null) {
+            var d1 = entity.getDriver1();
+            driver1 = new capstone_project.dtos.response.vehicle.VehicleAssignmentResponse.DriverInfo(
+                d1.getId(),
+                d1.getUser() != null ? d1.getUser().getFullName() : "N/A",
+                d1.getUser() != null ? d1.getUser().getPhoneNumber() : null,
+                d1.getDriverLicenseNumber(),
+                d1.getLicenseClass(),
+                null // experienceYears không có trong entity
+            );
+        }
+        
+        // Map driver 2
+        capstone_project.dtos.response.vehicle.VehicleAssignmentResponse.DriverInfo driver2 = null;
+        if (entity.getDriver2() != null) {
+            var d2 = entity.getDriver2();
+            driver2 = new capstone_project.dtos.response.vehicle.VehicleAssignmentResponse.DriverInfo(
+                d2.getId(),
+                d2.getUser() != null ? d2.getUser().getFullName() : "N/A",
+                d2.getUser() != null ? d2.getUser().getPhoneNumber() : null,
+                d2.getDriverLicenseNumber(),
+                d2.getLicenseClass(),
+                null // experienceYears không có trong entity
+            );
+        }
+        
+        return new capstone_project.dtos.response.vehicle.VehicleAssignmentResponse(
+            entity.getId(),
+            entity.getVehicleEntity() != null ? entity.getVehicleEntity().getId() : null,
+            entity.getDriver1() != null ? entity.getDriver1().getId() : null,
+            entity.getDriver2() != null ? entity.getDriver2().getId() : null,
+            entity.getStatus(),
+            entity.getTrackingCode(),
+            vehicleInfo,
+            driver1,
+            driver2
+        );
     }
 
     @Override
@@ -74,6 +182,7 @@ public class IssueServiceImpl implements IssueService {
     }
 
     @Override
+    @Transactional
     public GetBasicIssueResponse createIssue(CreateBasicIssueRequest request) {
         // Lấy VehicleAssignment
         var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(request.vehicleAssignmentId())
@@ -90,13 +199,36 @@ public class IssueServiceImpl implements IssueService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
+        // Lấy tất cả order details của vehicle assignment này
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
+
+        // Lưu trạng thái hiện tại của order details (để restore sau khi resolve)
+        // Format: "STATUS1,STATUS2,STATUS3" theo thứ tự order details
+        String tripStatusAtReport = orderDetails.stream()
+                .map(OrderDetailEntity::getStatus)
+                .reduce((s1, s2) -> s1 + "," + s2)
+                .orElse("");
+        
+        log.info("💾 Saving trip status at report: {}", tripStatusAtReport);
+        
+        // Update tất cả order details thành IN_TROUBLES
+        orderDetails.forEach(orderDetail -> {
+            String oldStatus = orderDetail.getStatus();
+            orderDetail.setStatus(OrderDetailStatusEnum.IN_TROUBLES.name());
+            orderDetailEntityService.save(orderDetail);
+            log.info("🚨 Updated order detail {} from {} to IN_TROUBLES", 
+                     orderDetail.getId(), oldStatus);
+        });
+
         // Tạo entity
         IssueEntity issue = IssueEntity.builder()
                 .description(request.description())
                 .locationLatitude(request.locationLatitude())
                 .locationLongitude(request.locationLongitude())
                 .status(IssueEnum.OPEN.name()) // mặc định OPEN khi tạo
+                // issueCategory đã được di chuyển sang IssueTypeEntity
                 .reportedAt(java.time.LocalDateTime.now())
+                .tripStatusAtReport(tripStatusAtReport) // Lưu status cũ để restore
                 .vehicleAssignmentEntity(vehicleAssignment)
                 .staff(null)
                 .issueTypeEntity(issueType)
@@ -106,7 +238,13 @@ public class IssueServiceImpl implements IssueService {
         IssueEntity saved = issueEntityService.save(issue);
 
         // Convert sang response
-        return issueMapper.toIssueBasicResponse(saved);
+        GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(saved);
+        
+        // 📢 Broadcast new issue to all staff clients via WebSocket
+        log.info("🚨 New issue created, broadcasting to staff: {}", response.id());
+        issueWebSocketService.broadcastNewIssue(response);
+        
+        return response;
     }
 
 
@@ -161,7 +299,13 @@ public class IssueServiceImpl implements IssueService {
         IssueEntity updated = issueEntityService.save(existing);
 
         // Convert sang response
-        return issueMapper.toIssueBasicResponse(updated);
+        GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(updated);
+        
+        // 📢 Broadcast status change (OPEN -> IN_PROGRESS)
+        log.info("📊 Issue status changed to IN_PROGRESS, broadcasting: {}", response.id());
+        issueWebSocketService.broadcastIssueStatusChange(response);
+        
+        return response;
     }
 
     @Override
@@ -176,6 +320,372 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public List<GetBasicIssueResponse> getAllIssues() {
         return issueMapper.toIssueBasicResponses(issueEntityService.findAll());
+    }
+
+    @Override
+    @Transactional
+    public GetBasicIssueResponse resolveIssue(UUID issueId) {
+        // Tìm Issue
+        IssueEntity issue = issueEntityService.findEntityById(issueId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + issueId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Kiểm tra issue đã được assign staff chưa
+        if (issue.getStaff() == null) {
+            throw new IllegalStateException("Issue must be assigned to staff before resolving");
+        }
+
+        // Kiểm tra issue đang ở trạng thái IN_PROGRESS
+        if (!IssueEnum.IN_PROGRESS.name().equals(issue.getStatus())) {
+            throw new IllegalStateException("Only IN_PROGRESS issues can be resolved");
+        }
+
+        // Lấy vehicle assignment
+        var vehicleAssignment = issue.getVehicleAssignmentEntity();
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
+
+        // Parse tripStatusAtReport để restore statuses
+        String tripStatusAtReport = issue.getTripStatusAtReport();
+        
+        if (tripStatusAtReport != null && !tripStatusAtReport.isEmpty()) {
+            String[] savedStatuses = tripStatusAtReport.split(",");
+            
+            // Restore status cho từng order detail
+            for (int i = 0; i < Math.min(orderDetails.size(), savedStatuses.length); i++) {
+                OrderDetailEntity orderDetail = orderDetails.get(i);
+                String restoredStatus = savedStatuses[i].trim();
+                
+                log.info("✅ Restoring order detail {} from IN_TROUBLES to {}", 
+                         orderDetail.getId(), restoredStatus);
+                
+                orderDetail.setStatus(restoredStatus);
+                orderDetailEntityService.save(orderDetail);
+            }
+        } else {
+            log.warn("⚠️ No tripStatusAtReport found for issue {}, cannot restore statuses", issueId);
+        }
+
+        // Update issue status to RESOLVED
+        issue.setStatus(IssueEnum.RESOLVED.name());
+        issue.setResolvedAt(java.time.LocalDateTime.now());
+        
+        IssueEntity updated = issueEntityService.save(issue);
+
+        // Convert sang response
+        GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(updated);
+        
+        // 📢 Broadcast status change (IN_PROGRESS -> RESOLVED)
+        log.info("✅ Issue resolved, broadcasting: {}", response.id());
+        issueWebSocketService.broadcastIssueStatusChange(response);
+        
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public GetBasicIssueResponse reportSealIssue(ReportSealIssueRequest request) {
+        log.info("🔓 Driver reporting seal removal issue for seal: {}", request.sealId());
+
+        // Lấy VehicleAssignment
+        var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(request.vehicleAssignmentId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + request.vehicleAssignmentId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Lấy IssueType
+        var issueType = issueTypeEntityService.findEntityById(request.issueTypeId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + request.issueTypeId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Lấy Seal cũ bị gỡ
+        SealEntity oldSeal = sealEntityService.findEntityById(request.sealId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + request.sealId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Kiểm tra seal có thuộc vehicle assignment này không
+        if (!oldSeal.getVehicleAssignment().getId().equals(vehicleAssignment.getId())) {
+            throw new IllegalStateException("Seal does not belong to this vehicle assignment");
+        }
+
+        // Lưu trạng thái order details (giống như createIssue)
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
+        String tripStatusAtReport = orderDetails.stream()
+                .map(OrderDetailEntity::getStatus)
+                .reduce((s1, s2) -> s1 + "," + s2)
+                .orElse("");
+
+        log.info("💾 Saving trip status at report: {}", tripStatusAtReport);
+
+        // Update tất cả order details thành IN_TROUBLES
+        orderDetails.forEach(orderDetail -> {
+            String oldStatus = orderDetail.getStatus();
+            orderDetail.setStatus(OrderDetailStatusEnum.IN_TROUBLES.name());
+            orderDetailEntityService.save(orderDetail);
+            log.info("🚨 Updated order detail {} from {} to IN_TROUBLES", 
+                     orderDetail.getId(), oldStatus);
+        });
+
+        // Upload seal removal image to Cloudinary
+        String sealRemovalImageUrl;
+        try {
+            log.info("📤 Uploading seal removal image to Cloudinary...");
+            String fileName = "seal_removal_" + oldSeal.getId() + "_" + System.currentTimeMillis();
+            var uploadResult = cloudinaryService.uploadFile(
+                    request.sealRemovalImage().getBytes(),
+                    fileName,
+                    "issues/seal-removal"
+            );
+            sealRemovalImageUrl = (String) uploadResult.get("secure_url");
+            log.info("✅ Seal removal image uploaded: {}", sealRemovalImageUrl);
+        } catch (Exception e) {
+            log.error("❌ Error uploading seal removal image: {}", e.getMessage());
+            throw new RuntimeException("Failed to upload seal removal image", e);
+        }
+
+        // Tạo Issue với thông tin seal
+        IssueEntity issue = IssueEntity.builder()
+                .description(request.description())
+                .locationLatitude(request.locationLatitude() != null ? 
+                                 java.math.BigDecimal.valueOf(request.locationLatitude()) : null)
+                .locationLongitude(request.locationLongitude() != null ? 
+                                  java.math.BigDecimal.valueOf(request.locationLongitude()) : null)
+                .status(IssueEnum.OPEN.name())
+                // issueCategory đã được di chuyển sang IssueTypeEntity
+                .reportedAt(java.time.LocalDateTime.now())
+                .tripStatusAtReport(tripStatusAtReport)
+                .vehicleAssignmentEntity(vehicleAssignment)
+                .staff(null)
+                .issueTypeEntity(issueType)
+                .oldSeal(oldSeal) // Seal bị gỡ
+                .sealRemovalImage(sealRemovalImageUrl) // Cloudinary URL
+                .build();
+
+        // Update old seal status to REMOVED
+        oldSeal.setStatus(SealEnum.REMOVED.name());
+        sealEntityService.save(oldSeal);
+        log.info("🔓 Old seal {} marked as REMOVED due to issue report", oldSeal.getId());
+
+        // Lưu issue
+        IssueEntity saved = issueEntityService.save(issue);
+
+        // Convert sang response
+        GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(saved);
+
+        // 📢 Broadcast seal issue to staff
+        log.info("🔓 Seal removal issue created, broadcasting to staff: {}", response.id());
+        issueWebSocketService.broadcastNewIssue(response);
+
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public GetBasicIssueResponse assignNewSeal(AssignNewSealRequest request) {
+        log.info("🔐 Staff assigning new seal {} to issue {}", request.newSealId(), request.issueId());
+
+        // Tìm Issue
+        IssueEntity issue = issueEntityService.findEntityById(request.issueId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + request.issueId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Kiểm tra issue có phải seal issue không
+        if (issue.getOldSeal() == null) {
+            throw new IllegalStateException("This is not a seal replacement issue");
+        }
+
+        // Kiểm tra issue đang ở trạng thái OPEN
+        if (!IssueEnum.OPEN.name().equals(issue.getStatus())) {
+            throw new IllegalStateException("Only OPEN seal issues can be assigned new seal");
+        }
+
+        // Lấy Staff
+        UserEntity staff = userEntityService.findEntityById(request.staffId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + request.staffId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Lấy Seal mới
+        SealEntity newSeal = sealEntityService.findEntityById(request.newSealId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + request.newSealId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Kiểm tra seal mới có status ACTIVE không
+        if (newSeal.getStatus() != SealEnum.ACTIVE.name()) {
+            throw new IllegalStateException("New seal must have ACTIVE status");
+        }
+
+        // Kiểm tra seal mới có thuộc cùng vehicle assignment không
+        if (!newSeal.getVehicleAssignment().getId().equals(issue.getVehicleAssignmentEntity().getId())) {
+            throw new IllegalStateException("New seal must belong to the same vehicle assignment");
+        }
+
+        // Update issue
+        issue.setNewSeal(newSeal);
+        issue.setStaff(staff);
+        issue.setStatus(IssueEnum.IN_PROGRESS.name());
+
+        IssueEntity updated = issueEntityService.save(issue);
+
+        // Convert sang response
+        GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(updated);
+
+        // 📢 Broadcast status change
+        log.info("🔐 New seal assigned, broadcasting: {}", response.id());
+        issueWebSocketService.broadcastIssueStatusChange(response);
+
+        // 📢 Send notification to driver
+        if (issue.getVehicleAssignmentEntity() != null) {
+            var driver1 = issue.getVehicleAssignmentEntity().getDriver1();
+            if (driver1 != null) {
+                log.info("📲 Sending seal assignment notification to driver: {}", driver1.getId());
+                issueWebSocketService.sendSealAssignmentNotification(
+                    driver1.getId().toString(),
+                    response,
+                    staff.getFullName(),
+                    newSeal.getSealCode(),
+                    issue.getOldSeal().getSealCode()
+                );
+            }
+        }
+
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public GetBasicIssueResponse confirmNewSeal(ConfirmNewSealRequest request) {
+        log.info("✅ Driver confirming new seal attachment for issue {}", request.issueId());
+
+        // Tìm Issue
+        IssueEntity issue = issueEntityService.findEntityById(request.issueId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + request.issueId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Kiểm tra issue đang ở trạng thái IN_PROGRESS
+        if (!IssueEnum.IN_PROGRESS.name().equals(issue.getStatus())) {
+            throw new IllegalStateException("Only IN_PROGRESS seal issues can be confirmed");
+        }
+
+        // Kiểm tra đã có seal mới được assign chưa
+        if (issue.getNewSeal() == null) {
+            throw new IllegalStateException("No new seal has been assigned yet");
+        }
+
+        // Update seal statuses
+        SealEntity oldSeal = issue.getOldSeal();
+        SealEntity newSeal = issue.getNewSeal();
+
+        // Old seal: REMOVED
+        oldSeal.setStatus(SealEnum.REMOVED.name());
+        sealEntityService.save(oldSeal);
+        log.info("🔓 Old seal {} marked as REMOVED", oldSeal.getId());
+
+        // New seal: IN_USE
+        newSeal.setStatus(SealEnum.IN_USE.name());
+        newSeal.setSealAttachedImage(request.newSealAttachedImage());
+        newSeal.setSealDate(java.time.LocalDateTime.now());
+        sealEntityService.save(newSeal);
+        log.info("🔐 New seal {} marked as IN_USE", newSeal.getId());
+
+        // Update issue
+        issue.setNewSealAttachedImage(request.newSealAttachedImage());
+        issue.setNewSealConfirmedAt(java.time.LocalDateTime.now());
+        issue.setStatus(IssueEnum.RESOLVED.name());
+        issue.setResolvedAt(java.time.LocalDateTime.now());
+
+        // Restore order detail statuses
+        var vehicleAssignment = issue.getVehicleAssignmentEntity();
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
+        String tripStatusAtReport = issue.getTripStatusAtReport();
+
+        if (tripStatusAtReport != null && !tripStatusAtReport.isEmpty()) {
+            String[] savedStatuses = tripStatusAtReport.split(",");
+            for (int i = 0; i < Math.min(orderDetails.size(), savedStatuses.length); i++) {
+                OrderDetailEntity orderDetail = orderDetails.get(i);
+                String restoredStatus = savedStatuses[i].trim();
+                orderDetail.setStatus(restoredStatus);
+                orderDetailEntityService.save(orderDetail);
+                log.info("✅ Restored order detail {} to {}", orderDetail.getId(), restoredStatus);
+            }
+        }
+
+        IssueEntity updated = issueEntityService.save(issue);
+
+        // Convert sang response
+        GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(updated);
+
+        // 📢 Broadcast resolution
+        log.info("✅ Seal replacement completed, broadcasting: {}", response.id());
+        issueWebSocketService.broadcastIssueStatusChange(response);
+
+        return response;
+    }
+
+    @Override
+    public capstone_project.dtos.response.order.seal.GetSealResponse getInUseSealByVehicleAssignment(UUID vehicleAssignmentId) {
+        log.info("Getting IN_USE seal for vehicle assignment: {}", vehicleAssignmentId);
+        
+        // Tìm vehicle assignment
+        var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Không tìm thấy vehicle assignment với ID: " + vehicleAssignmentId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        // Lấy seal đang IN_USE
+        SealEntity inUseSeal = sealEntityService.findByVehicleAssignment(vehicleAssignment, SealEnum.IN_USE.name());
+        
+        if (inUseSeal == null) {
+            log.warn("Không tìm thấy seal IN_USE cho vehicle assignment: {}", vehicleAssignmentId);
+            throw new NotFoundException(
+                    "Không tìm thấy seal đang được sử dụng cho vehicle assignment này",
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+        
+        // Convert to response
+        return sealMapper.toGetSealResponse(inUseSeal);
+    }
+
+    @Override
+    public List<capstone_project.dtos.response.order.seal.GetSealResponse> getActiveSealsByVehicleAssignment(UUID vehicleAssignmentId) {
+        log.info("Getting ACTIVE seals for vehicle assignment: {}", vehicleAssignmentId);
+        
+        // Tìm vehicle assignment
+        var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Không tìm thấy vehicle assignment với ID: " + vehicleAssignmentId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        // Lấy tất cả seals của vehicle assignment này
+        List<SealEntity> allSeals = sealEntityService.findAllByVehicleAssignment(vehicleAssignment);
+        
+        // Filter chỉ lấy seals có status ACTIVE
+        List<SealEntity> activeSeals = allSeals.stream()
+                .filter(seal -> SealEnum.ACTIVE.name().equals(seal.getStatus()))
+                .toList();
+        
+        log.info("Found {} ACTIVE seals for vehicle assignment: {}", activeSeals.size(), vehicleAssignmentId);
+        
+        // Convert to response
+        return activeSeals.stream()
+                .map(sealMapper::toGetSealResponse)
+                .toList();
     }
 
 }

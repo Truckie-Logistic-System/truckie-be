@@ -266,19 +266,15 @@ public class OrderServiceImpl implements OrderService {
             case PROCESSING:
                 return next == OrderStatusEnum.CONTRACT_DRAFT;
             case CONTRACT_DRAFT:
-                return next == OrderStatusEnum.CONTRACT_DENIED || next == OrderStatusEnum.CONTRACT_SIGNED;
-            case CONTRACT_DENIED:
-                return next == OrderStatusEnum.CANCELLED;
+                return  next == OrderStatusEnum.CONTRACT_SIGNED;
             case CONTRACT_SIGNED:
-                return next == OrderStatusEnum.ON_PLANNING || next == OrderStatusEnum.FULLY_PAID;
+                return next == OrderStatusEnum.ON_PLANNING;
             case ON_PLANNING:
                 return next == OrderStatusEnum.ASSIGNED_TO_DRIVER;
             case ASSIGNED_TO_DRIVER:
-                return next == OrderStatusEnum.FULLY_PAID
-                        || next == OrderStatusEnum.PICKING_UP;
+                return next == OrderStatusEnum.FULLY_PAID;
             case FULLY_PAID:
                 return next == OrderStatusEnum.PICKING_UP
-                        || next == OrderStatusEnum.ON_DELIVERED
                         || next == OrderStatusEnum.IN_TROUBLES;
             case PICKING_UP:
                 return next == OrderStatusEnum.ON_DELIVERED
@@ -287,17 +283,16 @@ public class OrderServiceImpl implements OrderService {
             case ON_DELIVERED:
                 return next == OrderStatusEnum.ONGOING_DELIVERED || next == OrderStatusEnum.IN_TROUBLES;
             case ONGOING_DELIVERED:
-                return next == OrderStatusEnum.DELIVERED || next == OrderStatusEnum.IN_TROUBLES;
+                return next == OrderStatusEnum.DELIVERED || next == OrderStatusEnum.IN_TROUBLES || next == OrderStatusEnum.RETURNING;
             case IN_TROUBLES:
-                return next == OrderStatusEnum.RESOLVED;
-            case RESOLVED:
-                return next == OrderStatusEnum.COMPENSATION;
+                return next == OrderStatusEnum.FULLY_PAID ||  next == OrderStatusEnum.PICKING_UP || next == OrderStatusEnum.ON_DELIVERED ||  next == OrderStatusEnum.ONGOING_DELIVERED ||  next == OrderStatusEnum.DELIVERED || next == OrderStatusEnum.COMPENSATION
+                        || next == OrderStatusEnum.RETURNING;
             case DELIVERED:
-                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.REJECTED || next == OrderStatusEnum.IN_TROUBLES;
-            case REJECTED:
-                return next == OrderStatusEnum.RETURNING;
+                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.IN_TROUBLES;
             case RETURNING:
-                return next == OrderStatusEnum.RETURNED;
+                return next == OrderStatusEnum.RETURNED || next == OrderStatusEnum.IN_TROUBLES;
+            case RETURNED, COMPENSATION:
+                return next == OrderStatusEnum.SUCCESSFUL;
         }
         return false;
     }

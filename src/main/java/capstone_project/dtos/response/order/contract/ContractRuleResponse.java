@@ -6,7 +6,7 @@ public record ContractRuleResponse(
     String note,
     String info1,
     String info2,
-    String vehicleRuleId,
+    String sizeRuleId,
     String contractEntityId
 ) {
 }

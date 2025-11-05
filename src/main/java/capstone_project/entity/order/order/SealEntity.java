@@ -1,5 +1,6 @@
 package capstone_project.entity.order.order;
 
+import capstone_project.common.enums.SealEnum;
 import capstone_project.entity.common.BaseEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import jakarta.persistence.*;
@@ -30,16 +31,8 @@ public class SealEntity extends BaseEntity {
 
     @Size(max = 255)
     @Column(name = "seal_attached_image")
-    private String sealAttachedImage;
+    private String sealAttachedImage; // Ảnh seal khi được gắn lần đầu
 
-    @Column(name = "seal_removal_time")
-    private LocalDateTime sealRemovalTime;
-
-    @Size(max = 500)
-    @Column(name = "seal_removal_reason")
-    private String sealRemovalReason;
-
-    @Size(max = 20)
     @Column(name = "status", length = 20)
     private String status;
 

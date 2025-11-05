@@ -1,6 +1,6 @@
 package capstone_project.dtos.response.pricing;
 
-public record GetBasingPriceNoVehicleTypeRuleResponse(
+public record GetBasingPriceNoSizeRuleResponse(
         String id,
         String basePrice,
 

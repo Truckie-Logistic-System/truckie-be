@@ -10,7 +10,7 @@ public record UpdateContractRuleRequest(
     String info2,
     @EnumValidator(enumClass = CommonStatusEnum.class, message = "Status must be one of: ACTIVE, INACTIVE, DELETED")
     String status,
-    String vehicleRuleId,
+    String sizeRuleId,
     String contractEntityId
 ) {
 }

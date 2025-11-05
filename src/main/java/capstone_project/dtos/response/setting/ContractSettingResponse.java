@@ -7,6 +7,7 @@ public record ContractSettingResponse(
         String id,
         BigDecimal depositPercent,
         Integer expiredDepositDate,
-        BigDecimal insuranceRate
+        BigDecimal insuranceRate,
+        BigDecimal vatRate
 ) {
 }

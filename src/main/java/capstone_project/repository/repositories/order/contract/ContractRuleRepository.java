@@ -10,7 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ContractRuleRepository extends BaseRepository<ContractRuleEntity> {
-    Optional<ContractRuleEntity> findContractRuleEntitiesByContractEntityIdAndVehicleTypeRuleEntityId(UUID contractEntity, UUID vehicleRuleEntity);
+    Optional<ContractRuleEntity> findContractRuleEntitiesByContractEntityIdAndSizeRuleEntityId(UUID contractEntity, UUID sizeRuleEntity);
 
     Optional<ContractRuleEntity> findContractRuleEntitiesById(UUID id);
 

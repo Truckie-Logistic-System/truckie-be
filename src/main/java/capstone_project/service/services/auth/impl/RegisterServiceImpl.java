@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -469,34 +470,20 @@ public class RegisterServiceImpl implements RegisterService {
 
         log.info("[refreshAccessToken] ✅ Token validation passed - user: {}", user.getUsername());
 
-        // Generate new access token
+        // Generate new access token ONLY
+        // Keep the same refresh token to avoid cookie sync issues on page reload
         String newAccessToken = JWTUtil.generateToken(user);
         log.info("[refreshAccessToken] Generated new access token: {}...", newAccessToken.substring(0, 20));
         
-        // SECURITY: Implement refresh token rotation
-        // Generate new refresh token
-        String newRefreshToken = JWTUtil.generateRefreshToken(user);
-        log.info("[refreshAccessToken] Generated new refresh token: {}...", newRefreshToken.substring(0, 20));
-        
-        // Revoke old refresh token
-        tokenEntity.setRevoked(true);
+        // Update token's last used time (optional - for tracking)
+        // This helps with security monitoring without breaking the flow
+        tokenEntity.setCreatedAt(LocalDateTime.now());
         refreshTokenEntityService.save(tokenEntity);
-        log.info("[refreshAccessToken] ✅ Old token revoked");
         
-        // Save new refresh token to database
-        RefreshTokenEntity newRefreshTokenEntity = RefreshTokenEntity.builder()
-                .token(newRefreshToken)
-                .user(user)
-                .createdAt(LocalDateTime.now())
-                .expiredAt(LocalDateTime.now().plusDays(30))
-                .revoked(false)
-                .build();
-        refreshTokenEntityService.save(newRefreshTokenEntity);
-        log.info("[refreshAccessToken] ✅ New token saved to database");
-        
-        log.info("[refreshAccessToken] ✅ Token rotation completed - returning new tokens with user info");
+        log.info("[refreshAccessToken] ✅ Access token refreshed - returning same refresh token to avoid sync issues");
 
-        return userMapper.mapRefreshTokenResponse(user, newAccessToken, newRefreshToken);
+        // Return the SAME refresh token (not a new one) to prevent cookie sync issues
+        return userMapper.mapRefreshTokenResponse(user, newAccessToken, refreshToken);
     }
 
     @Override
@@ -646,8 +633,25 @@ public class RegisterServiceImpl implements RegisterService {
         cookie.setSecure(isProduction);
         cookie.setPath("/");
         cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days, should match your token expiration
-        log.info("[addRefreshTokenCookie] Setting refresh token cookie - secure={}, environment={}", isProduction, System.getenv("ENVIRONMENT"));
+        
+        // Add cookie via standard method
         response.addCookie(cookie);
+        
+        // IMPORTANT: Add Set-Cookie header with SameSite=Lax to support page refresh
+        // This allows cookies to be sent on same-site requests (including page refresh)
+        // SameSite=Lax is safer than SameSite=None and works for page refresh scenarios
+        String sameSiteValue = isProduction ? "SameSite=None; Secure" : "SameSite=Lax";
+        String setCookieHeader = String.format(
+            "%s=%s; Path=/; HttpOnly; %s; Max-Age=%d",
+            REFRESH_TOKEN_COOKIE_NAME,
+            refreshToken,
+            sameSiteValue,
+            7 * 24 * 60 * 60
+        );
+        response.addHeader("Set-Cookie", setCookieHeader);
+        
+        log.info("[addRefreshTokenCookie] Setting refresh token cookie - secure={}, environment={}, sameSite={}", 
+            isProduction, System.getenv("ENVIRONMENT"), sameSiteValue);
     }
 
     public String generateOtp() {
@@ -666,8 +670,19 @@ public class RegisterServiceImpl implements RegisterService {
             cookie.setMaxAge(0); // Delete the cookie
             cookie.setPath("/");
             cookie.setHttpOnly(true);
-            cookie.setSecure(true);
+            // Only set secure flag for HTTPS (production)
+            boolean isProduction = System.getenv("ENVIRONMENT") != null && System.getenv("ENVIRONMENT").equals("production");
+            cookie.setSecure(isProduction);
             response.addCookie(cookie);
+            
+            // Also add Set-Cookie header to ensure cookie is cleared
+            String sameSiteValue = isProduction ? "SameSite=None; Secure" : "SameSite=Lax";
+            String setCookieHeader = String.format(
+                "%s=; Path=/; HttpOnly; %s; Max-Age=0",
+                REFRESH_TOKEN_COOKIE_NAME,
+                sameSiteValue
+            );
+            response.addHeader("Set-Cookie", setCookieHeader);
 
             return result;
         } catch (Exception e) {
@@ -695,12 +710,21 @@ public class RegisterServiceImpl implements RegisterService {
             }
 
             RefreshTokenEntity token = tokenEntity.get();
+            UUID userId = token.getUser().getId();
 
-            // Mark the token as revoked
-            token.setRevoked(true);
-            refreshTokenEntityService.save(token);
-
-            log.info("[logout] Successfully revoked refresh token");
+            // SECURITY: Revoke ALL active tokens for this user (not just the current one)
+            // This prevents old tokens from being reused after logout
+            List<RefreshTokenEntity> userTokens = refreshTokenEntityService.findByUserIdAndRevokedFalse(userId);
+            log.info("[logout] Found {} active tokens for user: {}", userTokens.size(), userId);
+            
+            for (RefreshTokenEntity userToken : userTokens) {
+                userToken.setRevoked(true);
+                log.info("[logout] Revoking token: {}...", userToken.getToken().substring(0, Math.min(20, userToken.getToken().length())));
+            }
+            
+            refreshTokenEntityService.saveAll(userTokens);
+            log.info("[logout] ✅ Successfully revoked {} refresh tokens for user: {}", userTokens.size(), userId);
+            
             return true;
         } catch (Exception e) {
             log.error("[logout] Error revoking refresh token: {}", e.getMessage());

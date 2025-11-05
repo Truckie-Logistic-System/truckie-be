@@ -53,14 +53,6 @@ public class SealServiceImpl implements SealService {
                     ErrorEnum.INVALID_REQUEST.getErrorCode());
         }
 
-        // Tìm seal có trạng thái ACTIVE cho vehicle assignment này
-        SealEntity existingActiveSeal = sealEntityService.findByVehicleAssignment(vehicleAssignment, SealEnum.ACTIVE.name());
-        if (existingActiveSeal == null) {
-            throw new NotFoundException(
-                    "Không tìm thấy seal ACTIVE cho vehicle assignment với ID: " + sealRequest.vehicleAssignmentId(),
-                    ErrorEnum.NOT_FOUND.getErrorCode());
-        }
-
         // Kiểm tra seal code từ request
         if (sealRequest.sealCode() == null || sealRequest.sealCode().isEmpty()) {
             throw new BadRequestException(
@@ -68,12 +60,43 @@ public class SealServiceImpl implements SealService {
                     ErrorEnum.INVALID_REQUEST.getErrorCode());
         }
 
-        // Kiểm tra xem seal code từ request có khớp với seal code hiện tại không
-        if (!existingActiveSeal.getSealCode().equals(sealRequest.sealCode())) {
-            throw new BadRequestException(
-                    "Mã seal không khớp với seal đã được gán cho vehicle assignment này",
-                    ErrorEnum.INVALID_REQUEST.getErrorCode());
+        // Tìm seal chính xác theo seal code và vehicle assignment
+        log.info("Finding seal with code: '{}' for vehicle assignment: {}", sealRequest.sealCode(), sealRequest.vehicleAssignmentId());
+        
+        // Tìm tất cả seal của vehicle assignment này
+        List<SealEntity> allSeals = sealEntityService.findAllByVehicleAssignment(vehicleAssignment);
+        log.info("Found {} seals for vehicle assignment", allSeals.size());
+        
+        // Tìm seal có code khớp với request và status ACTIVE
+        SealEntity matchingSeal = null;
+        for (SealEntity seal : allSeals) {
+            log.info("Checking seal: code='{}', status='{}'", seal.getSealCode(), seal.getStatus());
+            if (seal.getSealCode().equals(sealRequest.sealCode()) && 
+                SealEnum.ACTIVE.name().equals(seal.getStatus())) {
+                matchingSeal = seal;
+                break;
+            }
         }
+        
+        if (matchingSeal == null) {
+            log.error("Không tìm thấy seal ACTIVE với mã '{}' cho vehicle assignment {}", 
+                     sealRequest.sealCode(), sealRequest.vehicleAssignmentId());
+            
+            // Log tất cả seal để debug
+            log.error("Available seals for this vehicle assignment:");
+            for (SealEntity seal : allSeals) {
+                log.error("  - Seal ID: {}, Code: '{}', Status: {}", 
+                         seal.getId(), seal.getSealCode(), seal.getStatus());
+            }
+            
+            throw new NotFoundException(
+                    "Không tìm thấy seal ACTIVE với mã '" + sealRequest.sealCode() + 
+                    "' cho vehicle assignment với ID: " + sealRequest.vehicleAssignmentId(),
+                    ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+        
+        log.info("✅ Found matching seal: ID={}, Code='{}', Status={}", 
+                matchingSeal.getId(), matchingSeal.getSealCode(), matchingSeal.getStatus());
 
         // Upload hình ảnh và lấy URL
         String imageUrl = null;
@@ -95,12 +118,12 @@ public class SealServiceImpl implements SealService {
                     ErrorEnum.INVALID_REQUEST.getErrorCode());
         }
 
-        // Cập nhật SealEntity hiện có
-        existingActiveSeal.setStatus(SealEnum.IN_USE.name());
-        existingActiveSeal.setSealDate(LocalDateTime.now());
-        existingActiveSeal.setSealAttachedImage(imageUrl);
+        // Cập nhật SealEntity đã tìm thấy
+        matchingSeal.setStatus(SealEnum.IN_USE.name());
+        matchingSeal.setSealDate(LocalDateTime.now());
+        matchingSeal.setSealAttachedImage(imageUrl);
 
-        SealEntity savedSeal = sealEntityService.save(existingActiveSeal);
+        SealEntity savedSeal = sealEntityService.save(matchingSeal);
         log.info("Đã cập nhật trạng thái seal ID {} từ ACTIVE sang IN_USE", savedSeal.getId());
 
         // Return SealResponse directly
@@ -114,7 +137,6 @@ public class SealServiceImpl implements SealService {
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy seal với ID: " + sealId, ErrorEnum.NOT_FOUND.getErrorCode()));
 
         seal.setStatus(SealEnum.REMOVED.name());
-        seal.setSealRemovalTime(LocalDateTime.now()); // Set thời gian gỡ bỏ seal
         sealEntities.add(seal);
         sealEntityService.saveAll(sealEntities);
 
@@ -135,7 +157,20 @@ public class SealServiceImpl implements SealService {
         if (vehicleAssignment.isEmpty()) {
             throw new NotFoundException("Không tìm thấy vehicle assignment với ID: " + vehicleAssignmentId, ErrorEnum.NOT_FOUND.getErrorCode());
         }
-        SealEntity existingSeal = sealEntityService.findByVehicleAssignment(vehicleAssignment.get(), SealEnum.ACTIVE.name());
+        
+        // CRITICAL: Get IN_USE seal, not ACTIVE
+        // IN_USE means the seal is currently attached to the container
+        // ACTIVE means the seal is ready to be used but not yet attached
+        // When reporting seal removal, we need the seal that is currently IN_USE
+        SealEntity existingSeal = sealEntityService.findByVehicleAssignment(vehicleAssignment.get(), SealEnum.IN_USE.name());
+        
+        if (existingSeal == null) {
+            log.warn("Không tìm thấy seal IN_USE cho vehicle assignment: {}", vehicleAssignmentId);
+            throw new NotFoundException(
+                "Không tìm thấy seal đang được sử dụng cho vehicle assignment với ID: " + vehicleAssignmentId, 
+                ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+        
         return sealMapper.toGetSealResponse(existingSeal);
     }
 
@@ -173,7 +208,7 @@ public class SealServiceImpl implements SealService {
         }
 
         // Cập nhật seal sang trạng thái USED
-        inUseSeal.setStatus(SealEnum.USED.name());
+        inUseSeal.setStatus(SealEnum.REMOVED.name());
         sealEntityService.save(inUseSeal);
 
         log.info("Đã cập nhật seal có ID {} sang trạng thái USED cho vehicleAssignment: {}",

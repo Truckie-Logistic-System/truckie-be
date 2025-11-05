@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public interface ContractRuleEntityService extends BaseEntityService<ContractRuleEntity, UUID> {
 
-    Optional<ContractRuleEntity> findContractRuleEntitiesByContractEntityIdAndVehicleTypeRuleEntityId(UUID vehicleRuleEntityId, UUID contractRuleId);
+    Optional<ContractRuleEntity> findContractRuleEntitiesByContractEntityIdAndSizeRuleEntityId(UUID sizeRuleEntityId, UUID contractRuleId);
 
     Optional<ContractRuleEntity> findEntityById(UUID contractRuleId);
 

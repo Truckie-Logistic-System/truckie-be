@@ -4,7 +4,7 @@ public record GetBasingPriceResponse(
         String id,
         String basePrice,
 
-        VehicleTypeRuleResponse vehicleTypeRuleResponse,
+        SizeRuleResponse sizeRuleResponse,
         DistanceRuleResponse distanceRuleResponse
 ) {
 }

@@ -5,7 +5,6 @@ public enum OrderStatusEnum {
     PROCESSING,
     CANCELLED,
     CONTRACT_DRAFT,
-    CONTRACT_DENIED,
     CONTRACT_SIGNED,
     ON_PLANNING,
     ASSIGNED_TO_DRIVER,
@@ -14,11 +13,9 @@ public enum OrderStatusEnum {
     ON_DELIVERED,
     ONGOING_DELIVERED,
     IN_TROUBLES,
-    RESOLVED,
     COMPENSATION,
     DELIVERED,
     SUCCESSFUL,
-    REJECTED,
     RETURNING,
     RETURNED
 }

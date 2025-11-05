@@ -7,7 +7,7 @@ public record BasingPriceResponse(
         String id,
         BigDecimal basePrice,
 
-        String vehicleRuleId,
+        String sizeRuleId,
         String distanceRuleId
 
 ) {
