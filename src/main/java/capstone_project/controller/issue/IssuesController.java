@@ -152,4 +152,12 @@ public class IssuesController {
         final var result = issueService.getActiveSealsByVehicleAssignment(vehicleAssignmentId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+    
+    // Get pending seal replacements for a vehicle assignment (for driver to confirm)
+    @GetMapping("/vehicle-assignment/{vehicleAssignmentId}/pending-seal-replacements")
+    public ResponseEntity<ApiResponse<List<GetBasicIssueResponse>>> getPendingSealReplacements(
+            @PathVariable("vehicleAssignmentId") UUID vehicleAssignmentId) {
+        final var result = issueService.getPendingSealReplacementsByVehicleAssignment(vehicleAssignmentId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }

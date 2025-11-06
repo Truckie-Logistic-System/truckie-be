@@ -70,4 +70,12 @@ public interface IssueService {
      */
     List<capstone_project.dtos.response.order.seal.GetSealResponse> getActiveSealsByVehicleAssignment(UUID vehicleAssignmentId);
 
+    /**
+     * Get pending seal replacement issues for a vehicle assignment (for driver to confirm)
+     * Returns issues with status IN_PROGRESS, category SEAL_REPLACEMENT, and newSeal assigned
+     * @param vehicleAssignmentId Vehicle assignment ID
+     * @return List of pending seal replacement issues
+     */
+    List<GetBasicIssueResponse> getPendingSealReplacementsByVehicleAssignment(UUID vehicleAssignmentId);
+
 }

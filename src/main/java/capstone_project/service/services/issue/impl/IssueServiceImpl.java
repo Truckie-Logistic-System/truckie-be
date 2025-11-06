@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import capstone_project.service.mapper.issue.IssueMapper;
 import capstone_project.service.mapper.order.SealMapper;
 import capstone_project.service.services.issue.IssueService;
+import capstone_project.service.services.cloudinary.CloudinaryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,8 +43,8 @@ public class IssueServiceImpl implements IssueService {
     private final IssueWebSocketService issueWebSocketService;
     private final OrderDetailEntityService orderDetailEntityService;
     private final SealEntityService sealEntityService;
+    private final CloudinaryService cloudinaryService;
     private final SealMapper sealMapper;
-    private final capstone_project.service.services.cloudinary.CloudinaryService cloudinaryService;
 
 
     @Override
@@ -401,6 +402,12 @@ public class IssueServiceImpl implements IssueService {
                         ErrorEnum.NOT_FOUND.getMessage() + request.issueTypeId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
+        
+        // 🆕 Debug IssueType
+        log.info("🔍 DEBUG: IssueType ID: {}, Name: {}, Category: {}", 
+                issueType.getId(),
+                issueType.getIssueTypeName(),
+                issueType.getIssueCategory());
 
         // Lấy Seal cũ bị gỡ
         SealEntity oldSeal = sealEntityService.findEntityById(request.sealId())
@@ -521,8 +528,17 @@ public class IssueServiceImpl implements IssueService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
+        // Debug log để kiểm tra seal status
+        log.info("🔍 Seal status validation - Seal ID: {}, Status: '{}', Expected: '{}'", 
+                newSeal.getId(), 
+                newSeal.getStatus(), 
+                SealEnum.ACTIVE.name());
+
         // Kiểm tra seal mới có status ACTIVE không
-        if (newSeal.getStatus() != SealEnum.ACTIVE.name()) {
+        if (!SealEnum.ACTIVE.name().equals(newSeal.getStatus())) {
+            log.error("❌ Seal status validation failed - Actual: '{}', Expected: '{}'", 
+                    newSeal.getStatus(), 
+                    SealEnum.ACTIVE.name());
             throw new IllegalStateException("New seal must have ACTIVE status");
         }
 
@@ -594,15 +610,59 @@ public class IssueServiceImpl implements IssueService {
         sealEntityService.save(oldSeal);
         log.info("🔓 Old seal {} marked as REMOVED", oldSeal.getId());
 
-        // New seal: IN_USE
+        // New seal: IN_USE + Upload image to Cloudinary
         newSeal.setStatus(SealEnum.IN_USE.name());
-        newSeal.setSealAttachedImage(request.newSealAttachedImage());
+        
+        // Upload seal image to Cloudinary instead of storing base64
+        try {
+            // Extract base64 data from "data:image/jpeg;base64,..." format
+            String base64Data = request.newSealAttachedImage();
+            if (base64Data.startsWith("data:image/")) {
+                base64Data = base64Data.substring(base64Data.indexOf(",") + 1);
+            }
+            
+            byte[] imageBytes = java.util.Base64.getDecoder().decode(base64Data);
+            var uploadResult = cloudinaryService.uploadFile(
+                imageBytes, 
+                "seal_" + newSeal.getSealCode() + "_" + UUID.randomUUID(), 
+                "seal_attachments"
+            );
+            String imageUrl = uploadResult.get("secure_url").toString();
+            newSeal.setSealAttachedImage(imageUrl);
+            log.info("📸 Seal image uploaded to Cloudinary: {}", imageUrl);
+        } catch (Exception e) {
+            log.error("❌ Failed to upload seal image to Cloudinary: {}", e.getMessage(), e);
+            // Fallback: store base64 if upload fails
+            newSeal.setSealAttachedImage(request.newSealAttachedImage());
+        }
+        
         newSeal.setSealDate(java.time.LocalDateTime.now());
         sealEntityService.save(newSeal);
         log.info("🔐 New seal {} marked as IN_USE", newSeal.getId());
 
         // Update issue
-        issue.setNewSealAttachedImage(request.newSealAttachedImage());
+        // Store the same URL in IssueEntity for consistency
+        try {
+            String base64Data = request.newSealAttachedImage();
+            if (base64Data.startsWith("data:image/")) {
+                base64Data = base64Data.substring(base64Data.indexOf(",") + 1);
+            }
+            
+            byte[] imageBytes = java.util.Base64.getDecoder().decode(base64Data);
+            var uploadResult = cloudinaryService.uploadFile(
+                imageBytes, 
+                "seal_issue_" + issue.getId() + "_" + UUID.randomUUID(), 
+                "seal_issue_attachments"
+            );
+            String imageUrl = uploadResult.get("secure_url").toString();
+            issue.setNewSealAttachedImage(imageUrl);
+            log.info("📸 Issue seal image uploaded to Cloudinary: {}", imageUrl);
+        } catch (Exception e) {
+            log.error("❌ Failed to upload issue seal image to Cloudinary: {}", e.getMessage(), e);
+            // Fallback: store base64 if upload fails
+            issue.setNewSealAttachedImage(request.newSealAttachedImage());
+        }
+        
         issue.setNewSealConfirmedAt(java.time.LocalDateTime.now());
         issue.setStatus(IssueEnum.RESOLVED.name());
         issue.setResolvedAt(java.time.LocalDateTime.now());
@@ -685,6 +745,80 @@ public class IssueServiceImpl implements IssueService {
         // Convert to response
         return activeSeals.stream()
                 .map(sealMapper::toGetSealResponse)
+                .toList();
+    }
+
+    @Override
+    public List<GetBasicIssueResponse> getPendingSealReplacementsByVehicleAssignment(UUID vehicleAssignmentId) {
+        log.info("Getting pending seal replacements for vehicle assignment: {}", vehicleAssignmentId);
+        
+        // Tìm vehicle assignment
+        var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Không tìm thấy vehicle assignment với ID: " + vehicleAssignmentId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        // Lấy tất cả issues rồi filter theo vehicle assignment và các điều kiện khác
+        List<IssueEntity> allIssues = issueEntityService.findAll();
+        log.info("🔍 DEBUG: Total issues found: {}", allIssues.size());
+        
+        // Debug: Print all issues info
+        for (IssueEntity issue : allIssues) {
+            log.info("🔍 DEBUG: Issue {} - Status: {}, Category: {}, NewSeal: {}, ConfirmedAt: {}", 
+                    issue.getId(),
+                    issue.getStatus(),
+                    issue.getIssueTypeEntity() != null ? issue.getIssueTypeEntity().getIssueCategory() : "NULL",
+                    issue.getNewSeal() != null ? issue.getNewSeal().getSealCode() : "NULL",
+                    issue.getNewSealConfirmedAt());
+        }
+        
+        // Filter chỉ lấy issues:
+        // - Cùng vehicle assignment
+        // - Status IN_PROGRESS (đã được staff gán seal mới)
+        // - Category SEAL_REPLACEMENT
+        // - Có newSeal (đã được staff gán)
+        // - Chưa có newSealConfirmedAt (chưa được driver xác nhận)
+        List<IssueEntity> pendingReplacements = allIssues.stream()
+                .filter(issue -> {
+                    boolean matchesVA = vehicleAssignment.equals(issue.getVehicleAssignmentEntity());
+                    log.info("🔍 FILTER VA: Issue {} matches VA: {}", issue.getId(), matchesVA);
+                    return matchesVA;
+                })
+                .filter(issue -> {
+                    boolean matchesStatus = IssueEnum.IN_PROGRESS.name().equals(issue.getStatus());
+                    log.info("🔍 FILTER STATUS: Issue {} status {} matches IN_PROGRESS: {}", 
+                            issue.getId(), issue.getStatus(), matchesStatus);
+                    return matchesStatus;
+                })
+                .filter(issue -> {
+                    String category = issue.getIssueTypeEntity() != null ? 
+                            issue.getIssueTypeEntity().getIssueCategory() : "NULL";
+                    boolean matchesCategory = IssueCategoryEnum.SEAL_REPLACEMENT.name().equals(category);
+                    log.info("🔍 FILTER CATEGORY: Issue {} category {} matches SEAL_REPLACEMENT: {}", 
+                            issue.getId(), category, matchesCategory);
+                    return matchesCategory;
+                })
+                .filter(issue -> {
+                    boolean hasNewSeal = issue.getNewSeal() != null;
+                    log.info("🔍 FILTER NEW SEAL: Issue {} has new seal: {}", 
+                            issue.getId(), hasNewSeal);
+                    return hasNewSeal;
+                })
+                .filter(issue -> {
+                    boolean notConfirmed = issue.getNewSealConfirmedAt() == null;
+                    log.info("🔍 FILTER CONFIRMED: Issue {} newSealConfirmedAt {} is null: {}", 
+                            issue.getId(), issue.getNewSealConfirmedAt(), notConfirmed);
+                    return notConfirmed;
+                })
+                .toList();
+        
+        log.info("Found {} pending seal replacement(s) for vehicle assignment: {}", 
+                pendingReplacements.size(), vehicleAssignmentId);
+        
+        // Convert to response
+        return pendingReplacements.stream()
+                .map(issueMapper::toIssueBasicResponse)
                 .toList();
     }
 

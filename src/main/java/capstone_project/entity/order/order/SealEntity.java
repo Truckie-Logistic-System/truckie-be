@@ -29,8 +29,8 @@ public class SealEntity extends BaseEntity {
     @Column(name = "description")
     private String description;
 
-    @Size(max = 255)
-    @Column(name = "seal_attached_image")
+    @Size(max = 500)
+    @Column(name = "seal_attached_image", length = 500)
     private String sealAttachedImage; // Ảnh seal khi được gắn lần đầu
 
     @Column(name = "status", length = 20)
