@@ -20,6 +20,7 @@ import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.entity.issue.IssueEntity;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
@@ -74,6 +75,10 @@ public class OrderServiceImpl implements OrderService {
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
     private final SealService sealService; // Thêm SealService
+    private final capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService vehicleAssignmentEntityService;
+    private final capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService;
+    private final capstone_project.repository.entityServices.issue.IssueImageEntityService issueImageEntityService;
+    private final capstone_project.service.mapper.issue.IssueMapper issueMapper;
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -511,7 +516,7 @@ public class OrderServiceImpl implements OrderService {
     public SimpleOrderForCustomerResponse getSimplifiedOrderForCustomerByOrderId(UUID orderId) {
         GetOrderResponse getOrderResponse = getOrderById(orderId);
 
-        Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment = new HashMap<>();
+        Map<UUID, List<GetIssueImageResponse>> issuesByVehicleAssignment = new HashMap<>();
         Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment = new HashMap<>();
 
         // defensive: handle null orderDetails and avoid duplicate calls per vehicleAssignmentId
@@ -532,7 +537,10 @@ public class OrderServiceImpl implements OrderService {
             transactionResponses = payOSTransactionService.getTransactionsByContractId(contractEntity.get().getId());
         }
 
-        List<GetIssueImageResponse> issueImageResponsesList = new ArrayList<>(issuesByVehicleAssignment.values());
+        // Flatten List<List<GetIssueImageResponse>> to List<GetIssueImageResponse>
+        List<GetIssueImageResponse> issueImageResponsesList = issuesByVehicleAssignment.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
         return simpleOrderMapper.toSimpleOrderForCustomerResponse(
                 getOrderResponse,
@@ -550,6 +558,22 @@ public class OrderServiceImpl implements OrderService {
 
         // Get the basic order information
         GetOrderResponse orderResponse = getOrderById(orderId);
+
+        // Get issues and photos for vehicle assignments
+        Map<UUID, List<GetIssueImageResponse>> issuesByVehicleAssignment = new HashMap<>();
+        Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment = new HashMap<>();
+
+        List<GetOrderDetailResponse> details = Optional.ofNullable(orderResponse)
+                .map(GetOrderResponse::orderDetails)
+                .orElse(Collections.emptyList());
+
+        // Reuse the helper method to process vehicle assignments
+        processVehicleAssignments(details, issuesByVehicleAssignment, photosByVehicleAssignment);
+
+        // Flatten issues list
+        List<GetIssueImageResponse> issueImageResponsesList = issuesByVehicleAssignment.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
         // Get contract information if available
         ContractResponse contractResponse = null;
@@ -574,7 +598,7 @@ public class OrderServiceImpl implements OrderService {
     public OrderForDriverResponse getOrderForDriverByOrderId(UUID orderId) {
         GetOrderResponse getOrderResponse = getOrderById(orderId);
 
-        Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment = new HashMap<>();
+        Map<UUID, List<GetIssueImageResponse>> issuesByVehicleAssignment = new HashMap<>();
         Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment = new HashMap<>();
 
         // defensive: handle null orderDetails and avoid duplicate calls per vehicleAssignmentId
@@ -595,7 +619,10 @@ public class OrderServiceImpl implements OrderService {
             transactionResponses = payOSTransactionService.getTransactionsByContractId(contractEntity.get().getId());
         }
 
-        List<GetIssueImageResponse> issueImageResponsesList = new ArrayList<>(issuesByVehicleAssignment.values());
+        // Flatten List<List<GetIssueImageResponse>> to List<GetIssueImageResponse>
+        List<GetIssueImageResponse> issueImageResponsesList = issuesByVehicleAssignment.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
         return driverOrderMapper.toOrderForDriverResponse(
                 getOrderResponse,
@@ -947,7 +974,7 @@ public class OrderServiceImpl implements OrderService {
      */
     private void processVehicleAssignments(
             List<GetOrderDetailResponse> details,
-            Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment,
+            Map<UUID, List<GetIssueImageResponse>> issuesByVehicleAssignment,
             Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment
     ) {
         // defensive: handle null orderDetails and avoid duplicate calls per vehicleAssignmentId
@@ -960,12 +987,49 @@ public class OrderServiceImpl implements OrderService {
             if (!processed.add(va)) continue; // skip duplicates
 
             try {
-                GetIssueImageResponse issueImageResponse = issueImageService.getByVehicleAssignment(va);
-                if (issueImageResponse != null) {
-                    issuesByVehicleAssignment.put(va, issueImageResponse);
+                // Get ALL issues for this vehicle assignment
+                List<GetIssueImageResponse> issuesList = new ArrayList<>();
+                
+                var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(va);
+                if (vehicleAssignment.isPresent()) {
+                    // Query ALL issues (no status filter - get OPEN, IN_PROGRESS, RESOLVED, etc.)
+                    List<IssueEntity> allIssues = issueEntityService.findAllByVehicleAssignmentEntity(vehicleAssignment.get());
+                    
+                    for (IssueEntity issue : allIssues)  {
+                        try {
+                            // Convert issue entity to response
+                            var basicIssue = issueMapper.toIssueBasicResponse(issue);
+                            
+                            // Fetch issue images for this issue
+                            List<String> imageUrls = new ArrayList<>();
+                            try {
+                                var issueImages = issueImageEntityService.findByIssueEntity_Id(issue.getId());
+                                if (issueImages != null && !issueImages.isEmpty()) {
+                                    imageUrls = issueImages.stream()
+                                            .map(capstone_project.entity.issue.IssueImageEntity::getImageUrl)
+                                            .filter(Objects::nonNull)
+                                            .collect(Collectors.toList());
+                                }
+                            } catch (Exception imgEx) {
+                                log.warn("Failed to fetch images for issue {}: {}", issue.getId(), imgEx.getMessage());
+                            }
+                            
+                            issuesList.add(new GetIssueImageResponse(
+                                    basicIssue,
+                                    imageUrls
+                            ));
+                        } catch (Exception e2) {
+                            log.warn("Failed to map issue {} for vehicleAssignment {}: {}", 
+                                    issue.getId(), va, e2.getMessage());
+                        }
+                    }
+                    
+                    if (!issuesList.isEmpty()) {
+                        issuesByVehicleAssignment.put(va, issuesList);
+                    }
                 }
             } catch (Exception e) {
-                log.warn("Failed to fetch issue images for vehicleAssignment {}: {}", va, e.getMessage());
+                log.warn("Failed to fetch issues for vehicleAssignment {}: {}", va, e.getMessage());
             }
 
             try {

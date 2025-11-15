@@ -104,6 +104,10 @@ public class    IssueEntity extends BaseEntity {
     private JourneyHistoryEntity returnJourney; 
     
     @Column(name = "payment_deadline")
-    private LocalDateTime paymentDeadline; 
+    private LocalDateTime paymentDeadline;
+    
+    // Refund relationship for ORDER_REJECTION return payment
+    @OneToOne(mappedBy = "issueEntity", fetch = FetchType.LAZY)
+    private capstone_project.entity.order.order.RefundEntity refund;
 
 }

@@ -12,6 +12,9 @@ import java.util.UUID;
 
 public interface IssueEntityService extends BaseEntityService<IssueEntity, UUID> {
     IssueEntity findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignmentId);
+    
+    // Find ALL issues for a vehicle assignment
+    List<IssueEntity> findAllByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignmentEntity);
 
     List<IssueEntity> findByStaff(UserEntity staffId);
 

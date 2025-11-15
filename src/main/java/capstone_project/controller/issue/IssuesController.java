@@ -236,7 +236,6 @@ public class IssuesController {
 
     // Calculate return shipping fee for ORDER_REJECTION issue
     @GetMapping("/order-rejection/{issueId}/return-fee")
-    @PreAuthorize("hasAnyRole('STAFF', 'CUSTOMER')")
     public ResponseEntity<ApiResponse<capstone_project.dtos.response.issue.ReturnShippingFeeResponse>> calculateReturnShippingFee(
             @PathVariable("issueId") UUID issueId) {
         final var result = issueService.calculateReturnShippingFee(issueId);
@@ -245,7 +244,6 @@ public class IssuesController {
     
     // Calculate return shipping fee with custom distance for ORDER_REJECTION issue
     @GetMapping("/order-rejection/{issueId}/return-fee-with-distance")
-    @PreAuthorize("hasAnyRole('STAFF', 'CUSTOMER')")
     public ResponseEntity<ApiResponse<capstone_project.dtos.response.issue.ReturnShippingFeeResponse>> calculateReturnShippingFeeWithDistance(
             @PathVariable("issueId") UUID issueId,
             @RequestParam("distanceKm") java.math.BigDecimal distanceKm) {
@@ -265,7 +263,6 @@ public class IssuesController {
 
     // Get ORDER_REJECTION issue detail
     @GetMapping("/order-rejection/{issueId}/detail")
-    @PreAuthorize("hasAnyRole('STAFF', 'CUSTOMER')")
     public ResponseEntity<ApiResponse<capstone_project.dtos.response.issue.OrderRejectionDetailResponse>> getOrderRejectionDetail(
             @PathVariable("issueId") UUID issueId) {
         final var result = issueService.getOrderRejectionDetail(issueId);
@@ -279,5 +276,15 @@ public class IssuesController {
             @RequestBody capstone_project.dtos.request.issue.ConfirmReturnDeliveryRequest request) {
         final var result = issueService.confirmReturnDelivery(request);
         return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+    
+    // Customer creates return shipping payment transaction
+    @PostMapping("/{issueId}/create-return-payment")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.order.transaction.TransactionResponse>> createReturnPayment(
+            @PathVariable("issueId") UUID issueId) {
+        System.out.println("💳 [IssuesController] Creating return payment for issue: " + issueId);
+        System.out.println("💳 [IssuesController] Authentication: " + org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication());
+        final var result = issueService.createReturnPaymentTransaction(issueId);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Đã tạo giao dịch thanh toán trả hàng"));
     }
 }

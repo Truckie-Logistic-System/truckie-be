@@ -77,14 +77,23 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             }
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                log.info("[JwtRequestFilter] Username extracted: {}", username);
                 final var user = authUserService.loadUserByUsername(username);
+                log.info("[JwtRequestFilter] User loaded with authorities: {}", user.getAuthorities());
 
                 if (JWTUtil.validateToken(jwt, user.getUsername())) {
                     UsernamePasswordAuthenticationToken authenticationToken =
                             new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
                     authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+                    log.info("[JwtRequestFilter] ✅ Authentication set successfully");
+                } else {
+                    log.warn("[JwtRequestFilter] ❌ Token validation failed for user: {}", username);
                 }
+            } else if (username == null) {
+                log.warn("[JwtRequestFilter] ❌ No username extracted from token");
+            } else {
+                log.info("[JwtRequestFilter] Authentication already exists: {}", SecurityContextHolder.getContext().getAuthentication());
             }
 
             filterChain.doFilter(request, response);

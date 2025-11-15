@@ -53,33 +53,34 @@ public class VietMapDistanceServiceImpl implements VietMapDistanceService {
             throw new IllegalArgumentException("Coordinates must not be null");
         }
 
-        log.info("🗺️ Calculating distance from ({}, {}) to ({}, {}) for vehicle type: {}", 
+        log.info("️ Calculating distance from ({}, {}) to ({}, {}) for vehicle type: {}", 
                  fromLat, fromLng, toLat, toLng, vehicleType);
 
         // Check if coordinates are the same
         if (fromLat.equals(toLat) && fromLng.equals(toLng)) {
-            log.info("📍 Same coordinates, distance = 0 km");
+            log.info("Same coordinates, distance = 0 km");
             return BigDecimal.ZERO;
         }
 
         try {
-            // Create points list for VietMap API (format: "lat,lng")
-            List<String> points = Arrays.asList(
-                fromLat + "," + fromLng,
-                toLat + "," + toLng
+            // Build path JSON for route-tolls API: [[lng, lat], [lng, lat]]
+            java.util.List<java.util.List<Double>> path = Arrays.asList(
+                Arrays.asList(fromLng, fromLat),
+                Arrays.asList(toLng, toLat)
             );
+            
+            String pathJson = objectMapper.writeValueAsString(path);
+            log.info("Calling VietMap route-tolls API with path: {}", pathJson);
+            
+            // Map vehicle type to VietMap vehicle integer if needed
+            Integer vietVehicle = mapVehicleTypeToInteger(vehicleType);
+            
+            // Call route-tolls API for consistency with DistanceService
+            String routeTollsResponse = vietmapService.routeTolls(pathJson, vietVehicle);
+            log.info("VietMap route-tolls API response received");
 
-            // Call VietMap route API
-            String routeResponse = vietmapService.route(
-                points,
-                false, // points not encoded
-                vehicleType != null ? vehicleType : DEFAULT_VEHICLE_TYPE,
-                false, // no optimization
-                null   // no avoid
-            );
-
-            // Parse JSON response to extract distance
-            BigDecimal distance = parseDistanceFromResponse(routeResponse);
+            // Parse JSON response to extract distance from path
+            BigDecimal distance = parseDistanceFromRouteTollsResponse(routeTollsResponse);
             
             log.info("✅ VietMap distance calculated: {} km", distance);
             return distance;
@@ -96,27 +97,71 @@ public class VietMapDistanceServiceImpl implements VietMapDistanceService {
     }
 
     /**
-     * Parse distance from VietMap route API response
+     * Parse distance from VietMap route-tolls API response
+     * Route-tolls returns path coordinates, so we calculate distance from the path
      */
-    private BigDecimal parseDistanceFromResponse(String routeResponse) throws Exception {
-        JsonNode rootNode = objectMapper.readTree(routeResponse);
+    private BigDecimal parseDistanceFromRouteTollsResponse(String routeTollsResponse) throws Exception {
+        JsonNode rootNode = objectMapper.readTree(routeTollsResponse);
         
-        // Check if response has paths
-        if (rootNode.has("paths") && rootNode.get("paths").isArray() && rootNode.get("paths").size() > 0) {
-            JsonNode firstPath = rootNode.get("paths").get(0);
+        // Extract path coordinates from response
+        JsonNode pathNode = rootNode.path("path");
+        
+        if (!pathNode.isArray() || pathNode.size() < 2) {
+            throw new RuntimeException("Invalid VietMap route-tolls response: missing or invalid path data");
+        }
+        
+        // Calculate distance from path coordinates using Haversine
+        double totalDistanceKm = 0.0;
+        
+        for (int i = 0; i < pathNode.size() - 1; i++) {
+            JsonNode point1 = pathNode.get(i);
+            JsonNode point2 = pathNode.get(i + 1);
             
-            // Distance is in meters, convert to kilometers
-            if (firstPath.has("distance")) {
-                double distanceMeters = firstPath.get("distance").asDouble();
-                BigDecimal distanceKm = BigDecimal.valueOf(distanceMeters / 1000.0)
-                    .setScale(2, RoundingMode.HALF_UP);
+            if (point1.isArray() && point1.size() >= 2 && point2.isArray() && point2.size() >= 2) {
+                double lng1 = point1.get(0).asDouble();
+                double lat1 = point1.get(1).asDouble();
+                double lng2 = point2.get(0).asDouble();
+                double lat2 = point2.get(1).asDouble();
                 
-                log.info("📏 Parsed distance from VietMap: {} meters = {} km", distanceMeters, distanceKm);
-                return distanceKm;
+                totalDistanceKm += calculateHaversineDistanceKm(lat1, lng1, lat2, lng2);
             }
         }
         
-        throw new RuntimeException("Invalid VietMap route response: missing distance data");
+        BigDecimal distanceKm = BigDecimal.valueOf(totalDistanceKm)
+            .setScale(2, RoundingMode.HALF_UP);
+        
+        log.info("📏 Calculated distance from route-tolls path: {} km ({} segments)", 
+                 distanceKm, pathNode.size() - 1);
+        
+        return distanceKm;
+    }
+    
+    /**
+     * Calculate Haversine distance between two points in kilometers
+     */
+    private double calculateHaversineDistanceKm(double lat1, double lng1, double lat2, double lng2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return EARTH_RADIUS_KM * c;
+    }
+    
+    /**
+     * Map vehicle type string to VietMap vehicle integer
+     */
+    private Integer mapVehicleTypeToInteger(String vehicleType) {
+        if (vehicleType == null || vehicleType.isEmpty()) {
+            return null; // Let API use default
+        }
+        
+        // Map vehicle types to VietMap integers if needed
+        // For now, return null to use default (car)
+        return null;
     }
 
     /**

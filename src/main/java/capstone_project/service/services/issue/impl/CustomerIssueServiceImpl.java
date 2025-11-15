@@ -157,6 +157,47 @@ public class CustomerIssueServiceImpl implements CustomerIssueService {
     
     @Override
     @Transactional
+    public capstone_project.dtos.response.order.transaction.TransactionResponse createReturnPaymentTransaction(UUID issueId) {
+        log.info("💳 Customer creating return payment for issue {}", issueId);
+        
+        // Verify issue belongs to current customer
+        UUID customerId = getCurrentCustomerId();
+        IssueEntity issue = issueEntityService.findEntityById(issueId)
+                .orElseThrow(() -> new NotFoundException(ErrorEnum.ISSUE_NOT_FOUND));
+        
+        // Verify issue type
+        if (issue.getIssueTypeEntity() == null 
+                || !IssueCategoryEnum.ORDER_REJECTION.name().equals(
+                        issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new BadRequestException(ErrorEnum.INVALID);
+        }
+        
+        // Verify issue belongs to current customer
+        if (issue.getVehicleAssignmentEntity() == null) {
+            throw new BadRequestException(ErrorEnum.INVALID);
+        }
+        
+        // Get order from vehicle assignment
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService
+                .findByVehicleAssignmentEntity(issue.getVehicleAssignmentEntity());
+        if (orderDetails.isEmpty()) {
+            throw new BadRequestException(ErrorEnum.INVALID);
+        }
+        
+        OrderEntity order = orderDetails.get(0).getOrderEntity();
+        if (order == null || order.getSender() == null 
+                || !order.getSender().getId().equals(customerId)) {
+            log.warn("Customer {} trying to create payment for issue {} that doesn't belong to them", 
+                    customerId, issueId);
+            throw new BadRequestException(ErrorEnum.UNAUTHORIZED);
+        }
+        
+        // Delegate to IssueService to create payment transaction
+        return issueService.createReturnPaymentTransaction(issueId);
+    }
+    
+    @Override
+    @Transactional
     public void rejectReturnPayment(UUID issueId) {
         log.info("Customer rejecting return payment for issue {}", issueId);
         

@@ -36,6 +36,7 @@ import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -787,7 +788,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
     /**
      * Handle return shipping payment for ORDER_REJECTION issues
-     * When customer pays, activate the return journey and notify driver
+     * When customer pays, activate the return journey and notify driver & staff
      */
     private void handleReturnShippingPayment(TransactionEntity transaction) {
         try {
@@ -831,7 +832,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                             ? issue.getReturnJourney().getId() 
                             : null;
                     
-                    // Send via WebSocket
+                    // Send via WebSocket to driver
                     issueWebSocketService.sendReturnPaymentSuccessNotification(
                             driverId,
                             issue.getId(),
@@ -843,6 +844,42 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 }
             } catch (Exception e) {
                 log.error("❌ Failed to send driver notification: {}", e.getMessage(), e);
+                // Don't throw - notification failure shouldn't break payment processing
+            }
+            
+            // Send WebSocket notification to all staff
+            try {
+                var vehicleAssignment = issue.getVehicleAssignmentEntity();
+                UUID orderId = null;
+                String customerName = "N/A";
+                
+                if (vehicleAssignment != null) {
+                    // Get order from vehicle assignment
+                    Optional<OrderEntity> orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
+                    if (orderOpt.isPresent()) {
+                        OrderEntity order = orderOpt.get();
+                        orderId = order.getId();
+                        if (order.getSender() != null && order.getSender().getUser() != null) {
+                            customerName = order.getSender().getUser().getFullName();
+                        }
+                    }
+                }
+                
+                UUID returnJourneyId = issue.getReturnJourney() != null 
+                        ? issue.getReturnJourney().getId() 
+                        : null;
+                
+                // Send via WebSocket to all staff
+                issueWebSocketService.sendReturnPaymentSuccessNotificationToStaff(
+                        issue.getId(),
+                        orderId,
+                        customerName,
+                        returnJourneyId
+                );
+                
+                log.info("📢 Broadcast return payment success notification to all staff");
+            } catch (Exception e) {
+                log.error("❌ Failed to send staff notification: {}", e.getMessage(), e);
                 // Don't throw - notification failure shouldn't break payment processing
             }
             

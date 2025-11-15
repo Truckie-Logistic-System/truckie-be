@@ -61,6 +61,10 @@ public class IssueServiceImpl implements IssueService {
     private final capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService journeyHistoryEntityService;
     private final capstone_project.repository.entityServices.order.transaction.TransactionEntityService transactionEntityService;
     private final capstone_project.service.services.order.transaction.payOS.PayOSTransactionService payOSTransactionService;
+    
+    // Return payment deadline configuration
+    @org.springframework.beans.factory.annotation.Value("${issue.return-payment.deadline-minutes:30}")
+    private int returnPaymentDeadlineMinutes;
 
 
     @Override
@@ -107,7 +111,13 @@ public class IssueServiceImpl implements IssueService {
                 response.newSealConfirmedAt(),
                 issueImages,
                 response.orderDetail(),
-                response.sender()
+                response.sender(),
+                response.paymentDeadline(),
+                response.calculatedFee(),
+                response.adjustedFee(),
+                response.finalFee(),
+                response.affectedOrderDetails(),
+                response.returnTransaction()
             );
         }
         
@@ -131,7 +141,13 @@ public class IssueServiceImpl implements IssueService {
             response.newSealConfirmedAt(),
             issueImages,
             response.orderDetail(),
-            response.sender()
+            response.sender(),
+            response.paymentDeadline(),
+            response.calculatedFee(),
+            response.adjustedFee(),
+            response.finalFee(),
+            response.affectedOrderDetails(),
+            response.returnTransaction()
         );
     }
     
@@ -1037,7 +1053,8 @@ public class IssueServiceImpl implements IssueService {
                                     ErrorEnum.ORDER_DETAIL_NOT_FOUND.getErrorCode()
                             ));
 
-                    // Link order detail to issue
+                    // Link order detail to issue and mark as IN_TROUBLES
+                    // Driver can continue trip, staff will update to COMPENSATION when processing refund
                     String oldStatus = orderDetail.getStatus();
                     orderDetail.setIssueEntity(saved);
                     orderDetail.setStatus(OrderDetailStatusEnum.IN_TROUBLES.name());
@@ -1045,7 +1062,7 @@ public class IssueServiceImpl implements IssueService {
                     
                     selectedOrderDetails.add(orderDetail);
                     
-                    log.info("🚨 Updated order detail {} from {} to IN_TROUBLES and linked to issue {}", 
+                    log.info("🚨 Updated order detail {} from {} to IN_TROUBLES (damaged goods) and linked to issue {}", 
                              orderDetail.getId(), oldStatus, saved.getId());
                 } catch (Exception e) {
                     log.error("❌ Error updating order detail {}: {}", trackingCode, e.getMessage());
@@ -1603,9 +1620,10 @@ public class IssueServiceImpl implements IssueService {
 
         issue.setReturnJourney(returnJourney);
 
-        // Set payment deadline (default 24 hours)
-        int deadlineHours = request.paymentDeadlineHours() != null ? request.paymentDeadlineHours() : 24;
-        issue.setPaymentDeadline(java.time.LocalDateTime.now().plusHours(deadlineHours));
+        // Set payment deadline from configuration (driver cannot wait too long)
+        issue.setPaymentDeadline(java.time.LocalDateTime.now().plusMinutes(returnPaymentDeadlineMinutes));
+        log.info("⏰ Payment deadline set to {} minutes from now ({})", 
+                returnPaymentDeadlineMinutes, issue.getPaymentDeadline());
 
         // Update issue status to IN_PROGRESS
         issue.setStatus(IssueEnum.IN_PROGRESS.name());
@@ -1613,6 +1631,16 @@ public class IssueServiceImpl implements IssueService {
         // Save issue
         issue = issueEntityService.save(issue);
         log.info("✅ ORDER_REJECTION issue processed, status: IN_PROGRESS");
+
+        // NOTE: Transaction will be created when customer clicks "Pay" button
+        // This follows the same pattern as deposit/full payment:
+        // 1. Customer sees issue with fee amount
+        // 2. Customer clicks "Pay" button  
+        // 3. Frontend calls POST /api/payos-transaction/{contractId}/return-shipping
+        // 4. Backend creates transaction + PayOS link
+        // 5. Frontend redirects to PayOS checkout URL
+        log.info("💳 Contract ID: {} - Customer will create payment via frontend when clicking 'Pay' button", 
+                contract.getId());
 
         // Return detail response
         return getOrderRejectionDetail(issue.getId());
@@ -1818,6 +1846,75 @@ public class IssueServiceImpl implements IssueService {
         log.info("✅ ORDER_REJECTION issue resolved, goods returned to pickup");
 
         return getBasicIssue(issue.getId());
+    }
+
+    @Override
+    @Transactional
+    public capstone_project.dtos.response.order.transaction.TransactionResponse createReturnPaymentTransaction(UUID issueId) {
+        log.info("💳 Customer creating return shipping payment transaction for issue: {}", issueId);
+        
+        // Get Issue
+        IssueEntity issue = issueEntityService.findEntityById(issueId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + " Issue: " + issueId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        // Validate issue type
+        if (!IssueCategoryEnum.ORDER_REJECTION.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new IllegalStateException("Issue is not ORDER_REJECTION type");
+        }
+        
+        // Validate issue status
+        if (!IssueEnum.IN_PROGRESS.name().equals(issue.getStatus())) {
+            throw new IllegalStateException("Issue must be IN_PROGRESS to create payment");
+        }
+        
+        // Get final fee
+        java.math.BigDecimal finalFee = issue.getAdjustedReturnFee() != null 
+                ? issue.getAdjustedReturnFee() 
+                : issue.getReturnShippingFee();
+        
+        if (finalFee == null || finalFee.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new IllegalStateException("Return shipping fee not set or invalid");
+        }
+        
+        // Get contract ID from order
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(
+                issue.getVehicleAssignmentEntity()
+        );
+        if (orderDetails.isEmpty()) {
+            throw new IllegalStateException("No order details found for vehicle assignment");
+        }
+        
+        var order = orderDetails.get(0).getOrderEntity();
+        var contract = contractEntityService.getContractByOrderId(order.getId())
+                .orElseThrow(() -> new IllegalStateException("No contract found for order: " + order.getId()));
+        
+        log.info("💳 Creating return shipping payment for contract {} with amount {}", 
+                contract.getId(), finalFee);
+        
+        // Create transaction using PayOS service
+        capstone_project.dtos.response.order.transaction.TransactionResponse transactionResponse = 
+                payOSTransactionService.createReturnShippingTransaction(
+                        contract.getId(), 
+                        finalFee, 
+                        issue.getId()
+                );
+        
+        log.info("✅ Created return shipping transaction: {}", transactionResponse.id());
+        
+        // Link transaction to issue
+        UUID transactionId = UUID.fromString(transactionResponse.id());
+        var transaction = transactionEntityService.findEntityById(transactionId)
+                .orElseThrow(() -> new IllegalStateException("Transaction not found after creation"));
+        
+        issue.setReturnTransaction(transaction);
+        issueEntityService.save(issue);
+        
+        log.info("✅ Linked transaction {} to issue {}", transaction.getId(), issue.getId());
+        
+        return transactionResponse;
     }
 
 }

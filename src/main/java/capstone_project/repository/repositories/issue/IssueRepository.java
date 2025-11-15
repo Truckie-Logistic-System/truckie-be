@@ -15,6 +15,9 @@ import java.util.UUID;
 public interface IssueRepository extends BaseRepository<IssueEntity> {
     // Additional methods specific to IssueEntity can be defined here if needed
     IssueEntity findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignmentId);
+    
+    // Find ALL issues for a vehicle assignment (can have multiple issues)
+    List<IssueEntity> findAllByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignmentEntity);
 
     @Query("SELECT i FROM IssueEntity i " +
             "LEFT JOIN FETCH i.issueTypeEntity " +

@@ -1,7 +1,6 @@
 package capstone_project.service.mapper.order;
 
 import capstone_project.dtos.response.issue.GetIssueImageResponse;
-import capstone_project.dtos.response.issue.SimpleIssueImageResponse;
 import capstone_project.dtos.response.issue.SimpleIssueResponse;
 import capstone_project.dtos.response.issue.SimpleStaffResponse;
 import capstone_project.dtos.response.order.*;
@@ -23,6 +22,8 @@ import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
+import capstone_project.entity.issue.IssueEntity;
+import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
 import capstone_project.service.services.order.seal.SealService;
@@ -49,6 +50,7 @@ public class StaffOrderMapper {
     private final SealService sealService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final JourneyHistoryService journeyHistoryService;
+    private final IssueEntityService issueEntityService;
     private final IssueImageService issueImageService;
     // PhotoCompletionService may not exist in every project; if not present remove this field and helper below
     private final PhotoCompletionService photoCompletionService;
@@ -123,7 +125,10 @@ public class StaffOrderMapper {
                             .findFirst()
                             .orElse(null);
                     if (vaResponse != null) {
-                        return toStaffVehicleAssignmentResponse(vaResponse);
+                        // Fetch issues and photo completions for this vehicle assignment
+                        List<SimpleIssueResponse> issues = getIssues(vaId);
+                        List<String> photoCompletions = getPhotoCompletionsByVehicleAssignmentId(vaId);
+                        return toStaffVehicleAssignmentResponse(vaResponse, issues, photoCompletions);
                     }
                     return null;
                 })
@@ -190,7 +195,10 @@ public class StaffOrderMapper {
         );
     }
 
-    private StaffVehicleAssignmentResponse toStaffVehicleAssignmentResponse(VehicleAssignmentResponse vehicleAssignmentResponse) {
+    private StaffVehicleAssignmentResponse toStaffVehicleAssignmentResponse(
+            VehicleAssignmentResponse vehicleAssignmentResponse,
+            List<SimpleIssueResponse> issues,
+            List<String> photoCompletions) {
         UUID vehicleAssignmentId = vehicleAssignmentResponse.id();
 
         log.info("Processing vehicle assignment with ID: {}", vehicleAssignmentId);
@@ -208,10 +216,9 @@ public class StaffOrderMapper {
         List<PenaltyHistoryResponse> penalties = getPenaltiesByVehicleAssignmentId(vehicleAssignmentId);
 
         VehicleFuelConsumptionResponse fuelConsumption = getFuelConsumptionByVehicleAssignmentId(vehicleAssignmentId);
-        List<String> photoCompletions = getPhotoCompletionsByVehicleAssignmentId(vehicleAssignmentId);
-        // Get issues for this vehicle assignment (null-safe, full lookup)
-        List<SimpleIssueImageResponse> issues = getIssuesByVehicleAssignmentId(vehicleAssignmentId);
-        if (issues == null) issues = Collections.emptyList();
+        // Use photoCompletions from parameter (already fetched by processVehicleAssignments)
+        if (photoCompletions == null) photoCompletions = Collections.emptyList();
+        List<SimpleIssueResponse> issuesList = issues != null ? issues : Collections.emptyList();
 
         StaffDriverResponse primaryDriver = null;
         StaffDriverResponse secondaryDriver = null;
@@ -296,9 +303,6 @@ public class StaffOrderMapper {
             log.warn("Could not fetch order seals for {}: {}", vehicleAssignmentId, e.getMessage());
         }
 
-        // Ensure lists are non-null
-        if (photoCompletions == null) photoCompletions = Collections.emptyList();
-
         String status = vehicleAssignmentEntity != null ? vehicleAssignmentEntity.getStatus() : vehicleAssignmentResponse.status();
         String trackingCode = vehicleAssignmentResponse.trackingCode();
 
@@ -314,7 +318,7 @@ public class StaffOrderMapper {
                 seals,
                 journeyHistories,
                 photoCompletions,
-                issues
+                issuesList
         );
     }
 
@@ -388,7 +392,6 @@ public class StaffOrderMapper {
             return new ArrayList<>();
         }
     }
-
 
     private VehicleFuelConsumptionResponse getFuelConsumptionByVehicleAssignmentId(UUID vehicleAssignmentId) {
         if (vehicleAssignmentId == null) return null;
@@ -474,68 +477,139 @@ public class StaffOrderMapper {
         return address.toString();
     }
 
-    private List<SimpleIssueImageResponse> getIssuesByVehicleAssignmentId(UUID vehicleAssignmentId) {
+    private List<String> getPhotoCompletionsByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        if (vehicleAssignmentId == null) return Collections.emptyList();
+        try {
+            return photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId).stream()
+                    .map(PhotoCompletionResponse::imageUrl)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Could not fetch photo completions for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private List<SimpleIssueResponse> getIssues(UUID vehicleAssignmentId) {
         if (vehicleAssignmentId == null) return Collections.emptyList();
 
         try {
-            // IssueImageService returns a GetIssueImageResponse for a vehicle assignment
-            GetIssueImageResponse resp = issueImageService.getByVehicleAssignment(vehicleAssignmentId);
-            if (resp == null || resp.issue() == null) {
+            // Get vehicle assignment entity
+            VehicleAssignmentEntity vehicleAssignment = vehicleAssignmentEntityService
+                    .findEntityById(vehicleAssignmentId)
+                    .orElse(null);
+            
+            if (vehicleAssignment == null) {
+                log.warn("Vehicle assignment not found for ID: {}", vehicleAssignmentId);
                 return Collections.emptyList();
             }
-            SimpleIssueImageResponse simple = toSimpleIssueImageResponse(resp);
-            return simple != null ? List.of(simple) : Collections.emptyList();
+            
+            // Get ALL issues for this vehicle assignment
+            List<IssueEntity> issues = issueEntityService.findAllByVehicleAssignmentEntity(vehicleAssignment);
+            
+            if (issues == null || issues.isEmpty()) {
+                return Collections.emptyList();
+            }
+            
+            // Convert each issue to SimpleIssueResponse with images
+            List<SimpleIssueResponse> simpleIssues = new ArrayList<>();
+            for (IssueEntity issue : issues) {
+                try {
+                    // Get issue images for this issue
+                    GetIssueImageResponse issueWithImages = issueImageService.getImage(issue.getId());
+                    if (issueWithImages != null) {
+                        SimpleIssueResponse simple = safeToSimpleIssueResponse(issueWithImages);
+                        if (simple != null) {
+                            simpleIssues.add(simple);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Error converting issue {} to SimpleIssueResponse: {}", issue.getId(), e.getMessage());
+                }
+            }
+            
+            return simpleIssues;
         } catch (Exception e) {
             log.warn("Could not fetch issues for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
             return Collections.emptyList();
         }
     }
 
-    private List<String> getPhotoCompletionsByVehicleAssignmentId(UUID vehicleAssignmentId) {
-        if (vehicleAssignmentId == null) return Collections.emptyList();
+    private Map<UUID, List<SimpleIssueResponse>> buildIssuesMap(List<GetIssueImageResponse> issueImageResponses) {
+        Map<UUID, List<SimpleIssueResponse>> map = new HashMap<>();
+        if (issueImageResponses == null) return map;
 
-        try {
-            if (photoCompletionService == null) return Collections.emptyList();
-            List<PhotoCompletionResponse> raw = photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId);
-            if (raw == null) return Collections.emptyList();
-            return raw.stream()
-                    .map(PhotoCompletionResponse::imageUrl)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.warn("Could not fetch photo completions for {}: {}", vehicleAssignmentId, e.getMessage());
-            return Collections.emptyList();
+        for (GetIssueImageResponse resp : issueImageResponses) {
+            if (resp == null || resp.issue() == null) continue;
+            try {
+                var issue = resp.issue();
+                if (issue.vehicleAssignmentEntity() == null || issue.vehicleAssignmentEntity().id() == null) continue;
+                UUID vehicleAssignmentId = UUID.fromString(issue.vehicleAssignmentEntity().id().toString());
+                SimpleIssueResponse simple = safeToSimpleIssueResponse(resp);
+                if (simple != null) {
+                    map.computeIfAbsent(vehicleAssignmentId, k -> new ArrayList<>()).add(simple);
+                }
+            } catch (Exception ignored) {
+            }
         }
+        return map;
     }
 
-    private SimpleIssueImageResponse toSimpleIssueImageResponse(GetIssueImageResponse response) {
-        if (response == null || response.issue() == null) {
-            return null;
-        }
+    private SimpleIssueResponse safeToSimpleIssueResponse(GetIssueImageResponse response) {
+        if (response == null || response.issue() == null) return null;
+
+        var issue = response.issue();
 
         SimpleStaffResponse staffResponse = null;
-        if (response.issue().staff() != null) {
+        if (issue.staff() != null) {
+            var s = issue.staff();
             staffResponse = new SimpleStaffResponse(
-                    response.issue().staff().getId(),
-                    response.issue().staff().getFullName(),
-                    response.issue().staff().getPhoneNumber()
+                    s.getId(),
+                    s.getFullName(),
+                    s.getPhoneNumber()
             );
         }
 
-        SimpleIssueResponse simpleIssue = new SimpleIssueResponse(
-                response.issue().id().toString(),
-                response.issue().description(),
-                response.issue().locationLatitude(),
-                response.issue().locationLongitude(),
-                response.issue().status(),
-                response.issue().vehicleAssignmentEntity() != null && response.issue().vehicleAssignmentEntity().id() != null ?
-                        response.issue().vehicleAssignmentEntity().id().toString() : null,
-                staffResponse,
-                response.issue().issueTypeEntity() != null ? response.issue().issueTypeEntity().issueTypeName() : null
-        );
+        String vehicleAssignmentIdStr = null;
+        if (issue.vehicleAssignmentEntity() != null && issue.vehicleAssignmentEntity().id() != null) {
+            vehicleAssignmentIdStr = issue.vehicleAssignmentEntity().id().toString();
+        }
 
-        List<String> images = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
-        return new SimpleIssueImageResponse(simpleIssue, images);
+        String issueTypeName = issue.issueTypeEntity() != null ? issue.issueTypeEntity().issueTypeName() : null;
+        String issueTypeDescription = issue.issueTypeEntity() != null ? issue.issueTypeEntity().description() : null;
+        var issueCategory = issue.issueCategory();
+
+        // Issue images
+        List<String> issueImages = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
+
+        return new SimpleIssueResponse(
+                issue.id() != null ? issue.id().toString() : null,
+                issue.description(),
+                issue.locationLatitude(),
+                issue.locationLongitude(),
+                issue.status(),
+                vehicleAssignmentIdStr,
+                staffResponse,
+                issueTypeName,
+                issueTypeDescription,
+                issue.reportedAt(),
+                issueCategory,
+                issueImages, // Issue images moved inside
+                // SEAL_REPLACEMENT fields
+                issue.oldSeal(),
+                issue.newSeal(),
+                issue.sealRemovalImage(),
+                issue.newSealAttachedImage(),
+                issue.newSealConfirmedAt(),
+                // ORDER_REJECTION fields
+                issue.paymentDeadline(),
+                issue.calculatedFee(),
+                issue.adjustedFee(),
+                issue.finalFee(),
+                issue.affectedOrderDetails(),
+                issue.returnTransaction(), // Refund
+                null // Transaction
+        );
     }
 
 

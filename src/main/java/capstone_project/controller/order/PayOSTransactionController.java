@@ -23,6 +23,7 @@ import java.util.UUID;
 public class PayOSTransactionController {
 
     private final PayOSTransactionService payOSTransactionService;
+    private final capstone_project.service.services.issue.IssueService issueService;
 
     @PostMapping("/{contractId}")
     public ResponseEntity<ApiResponse<TransactionResponse>> createTransaction(@PathVariable UUID contractId) {
@@ -46,6 +47,15 @@ public class PayOSTransactionController {
                 contractId, amount, issueId);
         final var result = payOSTransactionService.createReturnShippingTransaction(contractId, amount, issueId);
         return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+    
+    @PostMapping("/issue/{issueId}/return-payment")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.order.transaction.TransactionResponse>> createReturnPaymentFromIssue(
+            @PathVariable UUID issueId
+    ) {
+        log.info("💳 [PayOSTransaction] Creating return payment for issue {}", issueId);
+        final var result = issueService.createReturnPaymentTransaction(issueId);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Đã tạo giao dịch thanh toán trả hàng"));
     }
 
     @GetMapping("/{transactionId}")

@@ -50,7 +50,7 @@ public class RefundEntity extends BaseEntity {
     @Column(name = "notes", length = 500)
     private String notes;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "issue_id")
     private IssueEntity issueEntity;
 

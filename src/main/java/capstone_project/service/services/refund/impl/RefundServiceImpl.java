@@ -100,11 +100,8 @@ public class RefundServiceImpl implements RefundService {
 
         // Update order details in this vehicle assignment
         if (issue.getVehicleAssignmentEntity() != null) {
-            var allOrderDetails = orderDetailEntityService.findAll().stream()
-                    .filter(od -> od.getVehicleAssignmentEntity() != null && 
-                                  od.getVehicleAssignmentEntity().getId()
-                                    .equals(issue.getVehicleAssignmentEntity().getId()))
-                    .toList();
+            var allOrderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(
+                    issue.getVehicleAssignmentEntity());
             
             for (OrderDetailEntity od : allOrderDetails) {
                 // Kiện bị hư (linked to issue) → COMPENSATION
@@ -113,9 +110,8 @@ public class RefundServiceImpl implements RefundService {
                     orderDetailEntityService.save(od);
                     log.info("✅ Order detail {} status updated to COMPENSATION", od.getId());
                 }
-                // Kiện còn lại (không bị hư) → DELIVERED
-                else if (OrderDetailStatusEnum.IN_TROUBLES.name().equals(od.getStatus()) == false &&
-                         OrderDetailStatusEnum.COMPENSATION.name().equals(od.getStatus()) == false) {
+                // Kiện còn lại (không bị hư và đang IN_TROUBLES) → DELIVERED
+                else if (OrderDetailStatusEnum.IN_TROUBLES.name().equals(od.getStatus())) {
                     od.setStatus(OrderDetailStatusEnum.DELIVERED.name());
                     orderDetailEntityService.save(od);
                     log.info("✅ Order detail {} status updated to DELIVERED", od.getId());
@@ -156,32 +152,9 @@ public class RefundServiceImpl implements RefundService {
         IssueEntity updatedIssue = issueEntityService.save(issue);
         log.info("✅ Issue {} status updated to RESOLVED", issue.getId());
 
-        // 📲 Send WebSocket notification to driver
-        if (issue.getVehicleAssignmentEntity() != null) {
-            var driver1 = issue.getVehicleAssignmentEntity().getDriver1();
-            if (driver1 != null) {
-                String staffName = staff.getFullName();
-                String driverId = driver1.getId().toString(); // Use Driver ID, not User ID
-                
-                log.info("📦 Sending DAMAGE_RESOLVED notification to driver: {}", driverId);
-                
-                // Convert issue to response for notification
-                var issueResponse = issueMapper.toIssueBasicResponse(updatedIssue);
-                
-                // Send notification
-                issueWebSocketService.sendDamageResolvedNotification(
-                    driverId,
-                    issueResponse,
-                    staffName
-                );
-                
-                log.info("✅ DAMAGE_RESOLVED notification sent to driver: {}", driverId);
-            } else {
-                log.warn("⚠️ Cannot send notification: driver not found");
-            }
-        } else {
-            log.warn("⚠️ Cannot send notification: vehicle assignment not found");
-        }
+        // NOTE: Driver already continued trip after reporting damage
+        // No notification needed as driver doesn't need to wait
+        log.info("ℹ️ Driver already continued trip, refund processed successfully");
 
         log.info("Refund processed successfully for issue: {}", request.issueId());
         return refundMapper.toRefundResponse(refund);

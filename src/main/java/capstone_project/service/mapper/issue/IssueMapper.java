@@ -24,6 +24,11 @@ public interface IssueMapper {
     @Mapping(target = "orderDetail", expression = "java(mapOrderDetail(issue))")
     @Mapping(target = "issueImages", expression = "java(mapIssueImages(issue))")
     @Mapping(target = "sender", expression = "java(mapSender(issue))")
+    @Mapping(target = "affectedOrderDetails", expression = "java(mapAffectedOrderDetails(issue))")
+    @Mapping(target = "returnTransaction", expression = "java(mapReturnTransaction(issue))")
+    @Mapping(source = "returnShippingFee", target = "calculatedFee")
+    @Mapping(source = "adjustedReturnFee", target = "adjustedFee")
+    @Mapping(target = "finalFee", expression = "java(calculateFinalFee(issue))")
     GetBasicIssueResponse toIssueBasicResponse(IssueEntity issue);
 
     List<GetBasicIssueResponse> toIssueBasicResponses(List<IssueEntity> issues);
@@ -91,6 +96,65 @@ public interface IssueMapper {
             .status(sender.getStatus())
             .userResponse(userResponse)
             .build();
+    }
+    
+    // Map all affected order details for ORDER_REJECTION
+    default List<OrderDetailForIssueResponse> mapAffectedOrderDetails(IssueEntity issue) {
+        if (issue.getOrderDetails() == null || issue.getOrderDetails().isEmpty()) {
+            return null;
+        }
+        // Return all order details affected by this issue
+        return issue.getOrderDetails().stream()
+            .map(orderDetail -> new OrderDetailForIssueResponse(
+                orderDetail.getTrackingCode(),
+                orderDetail.getDescription(),
+                orderDetail.getWeightBaseUnit(),
+                orderDetail.getUnit()
+            ))
+            .toList();
+    }
+    
+    // Calculate final fee for ORDER_REJECTION
+    default java.math.BigDecimal calculateFinalFee(IssueEntity issue) {
+        // Final fee = adjusted fee if present, otherwise calculated fee
+        if (issue.getAdjustedReturnFee() != null) {
+            return issue.getAdjustedReturnFee();
+        }
+        return issue.getReturnShippingFee();
+    }
+    
+    // Map return transaction/refund for ORDER_REJECTION
+    default capstone_project.dtos.response.refund.GetRefundResponse mapReturnTransaction(IssueEntity issue) {
+        if (issue.getRefund() == null) {
+            return null;
+        }
+        
+        var refund = issue.getRefund();
+        
+        // Map processedBy staff
+        capstone_project.dtos.response.refund.GetRefundResponse.StaffInfo staffInfo = null;
+        if (refund.getProcessedByStaff() != null) {
+            staffInfo = new capstone_project.dtos.response.refund.GetRefundResponse.StaffInfo(
+                refund.getProcessedByStaff().getId(),
+                refund.getProcessedByStaff().getFullName(),
+                refund.getProcessedByStaff().getEmail()
+            );
+        }
+        
+        return new capstone_project.dtos.response.refund.GetRefundResponse(
+            refund.getId(),
+            refund.getRefundAmount(),
+            refund.getBankTransferImage(),
+            refund.getBankName(),
+            refund.getAccountNumber(),
+            refund.getAccountHolderName(),
+            refund.getTransactionCode(),
+            refund.getRefundDate(),
+            refund.getNotes(),
+            issue.getId(), // issueId
+            staffInfo,
+            refund.getCreatedAt()
+        );
     }
 
 }

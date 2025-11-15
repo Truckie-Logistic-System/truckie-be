@@ -43,6 +43,11 @@ public class IssueEntityServiceImpl implements IssueEntityService {
     public IssueEntity findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignmentId) {
         return issueRepository.findByVehicleAssignmentEntity(vehicleAssignmentId);
     }
+    
+    @Override
+    public List<IssueEntity> findAllByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignmentEntity) {
+        return issueRepository.findAllByVehicleAssignmentEntity(vehicleAssignmentEntity);
+    }
 
     @Override
     public List<IssueEntity> findByStaff(UserEntity staffId) {

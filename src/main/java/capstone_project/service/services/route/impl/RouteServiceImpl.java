@@ -12,8 +12,8 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.repository.entityServices.setting.CarrierSettingEntityService;
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
-import capstone_project.service.services.map.VietMapDistanceService;
 import capstone_project.service.services.route.RouteService;
+import capstone_project.service.services.map.VietMapDistanceService;
 import capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -391,7 +391,8 @@ public class RouteServiceImpl implements RouteService {
                     segmentRawData.put("segmentIndex", i);
 
                     List<List<BigDecimal>> segmentPath = extractPathSegment(path, pointsToUse.get(i), pointsToUse.get(i + 1));
-                    double segmentDistance = calculatePathDistance(segmentPath);
+                    // Calculate distance between waypoints using VietMap API (not the entire detailed path)
+                    double segmentDistance = calculateDistanceVietMap(pointsToUse.get(i), pointsToUse.get(i + 1));
                     totalDistance += segmentDistance;
 
                     // Extract start and end coordinates
@@ -423,7 +424,8 @@ public class RouteServiceImpl implements RouteService {
                 return new SuggestRouteResponse(segments, totalTollAmount, totalTollCount, totalDistance);
             } else {
                 // Just create a single segment for the whole route
-                double totalDistance = calculatePathDistance(path);
+                // Calculate distance between start and end waypoints
+                double totalDistance = calculateDistanceVietMap(pointsToUse.get(0), pointsToUse.get(pointsToUse.size() - 1));
 
                 // Extract start and end coordinates
                 List<BigDecimal> startPoint = pointsToUse.get(0);
@@ -624,26 +626,69 @@ public class RouteServiceImpl implements RouteService {
     }
 
     /**
-     * Calculate distance between two points (lng/lat) using VietMap service.
-     * Format: point = [lng, lat]
+     * Calculate distance between two points (lng/lat) using Haversine formula.
+     * Used for quick distance estimation in optimization algorithms.
      */
-    private double calculateDistance(List<BigDecimal> point1, List<BigDecimal> point2) {
-        // Extract coordinates: point format is [lng, lat]
+    private double calculateDistanceHaversine(List<BigDecimal> point1, List<BigDecimal> point2) {
+        if (point1 == null || point2 == null || point1.size() < 2 || point2.size() < 2) {
+            return 0.0;
+        }
+
+        final int R = 6371; // Radius of the earth in kilometers
+        
         double lat1 = point1.get(1).doubleValue();
         double lon1 = point1.get(0).doubleValue();
         double lat2 = point2.get(1).doubleValue();
         double lon2 = point2.get(0).doubleValue();
 
-        // Use VietMap service to get accurate road distance
-        BigDecimal distanceKm = vietMapDistanceService.calculateDistance(
-            lat1, lon1, lat2, lon2, "car"
-        );
-
-        return distanceKm.doubleValue();
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        
+        return R * c; // Distance in kilometers
     }
 
     /**
-     * Calculate the total distance along a path of coordinates using VietMap service.
+     * Calculate distance between two points (lng/lat) using VietMap API.
+     * Falls back to Haversine formula if VietMap fails.
+     * Use this for final accurate distance calculation, not for optimization loops.
+     */
+    private double calculateDistanceVietMap(List<BigDecimal> point1, List<BigDecimal> point2) {
+        if (point1 == null || point2 == null || point1.size() < 2 || point2.size() < 2) {
+            return 0.0;
+        }
+
+        double lat1 = point1.get(1).doubleValue();
+        double lon1 = point1.get(0).doubleValue();
+        double lat2 = point2.get(1).doubleValue();
+        double lon2 = point2.get(0).doubleValue();
+
+        try {
+            // Use VietMap API for accurate road distance
+            BigDecimal distanceKm = vietMapDistanceService.calculateDistance(lat1, lon1, lat2, lon2, "car");
+            return distanceKm.doubleValue();
+        } catch (Exception e) {
+            // Fallback to Haversine formula
+            log.warn("VietMap distance calculation failed, using Haversine fallback: {}", e.getMessage());
+            return calculateDistanceHaversine(point1, point2);
+        }
+    }
+
+    /**
+     * Calculate distance between two points - defaults to Haversine for performance.
+     * Used in optimization algorithms where speed is more important than accuracy.
+     */
+    private double calculateDistance(List<BigDecimal> point1, List<BigDecimal> point2) {
+        return calculateDistanceHaversine(point1, point2);
+    }
+
+    /**
+     * Calculate the total distance along a path of coordinates using Haversine.
+     * Used only for estimating distance along detailed path segments.
+     * For accurate waypoint-to-waypoint distance, use calculateDistanceVietMap directly.
      * @param path List of coordinate points [lng, lat]
      * @return Total distance in kilometers
      */
@@ -654,8 +699,8 @@ public class RouteServiceImpl implements RouteService {
 
         double totalDistance = 0;
         for (int i = 0; i < path.size() - 1; i++) {
-            // Use VietMap service for each segment
-            totalDistance += calculateDistance(path.get(i), path.get(i + 1));
+            // Use Haversine for quick estimation along detailed path
+            totalDistance += calculateDistanceHaversine(path.get(i), path.get(i + 1));
         }
 
         return totalDistance;

@@ -203,6 +203,49 @@ public class IssueWebSocketService {
     }
 
     /**
+     * Send notification to all staff when customer pays return shipping fee
+     * @param issueId Issue ID
+     * @param orderId Order ID
+     * @param customerName Customer name
+     * @param returnJourneyId Return journey ID
+     */
+    public void sendReturnPaymentSuccessNotificationToStaff(
+            java.util.UUID issueId,
+            java.util.UUID orderId,
+            String customerName,
+            java.util.UUID returnJourneyId) {
+        log.info("📲 Broadcasting return payment success notification to all staff");
+        
+        try {
+            // Create notification payload
+            var notification = new java.util.HashMap<String, Object>();
+            notification.put("type", "RETURN_PAYMENT_SUCCESS_STAFF");
+            notification.put("priority", "HIGH");
+            notification.put("title", "Khách hàng đã thanh toán cước trả hàng");
+            notification.put("message", String.format(
+                "Khách hàng %s đã thanh toán thành công cước trả hàng. Lộ trình trả hàng đã được kích hoạt.",
+                customerName != null ? customerName : "N/A"
+            ));
+            notification.put("issueId", issueId.toString());
+            notification.put("orderId", orderId.toString());
+            if (returnJourneyId != null) {
+                notification.put("returnJourneyId", returnJourneyId.toString());
+            }
+            notification.put("timestamp", java.time.Instant.now().toString());
+            
+            // Broadcast to all staff via public topic
+            messagingTemplate.convertAndSend(
+                "/topic/issues/return-payment-success", 
+                notification
+            );
+            
+            log.info("✅ Return payment success notification broadcast to all staff");
+        } catch (Exception e) {
+            log.error("❌ Error broadcasting return payment notification to staff: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
      * Send message to staff when driver confirms new seal attachment
      * @param staffId Staff user ID who assigned the seal
      * @param driverName Driver who confirmed the seal

@@ -24,8 +24,6 @@ public record ProcessOrderRejectionRequest(
         
         Integer totalTollCount, // Số lượng trạm BOT
         
-        BigDecimal totalDistance, // Tổng khoảng cách route mới
-        
-        Integer paymentDeadlineHours // Thời hạn thanh toán (giờ), default 24h
+        BigDecimal totalDistance // Tổng khoảng cách route mới
 ) {
 }

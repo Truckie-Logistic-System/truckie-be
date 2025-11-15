@@ -109,7 +109,7 @@ public class SimpleOrderMapper {
                 response.pickupAddress().province()
         );
 
-        Map<UUID, SimpleIssueImageResponse> issuesByVehicleAssignment = buildIssuesMap(issueImageResponses);
+        Map<UUID, List<SimpleIssueResponse>> issuesByVehicleAssignment = buildIssuesMap(issueImageResponses);
 
         // Per-request caches to avoid duplicate DB calls inside mapper
         Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache = new HashMap<>();
@@ -130,10 +130,10 @@ public class SimpleOrderMapper {
                             .findFirst()
                             .orElse(null);
                     if (vaResponse != null) {
-                        // Get issue for this vehicle assignment
-                        SimpleIssueImageResponse issue = issuesByVehicleAssignment.get(vaId);
+                        // Get ALL issues for this vehicle assignment
+                        List<SimpleIssueResponse> issues = issuesByVehicleAssignment.getOrDefault(vaId, Collections.emptyList());
                         List<String> photoCompletions = getPhotoCompletionsFor(photoCompletionResponses, vaId);
-                        return toSimpleVehicleAssignmentResponse(vaResponse, issue, photoCompletions, vehicleCache, userCache);
+                        return toSimpleVehicleAssignmentResponse(vaResponse, issues, photoCompletions, vehicleCache, userCache);
                     }
                     return null;
                 })
@@ -170,7 +170,7 @@ public class SimpleOrderMapper {
 
     private SimpleVehicleAssignmentResponse toSimpleVehicleAssignmentResponse(
             capstone_project.dtos.response.vehicle.VehicleAssignmentResponse vaResponse,
-            SimpleIssueImageResponse issue,
+            List<SimpleIssueResponse> issues,
             List<String> photoCompletions,
             Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache,
             Map<UUID, UserEntity> userCache
@@ -244,9 +244,9 @@ public class SimpleOrderMapper {
             // Keep seals as empty list
         }
 
-        // Ensure photoCompletions and issue lists are non-null
+        // Ensure photoCompletions and issues lists are non-null
         List<String> safePhotoCompletions = photoCompletions != null ? photoCompletions : Collections.emptyList();
-        List<SimpleIssueImageResponse> issuesList = issue != null ? List.of(issue) : Collections.emptyList();
+        List<SimpleIssueResponse> safeIssues = issues != null ? issues : Collections.emptyList();
 
         // Build vehicleAssignment response
         return new SimpleVehicleAssignmentResponse(
@@ -256,51 +256,10 @@ public class SimpleOrderMapper {
                 secondaryDriver,
                 vaResponse.status(),
                 vaResponse.trackingCode(),
-                issuesList,
+                safeIssues,
                 safePhotoCompletions,
                 seals,
                 journeyHistories
-        );
-    }
-
-    private SimpleOrderDetailResponse toSimpleOrderDetailResponseWithTripInfo_OLD(
-            GetOrderDetailResponse detail,
-            SimpleIssueImageResponse issue,
-            List<String> photoCompletions,
-            Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache,
-            Map<UUID, UserEntity> userCache
-    ) {
-        SimpleOrderSizeResponse orderSize = null;
-        if (detail.orderSizeId() != null) {
-            orderSize = new SimpleOrderSizeResponse(
-                    detail.orderSizeId().id().toString(),
-                    detail.orderSizeId().description(),
-                    detail.orderSizeId().minLength(),
-                    detail.orderSizeId().maxLength(),
-                    detail.orderSizeId().minHeight(),
-                    detail.orderSizeId().maxHeight(),
-                    detail.orderSizeId().minWidth(),
-                    detail.orderSizeId().maxWidth()
-            );
-        }
-
-        // Get the vehicle assignment entity directly using the UUID
-        UUID vehicleAssignmentId = detail.vehicleAssignmentId();
-
-        return new SimpleOrderDetailResponse(
-                detail.trackingCode(), // Using trackingCode as an identifier since there's no id field
-                detail.weightBaseUnit(),
-                detail.unit(),
-                detail.description(),
-                detail.status(),
-                detail.startTime(),
-                detail.estimatedStartTime(),
-                detail.endTime(),
-                detail.estimatedEndTime(),
-                detail.createdAt(),
-                detail.trackingCode(),
-                orderSize,
-                vehicleAssignmentId // Pass UUID directly instead of SimpleVehicleAssignmentResponse
         );
     }
 
@@ -367,27 +326,54 @@ public class SimpleOrderMapper {
             return null;
         }
 
+        var issue = response.issue();
+        
         SimpleStaffResponse staffResponse = null;
-        if (response.issue().staff() != null) {
+        if (issue.staff() != null) {
             staffResponse = new SimpleStaffResponse(
-                    response.issue().staff().getId(),
-                    response.issue().staff().getFullName(),
-                    response.issue().staff().getPhoneNumber()
+                    issue.staff().getId(),
+                    issue.staff().getFullName(),
+                    issue.staff().getPhoneNumber()
             );
         }
 
+        String issueTypeName = issue.issueTypeEntity() != null ? issue.issueTypeEntity().issueTypeName() : null;
+        String issueTypeDescription = issue.issueTypeEntity() != null ? issue.issueTypeEntity().description() : null;
+        var issueCategory = issue.issueCategory();
+        
+        // Issue images
+        List<String> issueImages = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
+
         SimpleIssueResponse simpleIssue = new SimpleIssueResponse(
-                response.issue().id().toString(),
-                response.issue().description(),
-                response.issue().locationLatitude(),
-                response.issue().locationLongitude(),
-                response.issue().status(),
-                response.issue().vehicleAssignmentEntity().id().toString(),
+                issue.id().toString(),
+                issue.description(),
+                issue.locationLatitude(),
+                issue.locationLongitude(),
+                issue.status(),
+                issue.vehicleAssignmentEntity().id().toString(),
                 staffResponse,
-                response.issue().issueTypeEntity().issueTypeName()
+                issueTypeName,
+                issueTypeDescription,
+                issue.reportedAt(),
+                issueCategory,
+                issueImages,
+                // SEAL_REPLACEMENT fields
+                issue.oldSeal(),
+                issue.newSeal(),
+                issue.sealRemovalImage(),
+                issue.newSealAttachedImage(),
+                issue.newSealConfirmedAt(),
+                // ORDER_REJECTION fields
+                issue.paymentDeadline(),
+                issue.calculatedFee(),
+                issue.adjustedFee(),
+                issue.finalFee(),
+                issue.affectedOrderDetails(),
+                issue.returnTransaction(), // Refund
+                null // Transaction
         );
 
-        return new SimpleIssueImageResponse(simpleIssue, response.imageUrl());
+        return new SimpleIssueImageResponse(simpleIssue, null); // imageUrl already included in issueImages
     }
 
     private Map<String, List<String>> convertPhotoCompletions(Map<UUID, List<PhotoCompletionResponse>> photoCompletionMap) {
@@ -471,8 +457,8 @@ public class SimpleOrderMapper {
         return address.toString();
     }
 
-    private Map<UUID, SimpleIssueImageResponse> buildIssuesMap(List<GetIssueImageResponse> issueImageResponses) {
-        Map<UUID, SimpleIssueImageResponse> map = new HashMap<>();
+    private Map<UUID, List<SimpleIssueResponse>> buildIssuesMap(List<GetIssueImageResponse> issueImageResponses) {
+        Map<UUID, List<SimpleIssueResponse>> map = new HashMap<>();
         if (issueImageResponses == null) return map;
 
         for (GetIssueImageResponse resp : issueImageResponses) {
@@ -482,8 +468,11 @@ public class SimpleOrderMapper {
                 var issue = resp.issue();
                 if (issue.vehicleAssignmentEntity() == null || issue.vehicleAssignmentEntity().id() == null) continue;
                 UUID vehicleAssignmentId = UUID.fromString(issue.vehicleAssignmentEntity().id().toString());
-                SimpleIssueImageResponse simple = safeToSimpleIssueImageResponse(resp);
-                if (simple != null) map.put(vehicleAssignmentId, simple);
+                SimpleIssueResponse simple = safeToSimpleIssueResponse(resp);
+                if (simple != null) {
+                    // Add to list instead of replacing
+                    map.computeIfAbsent(vehicleAssignmentId, k -> new ArrayList<>()).add(simple);
+                }
             } catch (Exception ignored) {
                 // ignore invalid UUIDs or mapping errors
             }
@@ -504,7 +493,7 @@ public class SimpleOrderMapper {
     }
 
 
-    private SimpleIssueImageResponse safeToSimpleIssueImageResponse(GetIssueImageResponse response) {
+    private SimpleIssueResponse safeToSimpleIssueResponse(GetIssueImageResponse response) {
         if (response == null || response.issue() == null) return null;
 
         var issue = response.issue();
@@ -525,8 +514,13 @@ public class SimpleOrderMapper {
         }
 
         String issueTypeName = issue.issueTypeEntity() != null ? issue.issueTypeEntity().issueTypeName() : null;
+        String issueTypeDescription = issue.issueTypeEntity() != null ? issue.issueTypeEntity().description() : null;
+        var issueCategory = issue.issueCategory();
 
-        SimpleIssueResponse simpleIssue = new SimpleIssueResponse(
+        // Issue images
+        List<String> issueImages = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
+
+        return new SimpleIssueResponse(
                 issue.id() != null ? issue.id().toString() : null,
                 issue.description(),
                 issue.locationLatitude(),
@@ -534,11 +528,26 @@ public class SimpleOrderMapper {
                 issue.status(),
                 vehicleAssignmentIdStr,
                 staffResponse,
-                issueTypeName
+                issueTypeName,
+                issueTypeDescription,
+                issue.reportedAt(),
+                issueCategory,
+                issueImages, // Issue images moved inside
+                // SEAL_REPLACEMENT fields
+                issue.oldSeal(),
+                issue.newSeal(),
+                issue.sealRemovalImage(),
+                issue.newSealAttachedImage(),
+                issue.newSealConfirmedAt(),
+                // ORDER_REJECTION fields
+                issue.paymentDeadline(),
+                issue.calculatedFee(),
+                issue.adjustedFee(),
+                issue.finalFee(),
+                issue.affectedOrderDetails(),
+                issue.returnTransaction(), // Refund
+                null // Transaction
         );
-
-        List<String> images = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
-        return new SimpleIssueImageResponse(simpleIssue, images);
     }
 
     /**

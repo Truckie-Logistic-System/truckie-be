@@ -24,6 +24,13 @@ public interface CustomerIssueService {
     List<OrderRejectionDetailResponse> getOrderRejectionIssuesByOrder(UUID orderId);
     
     /**
+     * Create return payment transaction for customer
+     * @param issueId Issue ID
+     * @return Transaction response with PayOS checkout URL
+     */
+    capstone_project.dtos.response.order.transaction.TransactionResponse createReturnPaymentTransaction(UUID issueId);
+    
+    /**
      * Reject return payment - customer doesn't want to pay
      * This will keep journey INACTIVE and items will be cancelled
      * @param issueId Issue ID

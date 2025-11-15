@@ -19,11 +19,10 @@ import java.util.UUID;
  * Handles ORDER_REJECTION issues from customer perspective
  */
 @RestController
-@RequestMapping("/api/issues/customer")
+@RequestMapping("${issue-customer.api.base-path}")
 @RequiredArgsConstructor
 @Slf4j
-@Tag(name = "Customer Issue Management", description = "APIs for customers to manage their issues")
-@PreAuthorize("hasRole('CUSTOMER')")
+@PreAuthorize("isAuthenticated()")
 public class CustomerIssueController {
     
     private final CustomerIssueService customerIssueService;
@@ -32,8 +31,6 @@ public class CustomerIssueController {
      * Get all ORDER_REJECTION issues for current customer's orders
      */
     @GetMapping("/order-rejections")
-    @Operation(summary = "Get customer's order rejection issues",
-               description = "Get all ORDER_REJECTION issues for the authenticated customer's orders")
     public ResponseEntity<ApiResponse<List<OrderRejectionDetailResponse>>> getCustomerOrderRejectionIssues() {
         log.info("📋 [CustomerIssue] Getting ORDER_REJECTION issues for current customer");
         
@@ -51,8 +48,6 @@ public class CustomerIssueController {
      * Get ORDER_REJECTION issues for a specific order
      */
     @GetMapping("/order/{orderId}/order-rejections")
-    @Operation(summary = "Get order rejection issues for a specific order",
-               description = "Get all ORDER_REJECTION issues for a specific order belonging to the customer")
     public ResponseEntity<ApiResponse<List<OrderRejectionDetailResponse>>> getOrderRejectionIssuesByOrder(
             @PathVariable UUID orderId) {
         log.info("📋 [CustomerIssue] Getting ORDER_REJECTION issues for order {}", orderId);
@@ -70,12 +65,28 @@ public class CustomerIssueController {
     }
     
     /**
+     * Create return payment transaction
+     * Customer pays for return shipping fee
+     */
+    @PostMapping("/{issueId}/create-return-payment")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.order.transaction.TransactionResponse>> createReturnPayment(
+            @PathVariable UUID issueId) {
+        log.info("💳 [CustomerIssue] Customer creating return payment for issue {}", issueId);
+        
+        capstone_project.dtos.response.order.transaction.TransactionResponse result = 
+                customerIssueService.createReturnPaymentTransaction(issueId);
+        
+        log.info("✅ [CustomerIssue] Created return payment transaction {} for issue {}", 
+                result.id(), issueId);
+        
+        return ResponseEntity.ok(ApiResponse.ok(result, "Đã tạo giao dịch thanh toán trả hàng"));
+    }
+    
+    /**
      * Reject return payment - customer doesn't want to pay
      * This will keep journey INACTIVE and items will be cancelled
      */
     @PostMapping("/{issueId}/reject-return-payment")
-    @Operation(summary = "Reject return payment",
-               description = "Customer rejects the return shipping fee. Items will be cancelled and not returned.")
     public ResponseEntity<ApiResponse<Void>> rejectReturnPayment(@PathVariable UUID issueId) {
         log.info("❌ [CustomerIssue] Customer rejecting return payment for issue {}", issueId);
         
