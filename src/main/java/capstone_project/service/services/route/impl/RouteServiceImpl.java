@@ -12,6 +12,7 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.repository.entityServices.setting.CarrierSettingEntityService;
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
+import capstone_project.service.services.map.VietMapDistanceService;
 import capstone_project.service.services.route.RouteService;
 import capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,6 +44,101 @@ public class RouteServiceImpl implements RouteService {
     private final OrderEntityService orderEntityService;
     private final AddressEntityService addressEntityService;
     private final VietmapService vietmapService;
+    private final VietMapDistanceService vietMapDistanceService;
+    private final capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService;
+
+    @Override
+    @Transactional(readOnly = true)
+    public RoutePointsResponse getRoutePointsByIssue(UUID issueId) {
+        if (issueId == null) {
+            throw new IllegalArgumentException("issueId must not be null");
+        }
+
+        // Load issue to get order information
+        var issue = issueEntityService.findEntityById(issueId)
+                .orElseThrow(() -> new NoSuchElementException("Issue not found: " + issueId));
+
+        // Get order from vehicle assignment
+        var vehicleAssignment = issue.getVehicleAssignmentEntity();
+        if (vehicleAssignment == null) {
+            throw new IllegalStateException("Issue must have an associated vehicle assignment: " + issueId);
+        }
+
+        var orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
+        var order = orderOpt.orElseThrow(() -> new NoSuchElementException("Order not found for vehicle assignment: " + vehicleAssignment.getId()));
+
+        // Get carrier settings
+        var careerOpt = carrierSettingEntityService.findAll().stream().findFirst();
+        var career = careerOpt.orElseThrow(() -> new IllegalStateException("Carrier settings not found"));
+
+        // Get pickup and delivery addresses
+        var pickupRef = order.getPickupAddress();
+        var deliveryRef = order.getDeliveryAddress();
+        if (pickupRef == null || deliveryRef == null) {
+            throw new IllegalStateException("Order must have pickup and delivery addresses: " + order.getId());
+        }
+
+        AddressEntity pickupAddr = addressEntityService.findById(pickupRef.getId())
+                .orElseThrow(() -> new NoSuchElementException("Pickup address not found: " + pickupRef.getId()));
+        AddressEntity deliveryAddr = addressEntityService.findById(deliveryRef.getId())
+                .orElseThrow(() -> new NoSuchElementException("Delivery address not found: " + deliveryRef.getId()));
+
+        // Build return route points: Carrier → Pickup → Delivery → Pickup (Return) → Carrier (Return)
+        List<RoutePointResponse> points = new ArrayList<>();
+        
+        // Point 1: Carrier (start)
+        points.add(new RoutePointResponse(
+                "Carrier",
+                "carrier",
+                career.getCarrierLatitude(),
+                career.getCarrierLongitude(),
+                career.getCarrierAddressLine() == null ? "" : career.getCarrierAddressLine(),
+                career.getId() == null ? null : career.getId()
+        ));
+        
+        // Point 2: Pickup (đi lấy hàng)
+        points.add(new RoutePointResponse(
+                "Pickup",
+                "pickup",
+                pickupAddr.getLatitude(),
+                pickupAddr.getLongitude(),
+                resolveFullAddress(pickupAddr),
+                pickupAddr.getId()
+        ));
+        
+        // Point 3: Delivery (đi giao hàng bị từ chối)
+        points.add(new RoutePointResponse(
+                "Delivery",
+                "delivery",
+                deliveryAddr.getLatitude(),
+                deliveryAddr.getLongitude(),
+                resolveFullAddress(deliveryAddr),
+                deliveryAddr.getId()
+        ));
+        
+        // Point 4: Pickup Return (trả hàng về người gửi)
+        points.add(new RoutePointResponse(
+                "Pickup (Return)",
+                "pickup",
+                pickupAddr.getLatitude(),
+                pickupAddr.getLongitude(),
+                resolveFullAddress(pickupAddr),
+                pickupAddr.getId()
+        ));
+        
+        // Point 5: Carrier Return (quay về kho)
+        points.add(new RoutePointResponse(
+                "Carrier (Return)",
+                "carrier",
+                career.getCarrierLatitude(),
+                career.getCarrierLongitude(),
+                career.getCarrierAddressLine() == null ? "" : career.getCarrierAddressLine(),
+                career.getId() == null ? null : career.getId()
+        ));
+
+        log.info("Generated return route points for issue {}: {} points", issueId, points.size());
+        return new RoutePointsResponse(points);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -298,10 +394,18 @@ public class RouteServiceImpl implements RouteService {
                     double segmentDistance = calculatePathDistance(segmentPath);
                     totalDistance += segmentDistance;
 
+                    // Extract start and end coordinates
+                    List<BigDecimal> startPoint = pointsToUse.get(i);
+                    List<BigDecimal> endPoint = pointsToUse.get(i + 1);
+
                     RouteSegmentResponse segment = new RouteSegmentResponse(
                         i + 1,
                         formatPointLabel(fromType, i),
                         formatPointLabel(toType, i + 1),
+                        startPoint.get(1),  // startLat
+                        startPoint.get(0),  // startLng
+                        endPoint.get(1),    // endLat
+                        endPoint.get(0),    // endLng
                         segmentPath,
                         new ArrayList<>(), // Tolls will be distributed
                         segmentDistance,   // Add the segment distance
@@ -321,10 +425,18 @@ public class RouteServiceImpl implements RouteService {
                 // Just create a single segment for the whole route
                 double totalDistance = calculatePathDistance(path);
 
+                // Extract start and end coordinates
+                List<BigDecimal> startPoint = pointsToUse.get(0);
+                List<BigDecimal> endPoint = pointsToUse.get(pointsToUse.size() - 1);
+
                 RouteSegmentResponse segment = new RouteSegmentResponse(
                     1,
                     formatPointLabel(typesToUse.get(0), 0),
                     formatPointLabel(typesToUse.get(typesToUse.size() - 1), typesToUse.size() - 1),
+                    startPoint.get(1),  // startLat
+                    startPoint.get(0),  // startLng
+                    endPoint.get(1),    // endLat
+                    endPoint.get(0),    // endLng
                     path,
                     tolls,
                     totalDistance,  // Add the segment distance
@@ -370,6 +482,10 @@ public class RouteServiceImpl implements RouteService {
                         i + 1,
                         formatPointLabel(typesToUse.get(i), i),
                         formatPointLabel(typesToUse.get(i + 1), i + 1),
+                        start.get(1),  // startLat
+                        start.get(0),  // startLng
+                        end.get(1),    // endLat
+                        end.get(0),    // endLng
                         path,
                         emptyTolls,
                         segmentDistance, // Add the distance parameter
@@ -508,28 +624,26 @@ public class RouteServiceImpl implements RouteService {
     }
 
     /**
-     * Calculate distance between two points (lng/lat) using Haversine formula.
+     * Calculate distance between two points (lng/lat) using VietMap service.
+     * Format: point = [lng, lat]
      */
     private double calculateDistance(List<BigDecimal> point1, List<BigDecimal> point2) {
-        final int R = 6371; // Radius of the earth in kilometers
-
+        // Extract coordinates: point format is [lng, lat]
         double lat1 = point1.get(1).doubleValue();
         double lon1 = point1.get(0).doubleValue();
         double lat2 = point2.get(1).doubleValue();
         double lon2 = point2.get(0).doubleValue();
 
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLon = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        // Use VietMap service to get accurate road distance
+        BigDecimal distanceKm = vietMapDistanceService.calculateDistance(
+            lat1, lon1, lat2, lon2, "car"
+        );
 
-        return R * c; // Distance in kilometers
+        return distanceKm.doubleValue();
     }
 
     /**
-     * Calculate the total distance along a path of coordinates using the Haversine formula.
+     * Calculate the total distance along a path of coordinates using VietMap service.
      * @param path List of coordinate points [lng, lat]
      * @return Total distance in kilometers
      */
@@ -540,6 +654,7 @@ public class RouteServiceImpl implements RouteService {
 
         double totalDistance = 0;
         for (int i = 0; i < path.size() - 1; i++) {
+            // Use VietMap service for each segment
             totalDistance += calculateDistance(path.get(i), path.get(i + 1));
         }
 
@@ -670,6 +785,10 @@ public class RouteServiceImpl implements RouteService {
                 oldSegment.segmentOrder(),
                 oldSegment.startName(),
                 oldSegment.endName(),
+                oldSegment.startLat(),
+                oldSegment.startLng(),
+                oldSegment.endLat(),
+                oldSegment.endLng(),
                 oldSegment.path(),
                 tolls, // Assign all tolls to this segment
                 oldSegment.distance(), // Keep the original distance
@@ -700,6 +819,10 @@ public class RouteServiceImpl implements RouteService {
                 oldSegment.segmentOrder(),
                 oldSegment.startName(),
                 oldSegment.endName(),
+                oldSegment.startLat(),
+                oldSegment.startLng(),
+                oldSegment.endLat(),
+                oldSegment.endLng(),
                 oldSegment.path(),
                 segmentTolls.get(i),
                 oldSegment.distance(), // Keep the original distance

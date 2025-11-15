@@ -44,6 +44,10 @@ public class TransactionEntity extends BaseEntity {
     @Column(name = "payment_date")
     private LocalDateTime paymentDate;
 
+    @Size(max = 20)
+    @Column(name = "transaction_type", length = 20)
+    private String transactionType; // DEPOSIT, FULL_PAYMENT, RETURN_SHIPPING
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contract_id")
     private ContractEntity contractEntity;

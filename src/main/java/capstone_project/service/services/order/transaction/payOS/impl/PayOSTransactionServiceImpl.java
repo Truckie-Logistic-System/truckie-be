@@ -29,7 +29,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import vn.payos.PayOS;
-import vn.payos.type.PaymentData;
+import vn.payos.exception.PayOSException;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -56,6 +58,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
     private final PayOSProperties properties;
     private final PayOS payOS;
+    private final CustomPayOSClient customPayOSClient;
 
     private final TransactionMapper transactionMapper;
     private final ObjectMapper objectMapper;
@@ -102,17 +105,89 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 .divide(BigDecimal.valueOf(100), RoundingMode.HALF_UP);
 
         BigDecimal remainingAmount = totalValue.subtract(depositAmount);
-
-        PaymentData paymentData = PaymentData.builder()
-                .orderCode(payOsOrderCode)
-                .amount(remainingAmount.setScale(0, RoundingMode.HALF_UP).intValueExact())
-                .description("Create transaction")
-                .cancelUrl(properties.getCancelUrl())
-                .returnUrl(properties.getReturnUrl())
-                .build();
+        int finalAmount = remainingAmount.setScale(0, RoundingMode.HALF_UP).intValueExact();
+        
+        log.info("🔄 Trying PayOS SDK 2.0.1 first...");
+        
+        JsonNode response = null;
+        boolean sdkSuccess = false;
 
         try {
-            var response = payOS.createPaymentLink(paymentData);
+            // Try PayOS SDK 2.0.1 first
+            CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
+                .orderCode(payOsOrderCode)
+                .amount((long) finalAmount)
+                .description("Create transaction")
+                .returnUrl(properties.getReturnUrl())
+                .cancelUrl(properties.getCancelUrl())
+                .build();
+            
+            log.info("📤 Calling PayOS SDK 2.0.1 paymentRequests().create()...");
+            CreatePaymentLinkResponse sdkResponse = payOS.paymentRequests().create(paymentData);
+            
+            // Convert SDK response to JSON
+            String responseJson = String.format("""
+                {
+                  "checkoutUrl": "%s",
+                  "paymentLinkId": "%s",
+                  "orderCode": %d,
+                  "amount": %d,
+                  "status": "%s"
+                }
+                """,
+                sdkResponse.getCheckoutUrl(),
+                sdkResponse.getPaymentLinkId(),
+                sdkResponse.getOrderCode(),
+                sdkResponse.getAmount(),
+                sdkResponse.getStatus()
+            );
+            
+            response = objectMapper.readValue(responseJson, JsonNode.class);
+            sdkSuccess = true;
+            log.info("✅ PayOS SDK 2.0.1 SUCCESS!");
+            
+        } catch (Exception sdkEx) {
+            log.warn("⚠️ PayOS SDK 2.0.1 FAILED: {}", sdkEx.getMessage());
+            log.info("🔄 Falling back to CustomPayOSClient...");
+            
+            try {
+                // Fallback to CustomPayOSClient
+                var customResponse = customPayOSClient.createPaymentLink(
+                    payOsOrderCode,
+                    finalAmount,
+                    "Create transaction",
+                    properties.getReturnUrl(),
+                    properties.getCancelUrl()
+                );
+                
+                // Convert to JSON
+                String responseJson = String.format("""
+                    {
+                      "checkoutUrl": "%s",
+                      "paymentLinkId": "%s",
+                      "orderCode": %d,
+                      "amount": %d,
+                      "status": "%s"
+                    }
+                    """,
+                    customResponse.checkoutUrl(),
+                    customResponse.paymentLinkId(),
+                    customResponse.orderCode(),
+                    customResponse.amount(),
+                    customResponse.status()
+                );
+                
+                response = objectMapper.readValue(responseJson, JsonNode.class);
+                log.info("✅ CustomPayOSClient SUCCESS (Fallback)");
+                
+            } catch (Exception customEx) {
+                log.error("❌ Both SDK and CustomPayOSClient FAILED!");
+                throw new RuntimeException("Failed to create payment link", customEx);
+            }
+        }
+        
+        try {
+            log.info("✅ Payment link created successfully! (Method: {})", sdkSuccess ? "SDK 2.0.1" : "CustomPayOSClient");
 
             TransactionEntity transaction = TransactionEntity.builder()
                     .id(UUID.randomUUID())
@@ -120,6 +195,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     .status(TransactionEnum.PENDING.name())
                     .currencyCode("VND")
                     .paymentProvider("PayOS")
+                    .transactionType(capstone_project.common.enums.TransactionTypeEnum.FULL_PAYMENT.name())
                     .gatewayResponse(objectMapper.writeValueAsString(response))
                     .gatewayOrderCode(String.valueOf(payOsOrderCode))
                     .contractEntity(contractEntity)
@@ -178,20 +254,106 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         BigDecimal depositAmount = totalValue.multiply(depositPercent)
                 .divide(BigDecimal.valueOf(100), RoundingMode.HALF_UP);
 
-        PaymentData paymentData = PaymentData.builder()
-                .orderCode(payOsOrderCode)
-                .amount(depositAmount.setScale(0, RoundingMode.HALF_UP).intValueExact())
-//                .amount(4000)
-                .description("Create deposit")
-//                                .items(List.of(item))
-                .cancelUrl(properties.getCancelUrl())
-                .returnUrl(properties.getReturnUrl())
-                .build();
-
+        int finalAmount = depositAmount.setScale(0, RoundingMode.HALF_UP).intValueExact();
+        
+        log.info("========== PAYOS DEBUG START ==========");
+        log.info("🔑 PayOS Credentials Check:");
+        log.info("   Client ID: {}", properties.getClientId());
+        log.info("   API Key: {}", properties.getApiKey() != null ? "***" + properties.getApiKey().substring(Math.max(0, properties.getApiKey().length() - 4)) : "null");
+        log.info("   Checksum Key: {}", properties.getChecksumKey() != null ? "***" + properties.getChecksumKey().substring(Math.max(0, properties.getChecksumKey().length() - 4)) : "null");
+        log.info("   Base URL: {}", properties.getBaseUrl());
+        
+        log.info("📦 PaymentData Fields:");
+        log.info("   orderCode: {}", payOsOrderCode);
+        log.info("   amount: {} (from depositAmount: {})", finalAmount, depositAmount);
+        log.info("   description: 'Create deposit' (length: {})", "Create deposit".length());
+        log.info("   cancelUrl: {}", properties.getCancelUrl());
+        log.info("   returnUrl: {}", properties.getReturnUrl());
+        
+        log.info("🔄 Trying PayOS SDK 2.0.1 first...");
+        
+        JsonNode response = null;
+        boolean sdkSuccess = false;
+        
         try {
-            var response = payOS.createPaymentLink(paymentData);
-
-            log.info("PayOS response: {}", objectMapper.writeValueAsString(response));
+            // Try PayOS SDK 2.0.1 first
+            CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
+                .orderCode(payOsOrderCode)
+                .amount((long) finalAmount)
+                .description("Create deposit")
+                .returnUrl(properties.getReturnUrl())
+                .cancelUrl(properties.getCancelUrl())
+                .build();
+            
+            log.info("📤 Calling PayOS SDK 2.0.1 paymentRequests().create()...");
+            CreatePaymentLinkResponse sdkResponse = payOS.paymentRequests().create(paymentData);
+            
+            // Convert SDK response to JSON
+            String responseJson = String.format("""
+                {
+                  "checkoutUrl": "%s",
+                  "paymentLinkId": "%s",
+                  "orderCode": %d,
+                  "amount": %d,
+                  "status": "%s"
+                }
+                """,
+                sdkResponse.getCheckoutUrl(),
+                sdkResponse.getPaymentLinkId(),
+                sdkResponse.getOrderCode(),
+                sdkResponse.getAmount(),
+                sdkResponse.getStatus()
+            );
+            
+            response = objectMapper.readValue(responseJson, JsonNode.class);
+            sdkSuccess = true;
+            log.info("✅ PayOS SDK 2.0.1 SUCCESS!");
+            
+        } catch (Exception sdkEx) {
+            log.warn("⚠️ PayOS SDK 2.0.1 FAILED: {}", sdkEx.getMessage());
+            log.info("🔄 Falling back to CustomPayOSClient...");
+            
+            try {
+                // Fallback to CustomPayOSClient
+                var customResponse = customPayOSClient.createPaymentLink(
+                    payOsOrderCode,
+                    finalAmount,
+                    "Create deposit",
+                    properties.getReturnUrl(),
+                    properties.getCancelUrl()
+                );
+                
+                // Convert to JSON
+                String responseJson = String.format("""
+                    {
+                      "checkoutUrl": "%s",
+                      "paymentLinkId": "%s",
+                      "orderCode": %d,
+                      "amount": %d,
+                      "status": "%s"
+                    }
+                    """,
+                    customResponse.checkoutUrl(),
+                    customResponse.paymentLinkId(),
+                    customResponse.orderCode(),
+                    customResponse.amount(),
+                    customResponse.status()
+                );
+                
+                response = objectMapper.readValue(responseJson, JsonNode.class);
+                log.info("✅ CustomPayOSClient SUCCESS (Fallback)");
+                
+            } catch (Exception customEx) {
+                log.error("❌ Both SDK and CustomPayOSClient FAILED!");
+                throw new RuntimeException("Failed to create payment link", customEx);
+            }
+        }
+        
+        try {
+            
+            log.info("✅ Payment link created successfully! (Method: {})", sdkSuccess ? "SDK 2.0.1" : "CustomPayOSClient");
+            log.info("📥 PayOS response: {}", objectMapper.writeValueAsString(response));
+            log.info("========== PAYOS DEBUG END ==========");
 
             TransactionEntity transaction = TransactionEntity.builder()
                     .id(UUID.randomUUID())
@@ -199,6 +361,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     .status(TransactionEnum.PENDING.name())
                     .currencyCode("VND")
                     .paymentProvider("PayOS")
+                    .transactionType(capstone_project.common.enums.TransactionTypeEnum.DEPOSIT.name())
                     .gatewayResponse(objectMapper.writeValueAsString(response))
                     .gatewayOrderCode(String.valueOf(payOsOrderCode))
                     .contractEntity(contractEntity)
@@ -212,7 +375,24 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
 
         } catch (Exception e) {
-            log.error("Error calling PayOS API", e);
+            log.error("========== PAYOS ERROR (DEPOSIT) ==========");
+            log.error("❌ Exception Type: {}", e.getClass().getName());
+            log.error("❌ Error Message: {}", e.getMessage());
+            log.error("❌ Cause: {}", e.getCause() != null ? e.getCause().getMessage() : "null");
+            log.error("❌ Full Stack Trace:", e);
+            
+            // Try to extract more info from exception
+            if (e.getMessage() != null && e.getMessage().contains("signature")) {
+                log.error("🔍 SIGNATURE MISMATCH DETECTED!");
+                log.error("🔍 This means PayOS response signature doesn't match expected signature");
+                log.error("🔍 Possible causes:");
+                log.error("   1. Incorrect checksum key in configuration");
+                log.error("   2. PayOS API changed response format");
+                log.error("   3. Network/proxy modifying response");
+                log.error("   4. PayOS server-side issue");
+            }
+            log.error("========== PAYOS ERROR END ==========");
+            
             throw new RuntimeException("Failed to create payment link", e);
         }
     }
@@ -569,9 +749,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 ));
 
         try {
-            var payosTransaction = payOS.getPaymentLinkInformation(Long.valueOf(transaction.getGatewayOrderCode()));
+            var payosTransaction = payOS.paymentRequests().get(Long.valueOf(transaction.getGatewayOrderCode()));
 
-            transaction.setStatus(payosTransaction.getStatus());
+            transaction.setStatus(payosTransaction.getStatus().name());
             transaction.setGatewayResponse(objectMapper.writeValueAsString(payosTransaction));
 
             TransactionEntity updated = transactionEntityService.save(transaction);
@@ -591,7 +771,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 ));
 
         try {
-            var refundResponse = payOS.cancelPaymentLink(Long.parseLong(transaction.getGatewayOrderCode()), reason);
+            var refundResponse = payOS.paymentRequests().cancel(Long.parseLong(transaction.getGatewayOrderCode()), reason);
 
             transaction.setStatus(TransactionEnum.REFUNDED.name());
             transaction.setGatewayResponse(objectMapper.writeValueAsString(refundResponse));
@@ -669,6 +849,177 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         } catch (Exception e) {
             log.error("❌ Error handling return shipping payment: {}", e.getMessage(), e);
             // Don't throw - payment is already processed, this is just bonus logic
+        }
+    }
+
+    @Override
+    @Transactional
+    public TransactionResponse createReturnShippingTransaction(UUID contractId, BigDecimal amount, UUID issueId) {
+        log.info("Creating return shipping transaction for contract {} (issueId: {})", contractId, issueId);
+
+        log.info("Creating PayOS PaymentData: cancelUrl={}, returnUrl={}",
+                properties.getCancelUrl(), properties.getReturnUrl());
+
+        Long payOsOrderCode = System.currentTimeMillis();
+
+        ContractEntity contractEntity = getAndValidateContract(contractId);
+        
+        int finalAmount = amount.setScale(0, RoundingMode.HALF_UP).intValueExact();
+        
+        log.info("========== PAYOS DEBUG START (RETURN SHIPPING) ==========");
+        log.info("🔑 PayOS Credentials Check:");
+        log.info("   Client ID: {}", properties.getClientId());
+        log.info("   API Key: {}", properties.getApiKey() != null ? "***" + properties.getApiKey().substring(Math.max(0, properties.getApiKey().length() - 4)) : "null");
+        log.info("   Checksum Key: {}", properties.getChecksumKey() != null ? "***" + properties.getChecksumKey().substring(Math.max(0, properties.getChecksumKey().length() - 4)) : "null");
+        log.info("   Base URL: {}", properties.getBaseUrl());
+        
+        log.info("📦 PaymentData Fields:");
+        log.info("   orderCode: {}", payOsOrderCode);
+        log.info("   amount: {} (from BigDecimal: {})", finalAmount, amount);
+        log.info("   description: 'Create deposit' (length: {})", "Create deposit".length());
+        log.info("   cancelUrl: {}", properties.getCancelUrl());
+        log.info("   returnUrl: {}", properties.getReturnUrl());
+        log.info("   issueId: {}", issueId);
+        log.info("🔄 Trying PayOS SDK 2.0.1 first...");
+        
+        JsonNode response = null;
+        boolean sdkSuccess = false;
+
+        try {
+            // Try PayOS SDK 2.0.1 first
+            CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
+                .orderCode(payOsOrderCode)
+                .amount((long) finalAmount)
+                .description("Return shipping payment")
+                .returnUrl(properties.getReturnUrl())
+                .cancelUrl(properties.getCancelUrl())
+                .build();
+            
+            log.info("📤 Calling PayOS SDK 2.0.1 paymentRequests().create()...");
+            CreatePaymentLinkResponse sdkResponse = payOS.paymentRequests().create(paymentData);
+            
+            // Convert SDK response to JSON
+            String responseJson = String.format("""
+                {
+                  "checkoutUrl": "%s",
+                  "paymentLinkId": "%s",
+                  "orderCode": %d,
+                  "amount": %d,
+                  "status": "%s"
+                }
+                """,
+                sdkResponse.getCheckoutUrl(),
+                sdkResponse.getPaymentLinkId(),
+                sdkResponse.getOrderCode(),
+                sdkResponse.getAmount(),
+                sdkResponse.getStatus()
+            );
+            
+            response = objectMapper.readValue(responseJson, JsonNode.class);
+            sdkSuccess = true;
+            log.info("✅ PayOS SDK 2.0.1 SUCCESS!");
+            
+        } catch (Exception sdkEx) {
+            log.warn("⚠️ PayOS SDK 2.0.1 FAILED: {}", sdkEx.getMessage());
+            log.info("🔄 Falling back to CustomPayOSClient...");
+            
+            try {
+                // Fallback to CustomPayOSClient
+                var customResponse = customPayOSClient.createPaymentLink(
+                    payOsOrderCode,
+                    finalAmount,
+                    "Create deposit",
+                    properties.getReturnUrl(),
+                    properties.getCancelUrl()
+                );
+                
+                // Convert to JSON
+                String responseJson = String.format("""
+                    {
+                      "checkoutUrl": "%s",
+                      "paymentLinkId": "%s",
+                      "orderCode": %d,
+                      "amount": %d,
+                      "status": "%s"
+                    }
+                    """,
+                    customResponse.checkoutUrl(),
+                    customResponse.paymentLinkId(),
+                    customResponse.orderCode(),
+                    customResponse.amount(),
+                    customResponse.status()
+                );
+                
+                response = objectMapper.readValue(responseJson, JsonNode.class);
+                log.info("✅ CustomPayOSClient SUCCESS (Fallback)");
+                
+            } catch (Exception customEx) {
+                log.error("❌ Both SDK and CustomPayOSClient FAILED!");
+                throw new RuntimeException("Failed to create payment link", customEx);
+            }
+        }
+        
+        try {
+            log.info("✅ Payment link created successfully! (Method: {})", sdkSuccess ? "SDK 2.0.1" : "CustomPayOSClient");
+            log.info("📥 PayOS response: {}", objectMapper.writeValueAsString(response));
+            log.info("========== PAYOS DEBUG END ==========");
+
+            TransactionEntity transaction = TransactionEntity.builder()
+                    .id(UUID.randomUUID())
+                    .amount(amount)
+                    .status(TransactionEnum.PENDING.name())
+                    .currencyCode("VND")
+                    .paymentProvider("PayOS")
+                    .transactionType(capstone_project.common.enums.TransactionTypeEnum.RETURN_SHIPPING.name())
+                    .gatewayResponse(objectMapper.writeValueAsString(response))
+                    .gatewayOrderCode(String.valueOf(payOsOrderCode))
+                    .contractEntity(contractEntity)
+                    .build();
+
+//            transaction.setStatus(TransactionEnum.DEPOSITED.name());
+            TransactionEntity savedEntity = transactionEntityService.save(transaction);
+//            contractEntity.setStatus(ContractStatusEnum.DEPOSITED.name());
+
+            // Link transaction to issue if issueId is provided
+            if (issueId != null) {
+                try {
+                    var issue = issueEntityService.findEntityById(issueId)
+                            .orElseThrow(() -> new NotFoundException(
+                                    "Issue not found: " + issueId,
+                                    ErrorEnum.NOT_FOUND.getErrorCode()
+                            ));
+                    issue.setReturnTransaction(savedEntity);
+                    issueEntityService.save(issue);
+                    log.info("✅ Linked transaction {} to issue {}", savedEntity.getId(), issueId);
+                } catch (Exception e) {
+                    log.error("⚠️ Failed to link transaction to issue: {}", e.getMessage());
+                    // Don't throw - transaction is already created successfully
+                }
+            }
+
+            return transactionMapper.toTransactionResponse(savedEntity);
+
+
+        } catch (Exception e) {
+            log.error("========== PAYOS ERROR (RETURN SHIPPING) ==========");
+            log.error("❌ Exception Type: {}", e.getClass().getName());
+            log.error("❌ Error Message: {}", e.getMessage());
+            log.error("❌ Cause: {}", e.getCause() != null ? e.getCause().getMessage() : "null");
+            log.error("❌ Full Stack Trace:", e);
+            
+            // Try to extract more info from exception
+            if (e.getMessage() != null && e.getMessage().contains("signature")) {
+                log.error("🔍 SIGNATURE MISMATCH DETECTED!");
+                log.error("🔍 This means PayOS response signature doesn't match expected signature");
+                log.error("🔍 Possible causes:");
+                log.error("   1. Incorrect checksum key in configuration");
+                log.error("   2. PayOS API changed response format");
+                log.error("   3. Network/proxy modifying response");
+                log.error("   4. PayOS server-side issue");
+            }
+            log.error("========== PAYOS ERROR END ==========");
+            
+            throw new RuntimeException("Failed to create payment link", e);
         }
     }
 }

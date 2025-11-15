@@ -24,4 +24,6 @@ public interface PayOSTransactionService {
 
     TransactionResponse refundTransaction(UUID transactionId, String reason);
 
+    TransactionResponse createReturnShippingTransaction(UUID contractId, java.math.BigDecimal amount, UUID issueId);
+
 }

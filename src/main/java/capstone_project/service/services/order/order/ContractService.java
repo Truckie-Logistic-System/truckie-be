@@ -40,6 +40,8 @@ public interface ContractService {
                                                  Map<UUID, Integer> vehicleCountMap);
 
     BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to);
+    
+    BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to, String vehicleType);
 
     ContractResponse uploadContractFile(ContractFileUploadRequest contractFileUploadRequest) throws IOException;
 

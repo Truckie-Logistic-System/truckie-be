@@ -62,6 +62,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.addEndpoint("/vehicle-tracking-browser")
                 .setAllowedOrigins(corsProperties.getAllowedOrigins().get(0))
                 .withSockJS();
+
+        // Issue tracking endpoint with SockJS support (for staff browser clients)
+        // This endpoint doesn't require JWT during handshake, will authenticate via STOMP CONNECT instead
+        registry.addEndpoint("/ws")
+                .setAllowedOrigins(corsProperties.getAllowedOrigins().get(0))
+                .withSockJS();
     }
 
     @Override

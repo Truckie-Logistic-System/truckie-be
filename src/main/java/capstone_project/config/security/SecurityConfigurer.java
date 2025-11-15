@@ -169,7 +169,8 @@ public class SecurityConfigurer {
                     "/actuator/info",
                     "/error",
                     "/chat/**",
-                    "/vehicle-tracking-browser/**" // Adding SockJS endpoint for browser connections
+                    "/vehicle-tracking-browser/**", // Adding SockJS endpoint for browser connections
+                    "/ws/**" // Issue tracking WebSocket endpoint
             ),
             Arrays.stream(SWAGGER_ENDPOINTS)
     ).toArray(String[]::new);

@@ -16,5 +16,6 @@ public record RouteSegmentInfo(
         BigDecimal endLongitude,
         Integer distanceMeters,
         String pathCoordinatesJson,
-        List<Object> tollDetails // Can be empty list or actual toll details
+        List<Object> tollDetails, // Can be empty list or actual toll details
+        BigDecimal estimatedTollFee // Estimated toll fee for this segment
 ) {}

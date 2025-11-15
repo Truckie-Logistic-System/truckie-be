@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,6 +33,18 @@ public class PayOSTransactionController {
     @PostMapping("/{contractId}/deposit")
     public ResponseEntity<ApiResponse<TransactionResponse>> createDepositTransaction(@PathVariable UUID contractId) {
         final var result = payOSTransactionService.createDepositTransaction(contractId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @PostMapping("/{contractId}/return-shipping")
+    public ResponseEntity<ApiResponse<TransactionResponse>> createReturnShippingTransaction(
+            @PathVariable UUID contractId,
+            @RequestParam BigDecimal amount,
+            @RequestParam(required = false) UUID issueId
+    ) {
+        log.info("🚚 Creating return shipping payment link for contract {} with amount {} (issueId: {})", 
+                contractId, amount, issueId);
+        final var result = payOSTransactionService.createReturnShippingTransaction(contractId, amount, issueId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 

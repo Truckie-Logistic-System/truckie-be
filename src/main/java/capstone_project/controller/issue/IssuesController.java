@@ -242,6 +242,17 @@ public class IssuesController {
         final var result = issueService.calculateReturnShippingFee(issueId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+    
+    // Calculate return shipping fee with custom distance for ORDER_REJECTION issue
+    @GetMapping("/order-rejection/{issueId}/return-fee-with-distance")
+    @PreAuthorize("hasAnyRole('STAFF', 'CUSTOMER')")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.issue.ReturnShippingFeeResponse>> calculateReturnShippingFeeWithDistance(
+            @PathVariable("issueId") UUID issueId,
+            @RequestParam("distanceKm") java.math.BigDecimal distanceKm) {
+        System.out.println("🔍 Controller received distance parameter: " + distanceKm + " km for issue: " + issueId);
+        final var result = issueService.calculateReturnShippingFee(issueId, distanceKm);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 
     // Staff processes ORDER_REJECTION: create transaction and route
     @PostMapping("/order-rejection/process")

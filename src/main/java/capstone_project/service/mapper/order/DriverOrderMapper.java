@@ -363,7 +363,8 @@ public class DriverOrderMapper {
                 transaction.amount(),
                 transaction.currencyCode(),
                 transaction.status(),
-                transaction.paymentDate()
+                transaction.paymentDate(),
+                transaction.transactionType()
         );
     }
 

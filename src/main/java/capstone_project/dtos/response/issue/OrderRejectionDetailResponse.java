@@ -29,6 +29,9 @@ public record OrderRejectionDetailResponse(
         // Customer information (sender/owner of the order)
         CustomerInfoResponse customerInfo,
         
+        // Contract ID for creating payment link
+        UUID contractId,
+        
         // Return shipping fee
         BigDecimal calculatedFee,
         

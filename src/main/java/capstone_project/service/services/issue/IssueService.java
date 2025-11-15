@@ -123,11 +123,19 @@ public interface IssueService {
     GetBasicIssueResponse reportOrderRejection(capstone_project.dtos.request.issue.ReportOrderRejectionRequest request);
 
     /**
-     * Calculate return shipping fee for ORDER_REJECTION issue (Staff/Customer)
+     * Calculate return shipping fee for ORDER_REJECTION issue (Staff)
      * @param issueId Issue ID
      * @return Return shipping fee details
      */
     capstone_project.dtos.response.issue.ReturnShippingFeeResponse calculateReturnShippingFee(UUID issueId);
+
+    /**
+     * Calculate return shipping fee with custom distance (from route with intermediate points)
+     * @param issueId Issue ID
+     * @param actualDistanceKm Actual distance from delivery to pickup including intermediate points
+     * @return Return shipping fee details
+     */
+    capstone_project.dtos.response.issue.ReturnShippingFeeResponse calculateReturnShippingFee(UUID issueId, java.math.BigDecimal actualDistanceKm);
 
     /**
      * Process ORDER_REJECTION issue: create transaction, set up new route (Staff)

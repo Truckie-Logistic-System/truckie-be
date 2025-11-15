@@ -38,6 +38,7 @@ import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import capstone_project.service.services.user.DistanceService;
+import capstone_project.service.services.map.VietMapDistanceService;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +64,7 @@ public class ContractServiceImpl implements ContractService {
     private final OrderDetailEntityService orderDetailEntityService;
     private final VehicleEntityService vehicleEntityService;
     private final DistanceService distanceService;
+    private final VietMapDistanceService vietMapDistanceService;
     private final CloudinaryService cloudinaryService;
     private final UserContextUtils userContextUtils;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
@@ -945,29 +947,14 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to) {
-        double lat1 = from.getLatitude().doubleValue();
-        double lon1 = from.getLongitude().doubleValue();
-        double lat2 = to.getLatitude().doubleValue();
-        double lon2 = to.getLongitude().doubleValue();
+        log.info("🗺️ Calculating distance using VietMap API (default vehicle type)");
+        return vietMapDistanceService.calculateDistance(from, to);
+    }
 
-        log.info("Pickup coords: lat={}, lon={}", lat1, lon1);
-        log.info("Delivery coords: lat={}, lon={}", lat2, lon2);
-
-        if (lat1 == lat2 && lon1 == lon2) {
-            return BigDecimal.ZERO;
-        }
-
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLon = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        double distanceKm = EARTH_RADIUS_KM * c;
-
-        log.info("Calculated raw distance: {} km", distanceKm);
-        return BigDecimal.valueOf(distanceKm);
+    @Override
+    public BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to, String vehicleType) {
+        log.info("🗺️ Calculating distance using VietMap API for vehicle type: {}", vehicleType);
+        return vietMapDistanceService.calculateDistance(from, to, vehicleType);
     }
 
 

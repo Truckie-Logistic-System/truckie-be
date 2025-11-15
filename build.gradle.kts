@@ -90,7 +90,7 @@ dependencies {
     implementation("com.google.firebase:firebase-admin:9.3.0")
 
     // PAYMENT
-    implementation("vn.payos:payos-java:1.0.3")
+    implementation("vn.payos:payos-java:2.0.1")
     implementation("com.stripe:stripe-java:29.5.0")
 
     // SOCKET / MESSAGING

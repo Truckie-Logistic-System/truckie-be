@@ -56,9 +56,11 @@ public class IssueServiceImpl implements IssueService {
     private final capstone_project.service.services.order.order.ContractService contractService;
     private final capstone_project.repository.entityServices.order.order.OrderEntityService orderEntityService;
     private final capstone_project.repository.entityServices.order.contract.ContractEntityService contractEntityService;
+    private final capstone_project.repository.entityServices.order.contract.ContractRuleEntityService contractRuleEntityService;
     private final capstone_project.repository.entityServices.user.CustomerEntityService customerEntityService;
-    private final capstone_project.repository.entityServices.order.transaction.TransactionEntityService transactionEntityService;
     private final capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService journeyHistoryEntityService;
+    private final capstone_project.repository.entityServices.order.transaction.TransactionEntityService transactionEntityService;
+    private final capstone_project.service.services.order.transaction.payOS.PayOSTransactionService payOSTransactionService;
 
 
     @Override
@@ -1025,6 +1027,7 @@ public class IssueServiceImpl implements IssueService {
         log.info("✅ Issue created with ID: {}", saved.getId());
 
         // Update tất cả order details bị hư hại
+        List<OrderDetailEntity> selectedOrderDetails = new java.util.ArrayList<>();
         if (request.orderDetailIds() != null && !request.orderDetailIds().isEmpty()) {
             for (String trackingCode : request.orderDetailIds()) {
                 try {
@@ -1040,6 +1043,8 @@ public class IssueServiceImpl implements IssueService {
                     orderDetail.setStatus(OrderDetailStatusEnum.IN_TROUBLES.name());
                     orderDetailEntityService.save(orderDetail);
                     
+                    selectedOrderDetails.add(orderDetail);
+                    
                     log.info("🚨 Updated order detail {} from {} to IN_TROUBLES and linked to issue {}", 
                              orderDetail.getId(), oldStatus, saved.getId());
                 } catch (Exception e) {
@@ -1047,6 +1052,13 @@ public class IssueServiceImpl implements IssueService {
                     throw new RuntimeException("Failed to update order detail: " + trackingCode, e);
                 }
             }
+            
+            // Set orderDetails to issue for bidirectional relationship
+            saved.setOrderDetails(selectedOrderDetails);
+            issueEntityService.save(saved);
+            
+            log.info("✅ Linked {} order details to DAMAGE issue {}", 
+                     selectedOrderDetails.size(), saved.getId());
         }
 
         // Upload damage images to Cloudinary and save to issue_images table
@@ -1214,19 +1226,19 @@ public class IssueServiceImpl implements IssueService {
 
         log.info("📋 Auto-selected issue type: {} ({})", issueType.getIssueTypeName(), issueType.getId());
 
-        // Get and validate selected order details
+        // Get and validate selected order details (orderDetailIds are tracking codes)
         List<OrderDetailEntity> selectedOrderDetails = new java.util.ArrayList<>();
-        for (UUID orderDetailId : request.orderDetailIds()) {
-            OrderDetailEntity orderDetail = orderDetailEntityService.findEntityById(orderDetailId)
+        for (String trackingCode : request.orderDetailIds()) {
+            OrderDetailEntity orderDetail = orderDetailEntityService.findByTrackingCode(trackingCode)
                     .orElseThrow(() -> new NotFoundException(
-                            "Order detail not found: " + orderDetailId,
+                            "Order detail not found with tracking code: " + trackingCode,
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
             
             // Validate order detail belongs to this vehicle assignment
             if (!orderDetail.getVehicleAssignmentEntity().getId().equals(vehicleAssignment.getId())) {
                 throw new BadRequestException(
-                        "Order detail " + orderDetailId + " does not belong to vehicle assignment " + vehicleAssignment.getId(),
+                        "Order detail " + trackingCode + " does not belong to vehicle assignment " + vehicleAssignment.getId(),
                         ErrorEnum.INVALID.getErrorCode()
                 );
             }
@@ -1286,6 +1298,13 @@ public class IssueServiceImpl implements IssueService {
             orderDetail.setIssueEntity(saved);
             orderDetailEntityService.save(orderDetail);
         });
+        
+        // Set orderDetails to issue for bidirectional relationship
+        saved.setOrderDetails(selectedOrderDetails);
+        issueEntityService.save(saved);
+        
+        log.info("✅ Linked {} order details to ORDER_REJECTION issue {}", 
+                 selectedOrderDetails.size(), saved.getId());
 
         // Fetch full issue with all nested objects
         GetBasicIssueResponse response = getBasicIssue(saved.getId());
@@ -1300,15 +1319,21 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public capstone_project.dtos.response.issue.ReturnShippingFeeResponse calculateReturnShippingFee(UUID issueId) {
         log.info("💰 Calculating return shipping fee for issue: {}", issueId);
+        
+        // Use the overloaded method with null distance to use default calculation
+        return calculateReturnShippingFee(issueId, null);
+    }
+    
+    @Override
+    public capstone_project.dtos.response.issue.ReturnShippingFeeResponse calculateReturnShippingFee(UUID issueId, java.math.BigDecimal actualDistanceKm) {
+        log.info("💰 Calculating return shipping fee for issue: {} with custom distance: {}", issueId, actualDistanceKm);
 
         // Get Issue
         IssueEntity issue = issueEntityService.findEntityById(issueId)
                 .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage() + " Issue: " + issueId,
-                        ErrorEnum.NOT_FOUND.getErrorCode()
-                ));
+                        "Issue not found: " + issueId, ErrorEnum.NOT_FOUND.getErrorCode()));
 
-        // Validate issue type is ORDER_REJECTION
+        // Validate issue type
         if (!IssueCategoryEnum.ORDER_REJECTION.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
             throw new IllegalStateException("Issue is not ORDER_REJECTION type");
         }
@@ -1327,27 +1352,62 @@ public class IssueServiceImpl implements IssueService {
         // Get order from first order detail (all should belong to same order)
         var order = selectedOrderDetails.get(0).getOrderEntity();
 
-        // Calculate distance from delivery address back to pickup address (return route)
-        java.math.BigDecimal distanceKm = contractService.calculateDistanceKm(
-                order.getDeliveryAddress(), 
-                order.getPickupAddress()
-        );
+        // Get vehicle type from issue's vehicle assignment
+        String vehicleType = null;
+        if (issue.getVehicleAssignmentEntity() != null 
+            && issue.getVehicleAssignmentEntity().getVehicleEntity() != null 
+            && issue.getVehicleAssignmentEntity().getVehicleEntity().getVehicleTypeEntity() != null) {
+            vehicleType = issue.getVehicleAssignmentEntity().getVehicleEntity().getVehicleTypeEntity().getVehicleTypeName();
+            log.info("🚗 Found vehicle type from assignment: {}", vehicleType);
+        } else {
+            log.warn("⚠️ No vehicle type found in assignment, using default");
+            vehicleType = "car"; // Default fallback
+        }
 
-        log.info("📏 Return distance: {} km", distanceKm);
+        // Use actual distance from client if provided, otherwise calculate from addresses
+        java.math.BigDecimal distanceKm;
+        if (actualDistanceKm != null && actualDistanceKm.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            distanceKm = actualDistanceKm;
+            log.info("📏 Using client-provided distance: {} km", distanceKm);
+        } else {
+            // Calculate distance from delivery address back to pickup address (return route) with vehicle type
+            distanceKm = contractService.calculateDistanceKm(
+                    order.getDeliveryAddress(), 
+                    order.getPickupAddress(),
+                    vehicleType
+            );
+            log.info("📏 Calculated return distance from addresses with vehicle type {}: {} km", vehicleType, distanceKm);
+        }
 
         // Get contract to calculate pricing
         var contract = contractEntityService.getContractByOrderId(order.getId())
                 .orElseThrow(() -> new IllegalStateException("No contract found for order: " + order.getId()));
 
-        // Calculate vehicle count map from SELECTED order details only
-        // This ensures pricing is accurate based on actual packages being returned
-        java.util.Map<UUID, Integer> vehicleCountMap = selectedOrderDetails.stream()
-                .collect(java.util.stream.Collectors.groupingBy(
-                        od -> od.getOrderSizeEntity().getId(),
-                        java.util.stream.Collectors.summingInt(od -> 1)
-                ));
+        // Build vehicle count map using SizeRuleEntity IDs from ContractRules
+        // Match each selected OrderDetail to its ContractRule to get the correct SizeRule
+        java.util.Map<UUID, Integer> vehicleCountMap = new java.util.HashMap<>();
+        
+        // Get all contract rules for this contract
+        var contractRules = contractRuleEntityService.findContractRuleEntityByContractEntityId(contract.getId());
+        
+        for (var orderDetail : selectedOrderDetails) {
+            // Find the ContractRule that contains this orderDetail
+            var contractRule = contractRules.stream()
+                    .filter(cr -> cr.getOrderDetails() != null 
+                            && cr.getOrderDetails().stream()
+                                .anyMatch(od -> od.getId().equals(orderDetail.getId())))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "No contract rule found for order detail: " + orderDetail.getId()));
+            
+            // Get the SizeRule ID from the ContractRule
+            UUID sizeRuleId = contractRule.getSizeRuleEntity().getId();
+            
+            // Increment count for this SizeRule
+            vehicleCountMap.put(sizeRuleId, vehicleCountMap.getOrDefault(sizeRuleId, 0) + 1);
+        }
 
-        log.info("🚗 Vehicle count map for return (selected packages only): {}", vehicleCountMap);
+        log.info("🚗 Vehicle count map for return (sizeRuleId -> count): {}", vehicleCountMap);
 
         // Calculate total weight of selected packages for logging
         double totalWeight = selectedOrderDetails.stream()
@@ -1405,7 +1465,7 @@ public class IssueServiceImpl implements IssueService {
             log.info("💵 Staff adjusted return fee to: {}", request.adjustedReturnFee());
         }
 
-        // Set return shipping fee
+        // Set return shipping fee (use calculated fee)
         issue.setReturnShippingFee(feeResponse.calculatedFee());
 
         // Get final fee for transaction
@@ -1413,7 +1473,9 @@ public class IssueServiceImpl implements IssueService {
                 ? issue.getAdjustedReturnFee() 
                 : issue.getReturnShippingFee();
 
-        // Get order to create transaction
+        log.info("💰 Return shipping fee calculated: {} VND (Staff will create payment link separately)", finalFee);
+
+        // Get order and contract for reference (needed for journey creation)
         List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(
                 issue.getVehicleAssignmentEntity()
         );
@@ -1421,22 +1483,27 @@ public class IssueServiceImpl implements IssueService {
         var contract = contractEntityService.getContractByOrderId(order.getId())
                 .orElseThrow(() -> new IllegalStateException("No contract found for order: " + order.getId()));
 
-        // Create Transaction for return shipping payment
-        capstone_project.entity.order.transaction.TransactionEntity transaction = 
-                capstone_project.entity.order.transaction.TransactionEntity.builder()
-                .amount(finalFee)
-                .status(capstone_project.common.enums.TransactionEnum.PENDING.name())
-                .currencyCode("VND")
-                .paymentProvider("PayOS") // or Stripe, depending on your setup
-                .contractEntity(contract)
-                .build();
+        // NOTE: Payment link will be created separately via POST /api/payos-transaction/{contractId}/return-shipping
+        // This avoids nested transaction issues and follows the same pattern as deposit/full payment
+        log.info("💳 Contract ID for payment: {} - Frontend will call payment endpoint separately", contract.getId());
 
-        transaction = transactionEntityService.save(transaction);
-        log.info("💳 Created transaction for return shipping: {}", transaction.getId());
-
-        issue.setReturnTransaction(transaction);
-
-        // Create new journey for return route: carrier → pickup → delivery → pickup → carrier
+        // ========== MERGE OLD JOURNEY + RETURN SEGMENTS ==========
+        // Step 1: Lấy journey history cũ để copy các segments đã đi
+        List<capstone_project.entity.order.order.JourneyHistoryEntity> oldJourneys = 
+                journeyHistoryEntityService.findByVehicleAssignmentId(
+                        issue.getVehicleAssignmentEntity().getId()
+                );
+        
+        log.info("📜 Found {} existing journeys for vehicle assignment {}", 
+                oldJourneys.size(), issue.getVehicleAssignmentEntity().getId());
+        
+        // Get the latest ACTIVE or COMPLETED journey (should have segments already traveled)
+        capstone_project.entity.order.order.JourneyHistoryEntity oldJourney = oldJourneys.stream()
+                .filter(j -> "ACTIVE".equals(j.getStatus()) || "COMPLETED".equals(j.getStatus()))
+                .findFirst()
+                .orElse(oldJourneys.isEmpty() ? null : oldJourneys.get(0));
+        
+        // Step 2: Create new journey for return route with merged segments
         capstone_project.entity.order.order.JourneyHistoryEntity returnJourney = 
                 capstone_project.entity.order.order.JourneyHistoryEntity.builder()
                 .journeyName("Return Journey for " + issue.getVehicleAssignmentEntity().getTrackingCode())
@@ -1448,13 +1515,55 @@ public class IssueServiceImpl implements IssueService {
                 .vehicleAssignment(issue.getVehicleAssignmentEntity())
                 .build();
 
-        // Create journey segments from request
-        List<capstone_project.entity.order.order.JourneySegmentEntity> segments = new java.util.ArrayList<>();
+        // Step 3: Copy old segments first (excluding the last delivery → carrier segment)
+        List<capstone_project.entity.order.order.JourneySegmentEntity> allSegments = new java.util.ArrayList<>();
+        int nextSegmentOrder = 1;
+        
+        if (oldJourney != null && oldJourney.getJourneySegments() != null) {
+            List<capstone_project.entity.order.order.JourneySegmentEntity> oldSegments = 
+                    oldJourney.getJourneySegments();
+            
+            log.info("📍 Copying {} segments from old journey, excluding last segment", 
+                    oldSegments.size());
+            
+            // Copy all segments EXCEPT the last one (delivery → carrier)
+            // The last segment will be replaced by return segments
+            for (int i = 0; i < oldSegments.size() - 1; i++) {
+                capstone_project.entity.order.order.JourneySegmentEntity oldSeg = oldSegments.get(i);
+                
+                capstone_project.entity.order.order.JourneySegmentEntity copiedSegment = 
+                        capstone_project.entity.order.order.JourneySegmentEntity.builder()
+                        .segmentOrder(nextSegmentOrder++)
+                        .startPointName(oldSeg.getStartPointName())
+                        .endPointName(oldSeg.getEndPointName())
+                        .startLatitude(oldSeg.getStartLatitude())
+                        .startLongitude(oldSeg.getStartLongitude())
+                        .endLatitude(oldSeg.getEndLatitude())
+                        .endLongitude(oldSeg.getEndLongitude())
+                        .distanceMeters(oldSeg.getDistanceMeters())
+                        .status(oldSeg.getStatus()) // Keep original status (COMPLETED/ACTIVE)
+                        .estimatedTollFee(oldSeg.getEstimatedTollFee())
+                        .pathCoordinatesJson(oldSeg.getPathCoordinatesJson())
+                        .tollDetailsJson(oldSeg.getTollDetailsJson())
+                        .journeyHistory(returnJourney)
+                        .build();
+                
+                allSegments.add(copiedSegment);
+            }
+            
+            log.info("✅ Copied {} old segments (excluding last delivery→carrier)", 
+                    allSegments.size());
+        } else {
+            log.warn("⚠️ No old journey found, creating return journey with only return segments");
+        }
+        
+        // Step 4: Add return segments (delivery → pickup → carrier)
+        log.info("🔄 Adding {} return segments", request.routeSegments().size());
         
         for (capstone_project.dtos.request.order.RouteSegmentInfo segmentInfo : request.routeSegments()) {
             capstone_project.entity.order.order.JourneySegmentEntity segment = 
                     capstone_project.entity.order.order.JourneySegmentEntity.builder()
-                    .segmentOrder(segmentInfo.segmentOrder())
+                    .segmentOrder(nextSegmentOrder++) // Continue from old segments
                     .startPointName(segmentInfo.startPointName())
                     .endPointName(segmentInfo.endPointName())
                     .startLatitude(segmentInfo.startLatitude())
@@ -1462,6 +1571,7 @@ public class IssueServiceImpl implements IssueService {
                     .endLatitude(segmentInfo.endLatitude())
                     .endLongitude(segmentInfo.endLongitude())
                     .distanceMeters(segmentInfo.distanceMeters())
+                    .estimatedTollFee(segmentInfo.estimatedTollFee() != null ? segmentInfo.estimatedTollFee().longValue() : null) // Convert BigDecimal to Long
                     .status("PENDING")
                     .journeyHistory(returnJourney)
                     .build();
@@ -1479,10 +1589,15 @@ public class IssueServiceImpl implements IssueService {
                 }
             }
 
-            segments.add(segment);
+            allSegments.add(segment);
         }
+        
+        log.info("📊 Total segments in new return journey: {} (old: {}, return: {})", 
+                allSegments.size(), 
+                allSegments.size() - request.routeSegments().size(),
+                request.routeSegments().size());
 
-        returnJourney.setJourneySegments(segments);
+        returnJourney.setJourneySegments(allSegments);
         returnJourney = journeyHistoryEntityService.save(returnJourney);
         log.info("🛣️ Created INACTIVE return journey: {}", returnJourney.getId());
 
@@ -1547,6 +1662,11 @@ public class IssueServiceImpl implements IssueService {
                         customer.getCompanyName()
                 );
 
+        // Get contract ID for payment link creation
+        var contract = contractEntityService.getContractByOrderId(order.getId())
+                .orElse(null);
+        UUID contractId = contract != null ? contract.getId() : null;
+
         // Map transaction if exists
         capstone_project.dtos.response.order.transaction.TransactionResponse transactionResponse = null;
         if (issue.getReturnTransaction() != null) {
@@ -1571,6 +1691,7 @@ public class IssueServiceImpl implements IssueService {
                     gatewayOrderCode,
                     tx.getStatus(),
                     tx.getPaymentDate(),
+                    tx.getTransactionType(), // transactionType
                     null // contractId not needed here
             );
         }
@@ -1616,6 +1737,7 @@ public class IssueServiceImpl implements IssueService {
                 issue.getReportedAt(),
                 issue.getResolvedAt(),
                 customerInfo,
+                contractId, // Contract ID for creating payment link via separate API call
                 issue.getReturnShippingFee(),
                 issue.getAdjustedReturnFee(),
                 finalFee,
