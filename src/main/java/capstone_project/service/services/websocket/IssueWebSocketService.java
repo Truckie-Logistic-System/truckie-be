@@ -203,17 +203,24 @@ public class IssueWebSocketService {
     }
 
     /**
-     * Send notification to all staff when customer pays return shipping fee
+     * Send return payment success notification to all staff
+     * Broadcasts to all staff users via public topic
      * @param issueId Issue ID
      * @param orderId Order ID
      * @param customerName Customer name
      * @param returnJourneyId Return journey ID
+     * @param trackingCodes Tracking codes của các kiện hàng bị reject
+     * @param paymentAmount Số tiền thanh toán
+     * @param vehicleAssignmentCode Mã chuyến xe
      */
     public void sendReturnPaymentSuccessNotificationToStaff(
             java.util.UUID issueId,
             java.util.UUID orderId,
             String customerName,
-            java.util.UUID returnJourneyId) {
+            java.util.UUID returnJourneyId,
+            String trackingCodes,
+            java.math.BigDecimal paymentAmount,
+            String vehicleAssignmentCode) {
         log.info("📲 Broadcasting return payment success notification to all staff");
         
         try {
@@ -223,11 +230,17 @@ public class IssueWebSocketService {
             notification.put("priority", "HIGH");
             notification.put("title", "Khách hàng đã thanh toán cước trả hàng");
             notification.put("message", String.format(
-                "Khách hàng %s đã thanh toán thành công cước trả hàng. Lộ trình trả hàng đã được kích hoạt.",
-                customerName != null ? customerName : "N/A"
+                "Khách hàng %s đã thanh toán thành công cước trả hàng cho kiện hàng %s (Chuyến %s). Số tiền: %,d VND.",
+                customerName != null ? customerName : "N/A",
+                trackingCodes != null ? trackingCodes : "N/A",
+                vehicleAssignmentCode != null ? vehicleAssignmentCode : "N/A",
+                paymentAmount != null ? paymentAmount.longValue() : 0
             ));
             notification.put("issueId", issueId.toString());
             notification.put("orderId", orderId.toString());
+            notification.put("trackingCodes", trackingCodes);
+            notification.put("paymentAmount", paymentAmount);
+            notification.put("vehicleAssignmentCode", vehicleAssignmentCode);
             if (returnJourneyId != null) {
                 notification.put("returnJourneyId", returnJourneyId.toString());
             }

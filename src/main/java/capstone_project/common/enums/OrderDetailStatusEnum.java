@@ -11,6 +11,7 @@ public enum OrderDetailStatusEnum {
     SUCCESSFUL,
     IN_TROUBLES,
     COMPENSATION,
-    RETURNING,
-    RETURNED
+    RETURNING,      // Customer đã thanh toán cước trả hàng, driver đang trả hàng về pickup
+    RETURNED,       // Driver đã trả hàng về pickup thành công
+    CANCELLED       // Customer không thanh toán cước trả hàng, hủy kiện hàng
 }

@@ -182,7 +182,7 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
                 || newStatus == OrderDetailStatusEnum.IN_TROUBLES;
                 
             // Terminal states - no further transitions allowed
-            case SUCCESSFUL, RETURNED, COMPENSATION -> false;
+            case SUCCESSFUL, RETURNED, COMPENSATION, CANCELLED -> false;
         };
     }
     
@@ -404,6 +404,7 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
             case COMPENSATION -> OrderStatusEnum.COMPENSATION;
             case RETURNING -> OrderStatusEnum.RETURNING;
             case RETURNED -> OrderStatusEnum.RETURNED;
+            case CANCELLED -> OrderStatusEnum.CANCELLED;
         };
     }
 }

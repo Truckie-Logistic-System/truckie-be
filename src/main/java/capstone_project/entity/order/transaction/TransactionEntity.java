@@ -11,6 +11,7 @@ import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "transaction", schema = "public", catalog = "capstone-project")
@@ -51,5 +52,8 @@ public class TransactionEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contract_id")
     private ContractEntity contractEntity;
+
+    @Column(name = "issue_id")
+    private UUID issueId; // For RETURN_SHIPPING transactions
 
 }

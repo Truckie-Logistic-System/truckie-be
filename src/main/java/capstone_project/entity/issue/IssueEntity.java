@@ -96,10 +96,6 @@ public class    IssueEntity extends BaseEntity {
     private BigDecimal adjustedReturnFee; 
     
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "return_transaction_id")
-    private TransactionEntity returnTransaction;
-    
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "return_journey_id")
     private JourneyHistoryEntity returnJourney; 
     

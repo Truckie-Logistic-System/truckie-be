@@ -528,6 +528,14 @@ public class StaffOrderMapper {
                 }
             }
             
+            // Sort issues by reportedAt DESC (newest first)
+            simpleIssues.sort((i1, i2) -> {
+                if (i1.reportedAt() == null && i2.reportedAt() == null) return 0;
+                if (i1.reportedAt() == null) return 1;
+                if (i2.reportedAt() == null) return -1;
+                return i2.reportedAt().compareTo(i1.reportedAt());
+            });
+            
             return simpleIssues;
         } catch (Exception e) {
             log.warn("Could not fetch issues for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
@@ -552,6 +560,15 @@ public class StaffOrderMapper {
             } catch (Exception ignored) {
             }
         }
+        
+        // Sort issues by reportedAt DESC (newest first) for each vehicle assignment
+        map.values().forEach(issues -> issues.sort((i1, i2) -> {
+            if (i1.reportedAt() == null && i2.reportedAt() == null) return 0;
+            if (i1.reportedAt() == null) return 1;
+            if (i2.reportedAt() == null) return -1;
+            return i2.reportedAt().compareTo(i1.reportedAt());
+        }));
+        
         return map;
     }
 

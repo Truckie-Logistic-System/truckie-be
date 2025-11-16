@@ -238,12 +238,13 @@ public class CustomerIssueServiceImpl implements CustomerIssueService {
             throw new BadRequestException(ErrorEnum.INVALID);
         }
         
-        // Verify transaction exists and is PENDING
-        if (issue.getReturnTransaction() == null) {
-            throw new BadRequestException(ErrorEnum.INVALID);
-        }
+        // Find transaction by issueId
+        TransactionEntity transaction = transactionEntityService.findAll().stream()
+                .filter(tx -> issue.getId().equals(tx.getIssueId()))
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException(ErrorEnum.INVALID));
         
-        TransactionEntity transaction = issue.getReturnTransaction();
+        // Verify transaction is PENDING
         if (!TransactionEnum.PENDING.name().equals(transaction.getStatus())) {
             throw new BadRequestException(ErrorEnum.INVALID);
         }

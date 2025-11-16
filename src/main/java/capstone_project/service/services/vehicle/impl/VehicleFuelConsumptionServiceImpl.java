@@ -42,6 +42,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private final OrderService orderService;
     private final SealEntityService sealEntityService;
     private final OrderDetailStatusService orderDetailStatusService;
+    private final capstone_project.repository.entityServices.order.order.OrderDetailEntityService orderDetailEntityService;
 
     @Override
     @Transactional
@@ -153,17 +154,92 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
         final var updatedEntity = vehicleFuelConsumptionEntityService.save(entity);
 
-        // ✅ NEW: Auto-update OrderDetail status to SUCCESSFUL after odometer end upload
+        // ✅ Auto-update OrderDetail and Order status after odometer end upload
+        // Only update DELIVERED → SUCCESSFUL (don't touch IN_TROUBLES, RETURNED, COMPENSATION)
         try {
             UUID vehicleAssignmentId = entity.getVehicleAssignmentEntity().getId();
-            orderDetailStatusService.updateOrderDetailStatusByAssignment(
-                    vehicleAssignmentId,
-                    OrderDetailStatusEnum.SUCCESSFUL
-            );
-            log.info("✅ Auto-updated OrderDetail status: DELIVERED → SUCCESSFUL for assignment: {}", 
-                    vehicleAssignmentId);
             
-            // Update the IN_USE seal to USED (there should be only one)
+            // Get all OrderDetails for this assignment
+            var allOrderDetails = orderDetailEntityService.findByVehicleAssignmentId(vehicleAssignmentId);
+            
+            // Only update DELIVERED details to SUCCESSFUL
+            // Don't touch final states: IN_TROUBLES, RETURNED, COMPENSATION, CANCELLED
+            var deliveredDetails = allOrderDetails.stream()
+                    .filter(od -> "DELIVERED".equals(od.getStatus()))
+                    .collect(java.util.stream.Collectors.toList());
+            
+            if (!deliveredDetails.isEmpty()) {
+                deliveredDetails.forEach(od -> {
+                    od.setStatus(OrderDetailStatusEnum.SUCCESSFUL.name());
+                    orderDetailEntityService.save(od);
+                    log.info("✅ Updated OrderDetail {} ({}) from DELIVERED to SUCCESSFUL", 
+                             od.getId(), od.getTrackingCode());
+                });
+                log.info("✅ Updated {} OrderDetail(s) to SUCCESSFUL (final odometer captured)", 
+                         deliveredDetails.size());
+            }
+            
+            // Auto-update Order status based on ALL OrderDetails using priority logic
+            // Priority: DELIVERED > IN_TROUBLES > COMPENSATION > RETURNED
+            if (!allOrderDetails.isEmpty()) {
+                UUID orderId = allOrderDetails.get(0).getOrderEntity().getId();
+                var allDetailsInOrder = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
+                
+                long deliveredCount = allDetailsInOrder.stream()
+                        .filter(od -> "DELIVERED".equals(od.getStatus())).count();
+                long successfulCount = allDetailsInOrder.stream()
+                        .filter(od -> "SUCCESSFUL".equals(od.getStatus())).count();
+                long inTroublesCount = allDetailsInOrder.stream()
+                        .filter(od -> "IN_TROUBLES".equals(od.getStatus())).count();
+                long compensationCount = allDetailsInOrder.stream()
+                        .filter(od -> "COMPENSATION".equals(od.getStatus())).count();
+                long returnedCount = allDetailsInOrder.stream()
+                        .filter(od -> "RETURNED".equals(od.getStatus())).count();
+                
+                var order = orderEntityService.findEntityById(orderId).orElse(null);
+                if (order != null) {
+                    String oldStatus = order.getStatus();
+                    String newStatus;
+                    String reason;
+                    
+                    // Apply priority logic
+                    if (deliveredCount > 0 || successfulCount > 0) {
+                        // Has delivered or successful packages → SUCCESSFUL
+                        newStatus = OrderStatusEnum.SUCCESSFUL.name();
+                        reason = String.format("%d delivered + %d successful", deliveredCount, successfulCount);
+                    } else if (inTroublesCount > 0) {
+                        // No delivered, has troubles → IN_TROUBLES
+                        newStatus = OrderStatusEnum.IN_TROUBLES.name();
+                        reason = String.format("%d package(s) in troubles", inTroublesCount);
+                    } else if (compensationCount > 0) {
+                        // No delivered, no troubles, has compensation → COMPENSATION
+                        newStatus = OrderStatusEnum.COMPENSATION.name();
+                        reason = String.format("%d compensated", compensationCount);
+                        if (returnedCount > 0) {
+                            reason += String.format(", %d returned", returnedCount);
+                        }
+                    } else if (returnedCount == allDetailsInOrder.size()) {
+                        // All returned → RETURNED
+                        newStatus = OrderStatusEnum.RETURNED.name();
+                        reason = "All packages returned";
+                    } else {
+                        // Fallback
+                        newStatus = OrderStatusEnum.SUCCESSFUL.name();
+                        reason = "Trip completed";
+                    }
+                    
+                    if (!newStatus.equals(oldStatus)) {
+                        order.setStatus(newStatus);
+                        orderEntityService.save(order);
+                        log.info("✅ Order {} status updated from {} to {} after final odometer ({})", 
+                                 orderId, oldStatus, newStatus, reason);
+                    } else {
+                        log.info("ℹ️ Order {} status unchanged: {} ({})", orderId, oldStatus, reason);
+                    }
+                }
+            }
+            
+            // Update the IN_USE seal to REMOVED
             final var vehicleAssignment = entity.getVehicleAssignmentEntity();
             final var inUseSeal = sealEntityService.findByVehicleAssignment(
                     vehicleAssignment,
@@ -172,10 +248,10 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
             if (inUseSeal != null) {
                 inUseSeal.setStatus(SealEnum.REMOVED.name());
                 sealEntityService.save(inUseSeal);
-                log.info("Updated seal {} status from IN_USE to USED", inUseSeal.getSealCode());
+                log.info("✅ Updated seal {} status from IN_USE to REMOVED", inUseSeal.getSealCode());
             }
         } catch (Exception e) {
-            log.warn("⚠️ Failed to auto-update OrderDetail status or seal: {}", e.getMessage());
+            log.error("❌ Failed to auto-update OrderDetail/Order status or seal: {}", e.getMessage(), e);
             // Don't fail the main operation - odometer was updated successfully
         }
 

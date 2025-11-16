@@ -34,7 +34,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.repository.entityServices.order.order.OrderEntityService;
 
 @Service
 @RequiredArgsConstructor
@@ -1076,6 +1079,28 @@ public class IssueServiceImpl implements IssueService {
             
             log.info("✅ Linked {} order details to DAMAGE issue {}", 
                      selectedOrderDetails.size(), saved.getId());
+            
+            // Update remaining order details in this vehicle assignment to DELIVERED
+            var affectedOrderDetailIds = selectedOrderDetails.stream()
+                    .map(OrderDetailEntity::getId)
+                    .collect(java.util.stream.Collectors.toSet());
+            
+            var allOrderDetails = orderDetailEntityService.findByVehicleAssignmentId(request.vehicleAssignmentId());
+            var remainingOrderDetails = allOrderDetails.stream()
+                    .filter(od -> !affectedOrderDetailIds.contains(od.getId()))
+                    .filter(od -> "ONGOING_DELIVERED".equals(od.getStatus()) || "ON_DELIVERED".equals(od.getStatus()))
+                    .collect(java.util.stream.Collectors.toList());
+            
+            if (!remainingOrderDetails.isEmpty()) {
+                remainingOrderDetails.forEach(orderDetail -> {
+                    orderDetail.setStatus(OrderDetailStatusEnum.DELIVERED.name());
+                    orderDetailEntityService.save(orderDetail);
+                    log.info("📦 OrderDetail {} (not damaged) status updated to DELIVERED", 
+                             orderDetail.getTrackingCode());
+                });
+                log.info("✅ Updated {} remaining order details to DELIVERED status", 
+                         remainingOrderDetails.size());
+            }
         }
 
         // Upload damage images to Cloudinary and save to issue_images table
@@ -1632,6 +1657,17 @@ public class IssueServiceImpl implements IssueService {
         issue = issueEntityService.save(issue);
         log.info("✅ ORDER_REJECTION issue processed, status: IN_PROGRESS");
 
+        // Broadcast WebSocket notification for issue status change
+        // This ensures customer order detail page receives update and refetches
+        try {
+            GetBasicIssueResponse issueResponse = issueMapper.toIssueBasicResponse(issue);
+            issueWebSocketService.broadcastIssueStatusChange(issueResponse);
+            log.info("📢 Broadcasted issue status change via WebSocket for issue: {}", issue.getId());
+        } catch (Exception e) {
+            log.error("❌ Failed to broadcast issue status change: {}", e.getMessage());
+            // Don't fail the whole operation if broadcast fails
+        }
+
         // NOTE: Transaction will be created when customer clicks "Pay" button
         // This follows the same pattern as deposit/full payment:
         // 1. Customer sees issue with fee amount
@@ -1695,10 +1731,14 @@ public class IssueServiceImpl implements IssueService {
                 .orElse(null);
         UUID contractId = contract != null ? contract.getId() : null;
 
-        // Map transaction if exists
+        // Map transaction if exists - find by issueId
         capstone_project.dtos.response.order.transaction.TransactionResponse transactionResponse = null;
-        if (issue.getReturnTransaction() != null) {
-            var tx = issue.getReturnTransaction();
+        var transactionOpt = transactionEntityService.findAll().stream()
+                .filter(tx -> issue.getId().equals(tx.getIssueId()))
+                .findFirst();
+        
+        if (transactionOpt.isPresent()) {
+            var tx = transactionOpt.get();
             // Convert gateway order code from String to Long
             Long gatewayOrderCode = null;
             if (tx.getGatewayOrderCode() != null) {
@@ -1837,6 +1877,74 @@ public class IssueServiceImpl implements IssueService {
                      orderDetail.getTrackingCode());
         });
 
+        // Update Order status based on ALL OrderDetails using priority logic
+        // CRITICAL: Multi-trip support - check all order details across all trips
+        // Priority: DELIVERED > IN_TROUBLES > COMPENSATION > RETURNING > RETURNED
+        var vehicleAssignment = issue.getVehicleAssignmentEntity();
+        if (vehicleAssignment != null) {
+            Optional<OrderEntity> orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
+            if (orderOpt.isPresent()) {
+                OrderEntity order = orderOpt.get();
+                String oldStatus = order.getStatus();
+                
+                // Get ALL orderDetails of this Order (across all trips)
+                var allDetailsInOrder = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(order.getId());
+                
+                long deliveredCount = allDetailsInOrder.stream()
+                        .filter(od -> "DELIVERED".equals(od.getStatus())).count();
+                long successfulCount = allDetailsInOrder.stream()
+                        .filter(od -> "SUCCESSFUL".equals(od.getStatus())).count();
+                long inTroublesCount = allDetailsInOrder.stream()
+                        .filter(od -> "IN_TROUBLES".equals(od.getStatus())).count();
+                long compensationCount = allDetailsInOrder.stream()
+                        .filter(od -> "COMPENSATION".equals(od.getStatus())).count();
+                long returningCount = allDetailsInOrder.stream()
+                        .filter(od -> "RETURNING".equals(od.getStatus())).count();
+                long returnedCount = allDetailsInOrder.stream()
+                        .filter(od -> "RETURNED".equals(od.getStatus())).count();
+                
+                String newStatus;
+                String reason;
+                
+                // Apply priority logic
+                if (deliveredCount > 0 || successfulCount > 0) {
+                    // Has delivered packages → SUCCESSFUL
+                    newStatus = capstone_project.common.enums.OrderStatusEnum.SUCCESSFUL.name();
+                    reason = String.format("%d delivered/successful, %d returned", 
+                            deliveredCount + successfulCount, returnedCount);
+                } else if (inTroublesCount > 0) {
+                    // No delivered, has troubles → IN_TROUBLES
+                    newStatus = capstone_project.common.enums.OrderStatusEnum.IN_TROUBLES.name();
+                    reason = String.format("%d in troubles, %d returned", inTroublesCount, returnedCount);
+                } else if (compensationCount > 0) {
+                    // No delivered, no troubles, has compensation → COMPENSATION
+                    newStatus = capstone_project.common.enums.OrderStatusEnum.COMPENSATION.name();
+                    reason = String.format("%d compensated, %d returned", compensationCount, returnedCount);
+                } else if (returningCount > 0) {
+                    // Still has packages returning
+                    newStatus = capstone_project.common.enums.OrderStatusEnum.RETURNING.name();
+                    reason = String.format("%d returning, %d returned", returningCount, returnedCount);
+                } else if (returnedCount == allDetailsInOrder.size()) {
+                    // All returned → RETURNED
+                    newStatus = capstone_project.common.enums.OrderStatusEnum.RETURNED.name();
+                    reason = String.format("All %d packages returned", returnedCount);
+                } else {
+                    // Fallback
+                    newStatus = oldStatus;
+                    reason = "No status change needed";
+                }
+                
+                if (!newStatus.equals(oldStatus)) {
+                    order.setStatus(newStatus);
+                    orderEntityService.save(order);
+                    log.info("✅ Order {} status updated from {} to {} (driver confirmed return delivery, multi-trip: {})", 
+                             order.getId(), oldStatus, newStatus, reason);
+                } else {
+                    log.info("ℹ️ Order {} status unchanged: {} ({})", order.getId(), oldStatus, reason);
+                }
+            }
+        }
+
         // Mark issue as RESOLVED
         issue.setStatus(IssueEnum.RESOLVED.name());
         issue.setResolvedAt(java.time.LocalDateTime.now());
@@ -1902,18 +2010,9 @@ public class IssueServiceImpl implements IssueService {
                         issue.getId()
                 );
         
-        log.info("✅ Created return shipping transaction: {}", transactionResponse.id());
+        log.info("✅ Created return shipping transaction: {} for issue: {}", transactionResponse.id(), issue.getId());
         
-        // Link transaction to issue
-        UUID transactionId = UUID.fromString(transactionResponse.id());
-        var transaction = transactionEntityService.findEntityById(transactionId)
-                .orElseThrow(() -> new IllegalStateException("Transaction not found after creation"));
-        
-        issue.setReturnTransaction(transaction);
-        issueEntityService.save(issue);
-        
-        log.info("✅ Linked transaction {} to issue {}", transaction.getId(), issue.getId());
-        
+        // Transaction already has issueId set, no need to link back
         return transactionResponse;
     }
 

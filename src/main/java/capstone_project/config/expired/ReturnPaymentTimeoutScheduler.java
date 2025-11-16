@@ -25,6 +25,7 @@ public class ReturnPaymentTimeoutScheduler {
     
     private final IssueEntityService issueEntityService;
     private final TransactionEntityService transactionEntityService;
+    private final capstone_project.repository.entityServices.order.order.OrderDetailEntityService orderDetailEntityService;
     private final capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService;
 
     /**
@@ -54,16 +55,20 @@ public class ReturnPaymentTimeoutScheduler {
                 if (issue.getPaymentDeadline() != null 
                         && issue.getPaymentDeadline().isBefore(now)) {
                     
+                    // Find transaction by issueId
+                    var transactionOpt = transactionEntityService.findAll().stream()
+                            .filter(tx -> issue.getId().equals(tx.getIssueId()))
+                            .findFirst();
+                    
                     // Check if transaction is still PENDING
-                    if (issue.getReturnTransaction() != null 
-                            && TransactionEnum.PENDING.name().equals(
-                                    issue.getReturnTransaction().getStatus())) {
+                    if (transactionOpt.isPresent() 
+                            && TransactionEnum.PENDING.name().equals(transactionOpt.get().getStatus())) {
                         
                         log.warn("⏰ Issue {} payment deadline expired at {}", 
                                 issue.getId(), issue.getPaymentDeadline());
                         
                         // Update transaction status to EXPIRED
-                        var transaction = issue.getReturnTransaction();
+                        var transaction = transactionOpt.get();
                         transaction.setStatus(TransactionEnum.EXPIRED.name());
                         transactionEntityService.save(transaction);
                         
@@ -71,6 +76,17 @@ public class ReturnPaymentTimeoutScheduler {
                         issue.setStatus(IssueEnum.RESOLVED.name());
                         issue.setResolvedAt(LocalDateTime.now());
                         issueEntityService.save(issue);
+                        
+                        // Update order details status to CANCELLED (customer didn't pay, packages are abandoned)
+                        if (issue.getOrderDetails() != null && !issue.getOrderDetails().isEmpty()) {
+                            issue.getOrderDetails().forEach(orderDetail -> {
+                                orderDetail.setStatus(capstone_project.common.enums.OrderDetailStatusEnum.CANCELLED.name());
+                                log.info("📦 OrderDetail {} status updated to CANCELLED (payment timeout)", 
+                                        orderDetail.getTrackingCode());
+                            });
+                            orderDetailEntityService.saveAllOrderDetailEntities(issue.getOrderDetails());
+                            log.info("✅ Updated {} order details to CANCELLED status", issue.getOrderDetails().size());
+                        }
                         
                         // Journey remains INACTIVE (will not be activated)
                         if (issue.getReturnJourney() != null) {

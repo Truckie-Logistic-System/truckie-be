@@ -103,44 +103,83 @@ public class RefundServiceImpl implements RefundService {
             var allOrderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(
                     issue.getVehicleAssignmentEntity());
             
+            java.util.Set<java.util.UUID> affectedOrderIds = new java.util.HashSet<>();
+            
             for (OrderDetailEntity od : allOrderDetails) {
                 // Kiện bị hư (linked to issue) → COMPENSATION
                 if (od.getIssueEntity() != null && od.getIssueEntity().getId().equals(issue.getId())) {
                     od.setStatus(OrderDetailStatusEnum.COMPENSATION.name());
                     orderDetailEntityService.save(od);
-                    log.info("✅ Order detail {} status updated to COMPENSATION", od.getId());
+                    affectedOrderIds.add(od.getOrderEntity().getId());
+                    log.info("✅ OrderDetail {} ({}) status updated to COMPENSATION", 
+                             od.getId(), od.getTrackingCode());
                 }
                 // Kiện còn lại (không bị hư và đang IN_TROUBLES) → DELIVERED
+                // This shouldn't happen in normal flow, but handle it for safety
                 else if (OrderDetailStatusEnum.IN_TROUBLES.name().equals(od.getStatus())) {
                     od.setStatus(OrderDetailStatusEnum.DELIVERED.name());
                     orderDetailEntityService.save(od);
-                    log.info("✅ Order detail {} status updated to DELIVERED", od.getId());
+                    affectedOrderIds.add(od.getOrderEntity().getId());
+                    log.info("✅ OrderDetail {} ({}) status updated to DELIVERED", 
+                             od.getId(), od.getTrackingCode());
                 }
             }
-            log.info("✅ Updated order details: damaged → COMPENSATION, others → DELIVERED");
+            log.info("✅ Updated order details: damaged → COMPENSATION");
             
-            // Check if ALL order details in the affected orders are COMPENSATION
-            // If so, update order status to COMPENSATION
-            var affectedOrderIds = allOrderDetails.stream()
-                    .map(od -> od.getOrderEntity().getId())
-                    .distinct()
-                    .toList();
-            
+            // Auto-update Order status based on ALL OrderDetails using priority logic
+            // Priority: DELIVERED > IN_TROUBLES > COMPENSATION > RETURNED
+            // This handles mix cases like: 1 RETURNED + 2 COMPENSATION → Order = COMPENSATION
             for (java.util.UUID orderId : affectedOrderIds) {
-                var orderDetailsInOrder = orderDetailEntityService.findAll().stream()
-                        .filter(od -> od.getOrderEntity() != null && 
-                                      od.getOrderEntity().getId().equals(orderId))
-                        .toList();
+                var allDetailsInOrder = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
                 
-                boolean allCompensated = orderDetailsInOrder.stream()
-                        .allMatch(od -> OrderDetailStatusEnum.COMPENSATION.name().equals(od.getStatus()));
+                long deliveredCount = allDetailsInOrder.stream()
+                        .filter(od -> "DELIVERED".equals(od.getStatus())).count();
+                long inTroublesCount = allDetailsInOrder.stream()
+                        .filter(od -> "IN_TROUBLES".equals(od.getStatus())).count();
+                long compensationCount = allDetailsInOrder.stream()
+                        .filter(od -> "COMPENSATION".equals(od.getStatus())).count();
+                long returnedCount = allDetailsInOrder.stream()
+                        .filter(od -> "RETURNED".equals(od.getStatus())).count();
                 
-                if (allCompensated) {
-                    var order = orderEntityService.findEntityById(orderId)
-                            .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND));
-                    order.setStatus(OrderStatusEnum.COMPENSATION.name());
+                var order = orderEntityService.findEntityById(orderId)
+                        .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND));
+                String oldStatus = order.getStatus();
+                String newStatus;
+                String reason;
+                
+                // Apply priority logic
+                if (deliveredCount > 0) {
+                    // Has delivered packages → SUCCESSFUL
+                    newStatus = OrderStatusEnum.SUCCESSFUL.name();
+                    reason = String.format("Has %d delivered package(s)", deliveredCount);
+                } else if (inTroublesCount > 0) {
+                    // No delivered, has troubles → IN_TROUBLES
+                    newStatus = OrderStatusEnum.IN_TROUBLES.name();
+                    reason = String.format("Still has %d package(s) in troubles", inTroublesCount);
+                } else if (compensationCount > 0) {
+                    // No delivered, no troubles, has compensation → COMPENSATION
+                    newStatus = OrderStatusEnum.COMPENSATION.name();
+                    reason = String.format("Compensated %d package(s)", compensationCount);
+                    if (returnedCount > 0) {
+                        reason += String.format(", %d package(s) returned", returnedCount);
+                    }
+                } else if (returnedCount == allDetailsInOrder.size()) {
+                    // All returned → RETURNED
+                    newStatus = OrderStatusEnum.RETURNED.name();
+                    reason = "All packages returned";
+                } else {
+                    // Fallback
+                    newStatus = oldStatus;
+                    reason = "No status change needed";
+                }
+                
+                if (!newStatus.equals(oldStatus)) {
+                    order.setStatus(newStatus);
                     orderEntityService.save(order);
-                    log.info("✅ Order {} status updated to COMPENSATION (all order details compensated)", orderId);
+                    log.info("✅ Order {} status updated from {} to {} ({})", 
+                             orderId, oldStatus, newStatus, reason);
+                } else {
+                    log.info("ℹ️ Order {} status unchanged: {} ({})", orderId, oldStatus, reason);
                 }
             }
         }

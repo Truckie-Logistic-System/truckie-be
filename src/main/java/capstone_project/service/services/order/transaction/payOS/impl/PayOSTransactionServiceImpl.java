@@ -55,7 +55,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     // ORDER_REJECTION dependencies
     private final capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService;
     private final capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService journeyHistoryEntityService;
+    private final capstone_project.repository.entityServices.order.order.OrderDetailEntityService orderDetailEntityService;
     private final capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService;
+    private final capstone_project.service.services.order.order.OrderStatusWebSocketService orderStatusWebSocketService;
 
     private final PayOSProperties properties;
     private final PayOS payOS;
@@ -108,6 +110,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         BigDecimal remainingAmount = totalValue.subtract(depositAmount);
         int finalAmount = remainingAmount.setScale(0, RoundingMode.HALF_UP).intValueExact();
         
+        // Append orderId to returnUrl and cancelUrl for proper navigation after payment
+        UUID orderId = contractEntity.getOrderEntity() != null ? contractEntity.getOrderEntity().getId() : null;
+        String returnUrl = properties.getReturnUrl() + (orderId != null ? "?orderId=" + orderId : "");
+        String cancelUrl = properties.getCancelUrl() + (orderId != null ? "?orderId=" + orderId : "");
+        
         log.info("🔄 Trying PayOS SDK 2.0.1 first...");
         
         JsonNode response = null;
@@ -119,8 +126,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 .orderCode(payOsOrderCode)
                 .amount((long) finalAmount)
                 .description("Create transaction")
-                .returnUrl(properties.getReturnUrl())
-                .cancelUrl(properties.getCancelUrl())
+                .returnUrl(returnUrl)
+                .cancelUrl(cancelUrl)
                 .build();
             
             log.info("📤 Calling PayOS SDK 2.0.1 paymentRequests().create()...");
@@ -157,8 +164,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     payOsOrderCode,
                     finalAmount,
                     "Create transaction",
-                    properties.getReturnUrl(),
-                    properties.getCancelUrl()
+                    returnUrl,
+                    cancelUrl
                 );
                 
                 // Convert to JSON
@@ -257,6 +264,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         int finalAmount = depositAmount.setScale(0, RoundingMode.HALF_UP).intValueExact();
         
+        // Append orderId to returnUrl and cancelUrl for proper navigation after payment
+        UUID orderId = contractEntity.getOrderEntity() != null ? contractEntity.getOrderEntity().getId() : null;
+        String returnUrl = properties.getReturnUrl() + (orderId != null ? "?orderId=" + orderId : "");
+        String cancelUrl = properties.getCancelUrl() + (orderId != null ? "?orderId=" + orderId : "");
+        
         log.info("========== PAYOS DEBUG START ==========");
         log.info("🔑 PayOS Credentials Check:");
         log.info("   Client ID: {}", properties.getClientId());
@@ -268,8 +280,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         log.info("   orderCode: {}", payOsOrderCode);
         log.info("   amount: {} (from depositAmount: {})", finalAmount, depositAmount);
         log.info("   description: 'Create deposit' (length: {})", "Create deposit".length());
-        log.info("   cancelUrl: {}", properties.getCancelUrl());
-        log.info("   returnUrl: {}", properties.getReturnUrl());
+        log.info("   cancelUrl: {}", cancelUrl);
+        log.info("   returnUrl: {}", returnUrl);
         
         log.info("🔄 Trying PayOS SDK 2.0.1 first...");
         
@@ -282,8 +294,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 .orderCode(payOsOrderCode)
                 .amount((long) finalAmount)
                 .description("Create deposit")
-                .returnUrl(properties.getReturnUrl())
-                .cancelUrl(properties.getCancelUrl())
+                .returnUrl(returnUrl)
+                .cancelUrl(cancelUrl)
                 .build();
             
             log.info("📤 Calling PayOS SDK 2.0.1 paymentRequests().create()...");
@@ -320,8 +332,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     payOsOrderCode,
                     finalAmount,
                     "Create deposit",
-                    properties.getReturnUrl(),
-                    properties.getCancelUrl()
+                    returnUrl,
+                    cancelUrl
                 );
                 
                 // Convert to JSON
@@ -577,13 +589,23 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
                 log.info("Webhook processed successfully. TxnId={}, PayOS status={}, Mapped status={}",
                         transaction.getId(), payOsStatus, mappedStatus);
+                log.info("🔍 Transaction type: {}, Issue ID: {}", 
+                        transaction.getTransactionType(), transaction.getIssueId());
 
                 // Check if this is a return shipping payment (ORDER_REJECTION)
+                boolean isReturnPayment = false;
                 if (TransactionEnum.PAID.equals(mappedStatus)) {
-                    handleReturnShippingPayment(transaction);
+                    isReturnPayment = handleReturnShippingPayment(transaction);
+                    log.info("📊 Return payment check result: {}", isReturnPayment);
                 }
 
-                updateContractStatusIfNeeded(transaction);
+                // Only update contract status if this is NOT a return payment
+                // Return payments should not affect contract/order status
+                if (!isReturnPayment) {
+                    updateContractStatusIfNeeded(transaction);
+                } else {
+                    log.info("⏩ Skipping contract status update for return payment transaction");
+                }
             }, () -> {
                 log.warn("Transaction not found for orderCode {}", orderCode);
             });
@@ -789,24 +811,27 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     /**
      * Handle return shipping payment for ORDER_REJECTION issues
      * When customer pays, activate the return journey and notify driver & staff
+     * @return true if this is a return payment transaction, false otherwise
      */
-    private void handleReturnShippingPayment(TransactionEntity transaction) {
+    private boolean handleReturnShippingPayment(TransactionEntity transaction) {
         try {
             log.info("🔍 Checking if transaction {} is for return shipping...", transaction.getId());
+            log.info("   - Transaction type: {}", transaction.getTransactionType());
+            log.info("   - Issue ID: {}", transaction.getIssueId());
             
-            // Find issue that has this transaction as return transaction
-            java.util.List<capstone_project.entity.issue.IssueEntity> issues = 
-                    issueEntityService.findAll().stream()
-                    .filter(issue -> issue.getReturnTransaction() != null 
-                            && issue.getReturnTransaction().getId().equals(transaction.getId()))
-                    .toList();
-            
-            if (issues.isEmpty()) {
-                log.debug("Transaction {} is not for return shipping", transaction.getId());
-                return;
+            // Check if this transaction has an issueId (RETURN_SHIPPING type)
+            if (transaction.getIssueId() == null) {
+                log.info("⏭️ Transaction {} is not for return shipping (no issueId) - skipping", transaction.getId());
+                return false;
             }
             
-            capstone_project.entity.issue.IssueEntity issue = issues.get(0);
+            // Find issue by ID from transaction
+            capstone_project.entity.issue.IssueEntity issue = issueEntityService.findEntityById(transaction.getIssueId())
+                    .orElseThrow(() -> new NotFoundException(
+                            "Issue not found: " + transaction.getIssueId(),
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+            
             log.info("✅ Found ORDER_REJECTION issue {} with return payment", issue.getId());
             
             // Activate return journey
@@ -815,6 +840,104 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 journey.setStatus(CommonStatusEnum.ACTIVE.name());
                 journeyHistoryEntityService.save(journey);
                 log.info("🛣️ Activated return journey: {}", journey.getId());
+            }
+            
+            // Update order details status to RETURNING (customer paid, driver will return these packages)
+            if (issue.getOrderDetails() != null && !issue.getOrderDetails().isEmpty()) {
+                var affectedOrderDetailIds = issue.getOrderDetails().stream()
+                        .map(capstone_project.entity.order.order.OrderDetailEntity::getId)
+                        .collect(java.util.stream.Collectors.toSet());
+                
+                issue.getOrderDetails().forEach(orderDetail -> {
+                    orderDetail.setStatus(capstone_project.common.enums.OrderDetailStatusEnum.RETURNING.name());
+                    log.info("📦 OrderDetail {} status updated to RETURNING", orderDetail.getTrackingCode());
+                });
+                orderDetailEntityService.saveAllOrderDetailEntities(issue.getOrderDetails());
+                log.info("✅ Updated {} order details to RETURNING status", issue.getOrderDetails().size());
+                
+                // Update remaining order details in this vehicle assignment to DELIVERED
+                // AND update Order status to RETURNING
+                var vehicleAssignment = issue.getVehicleAssignmentEntity();
+                if (vehicleAssignment != null) {
+                    var allOrderDetails = orderDetailEntityService.findByVehicleAssignmentId(vehicleAssignment.getId());
+                    var remainingOrderDetails = allOrderDetails.stream()
+                            .filter(od -> !affectedOrderDetailIds.contains(od.getId()))
+                            .filter(od -> "ONGOING_DELIVERED".equals(od.getStatus()) || "ON_DELIVERED".equals(od.getStatus()))
+                            .collect(java.util.stream.Collectors.toList());
+                    
+                    if (!remainingOrderDetails.isEmpty()) {
+                        remainingOrderDetails.forEach(orderDetail -> {
+                            orderDetail.setStatus(capstone_project.common.enums.OrderDetailStatusEnum.DELIVERED.name());
+                            log.info("📦 OrderDetail {} (not affected) status updated to DELIVERED", orderDetail.getTrackingCode());
+                        });
+                        orderDetailEntityService.saveAllOrderDetailEntities(remainingOrderDetails);
+                        log.info("✅ Updated {} remaining order details to DELIVERED status", remainingOrderDetails.size());
+                    }
+                    
+                    // Update Order status based on ALL OrderDetails using priority logic
+                    // CRITICAL: Multi-trip support - check all order details across all trips
+                    // Priority: DELIVERED > IN_TROUBLES > RETURNING > RETURNED
+                    Optional<OrderEntity> orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
+                    if (orderOpt.isPresent()) {
+                        OrderEntity order = orderOpt.get();
+                        String oldStatus = order.getStatus();
+                        
+                        // Get ALL orderDetails of this Order (across all trips)
+                        var allDetailsInOrder = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(order.getId());
+                        
+                        long deliveredCount = allDetailsInOrder.stream()
+                                .filter(od -> "DELIVERED".equals(od.getStatus())).count();
+                        long successfulCount = allDetailsInOrder.stream()
+                                .filter(od -> "SUCCESSFUL".equals(od.getStatus())).count();
+                        long inTroublesCount = allDetailsInOrder.stream()
+                                .filter(od -> "IN_TROUBLES".equals(od.getStatus())).count();
+                        long returningCount = allDetailsInOrder.stream()
+                                .filter(od -> "RETURNING".equals(od.getStatus())).count();
+                        long returnedCount = allDetailsInOrder.stream()
+                                .filter(od -> "RETURNED".equals(od.getStatus())).count();
+                        long compensationCount = allDetailsInOrder.stream()
+                                .filter(od -> "COMPENSATION".equals(od.getStatus())).count();
+                        
+                        String newStatus;
+                        String reason;
+                        
+                        // Apply priority logic
+                        if (deliveredCount > 0 || successfulCount > 0) {
+                            // Has delivered packages → SUCCESSFUL
+                            newStatus = capstone_project.common.enums.OrderStatusEnum.SUCCESSFUL.name();
+                            reason = String.format("%d delivered/successful, %d returning", 
+                                    deliveredCount + successfulCount, returningCount);
+                        } else if (inTroublesCount > 0) {
+                            // No delivered, has troubles → IN_TROUBLES
+                            newStatus = capstone_project.common.enums.OrderStatusEnum.IN_TROUBLES.name();
+                            reason = String.format("%d in troubles, %d returning", inTroublesCount, returningCount);
+                        } else if (returningCount > 0) {
+                            // No delivered, no troubles, has returning → RETURNING
+                            newStatus = capstone_project.common.enums.OrderStatusEnum.RETURNING.name();
+                            reason = String.format("%d packages returning", returningCount);
+                        } else if (returnedCount > 0) {
+                            // Has returned packages
+                            newStatus = capstone_project.common.enums.OrderStatusEnum.RETURNED.name();
+                            reason = String.format("%d packages returned", returnedCount);
+                        } else if (compensationCount > 0) {
+                            newStatus = capstone_project.common.enums.OrderStatusEnum.COMPENSATION.name();
+                            reason = String.format("%d compensated", compensationCount);
+                        } else {
+                            // Fallback
+                            newStatus = oldStatus;
+                            reason = "No status change needed";
+                        }
+                        
+                        if (!newStatus.equals(oldStatus)) {
+                            order.setStatus(newStatus);
+                            orderEntityService.save(order);
+                            log.info("✅ Order {} status updated from {} to {} (customer paid return shipping, multi-trip: {})", 
+                                     order.getId(), oldStatus, newStatus, reason);
+                        } else {
+                            log.info("ℹ️ Order {} status unchanged: {} ({})", order.getId(), oldStatus, reason);
+                        }
+                    }
+                }
             }
             
             // Update issue status to RESOLVED (customer paid, driver can proceed with return)
@@ -852,8 +975,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 var vehicleAssignment = issue.getVehicleAssignmentEntity();
                 UUID orderId = null;
                 String customerName = "N/A";
+                String vehicleAssignmentCode = null;
                 
                 if (vehicleAssignment != null) {
+                    vehicleAssignmentCode = vehicleAssignment.getTrackingCode();
+                    
                     // Get order from vehicle assignment
                     Optional<OrderEntity> orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
                     if (orderOpt.isPresent()) {
@@ -869,12 +995,25 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                         ? issue.getReturnJourney().getId() 
                         : null;
                 
+                // Get tracking codes of affected packages
+                String trackingCodes = issue.getOrderDetails() != null && !issue.getOrderDetails().isEmpty()
+                        ? issue.getOrderDetails().stream()
+                                .map(od -> od.getTrackingCode())
+                                .collect(java.util.stream.Collectors.joining(", "))
+                        : "N/A";
+                
+                // Get payment amount
+                java.math.BigDecimal paymentAmount = transaction.getAmount();
+                
                 // Send via WebSocket to all staff
                 issueWebSocketService.sendReturnPaymentSuccessNotificationToStaff(
                         issue.getId(),
                         orderId,
                         customerName,
-                        returnJourneyId
+                        returnJourneyId,
+                        trackingCodes,
+                        paymentAmount,
+                        vehicleAssignmentCode
                 );
                 
                 log.info("📢 Broadcast return payment success notification to all staff");
@@ -883,9 +1022,12 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 // Don't throw - notification failure shouldn't break payment processing
             }
             
+            return true; // This is a return payment transaction
+            
         } catch (Exception e) {
             log.error("❌ Error handling return shipping payment: {}", e.getMessage(), e);
             // Don't throw - payment is already processed, this is just bonus logic
+            return false;
         }
     }
 
@@ -894,12 +1036,16 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     public TransactionResponse createReturnShippingTransaction(UUID contractId, BigDecimal amount, UUID issueId) {
         log.info("Creating return shipping transaction for contract {} (issueId: {})", contractId, issueId);
 
+        ContractEntity contractEntity = getAndValidateContract(contractId);
+        UUID orderId = contractEntity.getOrderEntity() != null ? contractEntity.getOrderEntity().getId() : null;
+        
+        // Append orderId to returnUrl for proper navigation after payment
+        String returnUrl = properties.getReturnUrl() + (orderId != null ? "?orderId=" + orderId : "");
+        
         log.info("Creating PayOS PaymentData: cancelUrl={}, returnUrl={}",
-                properties.getCancelUrl(), properties.getReturnUrl());
+                properties.getCancelUrl(), returnUrl);
 
         Long payOsOrderCode = System.currentTimeMillis();
-
-        ContractEntity contractEntity = getAndValidateContract(contractId);
         
         int finalAmount = amount.setScale(0, RoundingMode.HALF_UP).intValueExact();
         
@@ -928,7 +1074,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 .orderCode(payOsOrderCode)
                 .amount((long) finalAmount)
                 .description("Return shipping payment")
-                .returnUrl(properties.getReturnUrl())
+                .returnUrl(returnUrl)
                 .cancelUrl(properties.getCancelUrl())
                 .build();
             
@@ -965,8 +1111,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 var customResponse = customPayOSClient.createPaymentLink(
                     payOsOrderCode,
                     finalAmount,
-                    "Create deposit",
-                    properties.getReturnUrl(),
+                    "Return shipping payment",
+                    returnUrl,
                     properties.getCancelUrl()
                 );
                 
@@ -1011,28 +1157,15 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     .gatewayResponse(objectMapper.writeValueAsString(response))
                     .gatewayOrderCode(String.valueOf(payOsOrderCode))
                     .contractEntity(contractEntity)
+                    .issueId(issueId) // Store issue ID for return shipping payment
                     .build();
 
 //            transaction.setStatus(TransactionEnum.DEPOSITED.name());
             TransactionEntity savedEntity = transactionEntityService.save(transaction);
 //            contractEntity.setStatus(ContractStatusEnum.DEPOSITED.name());
 
-            // Link transaction to issue if issueId is provided
-            if (issueId != null) {
-                try {
-                    var issue = issueEntityService.findEntityById(issueId)
-                            .orElseThrow(() -> new NotFoundException(
-                                    "Issue not found: " + issueId,
-                                    ErrorEnum.NOT_FOUND.getErrorCode()
-                            ));
-                    issue.setReturnTransaction(savedEntity);
-                    issueEntityService.save(issue);
-                    log.info("✅ Linked transaction {} to issue {}", savedEntity.getId(), issueId);
-                } catch (Exception e) {
-                    log.error("⚠️ Failed to link transaction to issue: {}", e.getMessage());
-                    // Don't throw - transaction is already created successfully
-                }
-            }
+            // Transaction already has issueId set, no need to link back to issue
+            log.info("✅ Created return shipping transaction {} for issue {}", savedEntity.getId(), issueId);
 
             return transactionMapper.toTransactionResponse(savedEntity);
 
