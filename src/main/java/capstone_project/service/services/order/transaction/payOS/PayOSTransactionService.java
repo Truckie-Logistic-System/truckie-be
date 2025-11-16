@@ -15,6 +15,8 @@ public interface PayOSTransactionService {
     TransactionResponse getTransactionById(UUID transactionId);
 
     List<TransactionResponse> getTransactionsByContractId(UUID contractId);
+    
+    List<TransactionResponse> getTransactionsByIssueId(UUID issueId);
 
     GetTransactionStatusResponse getTransactionStatus(UUID transactionId);
 

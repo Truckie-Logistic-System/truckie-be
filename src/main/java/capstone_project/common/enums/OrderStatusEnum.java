@@ -17,5 +17,5 @@ public enum OrderStatusEnum {
     DELIVERED,
     SUCCESSFUL,
     RETURNING,
-    RETURNED
+    RETURNED,
 }

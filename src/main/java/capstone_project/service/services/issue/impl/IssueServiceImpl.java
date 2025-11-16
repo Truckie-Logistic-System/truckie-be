@@ -64,6 +64,7 @@ public class IssueServiceImpl implements IssueService {
     private final capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService journeyHistoryEntityService;
     private final capstone_project.repository.entityServices.order.transaction.TransactionEntityService transactionEntityService;
     private final capstone_project.service.services.order.transaction.payOS.PayOSTransactionService payOSTransactionService;
+    private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
     
     // Return payment deadline configuration
     @org.springframework.beans.factory.annotation.Value("${issue.return-payment.deadline-minutes:30}")
@@ -120,7 +121,8 @@ public class IssueServiceImpl implements IssueService {
                 response.adjustedFee(),
                 response.finalFee(),
                 response.affectedOrderDetails(),
-                response.returnTransaction()
+                response.returnTransaction(),
+                null // transactions - will be populated in mapper if needed
             );
         }
         
@@ -150,7 +152,8 @@ public class IssueServiceImpl implements IssueService {
             response.adjustedFee(),
             response.finalFee(),
             response.affectedOrderDetails(),
-            response.returnTransaction()
+            response.returnTransaction(),
+            null // transactions - will be populated in mapper if needed
         );
     }
     
@@ -1485,6 +1488,23 @@ public class IssueServiceImpl implements IssueService {
             capstone_project.dtos.request.issue.ProcessOrderRejectionRequest request
     ) {
         log.info("⚙️ Staff processing ORDER_REJECTION issue: {}", request.issueId());
+        log.info("📦 Received {} route segments", request.routeSegments() != null ? request.routeSegments().size() : 0);
+        
+        // Log first segment details for debugging
+        if (request.routeSegments() != null && !request.routeSegments().isEmpty()) {
+            var firstSegment = request.routeSegments().get(0);
+            log.info("🔍 First segment example: {} → {} | startLat={}, startLng={}, endLat={}, endLng={}, distance={}, pathLength={}, tollCount={}",
+                    firstSegment.startPointName(),
+                    firstSegment.endPointName(),
+                    firstSegment.startLatitude(),
+                    firstSegment.startLongitude(),
+                    firstSegment.endLatitude(),
+                    firstSegment.endLongitude(),
+                    firstSegment.distanceMeters(),
+                    firstSegment.pathCoordinatesJson() != null ? firstSegment.pathCoordinatesJson().length() : 0,
+                    firstSegment.tollDetails() != null ? firstSegment.tollDetails().size() : 0
+            );
+        }
 
         // Get Issue
         IssueEntity issue = issueEntityService.findEntityById(request.issueId())
@@ -1603,6 +1623,17 @@ public class IssueServiceImpl implements IssueService {
         log.info("🔄 Adding {} return segments", request.routeSegments().size());
         
         for (capstone_project.dtos.request.order.RouteSegmentInfo segmentInfo : request.routeSegments()) {
+            log.info("📍 Processing segment {}: {} → {} (lat: {}, lng: {}, endLat: {}, endLng: {}, distance: {}km, pathLength: {})",
+                    nextSegmentOrder,
+                    segmentInfo.startPointName(),
+                    segmentInfo.endPointName(),
+                    segmentInfo.startLatitude(),
+                    segmentInfo.startLongitude(),
+                    segmentInfo.endLatitude(),
+                    segmentInfo.endLongitude(),
+                    segmentInfo.distanceMeters(),
+                    segmentInfo.pathCoordinatesJson() != null ? segmentInfo.pathCoordinatesJson().length() : 0);
+            
             capstone_project.entity.order.order.JourneySegmentEntity segment = 
                     capstone_project.entity.order.order.JourneySegmentEntity.builder()
                     .segmentOrder(nextSegmentOrder++) // Continue from old segments
@@ -1826,14 +1857,16 @@ public class IssueServiceImpl implements IssueService {
     @Override
     @Transactional
     public GetBasicIssueResponse confirmReturnDelivery(
-            capstone_project.dtos.request.issue.ConfirmReturnDeliveryRequest request
-    ) {
-        log.info("📦 Driver confirming return delivery for issue: {}", request.issueId());
+            List<org.springframework.web.multipart.MultipartFile> files,
+            UUID issueId
+    ) throws java.io.IOException {
+        log.info("📦 Driver confirming return delivery for issue: {}", issueId);
+        log.info("   - Number of images: {}", files != null ? files.size() : 0);
 
         // Get Issue
-        IssueEntity issue = issueEntityService.findEntityById(request.issueId())
+        IssueEntity issue = issueEntityService.findEntityById(issueId)
                 .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage() + " Issue: " + request.issueId(),
+                        ErrorEnum.NOT_FOUND.getMessage() + " Issue: " + issueId,
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
@@ -1847,16 +1880,26 @@ public class IssueServiceImpl implements IssueService {
             throw new IllegalStateException("Issue must be IN_PROGRESS to confirm return delivery");
         }
 
-        // Create IssueImageEntity for each return delivery image
-        if (request.returnDeliveryImages() != null && !request.returnDeliveryImages().isEmpty()) {
-            for (String imageUrl : request.returnDeliveryImages()) {
+        // Upload images to Cloudinary and save to IssueImageEntity
+        if (files != null && !files.isEmpty()) {
+            for (org.springframework.web.multipart.MultipartFile file : files) {
+                // Upload to Cloudinary
+                var uploadResult = cloudinaryService.uploadFile(
+                        file.getBytes(),
+                        UUID.randomUUID().toString(),
+                        "return_delivery"
+                );
+                String imageUrl = uploadResult.get("secure_url").toString();
+                
+                // Save to IssueImageEntity
                 IssueImageEntity imageEntity = IssueImageEntity.builder()
                         .imageUrl(imageUrl)
                         .description("RETURN_DELIVERY")
                         .issueEntity(issue)
                         .build();
                 issueImageEntityService.save(imageEntity);
-                log.info("📸 Saved return delivery image for issue: {}", issue.getId());
+                log.info("📸 Uploaded and saved return delivery image for issue: {}", issue.getId());
+                log.info("   - Cloudinary URL: {}", imageUrl);
             }
         }
 
@@ -1869,12 +1912,15 @@ public class IssueServiceImpl implements IssueService {
             throw new IllegalStateException("No order details found in issue for return");
         }
         
+        UUID vehicleAssignmentId = issue.getVehicleAssignmentEntity() != null ? 
+                issue.getVehicleAssignmentEntity().getId() : null;
+        
         selectedOrderDetails.forEach(orderDetail -> {
-            orderDetail.setStatus(OrderDetailStatusEnum.RETURNED.name());
-            orderDetailEntityService.save(orderDetail);
-            log.info("✅ Updated order detail {} ({}) to RETURNED", 
-                     orderDetail.getId(), 
-                     orderDetail.getTrackingCode());
+            updateOrderDetailStatusWithNotification(
+                orderDetail,
+                OrderDetailStatusEnum.RETURNED,
+                vehicleAssignmentId
+            );
         });
 
         // Update Order status based on ALL OrderDetails using priority logic
@@ -2014,6 +2060,49 @@ public class IssueServiceImpl implements IssueService {
         
         // Transaction already has issueId set, no need to link back
         return transactionResponse;
+    }
+    
+    /**
+     * Helper method to update order detail status and send WebSocket notification
+     * Centralizes the logic to avoid code duplication
+     * 
+     * @param orderDetail The order detail entity to update
+     * @param newStatus The new status to set
+     * @param vehicleAssignmentId Vehicle assignment ID (can be null)
+     */
+    private void updateOrderDetailStatusWithNotification(
+            OrderDetailEntity orderDetail,
+            OrderDetailStatusEnum newStatus,
+            UUID vehicleAssignmentId
+    ) {
+        String oldStatus = orderDetail.getStatus();
+        orderDetail.setStatus(newStatus.name());
+        orderDetailEntityService.save(orderDetail);
+        
+        log.info("📦 Updated order detail {} ({}) from {} to {}",
+                orderDetail.getId(),
+                orderDetail.getTrackingCode(),
+                oldStatus,
+                newStatus.name());
+        
+        // Send WebSocket notification
+        try {
+            OrderEntity order = orderDetail.getOrderEntity();
+            if (order != null) {
+                orderDetailStatusWebSocketService.sendOrderDetailStatusChange(
+                        orderDetail.getId(),
+                        orderDetail.getTrackingCode(),
+                        order.getId(),
+                        order.getOrderCode(),
+                        vehicleAssignmentId,
+                        oldStatus,
+                        newStatus
+                );
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to send WebSocket notification for order detail {}: {}",
+                    orderDetail.getTrackingCode(), e.getMessage());
+        }
     }
 
 }

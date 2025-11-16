@@ -40,7 +40,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
@@ -52,8 +51,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final ContractSettingEntityService contractSettingEntityService;
     private final ObjectProvider<OrderService> orderServiceObjectProvider;
     
-    // ORDER_REJECTION dependencies
+    // ORDER_REJECTION dependencies - Use @Lazy to break circular dependency
     private final capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService;
+    private final capstone_project.service.services.issue.IssueService issueService;
     private final capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService journeyHistoryEntityService;
     private final capstone_project.repository.entityServices.order.order.OrderDetailEntityService orderDetailEntityService;
     private final capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService;
@@ -65,6 +65,47 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
     private final TransactionMapper transactionMapper;
     private final ObjectMapper objectMapper;
+    
+    // Constructor with @Lazy for IssueService to break circular dependency
+    public PayOSTransactionServiceImpl(
+            TransactionEntityService transactionEntityService,
+            ContractEntityService contractEntityService,
+            OrderEntityService orderEntityService,
+            CustomerEntityService customerEntityService,
+            UserEntityService userEntityService,
+            ContractSettingEntityService contractSettingEntityService,
+            ObjectProvider<OrderService> orderServiceObjectProvider,
+            capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService,
+            @org.springframework.context.annotation.Lazy capstone_project.service.services.issue.IssueService issueService,
+            capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService journeyHistoryEntityService,
+            capstone_project.repository.entityServices.order.order.OrderDetailEntityService orderDetailEntityService,
+            capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService,
+            capstone_project.service.services.order.order.OrderStatusWebSocketService orderStatusWebSocketService,
+            PayOSProperties properties,
+            PayOS payOS,
+            CustomPayOSClient customPayOSClient,
+            TransactionMapper transactionMapper,
+            ObjectMapper objectMapper
+    ) {
+        this.transactionEntityService = transactionEntityService;
+        this.contractEntityService = contractEntityService;
+        this.orderEntityService = orderEntityService;
+        this.customerEntityService = customerEntityService;
+        this.userEntityService = userEntityService;
+        this.contractSettingEntityService = contractSettingEntityService;
+        this.orderServiceObjectProvider = orderServiceObjectProvider;
+        this.issueEntityService = issueEntityService;
+        this.issueService = issueService;
+        this.journeyHistoryEntityService = journeyHistoryEntityService;
+        this.orderDetailEntityService = orderDetailEntityService;
+        this.issueWebSocketService = issueWebSocketService;
+        this.orderStatusWebSocketService = orderStatusWebSocketService;
+        this.properties = properties;
+        this.payOS = payOS;
+        this.customPayOSClient = customPayOSClient;
+        this.transactionMapper = transactionMapper;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     @Transactional
@@ -535,6 +576,23 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 .map(transactionMapper::toTransactionResponse)
                 .toList();
     }
+    
+    @Override
+    public List<TransactionResponse> getTransactionsByIssueId(UUID issueId) {
+        log.info("Fetching transactions for issue {}", issueId);
+
+        if (issueId == null) {
+            log.error("Issue ID is null");
+            throw new BadRequestException(
+                    "Issue ID cannot be null",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        return transactionEntityService.findByIssueId(issueId).stream()
+                .map(transactionMapper::toTransactionResponse)
+                .toList();
+    }
 
     @Override
     public GetTransactionStatusResponse getTransactionStatus(UUID transactionId) {
@@ -940,30 +998,38 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 }
             }
             
-            // Update issue status to RESOLVED (customer paid, driver can proceed with return)
-            issue.setStatus(IssueEnum.RESOLVED.name());
-            issue.setResolvedAt(java.time.LocalDateTime.now());
-            issueEntityService.save(issue);
-            log.info("✅ Issue {} status updated to RESOLVED", issue.getId());
+            // ✅ Keep issue in IN_PROGRESS status after payment
+            // Issue will only be RESOLVED when driver confirms return delivery
+            // No need to update issue status here - driver still needs to physically return the goods
+            log.info("ℹ️ Issue {} remains IN_PROGRESS - driver needs to confirm return delivery", issue.getId());
             
             // Send WebSocket notification to driver
             try {
                 var vehicleAssignment = issue.getVehicleAssignmentEntity();
                 if (vehicleAssignment != null && vehicleAssignment.getDriver1() != null) {
-                    UUID driverId = vehicleAssignment.getDriver1().getUser().getId();
+                    // CRITICAL: Use driver ID (not user ID) to match mobile app subscription
+                    UUID driverId = vehicleAssignment.getDriver1().getId();
                     UUID returnJourneyId = issue.getReturnJourney() != null 
                             ? issue.getReturnJourney().getId() 
                             : null;
+                    
+                    // Get orderId from vehicle assignment
+                    UUID orderId = null;
+                    Optional<OrderEntity> orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
+                    if (orderOpt.isPresent()) {
+                        orderId = orderOpt.get().getId();
+                    }
                     
                     // Send via WebSocket to driver
                     issueWebSocketService.sendReturnPaymentSuccessNotification(
                             driverId,
                             issue.getId(),
                             vehicleAssignment.getId(),
-                            returnJourneyId
+                            returnJourneyId,
+                            orderId
                     );
                     
-                    log.info("📢 Sent return payment success notification to driver: {}", driverId);
+                    log.info("📢 Sent return payment success notification to driver: {} with orderId: {}", driverId, orderId);
                 }
             } catch (Exception e) {
                 log.error("❌ Failed to send driver notification: {}", e.getMessage(), e);
@@ -1017,6 +1083,21 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 );
                 
                 log.info("📢 Broadcast return payment success notification to all staff");
+                
+                // CRITICAL: Broadcast issue update so staff UI can refetch issue detail
+                // This allows staff to see updated transaction status immediately
+                try {
+                    // Fetch updated issue with transaction
+                    capstone_project.dtos.response.issue.GetBasicIssueResponse updatedIssueResponse = 
+                        issueService.getBasicIssue(issue.getId());
+                    
+                    // Broadcast to all subscribed clients (including staff viewing issue detail)
+                    issueWebSocketService.broadcastIssueStatusChange(updatedIssueResponse);
+                    
+                    log.info("✅ Broadcast issue update after payment success");
+                } catch (Exception broadcastEx) {
+                    log.error("❌ Failed to broadcast issue update: {}", broadcastEx.getMessage(), broadcastEx);
+                }
             } catch (Exception e) {
                 log.error("❌ Failed to send staff notification: {}", e.getMessage(), e);
                 // Don't throw - notification failure shouldn't break payment processing

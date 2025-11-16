@@ -51,6 +51,7 @@ public record GetBasicIssueResponse (
         BigDecimal adjustedFee,
         BigDecimal finalFee,
         List<OrderDetailForIssueResponse> affectedOrderDetails, // Multiple order details can be rejected
-        GetRefundResponse returnTransaction // The refund/transaction for return payment
+        GetRefundResponse returnTransaction, // The refund/transaction for return payment (deprecated)
+        List<capstone_project.dtos.response.order.transaction.TransactionResponse> transactions // All payment transactions
 ) {
 }

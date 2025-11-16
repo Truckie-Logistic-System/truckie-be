@@ -94,12 +94,14 @@ public class IssueWebSocketService {
      * @param issueId Issue ID
      * @param vehicleAssignmentId Vehicle assignment ID
      * @param returnJourneyId Return journey ID
+     * @param orderId Order ID
      */
     public void sendReturnPaymentSuccessNotification(
             java.util.UUID driverId,
             java.util.UUID issueId,
             java.util.UUID vehicleAssignmentId,
-            java.util.UUID returnJourneyId) {
+            java.util.UUID returnJourneyId,
+            java.util.UUID orderId) {
         log.info("📲 Sending return payment success notification to driver: {}", driverId);
         
         try {
@@ -113,6 +115,9 @@ public class IssueWebSocketService {
             notification.put("vehicleAssignmentId", vehicleAssignmentId.toString());
             if (returnJourneyId != null) {
                 notification.put("returnJourneyId", returnJourneyId.toString());
+            }
+            if (orderId != null) {
+                notification.put("orderId", orderId.toString());
             }
             notification.put("timestamp", java.time.Instant.now().toString());
             
@@ -230,7 +235,10 @@ public class IssueWebSocketService {
             notification.put("priority", "HIGH");
             notification.put("title", "Khách hàng đã thanh toán cước trả hàng");
             notification.put("message", String.format(
-                "Khách hàng %s đã thanh toán thành công cước trả hàng cho kiện hàng %s (Chuyến %s). Số tiền: %,d VND.",
+                "<b>Khách hàng:</b> %s\n" +
+                "<b>Kiện hàng:</b> %s\n" +
+                "<b>Chuyến:</b> %s\n" +
+                "<b>Số tiền:</b> %,d VND",
                 customerName != null ? customerName : "N/A",
                 trackingCodes != null ? trackingCodes : "N/A",
                 vehicleAssignmentCode != null ? vehicleAssignmentCode : "N/A",

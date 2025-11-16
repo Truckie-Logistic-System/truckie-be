@@ -38,7 +38,8 @@ public record SimpleIssueResponse(
     BigDecimal finalFee,
     List<OrderDetailForIssueResponse> affectedOrderDetails,
     capstone_project.dtos.response.refund.GetRefundResponse refund, // Refund record
-    TransactionResponse transaction // Payment transaction
+    TransactionResponse transaction, // Payment transaction (deprecated - use transactions list)
+    List<TransactionResponse> transactions // All payment transactions (PENDING, FAILED, PAID)
 ) {
     // Constructor for backward compatibility (non-ORDER_REJECTION issues)
     public SimpleIssueResponse(
@@ -58,6 +59,6 @@ public record SimpleIssueResponse(
              null, // issueCategory
              null, // issueImages
              null, null, null, null, null, // seal fields
-             null, null, null, null, null, null, null); // ORDER_REJECTION fields
+             null, null, null, null, null, null, null, null); // ORDER_REJECTION fields (added transactions list)
     }
 }

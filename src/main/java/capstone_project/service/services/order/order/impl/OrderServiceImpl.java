@@ -542,13 +542,18 @@ public class OrderServiceImpl implements OrderService {
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
 
-        return simpleOrderMapper.toSimpleOrderForCustomerResponse(
+        SimpleOrderForCustomerResponse response = simpleOrderMapper.toSimpleOrderForCustomerResponse(
                 getOrderResponse,
                 issueImageResponsesList,
                 photosByVehicleAssignment,
                 contractResponse,
                 transactionResponses
         );
+        
+        // Enrich ORDER_REJECTION issues with transactions (post-processing to avoid circular dependency)
+        enrichIssuesWithTransactions(response);
+        
+        return response;
     }
 
 
@@ -966,6 +971,72 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return true;
+    }
+
+    /**
+     * Enrich ORDER_REJECTION issues with transactions after mapper creates the response
+     * This is done as post-processing to avoid circular dependency between services
+     */
+    private void enrichIssuesWithTransactions(SimpleOrderForCustomerResponse response) {
+        if (response == null || response.order() == null || response.order().vehicleAssignments() == null) {
+            return;
+        }
+        
+        for (var vehicleAssignment : response.order().vehicleAssignments()) {
+            if (vehicleAssignment.issues() == null) continue;
+            
+            for (var issue : vehicleAssignment.issues()) {
+                // Only enrich ORDER_REJECTION issues
+                if (issue.issueCategory() == capstone_project.common.enums.IssueCategoryEnum.ORDER_REJECTION && 
+                    issue.id() != null) {
+                    try {
+                        // Fetch transactions for this issue
+                        List<TransactionResponse> transactions = payOSTransactionService.getTransactionsByIssueId(
+                            UUID.fromString(issue.id())
+                        );
+                        
+                        // Create new enriched issue with transactions
+                        var enrichedIssue = new capstone_project.dtos.response.issue.SimpleIssueResponse(
+                            issue.id(),
+                            issue.description(),
+                            issue.locationLatitude(),
+                            issue.locationLongitude(),
+                            issue.status(),
+                            issue.vehicleAssignmentId(),
+                            issue.staff(),
+                            issue.issueTypeName(),
+                            issue.issueTypeDescription(),
+                            issue.reportedAt(),
+                            issue.issueCategory(),
+                            issue.issueImages(),
+                            issue.oldSeal(),
+                            issue.newSeal(),
+                            issue.sealRemovalImage(),
+                            issue.newSealAttachedImage(),
+                            issue.newSealConfirmedAt(),
+                            issue.paymentDeadline(),
+                            issue.calculatedFee(),
+                            issue.adjustedFee(),
+                            issue.finalFee(),
+                            issue.affectedOrderDetails(),
+                            issue.refund(),
+                            issue.transaction(),
+                            transactions // Add transactions
+                        );
+                        
+                        // Replace the issue in the list with enriched version
+                        // Note: This requires the issues list to be mutable
+                        int index = vehicleAssignment.issues().indexOf(issue);
+                        if (index >= 0 && vehicleAssignment.issues() instanceof java.util.ArrayList) {
+                            ((java.util.ArrayList<capstone_project.dtos.response.issue.SimpleIssueResponse>) vehicleAssignment.issues())
+                                .set(index, enrichedIssue);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to enrich issue {} with transactions: {}", issue.id(), e.getMessage());
+                    }
+                }
+            }
+        }
     }
 
     /**

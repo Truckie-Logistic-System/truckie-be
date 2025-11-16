@@ -11,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -270,11 +271,12 @@ public class IssuesController {
     }
 
     // Driver confirms return delivery at pickup location
-    @PutMapping("/order-rejection/confirm-return")
+    @PostMapping(value = "/order-rejection/confirm-return", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('DRIVER')")
     public ResponseEntity<ApiResponse<GetBasicIssueResponse>> confirmReturnDelivery(
-            @RequestBody capstone_project.dtos.request.issue.ConfirmReturnDeliveryRequest request) {
-        final var result = issueService.confirmReturnDelivery(request);
+            @RequestPart("files") List<MultipartFile> files,
+            @RequestPart("issueId") String issueId) throws IOException {
+        final var result = issueService.confirmReturnDelivery(files, UUID.fromString(issueId));
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
     

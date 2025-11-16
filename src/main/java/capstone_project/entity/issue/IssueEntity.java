@@ -105,5 +105,10 @@ public class    IssueEntity extends BaseEntity {
     // Refund relationship for ORDER_REJECTION return payment
     @OneToOne(mappedBy = "issueEntity", fetch = FetchType.LAZY)
     private capstone_project.entity.order.order.RefundEntity refund;
+    
+    // Transactions for ORDER_REJECTION return payment (can have multiple: PENDING, FAILED, PAID)
+    // Note: TransactionEntity uses issueId field, not @ManyToOne, so this is a helper method relationship
+    @Transient
+    private List<TransactionEntity> returnTransactions;
 
 }

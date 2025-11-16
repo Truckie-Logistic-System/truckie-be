@@ -453,7 +453,8 @@ public class DriverOrderMapper {
                 issue.finalFee(),
                 issue.affectedOrderDetails(),
                 issue.returnTransaction(), // Refund
-                null // Transaction
+                null, // Transaction (deprecated)
+                null // Transactions list (driver view - won't fetch transactions)
         );
     }
 

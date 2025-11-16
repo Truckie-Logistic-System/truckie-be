@@ -154,18 +154,18 @@ public interface IssueService {
     capstone_project.dtos.response.issue.OrderRejectionDetailResponse getOrderRejectionDetail(UUID issueId);
 
     /**
-     * Driver confirms return delivery at pickup location with photos
-     * Updates issue status to RESOLVED and journey to COMPLETED
-     * @param request Confirm return delivery request
-     * @return Updated issue
-     */
-    GetBasicIssueResponse confirmReturnDelivery(capstone_project.dtos.request.issue.ConfirmReturnDeliveryRequest request);
-
-    /**
-     * Customer creates return shipping payment transaction
-     * Called when customer clicks "Pay" button for return shipping fee
+     * Confirm return delivery at pickup location (Driver)
+     * @param files Return delivery image files
      * @param issueId Issue ID
-     * @return Transaction response with PayOS checkout URL
+     * @return Updated issue
+     * @throws java.io.IOException if file upload fails
+     */
+    GetBasicIssueResponse confirmReturnDelivery(java.util.List<org.springframework.web.multipart.MultipartFile> files, java.util.UUID issueId) throws java.io.IOException;
+    
+    /**
+     * Create return payment transaction for ORDER_REJECTION issue (Customer)
+     * @param issueId Issue ID
+     * @return Created transaction
      */
     capstone_project.dtos.response.order.transaction.TransactionResponse createReturnPaymentTransaction(UUID issueId);
 

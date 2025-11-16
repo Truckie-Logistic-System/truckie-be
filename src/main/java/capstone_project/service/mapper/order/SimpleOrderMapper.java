@@ -370,7 +370,8 @@ public class SimpleOrderMapper {
                 issue.finalFee(),
                 issue.affectedOrderDetails(),
                 issue.returnTransaction(), // Refund
-                null // Transaction
+                null, // Transaction (deprecated)
+                null // Transactions list (legacy method - won't fetch transactions)
         );
 
         return new SimpleIssueImageResponse(simpleIssue, null); // imageUrl already included in issueImages
@@ -529,6 +530,9 @@ public class SimpleOrderMapper {
         // Issue images
         List<String> issueImages = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
 
+        // Note: Transactions will be fetched in service layer to avoid circular dependency
+        // Mappers should not call other services - violation of separation of concerns
+
         return new SimpleIssueResponse(
                 issue.id() != null ? issue.id().toString() : null,
                 issue.description(),
@@ -555,7 +559,8 @@ public class SimpleOrderMapper {
                 issue.finalFee(),
                 issue.affectedOrderDetails(),
                 issue.returnTransaction(), // Refund
-                null // Transaction
+                null, // Transaction (deprecated)
+                null // Transactions list (will be fetched in service layer)
         );
     }
 

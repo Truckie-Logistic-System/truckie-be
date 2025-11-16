@@ -20,6 +20,8 @@ public interface TransactionRepository extends BaseRepository<TransactionEntity>
     boolean existsByContractEntityIdAndStatus(UUID contractEntityId, String status);
 
     List<TransactionEntity> findByStatusAndCreatedAtBefore(String status, LocalDateTime time);
+    
+    List<TransactionEntity> findByIssueId(UUID issueId);
 
     @Query(value = """
             SELECT SUM(t.amount) 
