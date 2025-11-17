@@ -58,6 +58,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final capstone_project.repository.entityServices.order.order.OrderDetailEntityService orderDetailEntityService;
     private final capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService;
     private final capstone_project.service.services.order.order.OrderStatusWebSocketService orderStatusWebSocketService;
+    private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
 
     private final PayOSProperties properties;
     private final PayOS payOS;
@@ -81,6 +82,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             capstone_project.repository.entityServices.order.order.OrderDetailEntityService orderDetailEntityService,
             capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService,
             capstone_project.service.services.order.order.OrderStatusWebSocketService orderStatusWebSocketService,
+            capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService,
             PayOSProperties properties,
             PayOS payOS,
             CustomPayOSClient customPayOSClient,
@@ -100,6 +102,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         this.orderDetailEntityService = orderDetailEntityService;
         this.issueWebSocketService = issueWebSocketService;
         this.orderStatusWebSocketService = orderStatusWebSocketService;
+        this.orderDetailStatusWebSocketService = orderDetailStatusWebSocketService;
         this.properties = properties;
         this.payOS = payOS;
         this.customPayOSClient = customPayOSClient;
@@ -906,11 +909,36 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                         .map(capstone_project.entity.order.order.OrderDetailEntity::getId)
                         .collect(java.util.stream.Collectors.toSet());
                 
+                UUID vehicleAssignmentId = issue.getVehicleAssignmentEntity() != null ? 
+                        issue.getVehicleAssignmentEntity().getId() : null;
+                OrderEntity orderForReturning = vehicleAssignmentId != null ? 
+                        orderEntityService.findVehicleAssignmentOrder(vehicleAssignmentId).orElse(null) : null;
+                
                 issue.getOrderDetails().forEach(orderDetail -> {
+                    String oldStatus = orderDetail.getStatus();
                     orderDetail.setStatus(capstone_project.common.enums.OrderDetailStatusEnum.RETURNING.name());
+                    orderDetailEntityService.save(orderDetail);
+                    
+                    // Send WebSocket notification
+                    if (orderForReturning != null) {
+                        try {
+                            orderDetailStatusWebSocketService.sendOrderDetailStatusChange(
+                                orderDetail.getId(),
+                                orderDetail.getTrackingCode(),
+                                orderForReturning.getId(),
+                                orderForReturning.getOrderCode(),
+                                vehicleAssignmentId,
+                                oldStatus,
+                                capstone_project.common.enums.OrderDetailStatusEnum.RETURNING
+                            );
+                        } catch (Exception e) {
+                            log.error("❌ Failed to send WebSocket for {}: {}", 
+                                    orderDetail.getTrackingCode(), e.getMessage());
+                        }
+                    }
+                    
                     log.info("📦 OrderDetail {} status updated to RETURNING", orderDetail.getTrackingCode());
                 });
-                orderDetailEntityService.saveAllOrderDetailEntities(issue.getOrderDetails());
                 log.info("✅ Updated {} order details to RETURNING status", issue.getOrderDetails().size());
                 
                 // Update remaining order details in this vehicle assignment to DELIVERED
@@ -924,11 +952,35 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                             .collect(java.util.stream.Collectors.toList());
                     
                     if (!remainingOrderDetails.isEmpty()) {
+                        OrderEntity orderForRemaining = orderEntityService.findVehicleAssignmentOrder(
+                                vehicleAssignment.getId()).orElse(null);
+                        UUID vaId = vehicleAssignment.getId();
+                        
                         remainingOrderDetails.forEach(orderDetail -> {
+                            String oldStatus = orderDetail.getStatus();
                             orderDetail.setStatus(capstone_project.common.enums.OrderDetailStatusEnum.DELIVERED.name());
+                            orderDetailEntityService.save(orderDetail);
+                            
+                            // Send WebSocket notification
+                            if (orderForRemaining != null) {
+                                try {
+                                    orderDetailStatusWebSocketService.sendOrderDetailStatusChange(
+                                        orderDetail.getId(),
+                                        orderDetail.getTrackingCode(),
+                                        orderForRemaining.getId(),
+                                        orderForRemaining.getOrderCode(),
+                                        vaId,
+                                        oldStatus,
+                                        capstone_project.common.enums.OrderDetailStatusEnum.DELIVERED
+                                    );
+                                } catch (Exception e) {
+                                    log.error("❌ Failed to send WebSocket for {}: {}", 
+                                            orderDetail.getTrackingCode(), e.getMessage());
+                                }
+                            }
+                            
                             log.info("📦 OrderDetail {} (not affected) status updated to DELIVERED", orderDetail.getTrackingCode());
                         });
-                        orderDetailEntityService.saveAllOrderDetailEntities(remainingOrderDetails);
                         log.info("✅ Updated {} remaining order details to DELIVERED status", remainingOrderDetails.size());
                     }
                     

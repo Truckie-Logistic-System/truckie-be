@@ -43,6 +43,7 @@ public class RefundServiceImpl implements RefundService {
     private final RefundMapper refundMapper;
     private final IssueMapper issueMapper;
     private final IssueWebSocketService issueWebSocketService;
+    private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
     private final UserContextUtils userContextUtils;
 
     @Override
@@ -104,22 +105,59 @@ public class RefundServiceImpl implements RefundService {
                     issue.getVehicleAssignmentEntity());
             
             java.util.Set<java.util.UUID> affectedOrderIds = new java.util.HashSet<>();
+            UUID vehicleAssignmentId = issue.getVehicleAssignmentEntity() != null ? 
+                    issue.getVehicleAssignmentEntity().getId() : null;
             
             for (OrderDetailEntity od : allOrderDetails) {
+                String oldStatus = od.getStatus();
+                var order = od.getOrderEntity();
+                
                 // Kiện bị hư (linked to issue) → COMPENSATION
                 if (od.getIssueEntity() != null && od.getIssueEntity().getId().equals(issue.getId())) {
                     od.setStatus(OrderDetailStatusEnum.COMPENSATION.name());
                     orderDetailEntityService.save(od);
-                    affectedOrderIds.add(od.getOrderEntity().getId());
+                    affectedOrderIds.add(order.getId());
+                    
+                    // Send WebSocket notification
+                    try {
+                        orderDetailStatusWebSocketService.sendOrderDetailStatusChange(
+                            od.getId(),
+                            od.getTrackingCode(),
+                            order.getId(),
+                            order.getOrderCode(),
+                            vehicleAssignmentId,
+                            oldStatus,
+                            OrderDetailStatusEnum.COMPENSATION
+                        );
+                    } catch (Exception e) {
+                        log.error("❌ Failed to send WebSocket for {}: {}", od.getTrackingCode(), e.getMessage());
+                    }
+                    
                     log.info("✅ OrderDetail {} ({}) status updated to COMPENSATION", 
                              od.getId(), od.getTrackingCode());
                 }
                 // Kiện còn lại (không bị hư và đang IN_TROUBLES) → DELIVERED
                 // This shouldn't happen in normal flow, but handle it for safety
-                else if (OrderDetailStatusEnum.IN_TROUBLES.name().equals(od.getStatus())) {
+                else if (OrderDetailStatusEnum.IN_TROUBLES.name().equals(oldStatus)) {
                     od.setStatus(OrderDetailStatusEnum.DELIVERED.name());
                     orderDetailEntityService.save(od);
-                    affectedOrderIds.add(od.getOrderEntity().getId());
+                    affectedOrderIds.add(order.getId());
+                    
+                    // Send WebSocket notification
+                    try {
+                        orderDetailStatusWebSocketService.sendOrderDetailStatusChange(
+                            od.getId(),
+                            od.getTrackingCode(),
+                            order.getId(),
+                            order.getOrderCode(),
+                            vehicleAssignmentId,
+                            oldStatus,
+                            OrderDetailStatusEnum.DELIVERED
+                        );
+                    } catch (Exception e) {
+                        log.error("❌ Failed to send WebSocket for {}: {}", od.getTrackingCode(), e.getMessage());
+                    }
+                    
                     log.info("✅ OrderDetail {} ({}) status updated to DELIVERED", 
                              od.getId(), od.getTrackingCode());
                 }

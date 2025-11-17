@@ -27,6 +27,7 @@ public class ReturnPaymentTimeoutScheduler {
     private final TransactionEntityService transactionEntityService;
     private final capstone_project.repository.entityServices.order.order.OrderDetailEntityService orderDetailEntityService;
     private final capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService;
+    private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
 
     /**
      * Check for expired return payment deadlines every 30 minutes
@@ -79,12 +80,36 @@ public class ReturnPaymentTimeoutScheduler {
                         
                         // Update order details status to CANCELLED (customer didn't pay, packages are abandoned)
                         if (issue.getOrderDetails() != null && !issue.getOrderDetails().isEmpty()) {
+                            java.util.UUID vehicleAssignmentId = issue.getVehicleAssignmentEntity() != null ? 
+                                    issue.getVehicleAssignmentEntity().getId() : null;
+                            
                             issue.getOrderDetails().forEach(orderDetail -> {
+                                String oldStatus = orderDetail.getStatus();
                                 orderDetail.setStatus(capstone_project.common.enums.OrderDetailStatusEnum.CANCELLED.name());
+                                orderDetailEntityService.save(orderDetail);
+                                
+                                // Send WebSocket notification
+                                var order = orderDetail.getOrderEntity();
+                                if (order != null) {
+                                    try {
+                                        orderDetailStatusWebSocketService.sendOrderDetailStatusChange(
+                                            orderDetail.getId(),
+                                            orderDetail.getTrackingCode(),
+                                            order.getId(),
+                                            order.getOrderCode(),
+                                            vehicleAssignmentId,
+                                            oldStatus,
+                                            capstone_project.common.enums.OrderDetailStatusEnum.CANCELLED
+                                        );
+                                    } catch (Exception e) {
+                                        log.error("❌ Failed to send WebSocket for {}: {}", 
+                                                orderDetail.getTrackingCode(), e.getMessage());
+                                    }
+                                }
+                                
                                 log.info("📦 OrderDetail {} status updated to CANCELLED (payment timeout)", 
                                         orderDetail.getTrackingCode());
                             });
-                            orderDetailEntityService.saveAllOrderDetailEntities(issue.getOrderDetails());
                             log.info("✅ Updated {} order details to CANCELLED status", issue.getOrderDetails().size());
                         }
                         

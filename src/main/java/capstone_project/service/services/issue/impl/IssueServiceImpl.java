@@ -288,13 +288,13 @@ public class IssueServiceImpl implements IssueService {
         
         log.info("💾 Saving trip status at report: {}", tripStatusAtReport);
         
-        // Update tất cả order details thành IN_TROUBLES
+        // Update tất cả order details thành IN_TROUBLES with WebSocket notification
         orderDetails.forEach(orderDetail -> {
-            String oldStatus = orderDetail.getStatus();
-            orderDetail.setStatus(OrderDetailStatusEnum.IN_TROUBLES.name());
-            orderDetailEntityService.save(orderDetail);
-            log.info("🚨 Updated order detail {} from {} to IN_TROUBLES", 
-                     orderDetail.getId(), oldStatus);
+            updateOrderDetailStatusWithNotification(
+                orderDetail,
+                OrderDetailStatusEnum.IN_TROUBLES,
+                vehicleAssignment.getId()
+            );
         });
 
         // Tạo entity
@@ -429,7 +429,10 @@ public class IssueServiceImpl implements IssueService {
         if (tripStatusAtReport != null && !tripStatusAtReport.isEmpty()) {
             String[] savedStatuses = tripStatusAtReport.split(",");
             
-            // Restore status cho từng order detail
+            // Restore status cho từng order detail with WebSocket notification
+            UUID vehicleAssignmentId = issue.getVehicleAssignmentEntity() != null ? 
+                    issue.getVehicleAssignmentEntity().getId() : null;
+            
             for (int i = 0; i < Math.min(orderDetails.size(), savedStatuses.length); i++) {
                 OrderDetailEntity orderDetail = orderDetails.get(i);
                 String restoredStatus = savedStatuses[i].trim();
@@ -437,8 +440,18 @@ public class IssueServiceImpl implements IssueService {
                 log.info("✅ Restoring order detail {} from IN_TROUBLES to {}", 
                          orderDetail.getId(), restoredStatus);
                 
-                orderDetail.setStatus(restoredStatus);
-                orderDetailEntityService.save(orderDetail);
+                try {
+                    OrderDetailStatusEnum restoredStatusEnum = OrderDetailStatusEnum.valueOf(restoredStatus);
+                    updateOrderDetailStatusWithNotification(
+                        orderDetail,
+                        restoredStatusEnum,
+                        vehicleAssignmentId
+                    );
+                } catch (IllegalArgumentException e) {
+                    log.warn("⚠️ Invalid status to restore: {}, skipping WebSocket", restoredStatus);
+                    orderDetail.setStatus(restoredStatus);
+                    orderDetailEntityService.save(orderDetail);
+                }
             }
         } else {
             log.warn("⚠️ No tripStatusAtReport found for issue {}, cannot restore statuses", issueId);
@@ -566,13 +579,13 @@ public class IssueServiceImpl implements IssueService {
 
         log.info("💾 Saving trip status at report: {}", tripStatusAtReport);
 
-        // Update tất cả order details thành IN_TROUBLES
+        // Update tất cả order details thành IN_TROUBLES with WebSocket notification
         orderDetails.forEach(orderDetail -> {
-            String oldStatus = orderDetail.getStatus();
-            orderDetail.setStatus(OrderDetailStatusEnum.IN_TROUBLES.name());
-            orderDetailEntityService.save(orderDetail);
-            log.info("🚨 Updated order detail {} from {} to IN_TROUBLES", 
-                     orderDetail.getId(), oldStatus);
+            updateOrderDetailStatusWithNotification(
+                orderDetail,
+                OrderDetailStatusEnum.IN_TROUBLES,
+                vehicleAssignment.getId()
+            );
         });
 
         // Upload seal removal image to Cloudinary
@@ -811,11 +824,24 @@ public class IssueServiceImpl implements IssueService {
 
         if (tripStatusAtReport != null && !tripStatusAtReport.isEmpty()) {
             String[] savedStatuses = tripStatusAtReport.split(",");
+            UUID vehicleAssignmentId = vehicleAssignment != null ? vehicleAssignment.getId() : null;
+            
             for (int i = 0; i < Math.min(orderDetails.size(), savedStatuses.length); i++) {
                 OrderDetailEntity orderDetail = orderDetails.get(i);
                 String restoredStatus = savedStatuses[i].trim();
-                orderDetail.setStatus(restoredStatus);
-                orderDetailEntityService.save(orderDetail);
+                
+                try {
+                    OrderDetailStatusEnum restoredStatusEnum = OrderDetailStatusEnum.valueOf(restoredStatus);
+                    updateOrderDetailStatusWithNotification(
+                        orderDetail,
+                        restoredStatusEnum,
+                        vehicleAssignmentId
+                    );
+                } catch (IllegalArgumentException e) {
+                    log.warn("⚠️ Invalid status to restore: {}, skipping WebSocket", restoredStatus);
+                    orderDetail.setStatus(restoredStatus);
+                    orderDetailEntityService.save(orderDetail);
+                }
                 log.info("✅ Restored order detail {} to {}", orderDetail.getId(), restoredStatus);
             }
         }
@@ -1061,15 +1087,17 @@ public class IssueServiceImpl implements IssueService {
 
                     // Link order detail to issue and mark as IN_TROUBLES
                     // Driver can continue trip, staff will update to COMPENSATION when processing refund
-                    String oldStatus = orderDetail.getStatus();
                     orderDetail.setIssueEntity(saved);
-                    orderDetail.setStatus(OrderDetailStatusEnum.IN_TROUBLES.name());
-                    orderDetailEntityService.save(orderDetail);
+                    updateOrderDetailStatusWithNotification(
+                        orderDetail,
+                        OrderDetailStatusEnum.IN_TROUBLES,
+                        vehicleAssignment.getId()
+                    );
                     
                     selectedOrderDetails.add(orderDetail);
                     
-                    log.info("🚨 Updated order detail {} from {} to IN_TROUBLES (damaged goods) and linked to issue {}", 
-                             orderDetail.getId(), oldStatus, saved.getId());
+                    log.info("🚨 Updated order detail {} to IN_TROUBLES (damaged goods) and linked to issue {}", 
+                             orderDetail.getId(), saved.getId());
                 } catch (Exception e) {
                     log.error("❌ Error updating order detail {}: {}", trackingCode, e.getMessage());
                     throw new RuntimeException("Failed to update order detail: " + trackingCode, e);
@@ -1096,8 +1124,11 @@ public class IssueServiceImpl implements IssueService {
             
             if (!remainingOrderDetails.isEmpty()) {
                 remainingOrderDetails.forEach(orderDetail -> {
-                    orderDetail.setStatus(OrderDetailStatusEnum.DELIVERED.name());
-                    orderDetailEntityService.save(orderDetail);
+                    updateOrderDetailStatusWithNotification(
+                        orderDetail,
+                        OrderDetailStatusEnum.DELIVERED,
+                        vehicleAssignment.getId()
+                    );
                     log.info("📦 OrderDetail {} (not damaged) status updated to DELIVERED", 
                              orderDetail.getTrackingCode());
                 });
@@ -1309,15 +1340,13 @@ public class IssueServiceImpl implements IssueService {
         
         log.info("💾 Saving trip status at report: {}", tripStatusAtReport);
         
-        // Update ONLY selected order details to IN_TROUBLES
+        // Update ONLY selected order details to IN_TROUBLES with WebSocket notification
         selectedOrderDetails.forEach(orderDetail -> {
-            String oldStatus = orderDetail.getStatus();
-            orderDetail.setStatus(OrderDetailStatusEnum.IN_TROUBLES.name());
-            orderDetailEntityService.save(orderDetail);
-            log.info("🚨 Updated order detail {} ({}) from {} to IN_TROUBLES", 
-                     orderDetail.getId(), 
-                     orderDetail.getOrderEntity().getOrderCode(),
-                     oldStatus);
+            updateOrderDetailStatusWithNotification(
+                orderDetail,
+                OrderDetailStatusEnum.IN_TROUBLES,
+                vehicleAssignment.getId()
+            );
         });
 
         // Create Issue

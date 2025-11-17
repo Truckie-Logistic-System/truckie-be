@@ -43,6 +43,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private final SealEntityService sealEntityService;
     private final OrderDetailStatusService orderDetailStatusService;
     private final capstone_project.repository.entityServices.order.order.OrderDetailEntityService orderDetailEntityService;
+    private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
 
     @Override
     @Transactional
@@ -169,9 +170,32 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
                     .collect(java.util.stream.Collectors.toList());
             
             if (!deliveredDetails.isEmpty()) {
+                UUID vaId = vehicleAssignmentId;
+                
                 deliveredDetails.forEach(od -> {
+                    String oldStatus = od.getStatus();
                     od.setStatus(OrderDetailStatusEnum.SUCCESSFUL.name());
                     orderDetailEntityService.save(od);
+                    
+                    // Send WebSocket notification
+                    var order = od.getOrderEntity();
+                    if (order != null) {
+                        try {
+                            orderDetailStatusWebSocketService.sendOrderDetailStatusChange(
+                                od.getId(),
+                                od.getTrackingCode(),
+                                order.getId(),
+                                order.getOrderCode(),
+                                vaId,
+                                oldStatus,
+                                OrderDetailStatusEnum.SUCCESSFUL
+                            );
+                        } catch (Exception e) {
+                            log.error("❌ Failed to send WebSocket for {}: {}", 
+                                    od.getTrackingCode(), e.getMessage());
+                        }
+                    }
+                    
                     log.info("✅ Updated OrderDetail {} ({}) from DELIVERED to SUCCESSFUL", 
                              od.getId(), od.getTrackingCode());
                 });
