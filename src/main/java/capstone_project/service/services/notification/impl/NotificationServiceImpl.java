@@ -15,16 +15,15 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final SimpMessagingTemplate messagingTemplate;
 
-
     @Override
     public void sendToUser(String userId, NotificationMessageRequest message) {
-        log.info("Sending message to user {}", userId);
+        
         messagingTemplate.convertAndSend("/queue/notifications/" + userId, message);
     }
 
     @Override
     public void sendToAll(GeneralNotificationMessageRequest message) {
-        log.info("Sending all messages to all users");
+        
         messagingTemplate.convertAndSend("/topic/notifications", message);
     }
 }

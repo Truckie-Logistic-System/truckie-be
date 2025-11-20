@@ -47,7 +47,7 @@ public class VehicleFuelConsumptionController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<VehicleFuelConsumptionResponse>> createVehicleFuelConsumption(
             @ModelAttribute VehicleFuelConsumptionCreateRequest request) {
-        log.info("Received request to create vehicle fuel consumption for vehicle assignment ID: {}", request.vehicleAssignmentId());
+        
         final var result = vehicleFuelConsumptionService.createVehicleFuelConsumption(request);
         return ResponseEntity.ok(new ApiResponse<>(true, "Success", 200, result));
     }
@@ -55,7 +55,7 @@ public class VehicleFuelConsumptionController {
     @PutMapping(value = "/invoice", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<VehicleFuelConsumptionResponse>> updateInvoiceImage(
             @ModelAttribute VehicleFuelConsumptionInvoiceRequest request) {
-        log.info("Received request to update invoice image for vehicle fuel consumption ID: {}", request.id());
+        
         final var result = vehicleFuelConsumptionService.updateInvoiceImage(request);
         return ResponseEntity.ok(new ApiResponse<>(true, "Success", 200, result));
     }
@@ -65,8 +65,7 @@ public class VehicleFuelConsumptionController {
             @RequestParam UUID id,
             @RequestParam BigDecimal odometerReadingAtEnd,
             @RequestParam MultipartFile odometerAtEndImage) {
-        log.info("Received request to update final odometer reading for vehicle fuel consumption ID: {}", id);
-        log.info("odometerReadingAtEnd: {}", odometerReadingAtEnd);
+
         final var request = new VehicleFuelConsumptionEndReadingRequest(id, odometerReadingAtEnd, odometerAtEndImage);
         final var result = vehicleFuelConsumptionService.updateFinalReading(request);
         return ResponseEntity.ok(new ApiResponse<>(true, "Success", 200, result));
@@ -75,7 +74,7 @@ public class VehicleFuelConsumptionController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<VehicleFuelConsumptionResponse>> getVehicleFuelConsumptionById(
             @PathVariable UUID id) {
-        log.info("Received request to get vehicle fuel consumption by ID: {}", id);
+        
         final var result = vehicleFuelConsumptionService.getVehicleFuelConsumptionById(id);
         return ResponseEntity.ok(new ApiResponse<>(true, "Success", 200, result));
     }
@@ -83,7 +82,7 @@ public class VehicleFuelConsumptionController {
     @GetMapping("/vehicle-assignment/{vehicleAssignmentId}")
     public ResponseEntity<ApiResponse<VehicleFuelConsumptionResponse>> getVehicleFuelConsumptionByVehicleAssignmentId(
             @PathVariable UUID vehicleAssignmentId) {
-        log.info("Received request to get vehicle fuel consumption by vehicle assignment ID: {}", vehicleAssignmentId);
+        
         final var result = vehicleFuelConsumptionService.getVehicleFuelConsumptionByVehicleAssignmentId(vehicleAssignmentId);
         return ResponseEntity.ok(new ApiResponse<>(true, "Success", 200, result));
     }

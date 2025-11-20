@@ -42,7 +42,6 @@ public class RoomServiceImpl implements RoomService {
     private final CustomerEntityService customerEntityService;
     private final ChatService chatService;
 
-
     @Override
     @Transactional
     public CreateRoomResponse createRoom(CreateRoomRequest request) {
@@ -56,8 +55,6 @@ public class RoomServiceImpl implements RoomService {
 
         String roomType;
         List<ParticipantInfo> participantInfoList = new ArrayList<>();
-
-
 
         if (request.orderId() == null || request.orderId().isBlank()) {
             // -------- TH1: Customer chủ động tạo ----------
@@ -127,7 +124,7 @@ public class RoomServiceImpl implements RoomService {
 
         try {
             roomDoc.set(room);
-            log.info("Room created with id: {}", room.getRoomId());
+            
         } catch (Exception e) {
             throw new RuntimeException("Failed to create room in Firestore", e);
         }
@@ -157,7 +154,7 @@ public class RoomServiceImpl implements RoomService {
             }
             for (QueryDocumentSnapshot doc : documents) {
                 doc.getReference().update(FirebaseCollectionEnum.status.name(), CommonStatusEnum.INACTIVE.name());
-                log.info("Room [{}] status set to UN_ACTIVE", doc.getId());
+                
             }
             return true;
 
@@ -219,7 +216,6 @@ public class RoomServiceImpl implements RoomService {
         }
     }
 
-
     @Override
     @Transactional
     public boolean joinRoom(String roomId, UUID staffId) {
@@ -241,7 +237,6 @@ public class RoomServiceImpl implements RoomService {
                 UserEntity staff = userEntityService.findEntityById(staffId)
                         .orElseThrow(() -> new BadRequestException("Staff not found", ErrorEnum.NOT_FOUND.getErrorCode()));
 
-
                 ParticipantInfo staffParticipant = new ParticipantInfo();
                 staffParticipant.setUserId(staff.getId().toString());
                 staffParticipant.setRoleName(RoleTypeEnum.STAFF.name());
@@ -258,7 +253,6 @@ public class RoomServiceImpl implements RoomService {
                 return null; // Firestore transaction requires return
             }).get();
 
-            log.info("Staff {} joined room {}", staffId, roomId);
             return true;
 
         } catch (BadRequestException e) {
@@ -268,7 +262,6 @@ public class RoomServiceImpl implements RoomService {
             throw new RuntimeException("Cannot join room", e);
         }
     }
-
 
     @Override
     public boolean activeRoomByOrderId(UUID orderId) {
@@ -292,7 +285,7 @@ public class RoomServiceImpl implements RoomService {
             }
             for (QueryDocumentSnapshot doc : documents) {
                 doc.getReference().update(FirebaseCollectionEnum.status.name(), CommonStatusEnum.ACTIVE.name());
-                log.info("Room [{}] status set to ACTIVE", doc.getId());
+                
             }
             return true;
 
@@ -323,7 +316,6 @@ public class RoomServiceImpl implements RoomService {
                     .limit(1)
                     .get();
 
-
             QuerySnapshot snapshot = future.get();
 
             return !snapshot.isEmpty(); // nếu có ít nhất 1 room thì user đã có phòng supported
@@ -350,7 +342,6 @@ public class RoomServiceImpl implements RoomService {
                     .limit(1)
                     .get();
 
-
             QuerySnapshot snapshot = future.get();
             if(snapshot.isEmpty()){
                 throw new NotFoundException("Cannot get room supported for customer", ErrorEnum.NOT_FOUND.getErrorCode());
@@ -368,6 +359,5 @@ public class RoomServiceImpl implements RoomService {
             throw new RuntimeException("Cannot check room supported for customer", e);
         }
     }
-
 
 }

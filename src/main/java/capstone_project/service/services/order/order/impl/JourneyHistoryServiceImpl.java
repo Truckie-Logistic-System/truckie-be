@@ -38,7 +38,7 @@ public class JourneyHistoryServiceImpl implements JourneyHistoryService {
 
     @Override
     public List<JourneyHistoryResponse> getAll() {
-        log.info("Fetching all journey histories");
+        
         List<JourneyHistoryEntity> entities = entityService.findAll();
         if (entities.isEmpty()) {
             log.warn("No journey histories found");
@@ -54,7 +54,7 @@ public class JourneyHistoryServiceImpl implements JourneyHistoryService {
 
     @Override
     public JourneyHistoryResponse getById(UUID id) {
-        log.info("Fetching journey history by ID: {}", id);
+        
         JourneyHistoryEntity entity = entityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
@@ -66,7 +66,7 @@ public class JourneyHistoryServiceImpl implements JourneyHistoryService {
     @Override
     @Transactional
     public JourneyHistoryResponse create(JourneyHistoryRequest req) {
-        log.info("Creating new journey history");
+        
         JourneyHistoryEntity entity = mapper.toEntity(req);
         JourneyHistoryEntity saved = entityService.save(entity);
 
@@ -81,7 +81,7 @@ public class JourneyHistoryServiceImpl implements JourneyHistoryService {
     @Override
     @Transactional
     public JourneyHistoryResponse update(UUID id, UpdateJourneyHistoryRequest req) {
-        log.info("Updating journey history with ID: {}", id);
+        
         JourneyHistoryEntity entity = entityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
@@ -101,7 +101,7 @@ public class JourneyHistoryServiceImpl implements JourneyHistoryService {
     @Override
     @Transactional
     public void delete(UUID id) {
-        log.info("Deleting journey history with ID: {}", id);
+        
         if (!repository.existsById(id)) {
             throw new NotFoundException(
                     ErrorEnum.NOT_FOUND.getMessage(),
@@ -127,5 +127,30 @@ public class JourneyHistoryServiceImpl implements JourneyHistoryService {
         return entities.stream()
                 .map(mapper::toResponse)
                 .toList();
+    }
+    
+    @Override
+    public List<JourneyHistoryResponse> getByVehicleAssignmentIdSorted(UUID vehicleAssignmentId) {
+        List<JourneyHistoryEntity> entities = entityService.findByVehicleAssignmentIdSorted(vehicleAssignmentId);
+        if (entities.isEmpty()) {
+            log.warn("No journey history found for vehicleAssignmentId: {}", vehicleAssignmentId);
+            throw new NotFoundException(
+                    ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+        
+        return entities.stream()
+                .map(mapper::toResponse)
+                .toList();
+    }
+    
+    @Override
+    public java.util.Optional<JourneyHistoryResponse> getLatestActiveJourney(UUID vehicleAssignmentId) {
+        return entityService.findLatestActiveJourney(vehicleAssignmentId)
+                .map(entity -> {
+                    
+                    return mapper.toResponse(entity);
+                });
     }
 }

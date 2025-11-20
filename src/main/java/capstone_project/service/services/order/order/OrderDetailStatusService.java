@@ -45,4 +45,18 @@ public interface OrderDetailStatusService {
      * @return true if transition is valid, false otherwise
      */
     boolean isValidStatusTransition(OrderDetailStatusEnum currentStatus, OrderDetailStatusEnum newStatus);
+    
+    /**
+     * Manually trigger Order status update based on all OrderDetails
+     * Should be called after any direct OrderDetail status update outside of this service
+     * 
+     * This method will:
+     * 1. Fetch all OrderDetails for the given Order
+     * 2. Determine the appropriate Order status using comprehensive priority logic
+     * 3. Update Order status if changed
+     * 4. Send WebSocket notification for Order status change
+     * 
+     * @param orderId The Order ID to update status for
+     */
+    void triggerOrderStatusUpdate(UUID orderId);
 }

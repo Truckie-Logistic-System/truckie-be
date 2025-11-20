@@ -95,7 +95,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public CreateOrderResponse createOrder(CreateOrderRequest orderRequest, List<CreateOrderDetailRequest> listCreateOrderDetailRequests) {
-        log.info("[Create Order and OrderDetails] Bat Dau Chien");
+        
         if (orderRequest == null || listCreateOrderDetailRequests == null || listCreateOrderDetailRequests.isEmpty()) {
             log.error("Order or Order detail is null");
             throw new BadRequestException(ErrorEnum.NOT_FOUND.getMessage(),
@@ -133,7 +133,6 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "category not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-
         try {
             //Save order
             OrderEntity newOrder = OrderEntity.builder()
@@ -152,7 +151,6 @@ public class OrderServiceImpl implements OrderService {
                     .pickupAddress(pickupAddress)
                     .build();
             OrderEntity saveOrder = orderEntityService.save(newOrder);
-
 
             saveOrder.setOrderDetailEntities(batchCreateOrderDetails(listCreateOrderDetailRequests, saveOrder, orderRequest.estimateStartTime()));
             return orderMapper.toCreateOrderResponse(saveOrder);
@@ -262,7 +260,6 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.toCreateOrderResponse(order);
     }
 
-
     @Override
     public boolean isValidTransition(OrderStatusEnum current, OrderStatusEnum next) {
         switch (current) {
@@ -304,7 +301,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<CreateOrderResponse> getCreateOrderRequestsBySenderId(UUID senderId) {
-        log.info("getCreateOrderRequestsBySenderId: start");
+        
         if (senderId == null) {
             log.error("Sender id is null");
             throw new NotFoundException(
@@ -318,7 +315,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<CreateOrderResponse> getCreateOrderRequestsByDeliveryAddressId(UUID deliveryAddressId) {
-        log.info("getCreateOrderRequestsByDeliveryAddressId: start");
+        
         if (deliveryAddressId == null) {
             log.error("deliveryAddressId is null");
             throw new NotFoundException(
@@ -337,14 +334,12 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public CreateOrderResponse updateOrderBasicInPendingOrProcessing(UpdateOrderRequest updateOrderRequest) {
-        log.info("Updating order with ID: {}", updateOrderRequest.orderId());
 
         OrderEntity order = orderEntityService.findEntityById(UUID.fromString(updateOrderRequest.orderId()))
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " Order with ID: " + updateOrderRequest.orderId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
-
 
         if (!(order.getStatus().equals(OrderStatusEnum.PENDING.name()) || order.getStatus().equals(OrderStatusEnum.PROCESSING.name()))) {
             throw new NotFoundException(
@@ -367,7 +362,6 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "pickupAddress not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-
         order.setNotes(updateOrderRequest.notes());
         order.setReceiverName(updateOrderRequest.receiverName());
         order.setReceiverPhone(updateOrderRequest.receiverPhone());
@@ -378,16 +372,13 @@ public class OrderServiceImpl implements OrderService {
 
         orderEntityService.save(order);
 
-
         return orderMapper.toCreateOrderResponse(order);
     }
-
 
     @Override
     public List<OrderDetailEntity> batchCreateOrderDetails(
             List<CreateOrderDetailRequest> requests,
             OrderEntity savedOrder, LocalDateTime estimateStartTime) {
-
 
         // Build all order details in memory first
         List<OrderDetailEntity> orderDetails = requests.stream()
@@ -400,7 +391,7 @@ public class OrderServiceImpl implements OrderService {
 //                        throw new BadRequestException(ErrorEnum.INVALID_REQUEST.getMessage() + "orderSize's max weight have to be more than detail's weight", ErrorEnum.NOT_FOUND.getErrorCode());
 //                    }
                     return OrderDetailEntity.builder()
-                            .weight(request.weight())  // Trọng lượng gốc người dùng nhập
+                            .weightTons(request.weight())  // Trọng lượng gốc người dùng nhập (tấn)
                             .unit(request.unit())
                             .weightBaseUnit(convertToTon(request.weight(), request.unit()))  // Convert về tấn
                             .description(request.description())
@@ -422,7 +413,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<CreateOrderResponse> getOrdersForCusByUserId(UUID userId) {
-        log.info("getOrdersForCusByUserId: start");
+        
         CustomerEntity customer = customerEntityService.findByUserId(userId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + ", Customer not found with user id: " + userId,
@@ -445,7 +436,6 @@ public class OrderServiceImpl implements OrderService {
     public List<UnitEnum> responseListUnitEnum() {
         return Arrays.asList(UnitEnum.values());
     }
-
 
     private boolean checkTotalWeight(BigDecimal totalWeight, List<CreateOrderDetailRequest> listCreateOrderDetailRequests) {
         BigDecimal totalWeightTest = BigDecimal.ZERO;
@@ -556,10 +546,8 @@ public class OrderServiceImpl implements OrderService {
         return response;
     }
 
-
     @Override
     public OrderForStaffResponse getOrderForStaffByOrderId(UUID orderId) {
-        log.info("Getting order for staff with ID: {}", orderId);
 
         // Get the basic order information
         GetOrderResponse orderResponse = getOrderById(orderId);
@@ -692,8 +680,7 @@ public class OrderServiceImpl implements OrderService {
                         // Cập nhật trạng thái các seal từ IN_USE -> USED
                         int updatedSeals = sealService.updateSealsToUsed(vehicleAssignment);
                         if (updatedSeals > 0) {
-                            log.info("Đã cập nhật {} seal thành USED cho VehicleAssignment {} khi Order {} chuyển sang trạng thái {}",
-                                    updatedSeals, vehicleAssignment.getId(), orderId, newStatus);
+                            
                         }
                     }
                 }
@@ -721,14 +708,13 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<GetOrderForDriverResponse> getOrderForDriverByCurrentDrive() {
-        log.info("Getting order for current driver");
 
         UUID driverId = userContextUtils.getCurrentDriverId();
 
         List<OrderEntity> ordersByDriverId = orderEntityService.findOrdersByDriverId(driverId);
 
         if (ordersByDriverId.isEmpty()) {
-            log.info("No orders found for driver with ID: {}", driverId);
+            
             throw new BadRequestException(
                     ErrorEnum.NOT_FOUND.getMessage() + " Cannot found orders from " + driverId,
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -742,10 +728,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public GetOrderByJpaResponse getSimplifiedOrderForCustomerV2ByOrderId(UUID orderId) {
-        log.info("Getting order for order with ID: {}", orderId);
 
         if (orderId == null) {
-            log.info("No orders found for order with ID: {}", orderId);
+            
             throw new BadRequestException(
                     ErrorEnum.NOT_FOUND.getMessage(),
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -762,7 +747,6 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public CreateOrderResponse updateToOngoingDelivered(UUID orderId) {
-            
 
         // Validate order ID
         if (orderId == null) {
@@ -791,15 +775,13 @@ public class OrderServiceImpl implements OrderService {
 
         // If already ONGOING_DELIVERED, just return current order
         if (OrderStatusEnum.ONGOING_DELIVERED.name().equals(order.getStatus())) {
-            log.info("Order {} already in ONGOING_DELIVERED status, returning current state", orderId);
+            
             return orderMapper.toCreateOrderResponse(order);
         }
 
         // Update status to ONGOING_DELIVERED
         order.setStatus(OrderStatusEnum.ONGOING_DELIVERED.name());
         OrderEntity updatedOrder = orderEntityService.save(order);
-
-        log.info("Successfully updated order {} to ONGOING_DELIVERED", orderId);
 
         // Send WebSocket notification
 //        orderStatusWebSocketService.sendOrderStatusUpdate(
@@ -814,7 +796,6 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public CreateOrderResponse updateToDelivered(UUID orderId) {
-        log.info("Updating order {} to DELIVERED status", orderId);
 
         // Validate order ID
         if (orderId == null) {
@@ -844,8 +825,6 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(OrderStatusEnum.DELIVERED.name());
         OrderEntity updatedOrder = orderEntityService.save(order);
 
-        log.info("Successfully updated order {} to DELIVERED", orderId);
-
         // Send WebSocket notification
 //        orderStatusWebSocketService.sendOrderStatusUpdate(
 //                orderId,
@@ -859,7 +838,6 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public CreateOrderResponse updateToSuccessful(UUID orderId) {
-        log.info("Updating order {} to SUCCESSFUL status", orderId);
 
         // Validate order ID
         if (orderId == null) {
@@ -889,8 +867,6 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
         OrderEntity updatedOrder = orderEntityService.save(order);
 
-        log.info("Successfully updated order {} to SUCCESSFUL", orderId);
-
         // Send WebSocket notification
 //        orderStatusWebSocketService.sendOrderStatusUpdate(
 //                orderId,
@@ -904,7 +880,6 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public boolean cancelOrder(UUID orderId) {
-        log.info("Cancelling order {}", orderId);
 
         // Validate order ID
         if (orderId == null) {
@@ -950,13 +925,11 @@ public class OrderServiceImpl implements OrderService {
                 ContractEntity contract = contractOpt.get();
                 contract.setStatus(ContractStatusEnum.CANCELLED.name());
                 contractEntityService.save(contract);
-                log.info("Contract {} for order {} marked as CANCELLED", contract.getId(), orderId);
+                
             }
         } catch (Exception e) {
             log.warn("Failed to update contract status for cancelled order {}: {}", orderId, e.getMessage());
         }
-
-        log.info("Successfully cancelled order {}", orderId);
 
         // Send WebSocket notification
         try {

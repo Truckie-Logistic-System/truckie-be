@@ -59,7 +59,6 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
         String username = jwtTokenProvider.getUsernameFromToken(rawToken);
         attributes.put("principal", new StompPrincipal(username));
 
-        log.info("WebSocket handshake accepted for user: {}", username);
         return true;
     }
 

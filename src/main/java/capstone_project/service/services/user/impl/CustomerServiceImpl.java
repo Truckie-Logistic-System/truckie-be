@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
 
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -29,11 +28,10 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<CustomerResponse> getAllCustomers() {
-        log.info("Getting all customers");
 
         List<CustomerEntity> customerEntities = customerEntityService.findAll();
         if (customerEntities.isEmpty()) {
-            log.info("No customers found");
+            
             throw new BadRequestException(
                     "No customers found",
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -47,7 +45,6 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponse getCustomerById(UUID id) {
-        log.info("Getting customer by ID: {}", id);
 
         if (id == null) {
             log.error("Customer ID is null");
@@ -71,7 +68,6 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponse getCustomerByUserId(UUID userId) {
-        log.info("Getting customer by user ID: {}", userId);
 
         if (userId == null) {
             log.error("User ID is null");
@@ -95,7 +91,6 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<CustomerResponse> getAllCustomersByRepresentativeNameLike(String name) {
-        log.info("Getting all customers by name like {}", name);
 
         if (name == null || name.isBlank()) {
             log.error("Name is null or blank");
@@ -107,7 +102,7 @@ public class CustomerServiceImpl implements CustomerService {
 
         List<CustomerEntity> customerEntities = customerEntityService.findAllByRepresentativeNameLike(name);
         if (customerEntities.isEmpty()) {
-            log.info("No customers found with name like {}", name);
+            
             throw new BadRequestException(
                     "No customers found with name like: " + name,
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -121,7 +116,6 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<CustomerResponse> getAllCustomersByCompanyNameLike(String companyName) {
-        log.info("Getting all customers by company name like {}", companyName);
 
         if (companyName == null || companyName.isBlank()) {
             log.error("Company name is null or blank");
@@ -133,7 +127,7 @@ public class CustomerServiceImpl implements CustomerService {
 
         List<CustomerEntity> customerEntities = customerEntityService.findAllByCompanyNameLike(companyName);
         if (customerEntities.isEmpty()) {
-            log.info("No customers found with company name like {}", companyName);
+            
             throw new BadRequestException(
                     "No customers found with company name like: " + companyName,
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -147,7 +141,6 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<CustomerResponse> getAllCustomersByUserRoleName(String roleName) {
-        log.info("Getting all customers by user role name {}", roleName);
 
         if (roleName == null || roleName.isBlank()) {
             log.error("Role name is null or blank");
@@ -159,7 +152,7 @@ public class CustomerServiceImpl implements CustomerService {
 
         List<CustomerEntity> customerEntities = customerEntityService.findByUser_Role_RoleName(roleName);
         if (customerEntities.isEmpty()) {
-            log.info("No customers found with user role name {}", roleName);
+            
             throw new BadRequestException(
                     "No customers found with user role name: " + roleName,
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -173,7 +166,6 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public void updateCustomerStatus(UUID userId, String status) {
-        log.info("Updating customer status for userId: {}, new status: {}", userId, status);
 
         var customer = customerEntityService.findByUserId(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found with ID: " + userId));
@@ -182,12 +174,10 @@ public class CustomerServiceImpl implements CustomerService {
 
         customerEntityService.save(customer);
 
-        log.info("Customer status updated successfully for userId: {}", userId);
     }
 
     @Override
     public CustomerResponse updateCustomerStatusByCustomerId(UUID customerId, String status) {
-        log.info("Updating customer status for customerId: {}, new status: {}", customerId, status);
 
         if (customerId == null) {
             log.error("Customer ID is null");
@@ -225,7 +215,6 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponse updateCustomer(UUID customerId, UpdateCustomerRequest updateCustomerRequest) {
-        log.info("Updating customer with ID: {}", customerId);
 
         if (customerId == null) {
             log.error("Customer ID is null");
@@ -252,11 +241,9 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponse getCurrentCustomer() {
-        log.info("Getting customer information for current authenticated user");
 
         // Get the current user's ID from security context
         UUID currentUserId = userContextUtils.getCurrentUserId();
-        log.info("Current authenticated user ID: {}", currentUserId);
 
         // Find the customer entity associated with the current user
         CustomerEntity customerEntity = customerEntityService.findByUserId(currentUserId)

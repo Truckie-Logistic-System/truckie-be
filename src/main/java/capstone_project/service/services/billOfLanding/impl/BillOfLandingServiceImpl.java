@@ -85,7 +85,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
 
     @Override
     public BillOfLandingResponse getBillOfLandingById(UUID contractId) {
-        log.info("getBillOfLandingById");
 
         ContractEntity contractEntity = contractEntityService.findEntityById(contractId)
                 .orElseThrow(() -> new NotFoundException(
@@ -105,7 +104,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                         .orElse(Collections.emptyList());
 
         List<VehicleAssignmentEntity> vehicleAssignments = orderEntity.getOrderDetailEntities().stream()
-                .peek(orderDetail -> log.info("OrderDetail: {}", orderDetail))
                 .map(OrderDetailEntity::getVehicleAssignmentEntity)
                 .filter(Objects::nonNull)
                 .toList();
@@ -229,7 +227,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 document.add(barcodeImage);
                 document.add(new Paragraph("").setMarginBottom(6));
             } catch (Exception ex) {
-                log.debug("Could not render barcode for main waybill: {}", ex.getMessage());
+                
             }
 
             UserEntity staff = new UserEntity();
@@ -239,7 +237,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 ContractEntity contract = contractEntityService.getContractByOrderId(order.getId()).orElse(null);
                 if (contract != null && contract.getStaff() != null) staff = contract.getStaff();
             } catch (Exception ex) {
-                log.debug("No contract found for order {}: {}", order.getId(), ex.getMessage());
+                
             }
 
             addPartiesInformation(document, order.getSender(), order.getReceiverName(), order.getReceiverPhone(), staff);
@@ -322,7 +320,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 document.add(barcodeImage);
                 document.add(new Paragraph("").setMarginBottom(6));
             } catch (Exception ex) {
-                log.debug("Could not render barcode for manifest: {}", ex.getMessage());
+                
             }
 
             // References: main waybill and order info
@@ -348,7 +346,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 ContractEntity contract = contractEntityService.getContractByOrderId(order.getId()).orElse(null);
                 if (contract != null && contract.getStaff() != null) staff = contract.getStaff();
             } catch (Exception ex) {
-                log.debug("No contract found for order {}: {}", order.getId(), ex.getMessage());
+                
             }
 
             // Vehicle and driver info block
@@ -1212,7 +1210,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 document.add(barcodeImage);
                 document.add(new Paragraph("").setMarginBottom(6));
             } catch (Exception ex) {
-                log.debug("Could not render barcode for dispatch order: {}", ex.getMessage());
+                
             }
 
             // References: main waybill and order info
@@ -1241,7 +1239,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 ContractEntity contract = contractEntityService.getContractByOrderId(order.getId()).orElse(null);
                 if (contract != null && contract.getStaff() != null) staff = contract.getStaff();
             } catch (Exception ex) {
-                log.debug("No contract found for order {}: {}", order.getId(), ex.getMessage());
+                
             }
 
             Paragraph staffInCharge = new Paragraph("Người phụ trách / Staff in charge: " + staff.getFullName() + " (" + staff.getPhoneNumber() + ")")

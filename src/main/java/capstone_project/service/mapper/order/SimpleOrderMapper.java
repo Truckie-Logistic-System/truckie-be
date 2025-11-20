@@ -60,7 +60,7 @@ public class SimpleOrderMapper {
         try {
             if (contractResponse != null) {
                 BigDecimal contractTotal = contractResponse.totalValue();
-                log.info("Contract total value is {}", contractTotal);
+                
                 if (contractTotal != null && contractTotal.compareTo(BigDecimal.ZERO) > 0) {
                     effectiveTotal = contractTotal;
                 } else {
@@ -501,7 +501,6 @@ public class SimpleOrderMapper {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
-
 
     private SimpleIssueResponse safeToSimpleIssueResponse(GetIssueImageResponse response) {
         if (response == null || response.issue() == null) return null;

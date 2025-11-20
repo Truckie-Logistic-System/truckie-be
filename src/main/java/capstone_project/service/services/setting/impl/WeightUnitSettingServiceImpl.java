@@ -27,12 +27,11 @@ public class WeightUnitSettingServiceImpl implements WeightUnitSettingService {
 
     @Override
     public List<WeightUnitSettingResponse> getAllWeightUnitSettings() {
-        log.info("Getting all weight unit settings");
 
         List<WeightUnitSettingEntity> weightUnitSettingResponseList = weightUnitSettingEntityService.findAll();
 
         if (weightUnitSettingResponseList.isEmpty()) {
-            log.info("No weight unit settings found");
+            
             throw new NotFoundException(
                     ErrorEnum.INVALID.getMessage(),
                     ErrorEnum.INVALID.getErrorCode());
@@ -45,10 +44,9 @@ public class WeightUnitSettingServiceImpl implements WeightUnitSettingService {
 
     @Override
     public WeightUnitSettingResponse getWeightUnitSettingById(UUID id) {
-        log.info("getWeightUnitSettingById");
 
         if (id == null) {
-            log.info("getWeightUnitSettingById: id is null");
+            
             throw new NotFoundException(
                     ErrorEnum.INVALID.getMessage(),
                     ErrorEnum.INVALID.getErrorCode());
@@ -56,7 +54,7 @@ public class WeightUnitSettingServiceImpl implements WeightUnitSettingService {
 
         WeightUnitSettingEntity weightUnitSettingEntity = weightUnitSettingEntityService.findEntityById(id)
                 .orElseThrow(() -> {
-                    log.info("Contract setting not found with id: {}", id);
+                    
                     return new NotFoundException(
                             ErrorEnum.NOT_FOUND.getMessage(),
                             ErrorEnum.NOT_FOUND.getErrorCode());
@@ -67,10 +65,9 @@ public class WeightUnitSettingServiceImpl implements WeightUnitSettingService {
 
     @Override
     public WeightUnitSettingResponse createContractSetting(WeightUnitSettingRequest weightUnitSettingRequest) {
-        log.info("createContractSetting");
 
         if (weightUnitSettingRequest == null) {
-            log.info("createContractSetting: contractSettingRequest is null");
+            
             throw  new NotFoundException(ErrorEnum.INVALID.getMessage(),
                     ErrorEnum.INVALID.getErrorCode());
         }
@@ -93,10 +90,9 @@ public class WeightUnitSettingServiceImpl implements WeightUnitSettingService {
 
     @Override
     public WeightUnitSettingResponse updateWeightUnitSetting(UUID id, UpdateWeightUnitSettingRequest updateWeightUnitSettingRequest) {
-        log.info("updateWeightUnitSetting");
 
         if (id == null || updateWeightUnitSettingRequest == null) {
-            log.info("updateWeightUnitSetting: id or updateWeightUnitSettingRequest is null");
+            
             throw new NotFoundException(
                     ErrorEnum.INVALID.getMessage(),
                     ErrorEnum.INVALID.getErrorCode());
@@ -104,7 +100,7 @@ public class WeightUnitSettingServiceImpl implements WeightUnitSettingService {
 
         WeightUnitSettingEntity existingEntity = weightUnitSettingEntityService.findEntityById(id)
                 .orElseThrow(() -> {
-                    log.info("Weight unit setting not found with id: {}", id);
+                    
                     return new NotFoundException(
                             ErrorEnum.NOT_FOUND.getMessage(),
                             ErrorEnum.NOT_FOUND.getErrorCode());

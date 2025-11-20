@@ -63,6 +63,7 @@ public class RegisterServiceImpl implements RegisterService {
     private final RoleEntityService roleEntityService;
     private final RefreshTokenEntityService refreshTokenEntityService;
     private final EmailProtocolService emailProtocolService;
+    private final capstone_project.service.auth.JwtCacheService jwtCacheService;
 
     private final PasswordEncoder passwordEncoder;
 
@@ -78,19 +79,17 @@ public class RegisterServiceImpl implements RegisterService {
     @Override
     @Transactional
     public UserResponse register(final RegisterUserRequest registerUserRequest, RoleTypeEnum roleTypeEnum) {
-        log.info("[register] Start function");
 
         final String username = registerUserRequest.getUsername();
         final String email = registerUserRequest.getEmail();
 
         userEntityService.getUserByUserNameOrEmail(username, email).ifPresent(user -> {
-            log.info("[register] Username or Email existed");
+            
             throw new BadRequestException(
                     ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getMessage(),
                     ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getErrorCode()
             );
         });
-
 
         RoleEntity role = roleEntityService.findByRoleName(roleTypeEnum.name())
                 .orElseThrow(() -> new BadRequestException(
@@ -122,19 +121,17 @@ public class RegisterServiceImpl implements RegisterService {
     @Override
     @Transactional
     public CustomerResponse registerCustomer(final RegisterCustomerRequest registerCustomerRequest) {
-        log.info("[register] Start function");
 
         final String username = registerCustomerRequest.getUsername();
         final String email = registerCustomerRequest.getEmail();
 
         userEntityService.getUserByUserNameOrEmail(username, email).ifPresent(user -> {
-            log.info("[register] Username or Email existed");
+            
             throw new BadRequestException(
                     ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getMessage(),
                     ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getErrorCode()
             );
         });
-
 
         RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.CUSTOMER.name())
                 .orElseThrow(() -> new BadRequestException(
@@ -176,7 +173,7 @@ public class RegisterServiceImpl implements RegisterService {
         String otp = generateOtp();
 
         try {
-            log.info("[register] OTP sent to email: {}", savedCustomer.getUser().getEmail());
+            
             emailProtocolService.sendOtpEmail(savedCustomer.getUser().getEmail(), otp);
         } catch (Exception e) {
             log.error("Failed to send OTP email", e);
@@ -193,7 +190,6 @@ public class RegisterServiceImpl implements RegisterService {
     @Override
     @Transactional
     public DriverResponse registerDriver(RegisterDriverRequest registerDriverRequest) {
-        log.info("[register] Start function");
 
         if (registerDriverRequest == null) {
             log.error("[registerDriver] RegisterDriverRequest is null");
@@ -205,7 +201,7 @@ public class RegisterServiceImpl implements RegisterService {
 
         userEntityService.getUserByUserNameOrEmail(username, email)
                 .ifPresent(user -> {
-                    log.info("[register] Username or Email existed");
+                    
                     throw new BadRequestException(ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getMessage(),
                             ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getErrorCode());
                 });
@@ -297,7 +293,7 @@ public class RegisterServiceImpl implements RegisterService {
 
     @Override
     public LoginResponse login(LoginWithoutEmailRequest loginRequest) {
-        log.info("[login] Start function");
+        
         final var username = loginRequest.getUsername();
         final var userByUserName = userEntityService.getUserByUserName(username);
 
@@ -307,7 +303,7 @@ public class RegisterServiceImpl implements RegisterService {
             if (passwordEncoder.matches(loginRequest.getPassword(), usersEntity.getPassword())) {
 
                 if (!Objects.equals(usersEntity.getStatus(), UserStatusEnum.ACTIVE.name())) {
-                    log.info("[login] User is not in ACTIVE status, cannot login");
+                    
                     throw new BadRequestException(
                             ErrorEnum.USER_PERMISSION_DENIED.getMessage(),
                             ErrorEnum.USER_PERMISSION_DENIED.getErrorCode()
@@ -335,17 +331,15 @@ public class RegisterServiceImpl implements RegisterService {
 
                 refreshTokenEntityService.save(newRefreshToken);
 
-                log.info("[login] Login successful");
-
                 return userMapper.mapLoginResponse(usersEntity, accessToken, refreshTokenString);
             }
-            log.info("[login] Wrong password");
+            
             throw new NotFoundException(
                     ErrorEnum.LOGIN_WRONG_PASSWORD.getMessage(),
                     ErrorEnum.LOGIN_WRONG_PASSWORD.getErrorCode()
             );
         }
-        log.info("[login] Username and Email are not found");
+        
         throw new NotFoundException(
                 ErrorEnum.LOGIN_NOT_FOUND_USER_NAME_OR_EMAIL.getMessage(),
                 ErrorEnum.LOGIN_NOT_FOUND_USER_NAME_OR_EMAIL.getErrorCode()
@@ -354,7 +348,6 @@ public class RegisterServiceImpl implements RegisterService {
 
     @Override
     public LoginResponse loginWithGoogle(final RegisterUserRequest registerUserRequest) {
-        log.info("[loginWithGoogle] Start function with email: {}", registerUserRequest.getEmail());
 
         final var username = registerUserRequest.getUsername();
         final var email = registerUserRequest.getEmail();
@@ -371,13 +364,12 @@ public class RegisterServiceImpl implements RegisterService {
             UserEntity existingUser = userByEmail.get();
 
             if (!"NO_PASSWORD".equals(existingUser.getPassword())) {
-                log.info("[loginWithGoogle] Email is already registered with a password. Please log in with your username and password.");
+                
                 throw new BadRequestException(ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getMessage(),
                         ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getErrorCode()
                 );
             }
 
-            log.info("[loginWithGoogle] User exists, proceeding with login");
             return handlerLoginWithGoogleLogic(new LoginWithGoogleRequest(existingUser.getEmail()));
         }
 
@@ -405,13 +397,11 @@ public class RegisterServiceImpl implements RegisterService {
 
         userEntityService.save(user);
 
-        log.info("[loginWithGoogle] Create new account & Login successful");
-
         return handlerLoginWithGoogleLogic(new LoginWithGoogleRequest(registerUserRequest.getEmail()));
     }
 
     private LoginResponse handlerLoginWithGoogleLogic(LoginWithGoogleRequest loginWithGoogleRequest) {
-        log.info("[login] Start function");
+        
         final var email = loginWithGoogleRequest.getEmail();
         final var userByEmail = userEntityService.getUserByEmail(email);
 
@@ -440,33 +430,29 @@ public class RegisterServiceImpl implements RegisterService {
                     .build();
 
             refreshTokenEntityService.save(refreshTokenEntity);
-            log.info("[loginWithGoogle] login successful");
+            
             return userMapper.mapLoginResponse(usersEntity, token, refreshTokenString);
 
         }
-        log.info("[login] Username and Email are not found");
+        
         return null;
     }
 
     @Override
     @Transactional
     public RefreshTokenResponse refreshAccessToken(String refreshToken) {
-        log.info("[refreshAccessToken] START - Received refresh token request");
-        log.info("[refreshAccessToken] Token: {}...", refreshToken.substring(0, Math.min(20, refreshToken.length())));
         
-        RefreshTokenEntity tokenEntity = refreshTokenEntityService.findByToken(refreshToken)
+        LocalDateTime now = LocalDateTime.now();
+        
+        // CRITICAL FIX: Use findByTokenAndRevokedFalse to avoid "Query did not return a unique result" error
+        // This filters out revoked tokens and returns only the active one
+        RefreshTokenEntity tokenEntity = refreshTokenEntityService.findByTokenAndRevokedFalse(refreshToken)
                 .orElseThrow(() -> {
-                    log.error("[refreshAccessToken] Token not found in database");
+                    log.error("[refreshAccessToken] Active token not found in database");
                     return new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
                 });
 
-        LocalDateTime now = LocalDateTime.now();
-
-        if (tokenEntity.getRevoked()) {
-            log.warn("[refreshAccessToken] ❌ Refresh token has been revoked - user_id: {}", tokenEntity.getUser().getId());
-            throw new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
-        }
-
+        // Check expiration (revoked is already filtered by query)
         if (tokenEntity.getExpiredAt().isBefore(now)) {
             log.warn("[refreshAccessToken] ❌ Refresh token has expired - expired_at: {}", tokenEntity.getExpiredAt());
             throw new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
@@ -478,20 +464,15 @@ public class RegisterServiceImpl implements RegisterService {
                     return new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
                 });
 
-        log.info("[refreshAccessToken] ✅ Token validation passed - user: {}", user.getUsername());
-
         // SECURITY: Implement token rotation
         // 1. Revoke the old refresh token to prevent reuse
         tokenEntity.setRevoked(true);
         refreshTokenEntityService.save(tokenEntity);
-        log.info("[refreshAccessToken] 🔒 Old refresh token revoked");
-        
+
         // 2. Generate new access token AND new refresh token
         String newAccessToken = JWTUtil.generateToken(user);
         String newRefreshToken = JWTUtil.generateRefreshToken(user);
-        log.info("[refreshAccessToken] Generated new access token: {}...", newAccessToken.substring(0, 20));
-        log.info("[refreshAccessToken] Generated new refresh token: {}...", newRefreshToken.substring(0, 20));
-        
+
         // 3. Save new refresh token to database
         RefreshTokenEntity newTokenEntity = RefreshTokenEntity.builder()
                 .token(newRefreshToken)
@@ -501,9 +482,6 @@ public class RegisterServiceImpl implements RegisterService {
                 .revoked(false)
                 .build();
         refreshTokenEntityService.save(newTokenEntity);
-        log.info("[refreshAccessToken] 💾 New refresh token saved to database");
-        
-        log.info("[refreshAccessToken] ✅ Token rotation completed successfully");
 
         // Return BOTH new tokens (token rotation for security)
         return userMapper.mapRefreshTokenResponse(user, newAccessToken, newRefreshToken);
@@ -535,7 +513,6 @@ public class RegisterServiceImpl implements RegisterService {
     @Override
     @Transactional
     public ChangePasswordResponse changePassword(ChangePasswordRequest changePasswordRequest) {
-        log.info("[changePassword] Start function");
 
         UserEntity user = validationForChangePassword(changePasswordRequest);
 
@@ -548,7 +525,6 @@ public class RegisterServiceImpl implements RegisterService {
     @Override
     @Transactional
     public ChangePasswordResponse changePasswordForForgetPassword(ChangePasswordForForgetPassRequest changePasswordForForgetPassRequest) {
-        log.info("[changePasswordForForgetPassword] Start function");
 
         UserEntity user = validationForChangePasswordForForgetPassword(changePasswordForForgetPassRequest);
 
@@ -672,9 +648,7 @@ public class RegisterServiceImpl implements RegisterService {
             7 * 24 * 60 * 60
         );
         response.addHeader("Set-Cookie", setCookieHeader);
-        
-        log.info("[addRefreshTokenCookie] Setting refresh token cookie - secure={}, environment={}, sameSite={}", 
-            isProduction, System.getenv("ENVIRONMENT"), sameSiteValue);
+
     }
 
     public String generateOtp() {
@@ -683,10 +657,14 @@ public class RegisterServiceImpl implements RegisterService {
 
     @Override
     public boolean logout(HttpServletRequest request, HttpServletResponse response) {
-        log.info("[logout] Start function with cookie-based logout");
+        
         try {
             String refreshToken = extractRefreshTokenFromCookies(request);
-            boolean result = logout(refreshToken);
+            
+            // SECURITY: Extract and blacklist access token from request
+            String accessToken = extractAccessTokenFromRequest(request);
+            
+            boolean result = logout(refreshToken, accessToken);
 
             // Clear the refresh token cookie
             Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, "");
@@ -717,7 +695,17 @@ public class RegisterServiceImpl implements RegisterService {
     @Override
     @Transactional
     public boolean logout(String refreshToken) {
-        log.info("[logout] Start function with token-based logout");
+        return logout(refreshToken, null);
+    }
+    
+    /**
+     * Logout with both refresh and access token
+     * @param refreshToken the refresh token to revoke
+     * @param accessToken the access token to blacklist (optional)
+     * @return true if logout successful
+     */
+    @Transactional
+    public boolean logout(String refreshToken, String accessToken) {
 
         if (refreshToken == null || refreshToken.isEmpty()) {
             log.warn("[logout] No refresh token provided");
@@ -725,33 +713,69 @@ public class RegisterServiceImpl implements RegisterService {
         }
 
         try {
-            Optional<RefreshTokenEntity> tokenEntity = refreshTokenEntityService.findByToken(refreshToken);
+            // Use findByTokenAndRevokedFalse to avoid duplicate token issues
+            Optional<RefreshTokenEntity> tokenEntity = refreshTokenEntityService.findByTokenAndRevokedFalse(refreshToken);
 
             if (tokenEntity.isEmpty()) {
-                log.warn("[logout] Refresh token not found: {}", refreshToken);
+                log.warn("[logout] Active refresh token not found: {}", refreshToken);
                 return false;
             }
 
             RefreshTokenEntity token = tokenEntity.get();
             UUID userId = token.getUser().getId();
+            String username = token.getUser().getUsername();
 
-            // SECURITY: Revoke ALL active tokens for this user (not just the current one)
-            // This prevents old tokens from being reused after logout
+            // SECURITY: Revoke ALL active refresh tokens for this user
             List<RefreshTokenEntity> userTokens = refreshTokenEntityService.findByUserIdAndRevokedFalse(userId);
-            log.info("[logout] Found {} active tokens for user: {}", userTokens.size(), userId);
-            
+
             for (RefreshTokenEntity userToken : userTokens) {
                 userToken.setRevoked(true);
-                log.info("[logout] Revoking token: {}...", userToken.getToken().substring(0, Math.min(20, userToken.getToken().length())));
             }
             
             refreshTokenEntityService.saveAll(userTokens);
-            log.info("[logout] ✅ Successfully revoked {} refresh tokens for user: {}", userTokens.size(), userId);
             
+            // SECURITY: Blacklist the access token if provided
+            if (accessToken != null && !accessToken.isEmpty()) {
+                try {
+                    long expirationSeconds = JWTUtil.getExpirationSeconds(accessToken);
+                    jwtCacheService.blacklistToken(accessToken, expirationSeconds);
+                    log.info("[logout] ✅ Access token blacklisted for user: {}", username);
+                } catch (Exception e) {
+                    log.warn("[logout] Failed to blacklist access token: {}", e.getMessage());
+                }
+            }
+            
+            // Clear user cache
+            jwtCacheService.clearUserCache(username);
+            
+            log.info("[logout] ✅ User logged out successfully: {}", username);
+
             return true;
         } catch (Exception e) {
-            log.error("[logout] Error revoking refresh token: {}", e.getMessage());
+            log.error("[logout] Error revoking tokens: {}", e.getMessage());
             return false;
         }
+    }
+    
+    /**
+     * Extract access token from request (header or cookie)
+     */
+    private String extractAccessTokenFromRequest(HttpServletRequest request) {
+        // Try Authorization header first
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
+        
+        // Try cookies
+        if (request.getCookies() != null) {
+            return Arrays.stream(request.getCookies())
+                    .filter(cookie -> "accessToken".equals(cookie.getName()))
+                    .findFirst()
+                    .map(Cookie::getValue)
+                    .orElse(null);
+        }
+        
+        return null;
     }
 }

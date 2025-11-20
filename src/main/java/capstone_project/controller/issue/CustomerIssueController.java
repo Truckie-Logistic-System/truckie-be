@@ -32,12 +32,9 @@ public class CustomerIssueController {
      */
     @GetMapping("/order-rejections")
     public ResponseEntity<ApiResponse<List<OrderRejectionDetailResponse>>> getCustomerOrderRejectionIssues() {
-        log.info("📋 [CustomerIssue] Getting ORDER_REJECTION issues for current customer");
-        
+
         List<OrderRejectionDetailResponse> issues = customerIssueService.getCustomerOrderRejectionIssues();
-        
-        log.info("✅ [CustomerIssue] Found {} ORDER_REJECTION issues for customer", issues.size());
-        
+
         return ResponseEntity.ok(ApiResponse.ok(
                 issues,
                 String.format("Tìm thấy %d sự cố trả hàng", issues.size())
@@ -50,14 +47,10 @@ public class CustomerIssueController {
     @GetMapping("/order/{orderId}/order-rejections")
     public ResponseEntity<ApiResponse<List<OrderRejectionDetailResponse>>> getOrderRejectionIssuesByOrder(
             @PathVariable UUID orderId) {
-        log.info("📋 [CustomerIssue] Getting ORDER_REJECTION issues for order {}", orderId);
-        
+
         List<OrderRejectionDetailResponse> issues = 
                 customerIssueService.getOrderRejectionIssuesByOrder(orderId);
-        
-        log.info("✅ [CustomerIssue] Found {} ORDER_REJECTION issues for order {}", 
-                issues.size(), orderId);
-        
+
         return ResponseEntity.ok(ApiResponse.ok(
                 issues,
                 String.format("Tìm thấy %d sự cố trả hàng cho đơn hàng", issues.size())
@@ -71,14 +64,10 @@ public class CustomerIssueController {
     @PostMapping("/{issueId}/create-return-payment")
     public ResponseEntity<ApiResponse<capstone_project.dtos.response.order.transaction.TransactionResponse>> createReturnPayment(
             @PathVariable UUID issueId) {
-        log.info("💳 [CustomerIssue] Customer creating return payment for issue {}", issueId);
-        
+
         capstone_project.dtos.response.order.transaction.TransactionResponse result = 
                 customerIssueService.createReturnPaymentTransaction(issueId);
-        
-        log.info("✅ [CustomerIssue] Created return payment transaction {} for issue {}", 
-                result.id(), issueId);
-        
+
         return ResponseEntity.ok(ApiResponse.ok(result, "Đã tạo giao dịch thanh toán trả hàng"));
     }
     
@@ -88,12 +77,9 @@ public class CustomerIssueController {
      */
     @PostMapping("/{issueId}/reject-return-payment")
     public ResponseEntity<ApiResponse<Void>> rejectReturnPayment(@PathVariable UUID issueId) {
-        log.info("❌ [CustomerIssue] Customer rejecting return payment for issue {}", issueId);
-        
+
         customerIssueService.rejectReturnPayment(issueId);
-        
-        log.info("✅ [CustomerIssue] Customer rejected return payment for issue {}", issueId);
-        
+
         return ResponseEntity.ok(ApiResponse.ok(
                 null,
                 "Đã từ chối thanh toán. Các kiện hàng sẽ được hủy."

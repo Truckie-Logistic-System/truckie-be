@@ -57,7 +57,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
     @Override
     public List<ContractRuleResponse> getContracts() {
-        log.info("Fetching all contract rules");
+        
         List<ContractRuleEntity> contractRule = contractRuleEntityService.findAll();
 
         if (contractRule.isEmpty()) {
@@ -75,7 +75,6 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
     @Override
     public ContractRuleResponse getContractById(UUID id) {
-        log.info("Fetching contract rule with ID: {}", id);
 
         ContractRuleEntity contractRule = contractRuleEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
@@ -88,7 +87,6 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
     @Override
     public ListContractRuleAssignResult getListAssignOrUnAssignContractRule(UUID contractId) {
-        log.info("Fetching contract rule assignments for contract ID: {}", contractId);
 
         ContractEntity contractEntity = contractEntityService.findEntityById(contractId)
                 .orElseThrow(() -> new NotFoundException("Contract not found with ID: " + contractId,
@@ -131,7 +129,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                             return baseWeight;
                         }
                         // Fallback về weight nếu weightBaseUnit null
-                        return detail.getWeight() != null ? detail.getWeight() : BigDecimal.ZERO;
+                        return detail.getWeightTons() != null ? detail.getWeightTons() : BigDecimal.ZERO;
                     })
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -211,8 +209,6 @@ public class ContractRuleServiceImpl implements ContractRuleService {
     @Override
     @Transactional
     public ListContractRuleAssignResult createListContractRules(List<ContractRuleRequest> contractRuleRequests) {
-        log.info("Start createListContractRules with {} requests",
-                contractRuleRequests == null ? 0 : contractRuleRequests.size());
 
         if (contractRuleRequests == null || contractRuleRequests.isEmpty()) {
             throw new BadRequestException("Contract rule requests must not be null or empty",
@@ -314,10 +310,10 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                                         return baseWeight;
                                     }
                                     // Fallback: convert từ weight và unit
-                                    if (detail.getWeight() != null && detail.getUnit() != null) {
+                                    if (detail.getWeightTons() != null && detail.getUnit() != null) {
                                         try {
                                             UnitEnum unitEnum = UnitEnum.valueOf(detail.getUnit());
-                                            return detail.getWeight().multiply(unitEnum.toTon());
+                                            return detail.getWeightTons().multiply(unitEnum.toTon());
                                         } catch (IllegalArgumentException e) {
                                             log.warn("Invalid unit for detail {}: {}", detail.getId(), detail.getUnit());
                                             return BigDecimal.ZERO;
@@ -376,11 +372,11 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
                         // Tính actualCurrentLoad bằng weightBaseUnit (đã convert về tấn)
                         BigDecimal detailWeight = detail.getWeightBaseUnit();
-                        if (detailWeight == null && detail.getWeight() != null && detail.getUnit() != null) {
+                        if (detailWeight == null && detail.getWeightTons() != null && detail.getUnit() != null) {
                             // Fallback: convert từ weight và unit nếu chưa có weightBaseUnit
                             try {
                                 UnitEnum unitEnum = UnitEnum.valueOf(detail.getUnit());
-                                detailWeight = detail.getWeight().multiply(unitEnum.toTon());
+                                detailWeight = detail.getWeightTons().multiply(unitEnum.toTon());
                             } catch (IllegalArgumentException e) {
                                 log.warn("Invalid unit for detail {}: {}", detail.getId(), detail.getUnit());
                                 detailWeight = BigDecimal.ZERO;
@@ -458,7 +454,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
     private OrderDetailForPackingResponse toPackingResponse(OrderDetailEntity detail) {
         return new OrderDetailForPackingResponse(
                 detail.getId().toString(),
-                detail.getWeight(),
+                detail.getWeightTons(),
                 detail.getWeightBaseUnit(),
                 detail.getUnit(),
                 detail.getTrackingCode()
@@ -468,7 +464,6 @@ public class ContractRuleServiceImpl implements ContractRuleService {
     @Override
     @Transactional
     public ContractRuleResponse updateContractRule(UUID id, ContractRuleRequest contractRuleRequest) {
-        log.info("Updating contract rule with ID: {}", id);
 
         ContractRuleEntity existingContractRule = contractRuleEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
@@ -548,7 +543,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                                         .filter(d -> d.getId().equals(p.box.id))
                                         .findFirst()
                                         .orElse(null);
-                                return detail != null ? detail.getWeight() : BigDecimal.ZERO;
+                                return detail != null ? detail.getWeightTons() : BigDecimal.ZERO;
                             })
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
                     return actualCurrentLoad.compareTo(maxWeight) > 0;
@@ -580,7 +575,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                     .orElse(null);
             if (detail != null) {
                 assignedDetails.add(detail);
-                actualCurrentLoad = actualCurrentLoad.add(detail.getWeight());
+                actualCurrentLoad = actualCurrentLoad.add(detail.getWeightTons());
             }
         }
 
@@ -607,15 +602,11 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         contractEntity.setTotalValue(newTotal);
         contractEntityService.save(contractEntity);
 
-        log.info("Updated contractRule {} with {} assigned details using vehicle {}",
-                saved.getId(), saved.getOrderDetails().size(), sizeRule.getSizeRuleName());
-
         return contractRuleMapper.toContractRuleResponse(saved);
     }
 
     @Override
     public PriceCalculationResponse calculatePriceAPI(UUID contractId) {
-        log.info("Calculating price for contract ID: {}", contractId);
 
         ContractEntity contract = contractEntityService.findEntityById(contractId)
                 .orElseThrow(() -> new IllegalArgumentException("Contract not found: " + contractId));
@@ -627,28 +618,16 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         List<ContractRuleAssignResponse> assignResult = contractService.assignVehiclesWithAvailability(order.getId());
 
-
-        log.info("Assignments total: {}", assignResult.size());
-        assignResult.forEach(a ->
-                log.info("Assignment => ruleId={}, ruleName={}, index={}, load={}",
-                        a.getSizeRuleId(), a.getSizeRuleName(), a.getVehicleIndex(), a.getCurrentLoad())
-        );
-
         Map<UUID, Integer> vehicleCountMap = assignResult.stream()
                 .collect(Collectors.groupingBy(
                         ContractRuleAssignResponse::getSizeRuleId,
                         Collectors.summingInt(a -> 1)
                 ));
 
-        log.info("VehicleCountMap: {}", vehicleCountMap);
-
         BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
 
         PriceCalculationResponse priceResponse =
                 contractService.calculateTotalPrice(contract, distanceKm, vehicleCountMap);
-
-        log.info("Calculated price for contract {}: Total = {}, Distance = {} km",
-                contractId, priceResponse.getTotalPrice(), distanceKm);
 
         return priceResponse;
     }
@@ -656,7 +635,6 @@ public class ContractRuleServiceImpl implements ContractRuleService {
     @Override
     @Transactional
     public void deleteContractRule(UUID id) {
-        log.info("Deleting contract rule with ID: {}", id);
 
         ContractRuleEntity contractRule = contractRuleEntityService.findEntityById(id)
                 .orElseThrow(() -> {
@@ -672,14 +650,11 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         contractRuleEntityService.deleteById(id);
 
-        log.info("Deleted contract rule with ID {}", id);
     }
-
 
     @Override
     @Transactional
     public void deleteAllContractRulesByContract(UUID contractId) {
-        log.info("Deleting all contract rules with contract ID: {}", contractId);
 
         List<ContractRuleEntity> contractRules = contractRuleEntityService.findContractRuleEntityByContractEntityId(contractId);
 
@@ -697,7 +672,6 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         contractRuleEntityService.saveAll(contractRules);
         contractRuleEntityService.deleteByContractEntityId(contractId);
 
-        log.info("Deleted all contract rules for contract ID {}", contractId);
     }
 
 }

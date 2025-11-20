@@ -37,8 +37,8 @@ public class JourneySegmentEntity extends BaseEntity {
     @Column(name = "end_longitude", precision = 11, scale = 8)
     private BigDecimal endLongitude;
 
-    @Column(name = "distance_meters")
-    private Integer distanceMeters;
+    @Column(name = "distance_kilometers")
+    private Integer distanceKilometers;
 
     @Column(name = "status") // PENDING, COMPLETED, ACTIVE
     private String status;

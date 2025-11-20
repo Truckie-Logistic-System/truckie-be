@@ -34,7 +34,6 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public List<CategoryResponse> getAllCategories() {
-        log.info("Fetching all categories");
 
         List<CategoryEntity> cachedCategories = redisService.getList(
                 CATEGORY_ALL_CACHE_KEY, CategoryEntity.class
@@ -43,17 +42,16 @@ public class CategoryServiceImpl implements CategoryService {
         List<CategoryEntity> categories;
 
         if (cachedCategories != null) {
-            log.info("Returning cached categories");
+            
             categories = cachedCategories;
         } else {
-            log.info("No cached categories found, fetching from database");
+            
             categories = categoryEntityService.findAll();
 
             if (categories.isEmpty()) {
                 log.warn("No categories found in the database");
                 throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
             }
-            log.info("Categories fetched from database, saving to cache");
 
             redisService.save(CATEGORY_ALL_CACHE_KEY, categories);
         }
@@ -64,7 +62,6 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public List<CategoryResponse> getAllCategoriesByCategoryName(String categoryName) {
-        log.info("Fetching categories by categoryName: {}", categoryName);
 
         if (categoryName == null || categoryName.isBlank()) {
             log.warn("Category name is null or blank");
@@ -76,7 +73,7 @@ public class CategoryServiceImpl implements CategoryService {
         );
 
         if (cachedCategories != null) {
-            log.info("Returning cached categories for categoryName: {}", categoryName);
+            
             return cachedCategories.stream()
                     .map(categoryMapper::toCategoryResponse)
                     .toList();
@@ -98,17 +95,15 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public CategoryResponse getCategoryById(UUID id) {
-        log.info("Fetching category by ID: {}", id);
 
         String cacheKey = CATEGORY_BY_ID_CACHE_KEY_PREFIX + id;
         CategoryEntity cachedCategory = redisService.get(cacheKey, CategoryEntity.class);
 
         if (cachedCategory != null) {
-            log.info("Returning cached category for ID: {}", id);
+            
             return categoryMapper.toCategoryResponse(cachedCategory);
         }
 
-        log.info("No cached category found for ID: {}, fetching from database", id);
         CategoryEntity categoryEntity = categoryEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
@@ -119,17 +114,15 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public CategoryResponse getCategoryByName(String categoryName) {
-        log.info("Fetching category by categoryName: {}", categoryName);
 
         String cacheKey = CATEGORY_BY_NAME_CACHE_KEY_PREFIX + categoryName;
         CategoryEntity cachedCategory = redisService.get(cacheKey, CategoryEntity.class);
 
         if (cachedCategory != null) {
-            log.info("Returning cached category for categoryName: {}", categoryName);
+            
             return categoryMapper.toCategoryResponse(cachedCategory);
         }
 
-        log.info("No cached category found for categoryName: {}, fetching from database", categoryName);
         CategoryEntity categoryEntity = categoryEntityService.findByCategoryName(categoryName)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
@@ -140,7 +133,6 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public CategoryResponse createCategory(CategoryRequest categoryRequest) {
-        log.info("Creating new category with request: {}", categoryRequest);
 
         Optional<CategoryEntity> existingCategory = categoryEntityService.findByCategoryName(categoryRequest.categoryName());
         if (existingCategory.isPresent()) {
@@ -165,7 +157,6 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public CategoryResponse updateCategory(UUID id, CategoryRequest categoryRequest) {
-        log.info("Updating category with ID: {} and request: {}", id, categoryRequest);
 
         CategoryEntity existingCategory = categoryEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));

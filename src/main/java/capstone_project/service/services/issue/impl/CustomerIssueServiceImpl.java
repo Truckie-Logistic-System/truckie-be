@@ -49,8 +49,7 @@ public class CustomerIssueServiceImpl implements CustomerIssueService {
     
     @Override
     public List<OrderRejectionDetailResponse> getCustomerOrderRejectionIssues() {
-        log.info("Getting ORDER_REJECTION issues for current customer");
-        
+
         // Get current customer ID from security context
         UUID customerId = getCurrentCustomerId();
         
@@ -61,7 +60,7 @@ public class CustomerIssueServiceImpl implements CustomerIssueService {
                 .collect(Collectors.toList());
         
         if (customerOrders.isEmpty()) {
-            log.info("No orders found for customer {}", customerId);
+            
             return List.of();
         }
         
@@ -86,10 +85,7 @@ public class CustomerIssueServiceImpl implements CustomerIssueService {
                 .filter(issue -> IssueEnum.IN_PROGRESS.name().equals(issue.getStatus())
                         || IssueEnum.RESOLVED.name().equals(issue.getStatus()))
                 .collect(Collectors.toList());
-        
-        log.info("Found {} ORDER_REJECTION issues for customer {}", 
-                orderRejectionIssues.size(), customerId);
-        
+
         // Convert to response DTOs
         return orderRejectionIssues.stream()
                 .map(issue -> {
@@ -107,8 +103,7 @@ public class CustomerIssueServiceImpl implements CustomerIssueService {
     
     @Override
     public List<OrderRejectionDetailResponse> getOrderRejectionIssuesByOrder(UUID orderId) {
-        log.info("Getting ORDER_REJECTION issues for order {}", orderId);
-        
+
         // Verify order belongs to current customer
         UUID customerId = getCurrentCustomerId();
         OrderEntity order = orderEntityService.findEntityById(orderId)
@@ -136,10 +131,7 @@ public class CustomerIssueServiceImpl implements CustomerIssueService {
                 .filter(issue -> IssueEnum.IN_PROGRESS.name().equals(issue.getStatus())
                         || IssueEnum.RESOLVED.name().equals(issue.getStatus()))
                 .collect(Collectors.toList());
-        
-        log.info("Found {} ORDER_REJECTION issues for order {}", 
-                orderRejectionIssues.size(), orderId);
-        
+
         // Convert to response DTOs
         return orderRejectionIssues.stream()
                 .map(issue -> {
@@ -158,8 +150,7 @@ public class CustomerIssueServiceImpl implements CustomerIssueService {
     @Override
     @Transactional
     public capstone_project.dtos.response.order.transaction.TransactionResponse createReturnPaymentTransaction(UUID issueId) {
-        log.info("💳 Customer creating return payment for issue {}", issueId);
-        
+
         // Verify issue belongs to current customer
         UUID customerId = getCurrentCustomerId();
         IssueEntity issue = issueEntityService.findEntityById(issueId)
@@ -199,8 +190,7 @@ public class CustomerIssueServiceImpl implements CustomerIssueService {
     @Override
     @Transactional
     public void rejectReturnPayment(UUID issueId) {
-        log.info("Customer rejecting return payment for issue {}", issueId);
-        
+
         // Get issue
         IssueEntity issue = issueEntityService.findEntityById(issueId)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.ISSUE_NOT_FOUND));
@@ -260,15 +250,15 @@ public class CustomerIssueServiceImpl implements CustomerIssueService {
         
         // Journey remains INACTIVE (will not be activated)
         if (issue.getReturnJourney() != null) {
-            log.info("Journey {} remains INACTIVE due to payment rejection", 
-                    issue.getReturnJourney().getId());
+            
         }
         
         // Send notification to driver
         try {
             var vehicleAssignment = issue.getVehicleAssignmentEntity();
             if (vehicleAssignment != null && vehicleAssignment.getDriver1() != null) {
-                UUID driverId = vehicleAssignment.getDriver1().getUser().getId();
+                // CRITICAL FIX: Use driver ID (not user ID) to match mobile app subscription
+                UUID driverId = vehicleAssignment.getDriver1().getId();
                 
                 // Create notification payload
                 var notification = new java.util.HashMap<String, Object>();
@@ -288,15 +278,13 @@ public class CustomerIssueServiceImpl implements CustomerIssueService {
                         issueId,
                         vehicleAssignment.getId()
                 );
-                
-                log.info("Sent payment rejection notification to driver: {}", driverId);
+
             }
         } catch (Exception e) {
             log.error("Failed to send rejection notification: {}", e.getMessage(), e);
             // Don't throw - notification failure shouldn't break the rejection
         }
-        
-        log.info("✅ Customer rejected return payment for issue {}", issueId);
+
     }
     
     /**

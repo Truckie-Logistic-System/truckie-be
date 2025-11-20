@@ -18,8 +18,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderDetailEntity extends BaseEntity {
-    @Column(name = "weight")
-    private BigDecimal weight;
+    @Column(name = "weight_tons")
+    private BigDecimal weightTons;
 
     @Column(name = "weight_base_unit")
     private BigDecimal weightBaseUnit;

@@ -167,10 +167,6 @@ public class BinPacker {
      *
      * */
     public static Placement tryPlaceBoxInContainer(BoxItem box, ContainerState container) {
-        log.debug("Trying to place box {} ({}x{}x{}) in container {} ({}x{}x{}) with {} existing placements",
-                box.id, box.lx, box.ly, box.lz,
-                container.rule.getSizeRuleName(), container.maxX, container.maxY, container.maxZ,
-                container.placements.size());
 
         // iterate extreme points
         for (int[] p : container.extremePoints) {
@@ -183,7 +179,7 @@ public class BinPacker {
 
                 // bounds check
                 if (px + lx > container.maxX || py + ly > container.maxY || pz + lz > container.maxZ) {
-                    log.debug("  - Out of bounds: point={},{},{}, dim={}x{}x{}", px, py, pz, lx, ly, lz);
+                    
                     continue;
                 }
 
@@ -191,7 +187,7 @@ public class BinPacker {
                 boolean collide = false;
                 for (Placement ex : container.placements) {
                     if (intersect(px, py, pz, lx, ly, lz, ex.x, ex.y, ex.z, ex.lx, ex.ly, ex.lz)) {
-                        log.debug("  - Collision with existing placement at {},{},{}", ex.x, ex.y, ex.z);
+                        
                         collide = true;
                         break;
                     }
@@ -200,18 +196,13 @@ public class BinPacker {
 
                 // weight check
                 if (!container.checkWeightAfterAdd(box.weight)) {
-                    log.debug("  - Weight limit exceeded: current={}, add={}, max={}",
-                            container.currentWeight, box.weight,
-                            Math.round(container.rule.getMaxWeight().doubleValue() * 1000.0));
                     continue;
                 }
 
-                log.info("SUCCESS: Placed at {},{},{} with dim {}x{}x{}", px, py, pz, lx, ly, lz);
                 return new Placement(box, px, py, pz, lx, ly, lz);
             }
         }
 
-        log.debug("FAILED: No valid placement found for box {} in container {}", box.id, container.rule.getSizeRuleName());
         return null;
     }
 
@@ -242,11 +233,7 @@ public class BinPacker {
             int lx = convertToInt(s.getMaxLength());
             int ly = convertToInt(s.getMaxWidth());
             int lz = convertToInt(s.getMaxHeight());
-            long w = convertWeightToLong(d.getWeight());
-
-            log.info("Converting order detail: id={}, original_size={}x{}x{}, weight={}, converted={}x{}x{}, weight_grams={}",
-                    d.getId(), s.getMaxLength(), s.getMaxWidth(), s.getMaxHeight(), d.getWeight(),
-                    lx, ly, lz, w);
+            long w = convertWeightToLong(d.getWeightTons());
 
             boxes.add(new BoxItem(d.getId(), lx, ly, lz, w));
         }
@@ -275,39 +262,38 @@ public class BinPacker {
             boolean placed = false;
 
             // * 1. Thử đặt kiện vào các xe hiện có TRƯỚC
-            log.info("=== STEP 1: Trying to place box {} in existing vehicles ===", box.id);
+            
             if (!used.isEmpty()) {
                 for (ContainerState c : used) {
-                    log.info("  - Trying vehicle: {}", c.rule.getSizeRuleName());
+                    
                     Placement p = tryPlaceBoxInContainer(box, c);
                     if (p != null) {
                         c.addPlacement(p);
                         placed = true;
-                        log.info("SUCCESS: Added box {} to existing vehicle {}", box.id, c.rule.getSizeRuleName());
+                        
                         break;
                     } else {
-                        log.info("FAILED: Cannot place box {} in vehicle {}", box.id, c.rule.getSizeRuleName());
+                        
                     }
                 }
             } else {
-                log.info("  - No existing vehicles available");
+                
             }
 
             if (placed) {
-                log.info("=== Box {} PLACED in Step 1, SKIPPING other steps ===", box.id);
+                
                 continue;
             }
 
             // 2. Thử UPGRADE từng xe hiện có lên xe lớn hơn
-            log.info("=== STEP 2: Trying to upgrade existing vehicles for box {} ===", box.id);
+            
             if (!used.isEmpty()) {
                 for (int i = 0; i < used.size(); i++) {
                     ContainerState current = used.get(i);
-                    log.info("Considering upgrade for vehicle: {}", current.rule.getSizeRuleName());
 
                     SizeRuleEntity upgradedRule = findNextBiggerRule(current.rule, sizeRules);
                     while (upgradedRule != null && !placed) {
-                        log.info("    - Trying upgrade to: {}", upgradedRule.getSizeRuleName());
+                        
                         ContainerState upgraded = upgradeContainer(current, upgradedRule);
                         if (upgraded != null) {
                             Placement p = tryPlaceBoxInContainer(box, upgraded);
@@ -315,30 +301,29 @@ public class BinPacker {
                                 upgraded.addPlacement(p);
                                 used.set(i, upgraded);
                                 placed = true;
-                                log.info("SUCCESS: Upgraded from {} to {} for box {}",
-                                        current.rule.getSizeRuleName(), upgradedRule.getSizeRuleName(), box.id);
+                                
                                 break;
                             } else {
-                                log.info("FAILED: Cannot place box {} in upgraded vehicle {}", box.id, upgradedRule.getSizeRuleName());
+                                
                             }
                         } else {
-                            log.info("FAILED: Cannot upgrade to {}", upgradedRule.getSizeRuleName());
+                            
                         }
                         upgradedRule = findNextBiggerRule(upgradedRule, sizeRules);
                     }
                     if (placed) break;
                 }
             } else {
-                log.info("  - No existing vehicles to upgrade");
+                
             }
 
             if (placed) {
-                log.info("=== Box {} PLACED in Step 2, SKIPPING Step 3 ===", box.id);
+                
                 continue;
             }
 
             // 3. Mở xe mới - tìm xe NHỎ NHẤT có thể chở
-            log.info("=== STEP 3: Opening new vehicle for box {} ===", box.id);
+            
             SizeRuleEntity bestRule = null;
             ContainerState bestContainer = null;
 
@@ -347,9 +332,6 @@ public class BinPacker {
                 int maxY = convertToInt(rule.getMaxWidth());
                 int maxZ = convertToInt(rule.getMaxHeight());
 
-                log.info("  - Vehicle rule: {} - max_dims={}x{}x{}, max_weight={}",
-                        rule.getSizeRuleName(), maxX, maxY, maxZ, rule.getMaxWeight());
-
                 // * Kiểm tra xem kích thước kiện hàng có nhỏ hơn hoặc bằng kích thước xe không
                 if (box.lx <= maxX && box.ly <= maxY && box.lz <= maxZ) {
 
@@ -357,33 +339,30 @@ public class BinPacker {
                     ContainerState candidate = new ContainerState(rule, maxX, maxY, maxZ);
 
                     if (!candidate.checkWeightAfterAdd(box.weight)) {
-                        log.info("Weight limit exceeded: box weight={}, max weight={}",
-                                box.weight, Math.round(rule.getMaxWeight().doubleValue() * 1000.0));
                         continue;
                     }
 
                     Placement p = tryPlaceBoxInContainer(box, candidate);
                     if (p != null) {
-                        log.info("Can place box in vehicle {}", rule.getSizeRuleName());
+                        
                         // Tìm xe NHỎ NHẤT
                         if (bestRule == null || compareSizeRules(rule, bestRule) < 0) {
                             bestRule = rule;
                             bestContainer = candidate;
                             bestContainer.addPlacement(p);
-                            log.info("New best vehicle: {}", rule.getSizeRuleName());
+                            
                         }
                     } else {
-                        log.info("Cannot place box in vehicle {} - packing failed", rule.getSizeRuleName());
+                        
                     }
                 } else {
-                    log.info("Box too large for vehicle {}: box={}x{}x{}, vehicle={}x{}x{}",
-                            rule.getSizeRuleName(), box.lx, box.ly, box.lz, maxX, maxY, maxZ);
+                    
                 }
             }
 
             if (bestContainer != null) {
                 used.add(bestContainer);
-                log.info("SUCCESS: Opened new vehicle {} for box {}", bestRule.getSizeRuleName(), box.id);
+                
             } else {
                 log.error("CRITICAL ERROR: No vehicle can carry box {} ({}x{}x{}, weight={})",
                         box.id, box.lx, box.ly, box.lz, box.weight);
@@ -391,7 +370,6 @@ public class BinPacker {
             }
         }
 
-        log.info("=== PACKING COMPLETED: Used {} vehicles for {} boxes ===", used.size(), boxes.size());
         return used;
     }
 
@@ -415,16 +393,14 @@ public class BinPacker {
 
     private static boolean tryUpgradeExistingContainer(BoxItem box, List<ContainerState> used,
                                                        List<SizeRuleEntity> sizeRules) {
-        log.info("🔄 Attempting to upgrade existing containers for box {}", box.id);
 
         for (int i = 0; i < used.size(); i++) {
             ContainerState current = used.get(i);
-            log.info("  - Checking container: {}", current.rule.getSizeRuleName());
 
             Placement directPlacement = tryPlaceBoxInContainer(box, current);
             if (directPlacement != null) {
                 current.addPlacement(directPlacement);
-                log.info("Directly placed box {} in existing vehicle {}", box.id, current.rule.getSizeRuleName());
+                
                 return true;
             }
 
@@ -438,8 +414,7 @@ public class BinPacker {
                     if (p != null) {
                         upgraded.addPlacement(p);
                         used.set(i, upgraded);
-                        log.info("Upgraded vehicle from {} to {} for box {}",
-                                currentRule.getSizeRuleName(), biggerRule.getSizeRuleName(), box.id);
+                        
                         return true;
                     }
                 }
@@ -523,7 +498,7 @@ public class BinPacker {
                             return baseWeight;
                         }
                         // Fallback về weight
-                        return detail.getWeight() != null ? detail.getWeight() : BigDecimal.ZERO;
+                        return detail.getWeightTons() != null ? detail.getWeightTons() : BigDecimal.ZERO;
                     })
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -533,7 +508,7 @@ public class BinPacker {
                         OrderDetailEntity detail = detailMap.get(pl.box.id);
                         return new OrderDetailForPackingResponse(
                                 detail.getId().toString(),
-                                detail.getWeight(),
+                                detail.getWeightTons(),
                                 detail.getWeightBaseUnit(),
                                 detail.getUnit(),
                                 detail.getTrackingCode()
@@ -592,7 +567,7 @@ public class BinPacker {
             int ly = convertToInt(s.getMaxWidth());
             int lz = convertToInt(s.getMaxHeight());
 
-            BigDecimal weightTon = d.getWeight();
+            BigDecimal weightTon = d.getWeightTons();
             boxes.add(new BoxItem(d.getId(), lx, ly, lz, weightTon.multiply(BigDecimal.valueOf(1000)).longValue()));
             originalWeights.put(d.getId(), weightTon);
         }
@@ -609,7 +584,7 @@ public class BinPacker {
                         return details.stream()
                                 .filter(d -> d.getId().equals(p.box.id))
                                 .findFirst()
-                                .map(OrderDetailEntity::getWeight)
+                                .map(OrderDetailEntity::getWeightTons)
                                 .orElse(BigDecimal.ZERO);
                     })
                     .reduce(BigDecimal.ZERO, BigDecimal::add);

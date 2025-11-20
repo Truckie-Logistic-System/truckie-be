@@ -44,8 +44,7 @@ public class ContractExpiryScheduler {
     @Scheduled(fixedRate = 600000) // Runs every 10 minutes
     @Transactional
     public void checkExpiredContracts() {
-        log.info("Starting contract expiry check at {}", LocalDateTime.now());
-        
+
         LocalDateTime now = LocalDateTime.now();
         
         // Check expired signing deadlines
@@ -56,8 +55,7 @@ public class ContractExpiryScheduler {
         
         // Check expired full payment deadlines
         checkExpiredFullPaymentDeadlines(now);
-        
-        log.info("Completed contract expiry check at {}", LocalDateTime.now());
+
     }
 
     /**
@@ -73,11 +71,9 @@ public class ContractExpiryScheduler {
                     );
 
             if (expiredContracts.isEmpty()) {
-                log.debug("No contracts with expired signing deadlines found");
+                
                 return;
             }
-
-            log.info("Found {} contract(s) with expired signing deadline", expiredContracts.size());
 
             for (ContractEntity contract : expiredContracts) {
                 try {
@@ -109,11 +105,9 @@ public class ContractExpiryScheduler {
                     );
 
             if (expiredContracts.isEmpty()) {
-                log.debug("No contracts with expired deposit payment deadlines found");
+                
                 return;
             }
-
-            log.info("Found {} contract(s) with expired deposit payment deadline", expiredContracts.size());
 
             for (ContractEntity contract : expiredContracts) {
                 try {
@@ -145,11 +139,9 @@ public class ContractExpiryScheduler {
                     );
 
             if (expiredContracts.isEmpty()) {
-                log.debug("No contracts with expired full payment deadlines found");
+                
                 return;
             }
-
-            log.info("Found {} contract(s) with expired full payment deadline", expiredContracts.size());
 
             for (ContractEntity contract : expiredContracts) {
                 try {
@@ -175,7 +167,6 @@ public class ContractExpiryScheduler {
         // Update contract status to EXPIRED
         contract.setStatus(ContractStatusEnum.EXPIRED.name());
         contractEntityService.save(contract);
-        log.info("Contract {} marked as EXPIRED due to {}", contract.getId(), deadlineType);
 
         // Get and cancel the associated order
         OrderEntity order = contract.getOrderEntity();
@@ -193,9 +184,6 @@ public class ContractExpiryScheduler {
                 OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(currentStatus);
                 order.setStatus(OrderStatusEnum.CANCELLED.name());
                 orderEntityService.save(order);
-                
-                log.info("Order {} automatically cancelled due to {} for contract {}", 
-                        order.getId(), deadlineType, contract.getId());
 
                 // Send WebSocket notification to customer
                 try {

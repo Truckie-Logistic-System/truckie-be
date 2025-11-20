@@ -26,7 +26,7 @@ public class CategoryPricingDetailServiceImpl implements CategoryPricingDetailSe
 
     @Override
     public List<CategoryPricingDetailResponse> getAllCategoryPricingDetails() {
-        log.info("Fetching all category pricing details");
+        
         List<CategoryPricingDetailEntity> categoryPricingDetailEntities = categoryPricingDetailEntityService.findAll();
         if (categoryPricingDetailEntities.isEmpty()) {
             log.warn("No category pricing details found");
@@ -42,7 +42,7 @@ public class CategoryPricingDetailServiceImpl implements CategoryPricingDetailSe
 
     @Override
     public CategoryPricingDetailResponse getCategoryPricingDetailById(UUID id) {
-        log.info("Fetching category pricing detail by ID: {}", id);
+        
         CategoryPricingDetailEntity categoryPricingDetailEntity = categoryPricingDetailEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
@@ -53,7 +53,7 @@ public class CategoryPricingDetailServiceImpl implements CategoryPricingDetailSe
 
     @Override
     public CategoryPricingDetailResponse createCategoryPricingDetail(CategoryPricingDetailRequest categoryPricingDetailRequest) {
-        log.info("Creating new category pricing detail");
+        
         if (categoryPricingDetailRequest.categoryId() == null) {
             log.error("Category ID is required for creating a category pricing detail");
             throw new IllegalArgumentException("Category ID must not be null");
@@ -77,7 +77,7 @@ public class CategoryPricingDetailServiceImpl implements CategoryPricingDetailSe
 
     @Override
     public CategoryPricingDetailResponse updateCategoryPricingDetail(UUID id, CategoryPricingDetailRequest categoryPricingDetailRequest) {
-        log.info("Updating category pricing detail with ID: {}", id);
+        
         CategoryPricingDetailEntity existingEntity = categoryPricingDetailEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),

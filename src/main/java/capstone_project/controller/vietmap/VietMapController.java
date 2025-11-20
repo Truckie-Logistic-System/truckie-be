@@ -139,4 +139,24 @@ public class VietMapController {
                     .body("{\"error\":\"failed to call Vietmap Mobile Styles API\",\"detail\":\"" + ex.getMessage() + "\"}");
         }
     }
+
+    /**
+     * Get optimized VietMap style URL for mobile app.
+     * Returns a direct URL to VietMap Vector style (includes API key).
+     * Mobile SDK will handle caching and optimization automatically.
+     * 
+     * @return JSON with styleUrl field
+     */
+    @GetMapping(value = "/mobile-style-url", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> getMobileStyleUrl() {
+        try {
+            String styleUrl = vietmapService.getMobileStyleUrl();
+            // Return as JSON object for consistency
+            String jsonResponse = String.format("{\"styleUrl\":\"%s\"}", styleUrl);
+            return ResponseEntity.ok(jsonResponse);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("{\"error\":\"failed to generate VietMap style URL\",\"detail\":\"" + ex.getMessage() + "\"}");
+        }
+    }
 }

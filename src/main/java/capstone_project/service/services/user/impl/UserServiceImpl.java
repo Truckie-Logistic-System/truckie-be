@@ -26,7 +26,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse getUserByUserName(String username) {
-        log.info("[getUserByUserName] - Start - username: {}", username);
 
         if (username == null || username.isEmpty()) {
             log.error("[getUserByUserName] - Invalid username: {}", username);
@@ -50,7 +49,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse getUserByEmail(String email) {
-        log.info("[getUserByEmail] - Start - email: {}", email);
 
         if (email == null || email.isEmpty()) {
             log.error("[getUserByEmail] - Invalid email: {}", email);
@@ -74,7 +72,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse getUserById(UUID id) {
-        log.info("[getUserById] - Start - id: {}", id);
 
         if (id == null) {
             log.error("[getUserById] - Invalid id: {}", id);
@@ -98,7 +95,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse updateUserStatusById(UUID id, String status) {
-        log.info("[updateUserStatusById] - Start - id: {}", id);
 
         if (id == null) {
             log.error("[updateUserStatusById] - Invalid id: {}", id);
@@ -119,7 +115,6 @@ public class UserServiceImpl implements UserService {
             );
         }
 
-
         UserEntity userEntity = userEntityService.getUserById(id)
                 .orElseThrow(() -> {
                     log.error("[updateUserStatusById] - User not found with id: {}", id);
@@ -136,7 +131,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserResponse> getAllUsers() {
-        log.info("[getAllUsers] - Start - allUsers");
 
         List<UserEntity> userEntities = userEntityService.findAll();
         if (userEntities.isEmpty()) {
@@ -153,7 +147,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse updateUser(UUID userId, UpdateUserRequest updateUserRequest) {
-        log.info("[updateUser] - Start - userId: {}", userId);
 
         if (userId == null) {
             log.error("[updateUser] - Invalid userId: {}", userId);
@@ -191,7 +184,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse updateUserStatus(String email, String status) {
-        log.info("[updateUserStatus] - Start - email: {}", email);
 
         if (email == null || email.isEmpty()) {
             log.error("[updateUserStatus] - Invalid email: {}", email);
@@ -217,7 +209,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserResponse> getUserByUserNameOrEmailLike(String username, String email) {
-        log.info("[getUserByUserNameOrEmailLike] - Start - username: {}, email: {}", username, email);
 
         if ((username == null || username.isEmpty()) && (email == null || email.isEmpty())) {
             log.error("[getUserByUserNameOrEmailLike] - Both username and email are invalid");
@@ -243,7 +234,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserResponse> getUserByRoleRoleName(String roleName) {
-        log.info("[getUserByRoleRoleName] - Start - roleName: {}", roleName);
 
         if (roleName == null || roleName.isEmpty()) {
             log.error("[getUserByRoleRoleName] - Invalid roleName: {}", roleName);

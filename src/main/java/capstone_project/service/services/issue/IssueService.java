@@ -168,5 +168,35 @@ public interface IssueService {
      * @return Created transaction
      */
     capstone_project.dtos.response.order.transaction.TransactionResponse createReturnPaymentTransaction(UUID issueId);
+    
+    // ===== REROUTE flow methods =====
+    
+    /**
+     * Report REROUTE issue when driver encounters problem on a journey segment (Driver)
+     * @param request Report reroute request
+     * @param files Optional issue images (can be empty for REROUTE)
+     * @return Created issue
+     * @throws java.io.IOException if file upload fails
+     */
+    GetBasicIssueResponse reportRerouteIssue(
+            capstone_project.dtos.request.issue.ReportRerouteRequest request,
+            java.util.List<org.springframework.web.multipart.MultipartFile> files
+    ) throws java.io.IOException;
+    
+    /**
+     * Process REROUTE issue: create new journey with alternative route (Staff)
+     * @param request Process reroute request
+     * @return Reroute detail
+     */
+    capstone_project.dtos.response.issue.RerouteDetailResponse processReroute(
+            capstone_project.dtos.request.issue.ProcessRerouteRequest request
+    );
+    
+    /**
+     * Get REROUTE issue detail (Staff)
+     * @param issueId Issue ID
+     * @return Reroute detail
+     */
+    capstone_project.dtos.response.issue.RerouteDetailResponse getRerouteDetail(UUID issueId);
 
 }

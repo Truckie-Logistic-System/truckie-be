@@ -60,19 +60,11 @@ public class OrderPdfServiceImpl implements OrderPdfService {
 
             List<ContractRuleAssignResponse> assignResult = contractService.assignVehiclesWithAvailability(order.getId());
 
-            log.info("Assignments total: {}", assignResult.size());
-            assignResult.forEach(a ->
-                    log.info("Assignment => ruleId={}, ruleName={}, index={}, load={}",
-                            a.getSizeRuleId(), a.getSizeRuleName(), a.getVehicleIndex(), a.getCurrentLoad())
-            );
-
             Map<UUID, Integer> vehicleCountMap = assignResult.stream()
                     .collect(Collectors.groupingBy(
                             ContractRuleAssignResponse::getSizeRuleId,
                             Collectors.summingInt(a -> 1)
                     ));
-
-            log.info("VehicleCountMap: {}", vehicleCountMap);
 
             BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
 

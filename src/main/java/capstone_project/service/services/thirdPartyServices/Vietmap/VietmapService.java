@@ -26,4 +26,10 @@ public interface VietmapService {
     String styles();
 
     String mobileStyles();
+    
+    /**
+     * Get optimized Vector style URL for mobile (best performance)
+     * Returns: https://maps.vietmap.vn/maps/styles/tm/style.json?apikey={key}
+     */
+    String getMobileStyleUrl();
 }

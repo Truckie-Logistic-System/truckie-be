@@ -43,7 +43,7 @@ public class SizeRuleServiceImpl implements SizeRuleService {
 
     @Override
     public List<SizeRuleResponse> getAllsizeRules() {
-        log.info("Fetching all vehicle rules");
+        
         List<SizeRuleEntity> pricingRuleEntities = sizeRuleEntityService.findAll();
         if (pricingRuleEntities.isEmpty()) {
             log.warn("No vehicle rules found");
@@ -59,7 +59,7 @@ public class SizeRuleServiceImpl implements SizeRuleService {
 
     @Override
     public List<FullSizeRuleResponse> getAllFullsizeRules() {
-        log.info("Fetching all full vehicle rules");
+        
         List<SizeRuleEntity> sizeRuleEntities = sizeRuleEntityService.findAll();
         if (sizeRuleEntities.isEmpty()) {
             log.warn("No vehicle rules found");
@@ -85,10 +85,9 @@ public class SizeRuleServiceImpl implements SizeRuleService {
                 .toList();
     }
 
-
     @Override
     public SizeRuleResponse getsizeRuleById(UUID id) {
-        log.info("Fetching vehicle rule by ID: {}", id);
+        
         SizeRuleEntity sizeRuleEntity = sizeRuleEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
@@ -116,10 +115,8 @@ public class SizeRuleServiceImpl implements SizeRuleService {
         return sizeRuleMapper.toFullsizeRuleResponse(sizeRuleEntity, basingPriceResponses);
     }
 
-
     @Override
     public SizeRuleResponse createsizeRule(SizeRuleRequest sizeRuleRequest) {
-        log.info("Creating new vehicle rule");
 
         if (sizeRuleRequest == null) {
             log.error("Vehicle rule request cannot be null");
@@ -174,13 +171,11 @@ public class SizeRuleServiceImpl implements SizeRuleService {
 
         SizeRuleEntity savedEntity = sizeRuleEntityService.save(sizeRuleEntity);
 
-        log.info("Vehicle rule created successfully with ID: {}", savedEntity.getId());
         return sizeRuleMapper.toSizeRuleResponse(savedEntity);
     }
 
     @Override
     public SizeRuleResponse updateSizeRule(UUID id, UpdateSizeRuleRequest updateSizeRuleRequest) {
-        log.info("Updating vehicle rule with ID: {}", id);
 
         SizeRuleEntity existingEntity = sizeRuleEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
@@ -203,7 +198,6 @@ public class SizeRuleServiceImpl implements SizeRuleService {
 
         SizeRuleEntity updatedEntity = sizeRuleEntityService.save(existingEntity);
 
-        log.info("Vehicle rule updated successfully with ID: {}", updatedEntity.getId());
         return sizeRuleMapper.toSizeRuleResponse(updatedEntity);
     }
 
@@ -220,6 +214,5 @@ public class SizeRuleServiceImpl implements SizeRuleService {
                 .sorted(Comparator.comparing(vehicle -> vehicle.getMaxWeight().subtract(orderWeight)))
                 .collect(Collectors.toList());
     }
-
 
 }

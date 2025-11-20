@@ -1,5 +1,6 @@
 package capstone_project.repository.repositories.vehicle;
 
+import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.repositories.common.BaseRepository;
@@ -72,6 +73,29 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
             nativeQuery = true
     )
     List<VehicleAssignmentEntity> findVehicleAssignmentsWithOrderID(@Param("orderId") UUID orderID);
+
+    /**
+     * Optimized query for WebSocket tracking - eagerly loads all required relationships
+     * to prevent LazyInitializationException
+     * Loads: vehicle + vehicleType, driver1 + user, driver2 + user
+     */
+    @Query("""
+            SELECT DISTINCT va 
+            FROM VehicleAssignmentEntity va
+            LEFT JOIN FETCH va.vehicleEntity v
+            LEFT JOIN FETCH v.vehicleTypeEntity vt
+            LEFT JOIN FETCH va.driver1 d1
+            LEFT JOIN FETCH d1.user u1
+            LEFT JOIN FETCH va.driver2 d2
+            LEFT JOIN FETCH d2.user u2
+            WHERE va.id IN (
+                SELECT va2.id 
+                FROM VehicleAssignmentEntity va2
+                JOIN OrderDetailEntity od ON od.vehicleAssignmentEntity.id = va2.id
+                WHERE od.orderEntity.id = :orderId
+            )
+            """)
+    List<VehicleAssignmentEntity> findVehicleAssignmentsWithOrderIDOptimized(@Param("orderId") UUID orderID);
 
     Optional<VehicleAssignmentEntity> findVehicleAssignmentByVehicleEntityAndStatus(VehicleEntity vehicleId, String status);
 

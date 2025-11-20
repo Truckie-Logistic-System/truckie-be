@@ -32,7 +32,7 @@ public class MaintenanceTypeServiceImpl implements MaintenanceTypeService {
 
     @Override
     public List<MaintenanceTypeResponse> getAll() {
-        log.info("Fetching all maintenance types");
+        
         return Optional.of(entityService.findAll())
                 .filter(list -> !list.isEmpty())
                 .orElseThrow(() -> new NotFoundException(
@@ -46,7 +46,7 @@ public class MaintenanceTypeServiceImpl implements MaintenanceTypeService {
 
     @Override
     public MaintenanceTypeResponse getById(UUID id) {
-        log.info("Fetching maintenance type by ID: {}", id);
+        
         if (id == null) {
             throw new NotFoundException("ID should not be null.", ErrorEnum.REQUIRED.getErrorCode());
         }
@@ -57,7 +57,7 @@ public class MaintenanceTypeServiceImpl implements MaintenanceTypeService {
 
     @Override
     public MaintenanceTypeResponse create(MaintenanceTypeRequest req) {
-        log.info("Creating new maintenance type");
+        
         MaintenanceTypeEntity entity = mapper.toEntity(req);
         entity = entityService.save(entity);
         return mapper.toResponse(entity);
@@ -65,7 +65,7 @@ public class MaintenanceTypeServiceImpl implements MaintenanceTypeService {
 
     @Override
     public MaintenanceTypeResponse update(UUID id, UpdateMaintenanceTypeRequest req) {
-        log.info("Updating maintenance type with ID: {}", id);
+        
         if (id == null) {
             throw new NotFoundException("ID should not be null.", ErrorEnum.REQUIRED.getErrorCode());
         }

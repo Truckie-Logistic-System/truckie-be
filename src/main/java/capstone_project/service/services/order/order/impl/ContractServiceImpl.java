@@ -76,7 +76,7 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public List<ContractResponse> getAllContracts() {
-        log.info("Getting all contracts");
+        
         List<ContractEntity> contractEntities = contractEntityService.findAll();
         if (contractEntities.isEmpty()) {
             log.warn("No contracts found");
@@ -92,7 +92,7 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public ContractResponse getContractById(UUID id) {
-        log.info("Getting contract by ID: {}", id);
+        
         ContractEntity contractEntity = contractEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
@@ -104,7 +104,6 @@ public class ContractServiceImpl implements ContractService {
     @Override
     @Transactional
     public ContractResponse createContract(ContractRequest contractRequest) {
-        log.info("Creating new contract");
 
         if (contractRequest == null) {
             log.error("[createContract] Request is null");
@@ -147,11 +146,9 @@ public class ContractServiceImpl implements ContractService {
         return contractMapper.toContractResponse(savedContract);
     }
 
-
     @Override
     @Transactional
     public ContractResponse createBothContractAndContractRule(ContractRequest contractRequest) {
-        log.info("Creating new contract");
 
         if (contractRequest == null) {
             log.error("[createContract] Request is null");
@@ -202,7 +199,6 @@ public class ContractServiceImpl implements ContractService {
         Map<UUID, Integer> vehicleCountMap = assignments.stream()
                 .collect(Collectors.groupingBy(ContractRuleAssignResponse::getSizeRuleId, Collectors.summingInt(a -> 1)));
 
-
         for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
             UUID sizeRuleId = entry.getKey();
             Integer count = entry.getValue();
@@ -227,7 +223,6 @@ public class ContractServiceImpl implements ContractService {
                     .toList();
 
 //            List<OrderDetailForPackingResponse> detailIds = assignments.stream()
-
 
             if (!detailResponses.isEmpty()) {
                 List<UUID> detailIds = detailResponses.stream()
@@ -259,7 +254,6 @@ public class ContractServiceImpl implements ContractService {
     @Override
     @Transactional
     public ContractResponse createBothContractAndContractRuleForCus(CreateContractForCusRequest contractRequest) {
-        log.info("Creating new contract");
 
         if (contractRequest == null) {
             log.error("[createContract] Request is null");
@@ -310,7 +304,6 @@ public class ContractServiceImpl implements ContractService {
         Map<UUID, Integer> vehicleCountMap = assignments.stream()
                 .collect(Collectors.groupingBy(ContractRuleAssignResponse::getSizeRuleId, Collectors.summingInt(a -> 1)));
 
-
         for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
             UUID sizeRuleId = entry.getKey();
             Integer count = entry.getValue();
@@ -336,7 +329,6 @@ public class ContractServiceImpl implements ContractService {
 
 //            List<OrderDetailForPackingResponse> detailIds = assignments.stream()
 
-
             if (!detailResponses.isEmpty()) {
                 List<UUID> detailIds = detailResponses.stream()
                         .map(r -> UUID.fromString(r.id()))
@@ -361,7 +353,7 @@ public class ContractServiceImpl implements ContractService {
                 previousStatus,
                 OrderStatusEnum.PROCESSING
             );
-            log.info("Sent WebSocket notification for order status change to PROCESSING");
+            
         } catch (Exception e) {
             log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
             // Don't throw - WebSocket failure shouldn't break business logic
@@ -405,7 +397,6 @@ public class ContractServiceImpl implements ContractService {
         return new BothOptimalAndRealisticAssignVehiclesResponse(optimal, realistic);
     }
 
-
     @Override
     public ContractResponse updateContract(UUID id, ContractRequest contractRequest) {
         return null;
@@ -414,7 +405,6 @@ public class ContractServiceImpl implements ContractService {
     @Override
     @Transactional
     public void deleteContractByOrderId(UUID orderId) {
-        log.info("Deleting contract by order ID: {}", orderId);
 
         if (orderId == null) {
             log.error("[deleteContractByOrderId] Order ID is null");
@@ -506,7 +496,6 @@ public class ContractServiceImpl implements ContractService {
         return realisticAssignments;
     }
 
-
     private SizeRuleEntity tryUpgradeUntilAvailable(ContractRuleAssignResponse assignment,
                                                     SizeRuleEntity currentRule,
                                                     List<SizeRuleEntity> sortedRules,
@@ -521,8 +510,7 @@ public class ContractServiceImpl implements ContractService {
             int available = availableVehicles.getOrDefault(nextRule.getId(), 0);
 
             if (used < available) {
-                log.info("[assignVehicles] Upgrade thành công assignment rule={} -> rule={} (used={}/available={})",
-                        currentRule.getId(), nextRule.getId(), used + 1, available);
+                
                 return nextRule;
             }
         }
@@ -531,7 +519,7 @@ public class ContractServiceImpl implements ContractService {
 
 //    public List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId) {
 //        final long t0 = System.nanoTime();
-//        log.info("Assigning vehicles for order ID: {}", orderId);
+//        
 //
 //        List<OrderDetailEntity> details = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
 //        if (details.isEmpty()) {
@@ -594,11 +582,7 @@ public class ContractServiceImpl implements ContractService {
 //                throw new BadRequestException("Order detail missing size: " + detail.getId(), ErrorEnum.INVALID.getErrorCode());
 //            }
 //
-//            log.info("[assignVehicles] Processing detail {}/{}: id={}, weight={}, size={}x{}x{}",
-//                    processed, details.size(), detail.getId(), detail.getWeight(),
-//                    detail.getOrderSizeEntity().getMaxLength(),
-//                    detail.getOrderSizeEntity().getMaxWidth(),
-//                    detail.getOrderSizeEntity().getMaxHeight());
+//            
 //
 //            boolean assigned = false;
 //
@@ -613,8 +597,7 @@ public class ContractServiceImpl implements ContractService {
 //                if (canFit(detail, currentRule, assignment)) {
 //                    assignment.setCurrentLoad(assignment.getCurrentLoad().add(detail.getWeight()));
 //                    assignment.getAssignedDetails().add(toPackingResponse(detail));
-//                    log.info("[assignVehicles] Assigned detail {} -> existing vehicle ruleId={}, newLoad={}",
-//                            detail.getId(), currentRule.getId(), assignment.getCurrentLoad());
+//                    
 //                    assigned = true;
 //                    break;
 //                }
@@ -626,8 +609,7 @@ public class ContractServiceImpl implements ContractService {
 //                    assignment.setsizeRuleName(upgradedRule.getsizeRuleName());
 //                    assignment.setCurrentLoad(calculateTotalWeight(assignment, detail));
 //                    assignment.getAssignedDetails().add(toPackingResponse(detail));
-//                    log.info("[assignVehicles] Upgraded vehicle for detail {} -> ruleId={}, maxWeight={}, newLoad={}",
-//                            detail.getId(), upgradedRule.getId(), upgradedRule.getMaxWeight(), assignment.getCurrentLoad());
+//                    
 //                    assigned = true;
 //                    break;
 //                }
@@ -645,8 +627,7 @@ public class ContractServiceImpl implements ContractService {
 //                                new ArrayList<>(List.of(toPackingResponse(detail)))
 //                        );
 //                        assignments.add(newAssignment);
-//                        log.info("[assignVehicles] Opened new vehicle for detail {} -> ruleId={}, firstLoad={}",
-//                                detail.getId(), rule.getId(), detail.getWeight());
+//                        
 //                        assigned = true;
 //                        break;
 //                    }
@@ -659,17 +640,15 @@ public class ContractServiceImpl implements ContractService {
 //            }
 //        }
 //
-//        log.info("[assignVehicles] Completed. vehiclesUsed={}, detailsProcessed={}", assignments.size(), processed);
+//        
 //        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
-//        log.info("[assignVehicles] Finished in {} ms", elapsedMs);
+//        
 //        return assignments;
 //    }
-
 
     @Override
     public List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId) {
         final long t0 = System.nanoTime();
-        log.info("[assignVehiclesOptimal] Starting for orderId: {}", orderId);
 
         OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
@@ -701,10 +680,7 @@ public class ContractServiceImpl implements ContractService {
 
         List<ContractRuleAssignResponse> responses = BinPacker.toContractResponses(containers, details);
 
-        log.info("[assignVehiclesOptimal] Completed. vehiclesUsed={}, detailsProcessed={}",
-                responses.size(), details.size());
         long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
-        log.info("[assignVehiclesOptimal] Finished in {} ms", elapsedMs);
 
         return responses;
     }
@@ -721,11 +697,10 @@ public class ContractServiceImpl implements ContractService {
         return null;
     }
 
-
     private OrderDetailForPackingResponse toPackingResponse(OrderDetailEntity entity) {
         return new OrderDetailForPackingResponse(
                 entity.getId().toString(),
-                entity.getWeight(),
+                entity.getWeightTons(),
                 entity.getWeightBaseUnit(),
                 entity.getUnit(),
                 entity.getTrackingCode()
@@ -733,7 +708,7 @@ public class ContractServiceImpl implements ContractService {
     }
 
     private BigDecimal calculateTotalWeight(ContractRuleAssignResponse assignment, OrderDetailEntity newDetail) {
-        return assignment.getCurrentLoad().add(newDetail.getWeight());
+        return assignment.getCurrentLoad().add(newDetail.getWeightTons());
     }
 
     private SizeRuleEntity tryUpgrade(OrderDetailEntity detail,
@@ -874,7 +849,6 @@ public class ContractServiceImpl implements ContractService {
             total = total.subtract(promotionDiscount);
         }
 
-
         if (total.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("Total price must not be negative");
         }
@@ -893,12 +867,11 @@ public class ContractServiceImpl implements ContractService {
                 .build();
     }
 
-
     private boolean canFit(OrderDetailEntity detail, SizeRuleEntity rule) {
         OrderSizeEntity size = detail.getOrderSizeEntity();
         if (size == null) return false;
 
-        return detail.getWeight().compareTo(rule.getMaxWeight()) <= 0
+        return detail.getWeightTons().compareTo(rule.getMaxWeight()) <= 0
                 && size.getMaxLength().compareTo(rule.getMaxLength()) <= 0
                 && size.getMaxWidth().compareTo(rule.getMaxWidth()) <= 0
                 && size.getMaxHeight().compareTo(rule.getMaxHeight()) <= 0;
@@ -908,7 +881,7 @@ public class ContractServiceImpl implements ContractService {
         OrderSizeEntity size = detail.getOrderSizeEntity();
         if (size == null) return false;
 
-        BigDecimal newLoad = assignment.getCurrentLoad().add(detail.getWeight());
+        BigDecimal newLoad = assignment.getCurrentLoad().add(detail.getWeightTons());
         return newLoad.compareTo(rule.getMaxWeight()) <= 0
                 && size.getMaxLength().compareTo(rule.getMaxLength()) <= 0
                 && size.getMaxWidth().compareTo(rule.getMaxWidth()) <= 0
@@ -916,13 +889,13 @@ public class ContractServiceImpl implements ContractService {
     }
 
     private boolean canFitAll(List<UUID> detailIds, SizeRuleEntity newRule, OrderDetailEntity newDetail) {
-        BigDecimal totalWeight = newDetail.getWeight();
+        BigDecimal totalWeight = newDetail.getWeightTons();
 
         for (UUID id : detailIds) {
             OrderDetailEntity d = orderDetailEntityService.findEntityById(id)
                     .orElseThrow(() -> new NotFoundException("Order detail not found: " + id, ErrorEnum.NOT_FOUND.getErrorCode()));
 
-            totalWeight = totalWeight.add(d.getWeight());
+            totalWeight = totalWeight.add(d.getWeightTons());
 
             OrderSizeEntity size = d.getOrderSizeEntity();
             if (size == null) {
@@ -933,38 +906,35 @@ public class ContractServiceImpl implements ContractService {
             if (size.getMaxLength().compareTo(newRule.getMaxLength()) > 0
                     || size.getMaxWidth().compareTo(newRule.getMaxWidth()) > 0
                     || size.getMaxHeight().compareTo(newRule.getMaxHeight()) > 0) {
-                log.info("[canFitAll] Dimension exceed for detailId={} vs ruleId={}", id, newRule.getId());
+                
                 return false;
             }
         }
 
         boolean ok = totalWeight.compareTo(newRule.getMaxWeight()) <= 0;
         if (!ok) {
-            log.info("[canFitAll] Overweight: totalWeight={} > ruleMax={}", totalWeight, newRule.getMaxWeight());
+            
         }
         return ok;
     }
 
     @Override
     public BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to) {
-        log.info("🗺️ Calculating distance using VietMap API (default vehicle type)");
+        
         return vietMapDistanceService.calculateDistance(from, to);
     }
 
     @Override
     public BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to, String vehicleType) {
-        log.info("🗺️ Calculating distance using VietMap API for vehicle type: {}", vehicleType);
+        
         return vietMapDistanceService.calculateDistance(from, to, vehicleType);
     }
 
-
     // CONTRACT TO CLOUD
-
 
     @Override
     public ContractResponse uploadContractFile(ContractFileUploadRequest req) throws IOException {
-        log.info("Uploading contract file for contractId={}", req.contractId());
-        
+
         // Get original filename and extension
         String originalFilename = req.file().getOriginalFilename();
         String fileExtension = "";
@@ -973,7 +943,6 @@ public class ContractServiceImpl implements ContractService {
         }
         
         String fileName = "contract_" + UUID.randomUUID() + fileExtension;
-        log.info("Uploading file: {} with extension: {}", fileName, fileExtension);
 
         // upload Cloudinary
         var uploadResult = cloudinaryService.uploadFile(
@@ -990,11 +959,11 @@ public class ContractServiceImpl implements ContractService {
             // For PDFs and other raw files, use getRawFileUrl
             String publicId = uploadResult.get("public_id").toString();
             fileUrl = cloudinaryService.getRawFileUrl(publicId);
-            log.info("PDF file uploaded as raw resource. Public ID: {}, URL: {}", publicId, fileUrl);
+            
         } else {
             // For images, use the secure_url from upload result
             fileUrl = uploadResult.get("secure_url").toString();
-            log.info("Image file uploaded. URL: {}", fileUrl);
+            
         }
 
         // load relationships
@@ -1014,7 +983,6 @@ public class ContractServiceImpl implements ContractService {
         UserEntity staffUser = new UserEntity();
         staffUser.setId(staffUserId);
         ce.setStaff(staffUser);
-        log.info("Set staff user ID for contract: {}", staffUserId);
 
         var updated = contractEntityService.save(ce);
 
@@ -1024,8 +992,7 @@ public class ContractServiceImpl implements ContractService {
             OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
             order.setStatus(OrderStatusEnum.CONTRACT_DRAFT.name());
             orderEntityService.save(order);
-            log.info("Updated order status to CONTRACT_DRAFT for orderId={}", order.getId());
-            
+
             // Send WebSocket notification for status change
             try {
                 orderStatusWebSocketService.sendOrderStatusChange(
@@ -1034,7 +1001,7 @@ public class ContractServiceImpl implements ContractService {
                     previousStatus,
                     OrderStatusEnum.CONTRACT_DRAFT
                 );
-                log.info("Sent WebSocket notification for order status change to CONTRACT_DRAFT");
+                
             } catch (Exception e) {
                 log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
                 // Don't throw - WebSocket failure shouldn't break business logic
@@ -1047,7 +1014,7 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public ContractResponse getContractByOrderId(UUID orderId) {
-        log.info("Getting contract by Order ID: {}", orderId);
+        
         ContractEntity contractEntity = contractEntityService.getContractByOrderId(orderId)
                 .orElseThrow(() -> new NotFoundException(
                         "Contract not found for order ID: " + orderId,
@@ -1082,10 +1049,6 @@ public class ContractServiceImpl implements ContractService {
         
         // Set deadline to 1 day before pickup time
         contract.setFullPaymentDeadline(earliestPickupTime.minusDays(1));
-        
-        log.info("Set contract deadlines - Signing: {}, Deposit: {}, Full Payment: {} (1 day before pickup)",
-                contract.getSigningDeadline(),
-                contract.getDepositPaymentDeadline(),
-                contract.getFullPaymentDeadline());
+
     }
 }

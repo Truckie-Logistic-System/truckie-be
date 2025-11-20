@@ -43,8 +43,7 @@ public class PayOSTransactionController {
             @RequestParam BigDecimal amount,
             @RequestParam(required = false) UUID issueId
     ) {
-        log.info("🚚 Creating return shipping payment link for contract {} with amount {} (issueId: {})", 
-                contractId, amount, issueId);
+        
         final var result = payOSTransactionService.createReturnShippingTransaction(contractId, amount, issueId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
@@ -53,7 +52,7 @@ public class PayOSTransactionController {
     public ResponseEntity<ApiResponse<capstone_project.dtos.response.order.transaction.TransactionResponse>> createReturnPaymentFromIssue(
             @PathVariable UUID issueId
     ) {
-        log.info("💳 [PayOSTransaction] Creating return payment for issue {}", issueId);
+        
         final var result = issueService.createReturnPaymentTransaction(issueId);
         return ResponseEntity.ok(ApiResponse.ok(result, "Đã tạo giao dịch thanh toán trả hàng"));
     }
@@ -98,13 +97,13 @@ public class PayOSTransactionController {
 
     @GetMapping("/callback")
     public ResponseEntity<String> callback(@RequestParam Map<String, String> params) {
-        log.info("Return callback received: {}", params);
+        
         return ResponseEntity.ok("Payment return callback received");
     }
 
     @GetMapping("/cancel")
     public ResponseEntity<String> cancel(@RequestParam Map<String, String> params) {
-        log.info("Cancel callback received: {}", params);
+        
         return ResponseEntity.ok("Payment cancel callback received");
     }
 }

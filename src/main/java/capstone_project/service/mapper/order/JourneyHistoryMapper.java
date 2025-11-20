@@ -57,10 +57,9 @@ public abstract class JourneyHistoryMapper {
             return 0.0;
         }
 
-        // Note: Despite the field name "distanceMeters", the system actually stores distances in kilometers
-        // Sum all segment distances (already in km)
+        // Sum all segment distances (in km)
         return entity.getJourneySegments().stream()
-                .mapToDouble(segment -> segment.getDistanceMeters() != null ? segment.getDistanceMeters() : 0.0)
+                .mapToDouble(segment -> segment.getDistanceKilometers() != null ? segment.getDistanceKilometers() : 0.0)
                 .sum();
     }
 
@@ -89,7 +88,7 @@ public abstract class JourneyHistoryMapper {
                 entity.getStartLongitude(),
                 entity.getEndLatitude(),
                 entity.getEndLongitude(),
-                entity.getDistanceMeters(),
+                entity.getDistanceKilometers(),
                 entity.getPathCoordinatesJson(),
                 entity.getTollDetailsJson(),
                 entity.getStatus(),

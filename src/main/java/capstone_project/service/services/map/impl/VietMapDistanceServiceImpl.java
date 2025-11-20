@@ -53,12 +53,9 @@ public class VietMapDistanceServiceImpl implements VietMapDistanceService {
             throw new IllegalArgumentException("Coordinates must not be null");
         }
 
-        log.info("️ Calculating distance from ({}, {}) to ({}, {}) for vehicle type: {}", 
-                 fromLat, fromLng, toLat, toLng, vehicleType);
-
         // Check if coordinates are the same
         if (fromLat.equals(toLat) && fromLng.equals(toLng)) {
-            log.info("Same coordinates, distance = 0 km");
+            
             return BigDecimal.ZERO;
         }
 
@@ -70,19 +67,16 @@ public class VietMapDistanceServiceImpl implements VietMapDistanceService {
             );
             
             String pathJson = objectMapper.writeValueAsString(path);
-            log.info("Calling VietMap route-tolls API with path: {}", pathJson);
-            
+
             // Map vehicle type to VietMap vehicle integer if needed
             Integer vietVehicle = mapVehicleTypeToInteger(vehicleType);
             
             // Call route-tolls API for consistency with DistanceService
             String routeTollsResponse = vietmapService.routeTolls(pathJson, vietVehicle);
-            log.info("VietMap route-tolls API response received");
 
             // Parse JSON response to extract distance from path
             BigDecimal distance = parseDistanceFromRouteTollsResponse(routeTollsResponse);
-            
-            log.info("✅ VietMap distance calculated: {} km", distance);
+
             return distance;
 
         } catch (Exception e) {
@@ -129,10 +123,7 @@ public class VietMapDistanceServiceImpl implements VietMapDistanceService {
         
         BigDecimal distanceKm = BigDecimal.valueOf(totalDistanceKm)
             .setScale(2, RoundingMode.HALF_UP);
-        
-        log.info("📏 Calculated distance from route-tolls path: {} km ({} segments)", 
-                 distanceKm, pathNode.size() - 1);
-        
+
         return distanceKm;
     }
     
@@ -168,8 +159,7 @@ public class VietMapDistanceServiceImpl implements VietMapDistanceService {
      * Fallback Haversine formula calculation when VietMap API fails
      */
     private BigDecimal fallbackHaversineDistance(Double fromLat, Double fromLng, Double toLat, Double toLng) {
-        log.info("🧮 Using Haversine formula fallback");
-        
+
         double dLat = Math.toRadians(toLat - fromLat);
         double dLng = Math.toRadians(toLng - fromLng);
         
@@ -181,8 +171,7 @@ public class VietMapDistanceServiceImpl implements VietMapDistanceService {
         double distanceKm = EARTH_RADIUS_KM * c;
         
         BigDecimal result = BigDecimal.valueOf(distanceKm).setScale(2, RoundingMode.HALF_UP);
-        log.info("📏 Haversine fallback distance: {} km", result);
-        
+
         return result;
     }
 }

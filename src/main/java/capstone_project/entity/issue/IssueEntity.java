@@ -45,8 +45,11 @@ public class    IssueEntity extends BaseEntity {
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 
-    @Size(max = 20)
-    @Column(name = "trip_status_at_report", length = 20)
+    // ✅ CRITICAL: Changed from VARCHAR(20) to VARCHAR(500) to support JSON format
+    // Format: {"orderDetailId1":"STATUS1","orderDetailId2":"STATUS2"}
+    // This is needed for combined issue reports where different packages have different statuses
+    @Size(max = 500)
+    @Column(name = "trip_status_at_report", length = 500)
     private String tripStatusAtReport;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -110,5 +113,15 @@ public class    IssueEntity extends BaseEntity {
     // Note: TransactionEntity uses issueId field, not @ManyToOne, so this is a helper method relationship
     @Transient
     private List<TransactionEntity> returnTransactions;
+    
+    // ===== REROUTE specific fields =====
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "affected_segment_id")
+    private capstone_project.entity.order.order.JourneySegmentEntity affectedSegment; // Segment gặp sự cố
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "rerouted_journey_id")
+    private JourneyHistoryEntity reroutedJourney; // Journey mới sau khi tái định tuyến
 
 }

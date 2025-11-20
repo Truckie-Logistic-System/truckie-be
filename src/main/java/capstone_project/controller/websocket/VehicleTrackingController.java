@@ -32,7 +32,6 @@ public class VehicleTrackingController {
     public void getVehicleLocation(@DestinationVariable String vehicleId) {
         try {
             UUID vehicleUUID = UUID.fromString(vehicleId);
-            log.info("Web client requested current location for vehicle: {}", vehicleId);
 
             // Get enhanced vehicle location with all details through service
             VehicleLocationMessage locationMessage = vehicleLocationService.getEnhancedVehicleLocation(vehicleUUID);
@@ -40,7 +39,7 @@ public class VehicleTrackingController {
             if (locationMessage != null) {
                 // Send to specific vehicle topic
                 messagingTemplate.convertAndSend("/topic/vehicles/" + vehicleId, locationMessage);
-                log.debug("Sent enhanced location for vehicle {}", vehicleId);
+                
             } else {
                 log.warn("Vehicle not found or no location data for vehicle: {}", vehicleId);
             }
@@ -62,7 +61,6 @@ public class VehicleTrackingController {
     @MessageMapping("/order/{orderId}/get-locations")
     public void getOrderVehicleLocations(@DestinationVariable String orderId) {
         try {
-            log.info("Web client requested locations for all vehicles in order: {}", orderId);
 
             // Try to parse as UUID first
             try {
@@ -71,7 +69,7 @@ public class VehicleTrackingController {
                 vehicleLocationService.sendOrderVehicleLocations(orderUUID);
             } catch (IllegalArgumentException e) {
                 // Not a UUID, treat as order code
-                log.debug("Input is not a UUID, treating as order code: {}", orderId);
+                
                 vehicleLocationService.sendOrderVehicleLocationsByOrderCode(orderId);
             }
 

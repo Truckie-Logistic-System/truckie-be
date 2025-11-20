@@ -77,4 +77,10 @@ public interface IssueRepository extends BaseRepository<IssueEntity> {
             "WHERE i.issueTypeEntity = :issueType " +
             "ORDER BY i.reportedAt DESC")
     List<IssueEntity> findByIssueTypeEntity(@Param("issueType") IssueTypeEntity issueType);
+    
+    @Query("SELECT i FROM IssueEntity i " +
+            "JOIN FETCH i.issueTypeEntity it " +
+            "WHERE i.status = 'IN_PROGRESS' " +
+            "AND it.issueCategory = 'ORDER_REJECTION'")
+    List<IssueEntity> findInProgressOrderRejections();
 }

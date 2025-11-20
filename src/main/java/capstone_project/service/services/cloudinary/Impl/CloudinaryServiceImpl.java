@@ -28,7 +28,7 @@ public class CloudinaryServiceImpl implements CloudinaryService {
             int lastDotIndex = fileName.lastIndexOf('.');
             if (lastDotIndex > 0) {
                 cleanFileName = fileName.substring(0, lastDotIndex);
-                log.info("Removed extension from filename: {} -> {}", fileName, cleanFileName);
+                
             }
             
             // Determine resource type based on original file extension
@@ -38,12 +38,12 @@ public class CloudinaryServiceImpl implements CloudinaryService {
             if (fileName.toLowerCase().endsWith(".pdf")) {
                 resourceType = "raw"; // Use 'raw' for PDFs to prevent conversion
                 format = "pdf";
-                log.info("Uploading PDF file: {} to folder: {}", cleanFileName, folder);
+                
             } else if (fileName.toLowerCase().matches(".*\\.(jpg|jpeg|png|gif|webp|bmp)$")) {
                 resourceType = "image";
-                log.info("Uploading image file: {} to folder: {}", cleanFileName, folder);
+                
             } else {
-                log.info("Uploading file with auto detection: {} to folder: {}", cleanFileName, folder);
+                
             }
 
             Map<String, Object> params = ObjectUtils.asMap(
@@ -62,14 +62,13 @@ public class CloudinaryServiceImpl implements CloudinaryService {
             // For images, don't set format parameter to prevent Cloudinary from auto-adding extensions
 
             Map<String, Object> result = cloudinary.uploader().upload(file, params);
-            log.info("Successfully uploaded file: {} with resource_type: {}", fileName, resourceType);
+            
             return result;
         } catch (Exception e) {
             log.error("Error uploading file {} to Cloudinary: {}", fileName, e.getMessage(), e);
             throw new IOException("Failed to upload file to Cloudinary: " + e.getMessage(), e);
         }
     }
-
 
     @Override
     public String getFileUrl(String publicId) {

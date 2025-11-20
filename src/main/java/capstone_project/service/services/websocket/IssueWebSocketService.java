@@ -21,11 +21,10 @@ public class IssueWebSocketService {
      * @param issue The newly created issue
      */
     public void broadcastNewIssue(GetBasicIssueResponse issue) {
-        log.info("📢 Broadcasting new issue: {} - {}", issue.id(), issue.description());
-        
+
         try {
             messagingTemplate.convertAndSend("/topic/issues/new", issue);
-            log.info("✅ Issue broadcast completed");
+            
         } catch (Exception e) {
             log.error("❌ Error broadcasting new issue: {}", e.getMessage(), e);
         }
@@ -36,12 +35,10 @@ public class IssueWebSocketService {
      * @param issue The updated issue
      */
     public void broadcastIssueStatusChange(GetBasicIssueResponse issue) {
-        log.info("📢 Broadcasting issue status change: {} - status: {}", 
-                 issue.id(), issue.status());
-        
+
         try {
             messagingTemplate.convertAndSend("/topic/issues/status-change", issue);
-            log.info("✅ Issue status change broadcast completed");
+            
         } catch (Exception e) {
             log.error("❌ Error broadcasting issue status change: {}", e.getMessage(), e);
         }
@@ -61,8 +58,7 @@ public class IssueWebSocketService {
             String staffName,
             String newSealCode,
             String oldSealCode) {
-        log.info("📲 Sending seal assignment notification to driver: {}", driverId);
-        
+
         try {
             // Create notification payload
             var notification = new java.util.HashMap<String, Object>();
@@ -81,8 +77,7 @@ public class IssueWebSocketService {
                 "/topic/driver/" + driverId + "/notifications", 
                 notification
             );
-            
-            log.info("✅ Seal assignment notification sent to driver: {}", driverId);
+
         } catch (Exception e) {
             log.error("❌ Error sending seal assignment notification: {}", e.getMessage(), e);
         }
@@ -102,8 +97,7 @@ public class IssueWebSocketService {
             java.util.UUID vehicleAssignmentId,
             java.util.UUID returnJourneyId,
             java.util.UUID orderId) {
-        log.info("📲 Sending return payment success notification to driver: {}", driverId);
-        
+
         try {
             // Create notification payload
             var notification = new java.util.HashMap<String, Object>();
@@ -126,8 +120,7 @@ public class IssueWebSocketService {
                 "/topic/driver/" + driverId + "/notifications", 
                 notification
             );
-            
-            log.info("✅ Return payment success notification sent to driver: {}", driverId);
+
         } catch (Exception e) {
             log.error("❌ Error sending return payment notification: {}", e.getMessage(), e);
         }
@@ -144,8 +137,7 @@ public class IssueWebSocketService {
             java.util.UUID driverId,
             java.util.UUID issueId,
             java.util.UUID vehicleAssignmentId) {
-        log.info("📲 Sending return payment timeout notification to driver: {}", driverId);
-        
+
         try {
             // Create notification payload
             var notification = new java.util.HashMap<String, Object>();
@@ -162,8 +154,7 @@ public class IssueWebSocketService {
                 "/topic/driver/" + driverId + "/notifications", 
                 notification
             );
-            
-            log.info("✅ Return payment timeout notification sent to driver: {}", driverId);
+
         } catch (Exception e) {
             log.error("❌ Error sending return payment timeout notification: {}", e.getMessage(), e);
         }
@@ -180,8 +171,7 @@ public class IssueWebSocketService {
             String driverId,
             GetBasicIssueResponse issue,
             String staffName) {
-        log.info("📲 Sending damage resolved notification to driver: {}", driverId);
-        
+
         try {
             // Create notification payload
             var notification = new java.util.HashMap<String, Object>();
@@ -200,8 +190,7 @@ public class IssueWebSocketService {
                 "/topic/driver/" + driverId + "/notifications", 
                 notification
             );
-            
-            log.info("✅ Damage resolved notification sent to driver: {}", driverId);
+
         } catch (Exception e) {
             log.error("❌ Error sending damage resolved notification: {}", e.getMessage(), e);
         }
@@ -226,8 +215,7 @@ public class IssueWebSocketService {
             String trackingCodes,
             java.math.BigDecimal paymentAmount,
             String vehicleAssignmentCode) {
-        log.info("📲 Broadcasting return payment success notification to all staff");
-        
+
         try {
             // Create notification payload
             var notification = new java.util.HashMap<String, Object>();
@@ -259,10 +247,101 @@ public class IssueWebSocketService {
                 "/topic/issues/return-payment-success", 
                 notification
             );
-            
-            log.info("✅ Return payment success notification broadcast to all staff");
+
         } catch (Exception e) {
             log.error("❌ Error broadcasting return payment notification to staff: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Send return payment timeout notification to all staff
+     * Broadcasts to all staff users via public topic
+     * @param issueId Issue ID
+     * @param orderId Order ID
+     * @param customerName Customer name
+     * @param trackingCodes Tracking codes của các kiện hàng bị reject
+     * @param vehicleAssignmentCode Mã chuyến xe
+     */
+    public void sendReturnPaymentTimeoutNotificationToStaff(
+            java.util.UUID issueId,
+            java.util.UUID orderId,
+            String customerName,
+            String trackingCodes,
+            String vehicleAssignmentCode) {
+
+        try {
+            // Create notification payload
+            var notification = new java.util.HashMap<String, Object>();
+            notification.put("type", "RETURN_PAYMENT_TIMEOUT_STAFF");
+            notification.put("priority", "MEDIUM");
+            notification.put("title", "Khách hàng không thanh toán cước trả hàng");
+            notification.put("message", String.format(
+                "<b>Khách hàng:</b> %s\n" +
+                "<b>Kiện hàng:</b> %s\n" +
+                "<b>Chuyến:</b> %s\n" +
+                "<b>Trạng thái:</b> Quá hạn thanh toán - Đã hủy",
+                customerName != null ? customerName : "N/A",
+                trackingCodes != null ? trackingCodes : "N/A",
+                vehicleAssignmentCode != null ? vehicleAssignmentCode : "N/A"
+            ));
+            notification.put("issueId", issueId.toString());
+            if (orderId != null) {
+                notification.put("orderId", orderId.toString());
+            }
+            notification.put("trackingCodes", trackingCodes);
+            notification.put("vehicleAssignmentCode", vehicleAssignmentCode);
+            notification.put("timestamp", java.time.Instant.now().toString());
+            
+            // Broadcast to all staff via public topic
+            messagingTemplate.convertAndSend(
+                "/topic/issues/return-payment-timeout", 
+                notification
+            );
+
+        } catch (Exception e) {
+            log.error("❌ Error broadcasting return payment timeout notification to staff: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Send return payment timeout notification to customer
+     * Notifies customer that payment deadline has expired and packages are cancelled
+     * @param customerId Customer user ID
+     * @param issueId Issue ID
+     * @param orderId Order ID
+     * @param trackingCodes Tracking codes của các kiện hàng bị hủy
+     */
+    public void sendReturnPaymentTimeoutNotificationToCustomer(
+            java.util.UUID customerId,
+            java.util.UUID issueId,
+            java.util.UUID orderId,
+            String trackingCodes) {
+
+        try {
+            // Create notification payload
+            var notification = new java.util.HashMap<String, Object>();
+            notification.put("type", "RETURN_PAYMENT_TIMEOUT");
+            notification.put("priority", "HIGH");
+            notification.put("title", "Hết hạn thanh toán cước trả hàng");
+            notification.put("message", String.format(
+                "Đơn hàng của bạn đã hết hạn thanh toán cước trả hàng.\n" +
+                "Các kiện hàng bị từ chối (%s) đã được hủy.\n" +
+                "Vui lòng kiểm tra lại đơn hàng.",
+                trackingCodes != null ? trackingCodes : "N/A"
+            ));
+            notification.put("issueId", issueId.toString());
+            notification.put("orderId", orderId.toString());
+            notification.put("trackingCodes", trackingCodes);
+            notification.put("timestamp", java.time.Instant.now().toString());
+            
+            // Send to specific customer via user-specific topic
+            messagingTemplate.convertAndSend(
+                "/topic/user/" + customerId + "/notifications", 
+                notification
+            );
+
+        } catch (Exception e) {
+            log.error("❌ Error sending return payment timeout notification to customer: {}", e.getMessage(), e);
         }
     }
 
@@ -286,8 +365,7 @@ public class IssueWebSocketService {
             String oldSealImageUrl,
             String trackingCode,
             String journeyCode) {
-        log.info("📲 Sending seal confirmation message to staff: {}", staffId);
-        
+
         try {
             // Create message payload for staff
             var message = new java.util.HashMap<String, Object>();
@@ -312,10 +390,47 @@ public class IssueWebSocketService {
                 "/topic/staff/" + staffId + "/messages", 
                 message
             );
-            
-            log.info("✅ Seal confirmation message sent to staff: {}", staffId);
+
         } catch (Exception e) {
             log.error("❌ Error sending seal confirmation message to staff: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Send notification to specific driver when reroute issue is resolved
+     * Staff has created new journey, driver should fetch and continue with new route
+     * @param driverId Driver ID (NOT user ID)
+     * @param issueId Issue ID
+     * @param orderId Order ID
+     */
+    public void sendRerouteResolvedNotification(
+            java.util.UUID driverId,
+            java.util.UUID issueId,
+            java.util.UUID orderId) {
+
+        try {
+            // Create notification payload
+            var notification = new java.util.HashMap<String, Object>();
+            notification.put("type", "REROUTE_RESOLVED");
+            notification.put("priority", "HIGH");
+            notification.put("title", "Lộ trình mới đã sẵn sàng");
+            notification.put("message", "Nhân viên đã tạo lộ trình mới để tránh khu vực gặp sự cố. Vui lòng kiểm tra và tiếp tục theo lộ trình mới.");
+            notification.put("issueId", issueId.toString());
+            notification.put("orderId", orderId.toString());
+            notification.put("timestamp", java.time.Instant.now().toString());
+            
+            // CRITICAL: Use driver ID (not user ID) to match mobile app subscription
+            // Mobile subscribes to /topic/driver/{DRIVER_ID}/notifications
+            messagingTemplate.convertAndSend(
+                "/topic/driver/" + driverId + "/notifications", 
+                notification
+            );
+            
+            log.info("✅ Sent reroute resolved notification to driver: {} (issue: {})", 
+                    driverId, issueId);
+
+        } catch (Exception e) {
+            log.error("❌ Error sending reroute resolved notification: {}", e.getMessage(), e);
         }
     }
 }

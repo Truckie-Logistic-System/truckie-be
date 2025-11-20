@@ -40,11 +40,14 @@ public interface IssueMapper {
         }
         // Return the first order detail affected by this issue
         OrderDetailEntity orderDetail = issue.getOrderDetails().get(0);
+        String orderId = orderDetail.getOrderEntity() != null ? 
+                        orderDetail.getOrderEntity().getId().toString() : null;
         return new OrderDetailForIssueResponse(
             orderDetail.getTrackingCode(),
             orderDetail.getDescription(),
             orderDetail.getWeightBaseUnit(),
-            orderDetail.getUnit()
+            orderDetail.getUnit(),
+            orderId
         );
     }
     
@@ -105,12 +108,17 @@ public interface IssueMapper {
         }
         // Return all order details affected by this issue
         return issue.getOrderDetails().stream()
-            .map(orderDetail -> new OrderDetailForIssueResponse(
-                orderDetail.getTrackingCode(),
-                orderDetail.getDescription(),
-                orderDetail.getWeightBaseUnit(),
-                orderDetail.getUnit()
-            ))
+            .map(orderDetail -> {
+                String orderId = orderDetail.getOrderEntity() != null ? 
+                                orderDetail.getOrderEntity().getId().toString() : null;
+                return new OrderDetailForIssueResponse(
+                    orderDetail.getTrackingCode(),
+                    orderDetail.getDescription(),
+                    orderDetail.getWeightBaseUnit(),
+                    orderDetail.getUnit(),
+                    orderId
+                );
+            })
             .toList();
     }
     

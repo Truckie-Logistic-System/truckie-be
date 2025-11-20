@@ -289,4 +289,49 @@ public class IssuesController {
         final var result = issueService.createReturnPaymentTransaction(issueId);
         return ResponseEntity.ok(ApiResponse.ok(result, "Đã tạo giao dịch thanh toán trả hàng"));
     }
+
+    // ==================== REROUTE FLOW ENDPOINTS ====================
+
+    // Driver reports reroute issue when encountering problem on journey segment
+    @PostMapping(value = "/reroute", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('DRIVER')")
+    public ResponseEntity<ApiResponse<GetBasicIssueResponse>> reportRerouteIssue(
+            @RequestParam("vehicleAssignmentId") UUID vehicleAssignmentId,
+            @RequestParam("issueTypeId") UUID issueTypeId,
+            @RequestParam("affectedSegmentId") UUID affectedSegmentId,
+            @RequestParam("description") String description,
+            @RequestParam(value = "locationLatitude", required = false) java.math.BigDecimal locationLatitude,
+            @RequestParam(value = "locationLongitude", required = false) java.math.BigDecimal locationLongitude,
+            @RequestParam(value = "images", required = false) List<MultipartFile> images) throws IOException {
+
+        capstone_project.dtos.request.issue.ReportRerouteRequest request = 
+                new capstone_project.dtos.request.issue.ReportRerouteRequest(
+                        description,
+                        vehicleAssignmentId,
+                        issueTypeId,
+                        affectedSegmentId,
+                        locationLatitude,
+                        locationLongitude
+                );
+
+        final var result = issueService.reportRerouteIssue(request, images);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Đã báo cáo sự cố tái định tuyến"));
+    }
+
+    // Staff processes REROUTE issue: create new journey with alternative route
+    @PostMapping("/reroute/process")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.issue.RerouteDetailResponse>> processReroute(
+            @RequestBody capstone_project.dtos.request.issue.ProcessRerouteRequest request) {
+        final var result = issueService.processReroute(request);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Đã xử lý tái định tuyến thành công"));
+    }
+
+    // Get REROUTE issue detail
+    @GetMapping("/reroute/{issueId}/detail")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.issue.RerouteDetailResponse>> getRerouteDetail(
+            @PathVariable("issueId") UUID issueId) {
+        final var result = issueService.getRerouteDetail(issueId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }

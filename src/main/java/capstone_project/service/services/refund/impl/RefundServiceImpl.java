@@ -45,11 +45,13 @@ public class RefundServiceImpl implements RefundService {
     private final IssueWebSocketService issueWebSocketService;
     private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
     private final UserContextUtils userContextUtils;
+    
+    // ✅ NEW: OrderDetailStatusService for centralized Order status aggregation
+    private final capstone_project.service.services.order.order.OrderDetailStatusService orderDetailStatusService;
 
     @Override
     @Transactional
     public GetRefundResponse processRefund(ProcessRefundRequest request, MultipartFile bankTransferImage) {
-        log.info("Processing refund for issue: {}", request.issueId());
 
         // Validate issue exists and is OPEN or IN_PROGRESS
         IssueEntity issue = issueEntityService.findEntityById(request.issueId())
@@ -67,12 +69,12 @@ public class RefundServiceImpl implements RefundService {
         String bankTransferImageUrl = null;
         if (bankTransferImage != null && !bankTransferImage.isEmpty()) {
             try {
-                log.info("📤 Uploading refund proof image to Cloudinary...");
+                
                 var uploadResult = cloudinaryService.uploadFile(bankTransferImage.getBytes(), 
                         "refund_" + System.currentTimeMillis(), 
                         "refund_proofs");
                 bankTransferImageUrl = uploadResult.get("secure_url").toString();
-                log.info("✅ Refund proof image uploaded: {}", bankTransferImageUrl);
+                
             } catch (IOException e) {
                 log.error("❌ Error uploading refund image to Cloudinary: {}", e.getMessage());
                 throw new RuntimeException("Failed to upload refund image", e);
@@ -97,7 +99,6 @@ public class RefundServiceImpl implements RefundService {
 
         // Save refund
         RefundEntity savedRefund = refundEntityService.save(refund);
-        log.info("✅ Refund saved with ID: {}", savedRefund.getId());
 
         // Update order details in this vehicle assignment
         if (issue.getVehicleAssignmentEntity() != null) {
@@ -132,9 +133,7 @@ public class RefundServiceImpl implements RefundService {
                     } catch (Exception e) {
                         log.error("❌ Failed to send WebSocket for {}: {}", od.getTrackingCode(), e.getMessage());
                     }
-                    
-                    log.info("✅ OrderDetail {} ({}) status updated to COMPENSATION", 
-                             od.getId(), od.getTrackingCode());
+
                 }
                 // Kiện còn lại (không bị hư và đang IN_TROUBLES) → DELIVERED
                 // This shouldn't happen in normal flow, but handle it for safety
@@ -157,68 +156,24 @@ public class RefundServiceImpl implements RefundService {
                     } catch (Exception e) {
                         log.error("❌ Failed to send WebSocket for {}: {}", od.getTrackingCode(), e.getMessage());
                     }
-                    
-                    log.info("✅ OrderDetail {} ({}) status updated to DELIVERED", 
-                             od.getId(), od.getTrackingCode());
+
                 }
             }
-            log.info("✅ Updated order details: damaged → COMPENSATION");
-            
-            // Auto-update Order status based on ALL OrderDetails using priority logic
-            // Priority: DELIVERED > IN_TROUBLES > COMPENSATION > RETURNED
-            // This handles mix cases like: 1 RETURNED + 2 COMPENSATION → Order = COMPENSATION
+
+            // ✅ CRITICAL FIX: Use OrderDetailStatusService to auto-update Order status
+            // This ensures correct priority logic (COMPENSATION > IN_TROUBLES > CANCELLED > RETURNING/RETURNED > DELIVERED)
+            // NEVER manually calculate Order status - delegate to the centralized service
             for (java.util.UUID orderId : affectedOrderIds) {
-                var allDetailsInOrder = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
+                // Trigger auto-update using centralized service
+                // This will apply correct priority logic:
+                // - COMPENSATION (highest priority if ANY package compensated)
+                // - IN_TROUBLES (if ANY package has active issue)
+                // - CANCELLED (if ALL packages cancelled)
+                // - RETURNING/RETURNED (if ALL packages in return flow)
+                // - DELIVERED (only if ALL packages delivered)
+                orderDetailStatusService.triggerOrderStatusUpdate(orderId);
                 
-                long deliveredCount = allDetailsInOrder.stream()
-                        .filter(od -> "DELIVERED".equals(od.getStatus())).count();
-                long inTroublesCount = allDetailsInOrder.stream()
-                        .filter(od -> "IN_TROUBLES".equals(od.getStatus())).count();
-                long compensationCount = allDetailsInOrder.stream()
-                        .filter(od -> "COMPENSATION".equals(od.getStatus())).count();
-                long returnedCount = allDetailsInOrder.stream()
-                        .filter(od -> "RETURNED".equals(od.getStatus())).count();
-                
-                var order = orderEntityService.findEntityById(orderId)
-                        .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND));
-                String oldStatus = order.getStatus();
-                String newStatus;
-                String reason;
-                
-                // Apply priority logic
-                if (deliveredCount > 0) {
-                    // Has delivered packages → SUCCESSFUL
-                    newStatus = OrderStatusEnum.SUCCESSFUL.name();
-                    reason = String.format("Has %d delivered package(s)", deliveredCount);
-                } else if (inTroublesCount > 0) {
-                    // No delivered, has troubles → IN_TROUBLES
-                    newStatus = OrderStatusEnum.IN_TROUBLES.name();
-                    reason = String.format("Still has %d package(s) in troubles", inTroublesCount);
-                } else if (compensationCount > 0) {
-                    // No delivered, no troubles, has compensation → COMPENSATION
-                    newStatus = OrderStatusEnum.COMPENSATION.name();
-                    reason = String.format("Compensated %d package(s)", compensationCount);
-                    if (returnedCount > 0) {
-                        reason += String.format(", %d package(s) returned", returnedCount);
-                    }
-                } else if (returnedCount == allDetailsInOrder.size()) {
-                    // All returned → RETURNED
-                    newStatus = OrderStatusEnum.RETURNED.name();
-                    reason = "All packages returned";
-                } else {
-                    // Fallback
-                    newStatus = oldStatus;
-                    reason = "No status change needed";
-                }
-                
-                if (!newStatus.equals(oldStatus)) {
-                    order.setStatus(newStatus);
-                    orderEntityService.save(order);
-                    log.info("✅ Order {} status updated from {} to {} ({})", 
-                             orderId, oldStatus, newStatus, reason);
-                } else {
-                    log.info("ℹ️ Order {} status unchanged: {} ({})", orderId, oldStatus, reason);
-                }
+                log.info("✅ Order status auto-updated after refund processing for Order: {}", orderId);
             }
         }
 
@@ -227,13 +182,10 @@ public class RefundServiceImpl implements RefundService {
         issue.setResolvedAt(LocalDateTime.now());
         issue.setStaff(staff);
         IssueEntity updatedIssue = issueEntityService.save(issue);
-        log.info("✅ Issue {} status updated to RESOLVED", issue.getId());
 
         // NOTE: Driver already continued trip after reporting damage
         // No notification needed as driver doesn't need to wait
-        log.info("ℹ️ Driver already continued trip, refund processed successfully");
 
-        log.info("Refund processed successfully for issue: {}", request.issueId());
         return refundMapper.toRefundResponse(refund);
     }
 

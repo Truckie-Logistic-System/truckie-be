@@ -29,7 +29,7 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     public List<RoleResponse> getAllRoles() {
-        log.info("Starting to get all roles");
+        
         List<RoleEntity> roles = roleEntityService.findAll();
         if (roles.isEmpty()) {
             log.warn("No roles found");
@@ -47,7 +47,7 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     public RoleResponse getRoleById(UUID id) {
-        log.info("Starting to get role by ID: {}", id);
+        
         Optional<RoleEntity> roleEntity = roleEntityService.findEntityById(id);
 
         return roleEntity.map(roleMapper::mapRoleResponse)
@@ -62,7 +62,7 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     public RoleResponse getRoleByName(String roleName) {
-        log.info("Starting to get role by name: {}", roleName);
+        
         Optional<RoleEntity> roleEntity = roleEntityService.findByRoleName(roleName);
 
         return roleEntity.map(roleMapper::mapRoleResponse)
@@ -75,11 +75,10 @@ public class RoleServiceImpl implements RoleService {
                 });
     }
 
-
     @Override
     @Transactional
     public RoleResponse createRole(RoleRequest roleRequest) {
-        log.info("Starting to create role with request: {}", roleRequest);
+        
         Optional<RoleEntity> roleEntity = roleEntityService.findByRoleName(roleRequest.getRoleName());
         if (roleEntity.isPresent()) {
             log.warn("Role with name {} is already existed", roleRequest.getRoleName());
@@ -98,7 +97,7 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public RoleResponse updateRole(UUID id, RoleRequest roleRequest) {
-        log.info("Starting to update role with id: {}, request: {}", id, roleRequest);
+        
         RoleEntity existingRole = roleEntityService.findEntityById(id)
                 .orElseThrow(() -> {
                     log.warn("Role with ID {} not found", id);

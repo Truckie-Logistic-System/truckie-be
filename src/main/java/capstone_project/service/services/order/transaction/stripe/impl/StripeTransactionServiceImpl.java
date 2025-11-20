@@ -48,11 +48,12 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
     private final ContractSettingEntityService contractSettingEntityService;
     private final StripeConfig stripeConfig;
     private final ObjectProvider<OrderService> orderServiceObjectProvider;
+    private final capstone_project.service.services.order.order.OrderStatusWebSocketService orderStatusWebSocketService;
 
     @Override
     @Transactional
     public PaymentIntent createPaymentIntent(UUID contractId) throws StripeException {
-        log.info("createPaymentIntent - Stripe");
+        
         ContractEntity contractEntity = getAndValidateContract(contractId);
 
         BigDecimal totalValue = validationTotalValue(contractId);
@@ -120,8 +121,6 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
             transactionEntityService.save(transaction);
 
-            log.info("Created Stripe PaymentIntent: {} for contract {}", paymentIntent.getId(), contractId);
-
             return paymentIntent;
         } catch (StripeException ex) {
             log.error("Stripe API error while creating payment intent: {}", ex.getMessage(), ex);
@@ -135,7 +134,6 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
     @Override
     @Transactional
     public PaymentIntent createDepositPaymentIntent(UUID contractId) throws StripeException {
-        log.info("createDepositPaymentIntent - Stripe");
 
         ContractEntity contractEntity = getAndValidateContract(contractId);
 
@@ -200,8 +198,6 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
             transactionEntityService.save(transaction);
 
-            log.info("Created Stripe PaymentIntent: {} for contract {}", paymentIntent.getId(), contractId);
-
             return paymentIntent;
         } catch (StripeException ex) {
             log.error("Stripe API error while creating payment intent: {}", ex.getMessage(), ex);
@@ -214,7 +210,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
     @Override
     public void handleStripeWebhook(String payload, String sigHeader) {
-        log.info("Received Stripe webhook: {}", payload);
+        
         Event event;
 
         try {
@@ -231,8 +227,6 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
                             .getObject()
                             .orElseThrow(() -> new RuntimeException("Failed to deserialize PaymentIntent"));
 
-                    log.info("PaymentIntent succeeded: {}", paymentIntent.getId());
-
                     if (!"succeeded".equals(paymentIntent.getStatus())) {
                         log.warn("Received payment_intent.succeeded but status is {}", paymentIntent.getStatus());
                         return;
@@ -245,7 +239,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
                                 transaction.setPaymentDate(java.time.LocalDateTime.now());
                                 transactionEntityService.save(transaction);
                                 updateContractStatusIfNeeded(transaction);
-                                log.info("Transaction {} marked as PAID", transaction.getId());
+                                
                             }, () -> {
                                 log.warn("Transaction not found for PaymentIntent {}", paymentIntent.getId());
                             });
@@ -266,8 +260,9 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
                             }, () -> log.warn("Transaction not found for failed PaymentIntent {}", paymentIntent.getId()));
                 }
 
-
-                default -> log.info("Unhandled event type: {}", event.getType());
+                default -> {
+                    // Unhandled event type
+                }
             }
         } catch (Exception e) {
             log.error("Error processing Stripe webhook", e);
@@ -308,13 +303,31 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
                 if (transaction.getAmount().compareTo(totalValue) < 0) {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
                     // Update Order status only (OrderDetail will be updated when assigned to driver)
+                    OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
                     order.setStatus(OrderStatusEnum.ON_PLANNING.name());
                     orderEntityService.save(order);
+                    
+                    // Send WebSocket notification
+                    orderStatusWebSocketService.sendOrderStatusChange(
+                            order.getId(),
+                            order.getOrderCode(),
+                            previousStatus,
+                            OrderStatusEnum.ON_PLANNING
+                    );
                 } else {
                     contract.setStatus(ContractStatusEnum.PAID.name());
                     // Update Order status only (OrderDetail will be updated when assigned to driver)
+                    OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
                     order.setStatus(OrderStatusEnum.FULLY_PAID.name());
                     orderEntityService.save(order);
+                    
+                    // Send WebSocket notification
+                    orderStatusWebSocketService.sendOrderStatusChange(
+                            order.getId(),
+                            order.getOrderCode(),
+                            previousStatus,
+                            OrderStatusEnum.FULLY_PAID
+                    );
                 }
             }
 
@@ -333,7 +346,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
         }
 
         contractEntityService.save(contract);
-        log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
+        
     }
 
     private BigDecimal validationTotalValue(UUID contractId) {
@@ -345,9 +358,8 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
                 ));
 
         BigDecimal totalValue = contractEntity.getTotalValue();
-        log.info("Total value for contract {} is {}", contractId, totalValue);
+        
         BigDecimal adjustedValue = contractEntity.getAdjustedValue();
-        log.info("Supported value for contract {} is {}", contractId, adjustedValue);
 
         if (adjustedValue != null && adjustedValue.compareTo(BigDecimal.ZERO) > 0) {
             totalValue = adjustedValue;

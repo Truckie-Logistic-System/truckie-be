@@ -136,7 +136,6 @@ public class RouteServiceImpl implements RouteService {
                 career.getId() == null ? null : career.getId()
         ));
 
-        log.info("Generated return route points for issue {}: {} points", issueId, points.size());
         return new RoutePointsResponse(points);
     }
 
@@ -301,7 +300,6 @@ public class RouteServiceImpl implements RouteService {
             // Send the path as a direct array of coordinates, not wrapped in a "path" object
             String bodyJson = objectMapper.writeValueAsString(pathForRequest);
 
-            log.info("Sending Vietmap request body: {}", bodyJson);
 
             Integer vietVehicle = null;
             // resolve vietVehicle if needed using request.vehicleTypeId() and mapVehicleTypeIdToVietmap(...)
@@ -311,17 +309,12 @@ public class RouteServiceImpl implements RouteService {
             }
 
             String vietResp = vietmapService.routeTolls(bodyJson, vietVehicle);
-            log.info("Received Vietmap response: {}", vietResp);
 
             JsonNode root = objectMapper.readTree(vietResp);
 
             // parse path into BigDecimal coordinates
             List<List<BigDecimal>> path = new ArrayList<>();
             JsonNode pathNode = root.path("path");
-            log.info("Path node exists: {}, isArray: {}, size: {}",
-                    !pathNode.isMissingNode(),
-                    pathNode.isArray(),
-                    pathNode.isArray() ? pathNode.size() : 0);
 
             if (pathNode.isArray()) {
                 for (JsonNode coord : pathNode) {
@@ -331,7 +324,6 @@ public class RouteServiceImpl implements RouteService {
                         path.add(Arrays.asList(lng, lat));
                     }
                 }
-                log.info("Extracted path size: {}", path.size());
             } else {
                 log.warn("Path node is not an array or is missing in the response");
             }
@@ -341,10 +333,6 @@ public class RouteServiceImpl implements RouteService {
             long totalTollAmount = 0L;
             int totalTollCount = 0;
             JsonNode tollsNode = root.path("tolls");
-            log.info("Tolls node exists: {}, isArray: {}, size: {}",
-                    !tollsNode.isMissingNode(),
-                    tollsNode.isArray(),
-                    tollsNode.isArray() ? tollsNode.size() : 0);
 
             if (tollsNode.isArray()) {
                 for (JsonNode t : tollsNode) {
@@ -353,8 +341,6 @@ public class RouteServiceImpl implements RouteService {
                     String type = t.path("type").asText(null);
                     long amount = t.path("amount").asLong(0L);
 
-                    log.info("Toll extracted - Name: {}, Address: {}, Type: {}, Amount: {}",
-                             name, address, type, amount);
 
                     // Create and add the toll response object
                     TollResponse toll = new TollResponse(name, address, type, amount);
@@ -362,7 +348,6 @@ public class RouteServiceImpl implements RouteService {
                     totalTollAmount += amount;
                     totalTollCount++;
                 }
-                log.info("Extracted {} tolls with total amount: {}", totalTollCount, totalTollAmount);
             } else {
                 log.warn("Tolls node is not an array or is missing in the response");
             }
@@ -419,8 +404,6 @@ public class RouteServiceImpl implements RouteService {
                 // Distribute toll costs across segments
                 distributeTollsToSegments(segments, tolls, totalTollAmount);
 
-                log.info("Creating SuggestRouteResponse with segments: {}, totalTollAmount: {}, totalTollCount: {}, totalDistance: {} km",
-                    segments.size(), totalTollAmount, totalTollCount, totalDistance);
                 return new SuggestRouteResponse(segments, totalTollAmount, totalTollCount, totalDistance);
             } else {
                 // Just create a single segment for the whole route

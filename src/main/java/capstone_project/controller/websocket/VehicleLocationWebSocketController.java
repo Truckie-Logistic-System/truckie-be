@@ -36,9 +36,6 @@ public class VehicleLocationWebSocketController {
             @DestinationVariable("vehicleId") UUID vehicleId,
             @Payload MobileLocationUpdateMessage message) {
 
-        log.debug("Received location update via WebSocket for vehicle: {}, plate: {}, lat: {}, lng: {}",
-                vehicleId, message.getLicensePlateNumber(), message.getLatitude(), message.getLongitude());
-
         // Validate input
         if (message.getLatitude() == null || message.getLongitude() == null) {
             log.warn("Invalid location data received for vehicle {}: lat={}, lng={}",
@@ -62,7 +59,7 @@ public class VehicleLocationWebSocketController {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 );
             }
-            log.debug("Location unchanged for vehicle: {}, skipping broadcast", vehicleId);
+            
             return;
         }
 
@@ -74,7 +71,6 @@ public class VehicleLocationWebSocketController {
                 message.getLicensePlateNumber()
         );
 
-        log.info("Successfully updated and broadcast location for vehicle: {} ({})", vehicleId, message.getLicensePlateNumber());
     }
 
     /**
@@ -86,13 +82,6 @@ public class VehicleLocationWebSocketController {
     public boolean updateVehicleLocationWithRateLimit(
             @DestinationVariable("vehicleId") UUID vehicleId,
             @Payload MobileLocationUpdateMessage message) {
-
-        log.info("🔵 [WebSocket] Received rate-limited location update for vehicle: {}", vehicleId);
-        log.info("   - License Plate: {}", message.getLicensePlateNumber());
-        log.info("   - Latitude: {}", message.getLatitude());
-        log.info("   - Longitude: {}", message.getLongitude());
-        log.info("   - Bearing: {}", message.getBearing());
-        log.info("   - Speed: {}", message.getSpeed());
 
         // Validate input
         if (message.getLatitude() == null || message.getLongitude() == null) {
@@ -117,8 +106,7 @@ public class VehicleLocationWebSocketController {
                     message.getBearing(),
                     message.getSpeed()
             );
-            log.info("✅ [WebSocket] Successfully updated and broadcast location for vehicle: {} ({}), speed: {}km/h",
-                    vehicleId, message.getLicensePlateNumber(), message.getSpeed());
+            
         } else {
             // Check if vehicle exists
             if (!vehicleEntityService.findByVehicleId(vehicleId).isPresent()) {

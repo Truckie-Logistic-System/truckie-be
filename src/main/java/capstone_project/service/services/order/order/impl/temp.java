@@ -72,7 +72,7 @@
 //
 //    @Override
 //    public List<ContractResponse> getAllContracts() {
-//        log.info("Getting all contracts");
+//        
 //        List<ContractEntity> contractEntities = contractEntityService.findAll();
 //        if (contractEntities.isEmpty()) {
 //            log.warn("No contracts found");
@@ -88,7 +88,7 @@
 //
 //    @Override
 //    public ContractResponse getContractById(UUID id) {
-//        log.info("Getting contract by ID: {}", id);
+//        
 //        ContractEntity contractEntity = contractEntityService.findEntityById(id)
 //                .orElseThrow(() -> new NotFoundException(
 //                        ErrorEnum.NOT_FOUND.getMessage(),
@@ -100,7 +100,7 @@
 //    @Override
 //    @Transactional
 //    public ContractResponse createContract(ContractRequest contractRequest) {
-//        log.info("Creating new contract");
+//        
 //
 //        if (contractRequest == null) {
 //            log.error("[createContract] Request is null");
@@ -147,7 +147,7 @@
 //    @Override
 //    @Transactional
 //    public ContractResponse createBothContractAndContractRule(ContractRequest contractRequest) {
-//        log.info("Creating new contract");
+//        
 //
 //        if (contractRequest == null) {
 //            log.error("[createContract] Request is null");
@@ -252,7 +252,7 @@
 //    @Override
 //    @Transactional
 //    public ContractResponse createBothContractAndContractRuleForCus(CreateContractForCusRequest contractRequest) {
-//        log.info("Creating new contract");
+//        
 //
 //        if (contractRequest == null) {
 //            log.error("[createContract] Request is null");
@@ -387,7 +387,7 @@
 //    @Override
 //    @Transactional
 //    public void deleteContractByOrderId(UUID orderId) {
-//        log.info("Deleting contract by order ID: {}", orderId);
+//        
 //
 //        if (orderId == null) {
 //            log.error("[deleteContractByOrderId] Order ID is null");
@@ -471,8 +471,7 @@
 //                        realisticAssignments.add(upgradedAssignment);
 //                        usedVehicles.put(upgradedRule.getId(), upgradedUsed + 1);
 //                        upgraded = true;
-//                        log.info("[assignVehiclesWithAvailability] Upgraded vehicle from {} to {} for order {}",
-//                                currentRule.getsizeRuleName(), upgradedRule.getsizeRuleName(), orderId);
+//                        
 //                    } else {
 //                        // Thử xe lớn hơn nữa
 //                        upgradedRule = findNextBiggerRule(upgradedRule, sortedsizeRules);
@@ -544,8 +543,7 @@
 //            int available = availableVehicles.getOrDefault(nextRule.getId(), 0);
 //
 //            if (used < available) {
-//                log.info("[assignVehicles] Upgrade thành công assignment rule={} -> rule={} (used={}/available={})",
-//                        currentRule.getId(), nextRule.getId(), used + 1, available);
+//                
 //                return nextRule;
 //            }
 //        }
@@ -554,7 +552,7 @@
 //
 ////    public List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId) {
 ////        final long t0 = System.nanoTime();
-////        log.info("Assigning vehicles for order ID: {}", orderId);
+////        
 ////
 ////        List<OrderDetailEntity> details = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
 ////        if (details.isEmpty()) {
@@ -617,11 +615,7 @@
 ////                throw new BadRequestException("Order detail missing size: " + detail.getId(), ErrorEnum.INVALID.getErrorCode());
 ////            }
 ////
-////            log.info("[assignVehicles] Processing detail {}/{}: id={}, weight={}, size={}x{}x{}",
-////                    processed, details.size(), detail.getId(), detail.getWeight(),
-////                    detail.getOrderSizeEntity().getMaxLength(),
-////                    detail.getOrderSizeEntity().getMaxWidth(),
-////                    detail.getOrderSizeEntity().getMaxHeight());
+////            
 ////
 ////            boolean assigned = false;
 ////
@@ -636,8 +630,7 @@
 ////                if (canFit(detail, currentRule, assignment)) {
 ////                    assignment.setCurrentLoad(assignment.getCurrentLoad().add(detail.getWeight()));
 ////                    assignment.getAssignedDetails().add(toPackingResponse(detail));
-////                    log.info("[assignVehicles] Assigned detail {} -> existing vehicle ruleId={}, newLoad={}",
-////                            detail.getId(), currentRule.getId(), assignment.getCurrentLoad());
+////                    
 ////                    assigned = true;
 ////                    break;
 ////                }
@@ -649,8 +642,7 @@
 ////                    assignment.setsizeRuleName(upgradedRule.getsizeRuleName());
 ////                    assignment.setCurrentLoad(calculateTotalWeight(assignment, detail));
 ////                    assignment.getAssignedDetails().add(toPackingResponse(detail));
-////                    log.info("[assignVehicles] Upgraded vehicle for detail {} -> ruleId={}, maxWeight={}, newLoad={}",
-////                            detail.getId(), upgradedRule.getId(), upgradedRule.getMaxWeight(), assignment.getCurrentLoad());
+////                    
 ////                    assigned = true;
 ////                    break;
 ////                }
@@ -668,8 +660,7 @@
 ////                                new ArrayList<>(List.of(toPackingResponse(detail)))
 ////                        );
 ////                        assignments.add(newAssignment);
-////                        log.info("[assignVehicles] Opened new vehicle for detail {} -> ruleId={}, firstLoad={}",
-////                                detail.getId(), rule.getId(), detail.getWeight());
+////                        
 ////                        assigned = true;
 ////                        break;
 ////                    }
@@ -682,9 +673,9 @@
 ////            }
 ////        }
 ////
-////        log.info("[assignVehicles] Completed. vehiclesUsed={}, detailsProcessed={}", assignments.size(), processed);
+////        
 ////        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
-////        log.info("[assignVehicles] Finished in {} ms", elapsedMs);
+////        
 ////        return assignments;
 ////    }
 //
@@ -692,7 +683,7 @@
 //    @Override
 //    public List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId) {
 //        final long t0 = System.nanoTime();
-//        log.info("[assignVehiclesOptimal] Starting for orderId: {}", orderId);
+//        
 //
 //        // 1. Lấy thông tin đơn hàng và chi tiết
 //        OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
@@ -792,10 +783,9 @@
 //        // 6. Convert kết quả
 //        List<ContractRuleAssignResponse> responses = BinPacker.toContractResponses(containers, details);
 //
-//        log.info("[assignVehiclesOptimal] Completed. vehiclesUsed={}, detailsProcessed={}",
-//                responses.size(), details.size());
+//        
 //        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
-//        log.info("[assignVehiclesOptimal] Finished in {} ms", elapsedMs);
+//        
 //
 //        return responses;
 //    }
@@ -820,8 +810,7 @@
 //                BinPacker.Placement placement = BinPacker.tryPlaceBoxInContainer(box, newContainer);
 //                if (placement != null) {
 //                    newContainer.addPlacement(placement);
-//                    log.info("[openNewContainerForBox] Selected smallest vehicle: {} for box {}",
-//                            rule.getsizeRuleName(), box.id);
+//                    
 //                    return newContainer;
 //                }
 //            }
@@ -853,8 +842,7 @@
 //        for (BinPacker.ContainerState container : containers) {
 //            BinPacker.Placement placement = BinPacker.tryPlaceBoxInContainer(box, container);
 //            if (placement != null) {
-//                log.debug("[findFittingContainer] Box {} fits in existing vehicle {}",
-//                        box.id, container.rule.getsizeRuleName());
+//                
 //                return container;
 //            }
 //        }
@@ -915,7 +903,7 @@
 ////                           List<sizeRuleEntity> sortedsizeRules,
 ////                           Map<Integer, sizeRuleEntity> sizeRuleCache) {
 ////        int currentIdx = assignment.getVehicleIndex();
-////        log.info("[tryUpgrade] Try upgrade for detailId={} from index={}", detail.getId(), currentIdx);
+////        
 ////        for (int i = currentIdx + 1; i < sortedsizeRules.size(); i++) {
 ////            sizeRuleEntity biggerRule = sizeRuleCache.get(i);
 ////            if (biggerRule == null) {
@@ -923,11 +911,11 @@
 ////                continue;
 ////            }
 ////            if (canFitAll(assignment.getAssignedDetails(), biggerRule, detail)) {
-////                log.info("[tryUpgrade] Upgrade possible to index={}, ruleId={}", i, biggerRule.getId());
+////                
 ////                return i;
 ////            }
 ////        }
-////        log.info("[tryUpgrade] No upgrade possible for detailId={}", detail.getId());
+////        
 ////        return -1;
 ////    }
 //
@@ -942,15 +930,15 @@
 ////            log.warn("[tryUpgrade] cannot find index for ruleId={}", currentRuleId);
 ////            return null;
 ////        }
-////        log.info("[tryUpgrade] Try upgrade for detailId={} from ruleIndex={}", detail.getId(), startIdx);
+////        
 ////        for (int i = startIdx + 1; i < sortedsizeRules.size(); i++) {
 ////            sizeRuleEntity biggerRule = sortedsizeRules.get(i);
 ////            if (canFitAll(assignment.getAssignedDetails(), biggerRule, detail)) {
-////                log.info("[tryUpgrade] Upgrade possible to index={}, ruleId={}", i, biggerRule.getId());
+////                
 ////                return biggerRule;
 ////            }
 ////        }
-////        log.info("[tryUpgrade] No upgrade possible for detailId={}", detail.getId());
+////        
 ////        return null;
 ////    }
 //
@@ -1150,14 +1138,14 @@
 //            if (size.getMaxLength().compareTo(newRule.getMaxLength()) > 0
 //                    || size.getMaxWidth().compareTo(newRule.getMaxWidth()) > 0
 //                    || size.getMaxHeight().compareTo(newRule.getMaxHeight()) > 0) {
-//                log.info("[canFitAll] Dimension exceed for detailId={} vs ruleId={}", id, newRule.getId());
+//                
 //                return false;
 //            }
 //        }
 //
 //        boolean ok = totalWeight.compareTo(newRule.getMaxWeight()) <= 0;
 //        if (!ok) {
-//            log.info("[canFitAll] Overweight: totalWeight={} > ruleMax={}", totalWeight, newRule.getMaxWeight());
+//            
 //        }
 //        return ok;
 //    }
@@ -1169,8 +1157,8 @@
 //        double lat2 = to.getLatitude().doubleValue();
 //        double lon2 = to.getLongitude().doubleValue();
 //
-//        log.info("Pickup coords: lat={}, lon={}", lat1, lon1);
-//        log.info("Delivery coords: lat={}, lon={}", lat2, lon2);
+//        
+//        
 //
 //        if (lat1 == lat2 && lon1 == lon2) {
 //            return BigDecimal.ZERO;
@@ -1185,7 +1173,7 @@
 //        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 //        double distanceKm = EARTH_RADIUS_KM * c;
 //
-//        log.info("Calculated raw distance: {} km", distanceKm);
+//        
 //        return BigDecimal.valueOf(distanceKm);
 //    }
 //
@@ -1195,7 +1183,7 @@
 //
 //    @Override
 //    public ContractResponse uploadContractFile(ContractFileUploadRequest req) throws IOException {
-//        log.info("Uploading contract file for contractId={}", req.contractId());
+//        
 //        String fileName = "contract_" + UUID.randomUUID();
 //
 //        // upload Cloudinary
@@ -1228,7 +1216,7 @@
 //
 //    @Override
 //    public ContractResponse getContractByOrderId(UUID orderId) {
-//        log.info("Getting contract by Order ID: {}", orderId);
+//        
 //        ContractEntity contractEntity = contractEntityService.getContractByOrderId(orderId)
 //                .orElseThrow(() -> new NotFoundException(
 //                        "Contract not found for order ID: " + orderId,

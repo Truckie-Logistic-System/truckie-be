@@ -20,7 +20,7 @@ public class PayOSDebugController {
 
     @PostMapping("/test-direct-call")
     public ResponseEntity<String> testDirectPayOSCall() {
-        log.info("🧪 Testing direct PayOS API call (bypassing SDK)...");
+        
         directPayOSApiTest.testDirectPayOSCall();
         return ResponseEntity.ok("Check server logs for detailed results");
     }

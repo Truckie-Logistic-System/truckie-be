@@ -78,7 +78,7 @@ public class VietmapServiceImpl implements VietmapService {
                 .toUriString();
 
         try {
-            log.info("Calling Vietmap Autocomplete API: {}", uri);
+            
             return webClient.get().uri(uri).retrieve().bodyToMono(String.class).block();
         } catch (WebClientResponseException ex) {
             throw new RuntimeException("Vietmap API error: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString(), ex);
@@ -99,7 +99,7 @@ public class VietmapServiceImpl implements VietmapService {
                 .toUriString();
 
         try {
-            log.info("Calling Vietmap Place API: {}", uri);
+            
             return webClient.get().uri(uri).retrieve().bodyToMono(String.class).block();
         } catch (WebClientResponseException ex) {
             throw new RuntimeException("Vietmap Place API error: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString(), ex);
@@ -122,7 +122,7 @@ public class VietmapServiceImpl implements VietmapService {
         String uri = builder.build().toUriString();
 
         try {
-            log.info("Calling Vietmap reverse API: {}", uri);
+            
             return webClient.get().uri(uri).retrieve().bodyToMono(String.class).block();
         } catch (WebClientResponseException ex) {
             throw new RuntimeException("Vietmap Reverse API error: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString(), ex);
@@ -147,7 +147,7 @@ public class VietmapServiceImpl implements VietmapService {
         String uri = builder.build().toUriString();
 
         try {
-            log.info("Calling Vietmap Route-Tolls API: {}", uri);
+            
             return webClient.post()
                     .uri(uri)
                     .header("Content-Type", "application/json")
@@ -198,7 +198,7 @@ public class VietmapServiceImpl implements VietmapService {
         String uri = builder.build().toUriString();
 
         try {
-            log.info("Calling Vietmap Route API: {}", uri);
+            
             return webClient.get()
                     .uri(uri)
                     .retrieve()
@@ -218,7 +218,7 @@ public class VietmapServiceImpl implements VietmapService {
         String uri = builder.build().toUriString();
 
         try {
-            log.info("Calling Vietmap style API: {}", uri);
+            
             return webClient.get()
                     .uri(uri)
                     .retrieve()
@@ -231,7 +231,7 @@ public class VietmapServiceImpl implements VietmapService {
 
     @Override
     public String mobileStyles() {
-        log.info("Calling Vietmap Mobile Styles API");
+        
         UriComponentsBuilder builder = UriComponentsBuilder
                 .fromUriString(baseUrl + mobileStyleEndpoint)
                 .queryParam("apikey", apiKey);
@@ -239,7 +239,7 @@ public class VietmapServiceImpl implements VietmapService {
         String uri = builder.build().toUriString();
 
         try {
-            log.info("Calling Vietmap Mobile Styles API: {}", uri);
+            
             return webClient.get()
                     .uri(uri)
                     .retrieve()
@@ -248,5 +248,14 @@ public class VietmapServiceImpl implements VietmapService {
         } catch (WebClientResponseException ex) {
             throw new RuntimeException("Vietmap Mobile Styles API error: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString(), ex);
         }
+    }
+
+    @Override
+    public String getMobileStyleUrl() {
+        // Return Vector style URL (best performance according to VietMap SDK docs)
+        // SDK will handle caching, progressive loading, and tile optimization automatically
+        String styleUrl = baseUrl + "/maps/styles/tm/style.json?apikey=" + apiKey;
+        
+        return styleUrl;
     }
 }

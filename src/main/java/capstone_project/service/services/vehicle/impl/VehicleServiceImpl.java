@@ -56,7 +56,7 @@ public class VehicleServiceImpl implements VehicleService {
 
     @Override
     public List<VehicleResponse> getAllVehicles() {
-        log.info("Fetching all vehicles");
+        
         return Optional.of(vehicleEntityService.findAll())
                 .filter(list -> !list.isEmpty())
                 .orElseThrow(() -> new NotFoundException(
@@ -106,7 +106,6 @@ public class VehicleServiceImpl implements VehicleService {
     @Override
     @Transactional
     public VehicleResponse createVehicle(VehicleRequest request) {
-        log.info("Creating new vehicle");
 
         VehicleEntity vehicleEntity = vehicleMapper.toVehicleEntity(request);
         VehicleEntity savedVehicle = vehicleEntityService.save(vehicleEntity);
@@ -117,7 +116,6 @@ public class VehicleServiceImpl implements VehicleService {
     @Override
     @Transactional
     public VehicleResponse updateVehicle(UUID id, UpdateVehicleRequest request) {
-        log.info("Updating vehicle with ID: {}", id);
 
         VehicleEntity existingVehicle = vehicleEntityService.findByVehicleId(id)
                 .orElseThrow(() -> new NotFoundException(
@@ -150,7 +148,6 @@ public class VehicleServiceImpl implements VehicleService {
     @Override
     @Transactional
     public void updateVehicleLocation(UUID id, UpdateLocationRequest request) {
-        log.info("Updating vehicle location for vehicle ID: {}", id);
 
         // Basic validation
         if (request.getLatitude() == null || request.getLongitude() == null) {
@@ -165,7 +162,6 @@ public class VehicleServiceImpl implements VehicleService {
                 id, request.getLatitude(), request.getLongitude());
 
         if (updated) {
-            log.info("Successfully updated location for vehicle ID: {}", id);
 
             // Fetch vehicle details for broadcasting
             VehicleEntity vehicle = vehicleEntityService.findByVehicleId(id)
@@ -184,14 +180,13 @@ public class VehicleServiceImpl implements VehicleService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 );
             }
-            log.debug("Location unchanged for vehicle ID: {}, skipping update", id);
+            
         }
     }
 
     @Override
     @Transactional
     public boolean updateVehicleLocationWithRateLimit(UUID id, UpdateLocationRequest request, int minIntervalSeconds) {
-        log.info("Updating vehicle location with rate limit for vehicle ID: {}", id);
 
         // Basic validation
         if (request.getLatitude() == null || request.getLongitude() == null) {
@@ -209,7 +204,6 @@ public class VehicleServiceImpl implements VehicleService {
                 id, request.getLatitude(), request.getLongitude(), minIntervalSeconds);
 
         if (updated) {
-            log.info("Successfully updated rate-limited location for vehicle ID: {}", id);
 
             // Fetch vehicle details for broadcasting
             VehicleEntity vehicle = vehicleEntityService.findByVehicleId(id)
@@ -228,7 +222,7 @@ public class VehicleServiceImpl implements VehicleService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 );
             }
-            log.debug("Location update for vehicle {} was skipped (rate limited or unchanged)", id);
+            
         }
 
         return updated;
@@ -237,8 +231,6 @@ public class VehicleServiceImpl implements VehicleService {
     @Override
     @Transactional
     public int updateVehicleLocationsInBatch(BatchUpdateLocationRequest batchRequest) {
-        log.info("Processing batch update for {} vehicles",
-                batchRequest.getUpdates() != null ? batchRequest.getUpdates().size() : 0);
 
         if (batchRequest.getUpdates() == null || batchRequest.getUpdates().isEmpty()) {
             return 0;
@@ -255,8 +247,6 @@ public class VehicleServiceImpl implements VehicleService {
         }
 
         int updatedCount = vehicleEntityService.updateLocationsInBatch(batchRequest);
-        log.info("Batch update completed: {} of {} vehicles updated",
-                updatedCount, batchRequest.getUpdates().size());
 
         // Broadcast updates for vehicles that were updated
         if (updatedCount > 0) {
@@ -277,7 +267,6 @@ public class VehicleServiceImpl implements VehicleService {
     @Override
     @Transactional
     public List<VehicleResponse> generateBulkVehicles(Integer count) {
-        log.info("Generating {} bulk vehicles", count);
 
         List<VehicleEntity> createdVehicles = new ArrayList<>();
         List<VehicleResponse> vehicleResponses = new ArrayList<>();
@@ -285,7 +274,6 @@ public class VehicleServiceImpl implements VehicleService {
         // Find the highest existing vehicle license plate number
         String prefix = "V";
         int startNumber = findHighestVehicleNumber() + 1;
-        log.info("Starting vehicle generation from number: {}", startNumber);
 
         // Array of common truck manufacturers and models
         String[] manufacturers = {"Isuzu", "Hino", "Hyundai", "Thaco", "Kia", "Mitsubishi", "Ford"};
@@ -333,7 +321,7 @@ public class VehicleServiceImpl implements VehicleService {
             try {
                 VehicleEntity savedVehicle = vehicleEntityService.save(vehicleEntity);
                 createdVehicles.add(savedVehicle);
-                log.info("Created vehicle with license plate: {}", licensePlate);
+                
             } catch (Exception e) {
                 log.error("Error creating vehicle with license plate {}: {}", licensePlate, e.getMessage());
             }
@@ -344,7 +332,6 @@ public class VehicleServiceImpl implements VehicleService {
             vehicleResponses.add(vehicleMapper.toResponse(vehicle));
         }
 
-        log.info("Successfully generated {} vehicles", vehicleResponses.size());
         return vehicleResponses;
     }
 
@@ -374,7 +361,6 @@ public class VehicleServiceImpl implements VehicleService {
                 }
             }
 
-            log.info("Found highest vehicle number: {}", highestNumber);
         } catch (Exception e) {
             log.error("Error finding highest vehicle number, using default: {}", highestNumber, e);
         }

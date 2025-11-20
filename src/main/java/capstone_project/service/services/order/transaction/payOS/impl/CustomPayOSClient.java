@@ -46,20 +46,14 @@ public class CustomPayOSClient {
             String returnUrl,
             String cancelUrl
     ) throws Exception {
-        
-        log.info("🚀 Custom PayOS Client - Creating payment link (bypassing SDK)");
-        log.info("   orderCode: {}", orderCode);
-        log.info("   amount: {}", amount);
-        log.info("   description: {}", description);
-        
+
         // Generate signature as per PayOS docs
         String signatureData = String.format(
             "amount=%d&cancelUrl=%s&description=%s&orderCode=%d&returnUrl=%s",
             amount, cancelUrl, description, orderCode, returnUrl
         );
         String signature = generateHmacSHA256(signatureData, CHECKSUM_KEY);
-        log.info("🔐 Generated signature: {}", signature);
-        
+
         // Create request body with items and signature
         String requestBody = String.format("""
             {
@@ -78,9 +72,7 @@ public class CustomPayOSClient {
               "signature": "%s"
             }
             """, orderCode, amount, description, amount, returnUrl, cancelUrl, signature);
-        
-        log.debug("📤 Request Body: {}", requestBody);
-        
+
         // Create HTTP client
         HttpClient client = HttpClient.newHttpClient();
         
@@ -95,10 +87,7 @@ public class CustomPayOSClient {
         
         // Send request
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        
-        log.info("📥 Response Status: {}", response.statusCode());
-        log.info("📥 Response Body (RAW): {}", response.body());
-        
+
         if (response.statusCode() != 200) {
             log.error("❌ PayOS API Error: Status {}, Body: {}", response.statusCode(), response.body());
             throw new RuntimeException("PayOS API returned error: " + response.body());
@@ -106,17 +95,14 @@ public class CustomPayOSClient {
         
         // Parse response
         JsonNode responseJson = objectMapper.readTree(response.body());
-        log.info("📄 Full Response JSON: {}", responseJson.toPrettyString());
-        
+
         JsonNode data = responseJson.get("data");
         
         if (data == null) {
             log.error("❌ Response JSON: {}", responseJson.toPrettyString());
             throw new RuntimeException("Invalid PayOS response: missing 'data' field");
         }
-        
-        log.debug("📦 Data node: {}", data.toPrettyString());
-        
+
         // Handle null-safe field extraction
         JsonNode checkoutUrlNode = data.get("checkoutUrl");
         JsonNode paymentLinkIdNode = data.get("paymentLinkId");
@@ -129,11 +115,7 @@ public class CustomPayOSClient {
         
         String checkoutUrl = checkoutUrlNode.asText();
         String paymentLinkId = paymentLinkIdNode.asText();
-        
-        log.info("✅ Payment link created successfully!");
-        log.info("   checkoutUrl: {}", checkoutUrl);
-        log.info("   paymentLinkId: {}", paymentLinkId);
-        
+
         return new PayOSResponse(
                 checkoutUrl,
                 paymentLinkId,

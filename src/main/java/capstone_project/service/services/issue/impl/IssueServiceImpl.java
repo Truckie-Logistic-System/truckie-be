@@ -9,6 +9,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.entity.issue.IssueImageEntity;
 import capstone_project.entity.issue.IssueTypeEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.service.services.websocket.IssueWebSocketService;
 import capstone_project.dtos.request.issue.*;
 import capstone_project.dtos.response.issue.GetBasicIssueResponse;
@@ -66,10 +67,15 @@ public class IssueServiceImpl implements IssueService {
     private final capstone_project.service.services.order.transaction.payOS.PayOSTransactionService payOSTransactionService;
     private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
     
+    // ✅ NEW: OrderDetailStatusService for centralized Order status aggregation
+    private final capstone_project.service.services.order.order.OrderDetailStatusService orderDetailStatusService;
+    
     // Return payment deadline configuration
     @org.springframework.beans.factory.annotation.Value("${issue.return-payment.deadline-minutes:30}")
     private int returnPaymentDeadlineMinutes;
-
+    
+    // Payment timeout scheduler for real-time timeout detection
+    private final capstone_project.config.expired.PaymentTimeoutSchedulerService paymentTimeoutSchedulerService;
 
     @Override
     public GetBasicIssueResponse getBasicIssue(UUID issueId) {
@@ -84,10 +90,9 @@ public class IssueServiceImpl implements IssueService {
                 .stream()
                 .map(capstone_project.entity.issue.IssueImageEntity::getImageUrl)
                 .collect(java.util.stream.Collectors.toList());
-        
-        log.info("📸 Fetched {} issue images for issue {}", issueImages.size(), issueId);
+
         if (!issueImages.isEmpty()) {
-            log.info("   - Image URLs: {}", issueImages);
+            
         }
         
         // Populate vehicle assignment với nested objects (now with user info already loaded)
@@ -268,7 +273,6 @@ public class IssueServiceImpl implements IssueService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-
         // Lấy IssueType
         var issueType = issueTypeEntityService.findEntityById(request.issueTypeId())
                 .orElseThrow(() -> new NotFoundException(
@@ -279,15 +283,22 @@ public class IssueServiceImpl implements IssueService {
         // Lấy tất cả order details của vehicle assignment này
         List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
 
-        // Lưu trạng thái hiện tại của order details (để restore sau khi resolve)
-        // Format: "STATUS1,STATUS2,STATUS3" theo thứ tự order details
-        String tripStatusAtReport = orderDetails.stream()
-                .map(OrderDetailEntity::getStatus)
-                .reduce((s1, s2) -> s1 + "," + s2)
-                .orElse("");
-        
-        log.info("💾 Saving trip status at report: {}", tripStatusAtReport);
-        
+        // ✅ CRITICAL: Save statuses as JSON map to support combined reports
+        // Format: {"orderDetailId1":"STATUS1","orderDetailId2":"STATUS2"}
+        // This handles cases where different packages have different statuses (e.g., DELIVERED, IN_TROUBLES, RETURNING)
+        String tripStatusAtReport = null;
+        if (!orderDetails.isEmpty()) {
+            StringBuilder jsonBuilder = new StringBuilder("{");
+            for (int i = 0; i < orderDetails.size(); i++) {
+                OrderDetailEntity od = orderDetails.get(i);
+                if (i > 0) jsonBuilder.append(",");
+                jsonBuilder.append("\"").append(od.getId()).append("\":\"").append(od.getStatus()).append("\"");
+            }
+            jsonBuilder.append("}");
+            tripStatusAtReport = jsonBuilder.toString();
+            log.info("💾 Saved trip status at report (JSON): {}", tripStatusAtReport);
+        }
+
         // Update tất cả order details thành IN_TROUBLES with WebSocket notification
         orderDetails.forEach(orderDetail -> {
             updateOrderDetailStatusWithNotification(
@@ -318,12 +329,11 @@ public class IssueServiceImpl implements IssueService {
         GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(saved);
         
         // 📢 Broadcast new issue to all staff clients via WebSocket
-        log.info("🚨 New issue created, broadcasting to staff: {}", response.id());
+        
         issueWebSocketService.broadcastNewIssue(response);
         
         return response;
     }
-
 
     @Override
     public GetBasicIssueResponse updateIssue(UpdateBasicIssueRequest request) {
@@ -379,7 +389,7 @@ public class IssueServiceImpl implements IssueService {
         GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(updated);
         
         // 📢 Broadcast status change (OPEN -> IN_PROGRESS)
-        log.info("📊 Issue status changed to IN_PROGRESS, broadcasting: {}", response.id());
+        
         issueWebSocketService.broadcastIssueStatusChange(response);
         
         return response;
@@ -419,39 +429,71 @@ public class IssueServiceImpl implements IssueService {
             throw new IllegalStateException("Only IN_PROGRESS issues can be resolved");
         }
 
-        // Lấy vehicle assignment
+        // ✅ CRITICAL: Restore order detail statuses from JSON map
         var vehicleAssignment = issue.getVehicleAssignmentEntity();
         List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
 
-        // Parse tripStatusAtReport để restore statuses
         String tripStatusAtReport = issue.getTripStatusAtReport();
         
         if (tripStatusAtReport != null && !tripStatusAtReport.isEmpty()) {
-            String[] savedStatuses = tripStatusAtReport.split(",");
+            // Get only order details linked to this issue
+            List<OrderDetailEntity> issueOrderDetails = orderDetails.stream()
+                    .filter(od -> od.getIssueEntity() != null && od.getIssueEntity().getId().equals(issue.getId()))
+                    .collect(java.util.stream.Collectors.toList());
             
-            // Restore status cho từng order detail with WebSocket notification
             UUID vehicleAssignmentId = issue.getVehicleAssignmentEntity() != null ? 
                     issue.getVehicleAssignmentEntity().getId() : null;
             
-            for (int i = 0; i < Math.min(orderDetails.size(), savedStatuses.length); i++) {
-                OrderDetailEntity orderDetail = orderDetails.get(i);
-                String restoredStatus = savedStatuses[i].trim();
-                
-                log.info("✅ Restoring order detail {} from IN_TROUBLES to {}", 
-                         orderDetail.getId(), restoredStatus);
-                
-                try {
-                    OrderDetailStatusEnum restoredStatusEnum = OrderDetailStatusEnum.valueOf(restoredStatus);
-                    updateOrderDetailStatusWithNotification(
-                        orderDetail,
-                        restoredStatusEnum,
-                        vehicleAssignmentId
-                    );
-                } catch (IllegalArgumentException e) {
-                    log.warn("⚠️ Invalid status to restore: {}, skipping WebSocket", restoredStatus);
-                    orderDetail.setStatus(restoredStatus);
-                    orderDetailEntityService.save(orderDetail);
+            try {
+                // Parse JSON map: {"uuid1":"STATUS1","uuid2":"STATUS2"}
+                if (tripStatusAtReport.startsWith("{") && tripStatusAtReport.endsWith("}")) {
+                    log.info("🔄 Restoring statuses from JSON (resolveIssue): {}", tripStatusAtReport);
+                    
+                    // Simple JSON parsing
+                    String jsonContent = tripStatusAtReport.substring(1, tripStatusAtReport.length() - 1);
+                    String[] entries = jsonContent.split(",");
+                    
+                    java.util.Map<String, String> statusMap = new java.util.HashMap<>();
+                    for (String entry : entries) {
+                        String[] parts = entry.split(":");
+                        if (parts.length == 2) {
+                            String id = parts[0].replace("\"", "").trim();
+                            String status = parts[1].replace("\"", "").trim();
+                            statusMap.put(id, status);
+                        }
+                    }
+                    
+                    // Restore each OrderDetail to its original status
+                    for (OrderDetailEntity orderDetail : issueOrderDetails) {
+                        String savedStatus = statusMap.get(orderDetail.getId().toString());
+                        if (savedStatus != null) {
+                            try {
+                                OrderDetailStatusEnum restoredStatusEnum = OrderDetailStatusEnum.valueOf(savedStatus);
+                                updateOrderDetailStatusWithNotification(
+                                    orderDetail,
+                                    restoredStatusEnum,
+                                    vehicleAssignmentId
+                                );
+                                log.info("✅ Restored OrderDetail {} to status {}", orderDetail.getId(), savedStatus);
+                            } catch (IllegalArgumentException e) {
+                                log.warn("⚠️ Invalid status '{}' for OrderDetail {}", savedStatus, orderDetail.getId());
+                            }
+                        }
+                    }
+                } else {
+                    // Fallback: Old format (single status for all - backward compatibility)
+                    log.warn("⚠️ Old format detected (resolveIssue), restoring all to: {}", tripStatusAtReport);
+                    OrderDetailStatusEnum restoredStatusEnum = OrderDetailStatusEnum.valueOf(tripStatusAtReport.trim());
+                    for (OrderDetailEntity orderDetail : issueOrderDetails) {
+                        updateOrderDetailStatusWithNotification(
+                            orderDetail,
+                            restoredStatusEnum,
+                            vehicleAssignmentId
+                        );
+                    }
                 }
+            } catch (Exception e) {
+                log.error("❌ Failed to restore statuses (resolveIssue): {}", e.getMessage(), e);
             }
         } else {
             log.warn("⚠️ No tripStatusAtReport found for issue {}, cannot restore statuses", issueId);
@@ -467,28 +509,29 @@ public class IssueServiceImpl implements IssueService {
         GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(updated);
         
         // 📢 Broadcast status change (IN_PROGRESS -> RESOLVED)
-        log.info("✅ Issue resolved, broadcasting: {}", response.id());
+        
         issueWebSocketService.broadcastIssueStatusChange(response);
         
         // 📲 Send notification to driver if this is a DAMAGE issue
-        if (issue.getIssueTypeEntity() != null && 
-            IssueCategoryEnum.DAMAGE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+        // if (issue.getIssueTypeEntity() != null && 
+        //     IssueCategoryEnum.DAMAGE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
             
-            if (issue.getVehicleAssignmentEntity() != null) {
-                var driver1 = issue.getVehicleAssignmentEntity().getDriver1();
-                if (driver1 != null && driver1.getUser() != null) {
-                    String staffName = issue.getStaff() != null ? 
-                                      issue.getStaff().getFullName() : "Nhân viên";
+        //     if (issue.getVehicleAssignmentEntity() != null) {
+        //         var driver1 = issue.getVehicleAssignmentEntity().getDriver1();
+        //         if (driver1 != null && driver1.getUser() != null) {
+        //             String staffName = issue.getStaff() != null ? 
+        //                               issue.getStaff().getFullName() : "Nhân viên";
                     
-                    log.info("📦 Sending damage resolved notification to driver: {}", driver1.getUser().getId());
-                    issueWebSocketService.sendDamageResolvedNotification(
-                        driver1.getUser().getId().toString(),
-                        response,
-                        staffName
-                    );
-                }
-            }
-        }
+        //             // CRITICAL FIX: Use driver ID (not user ID) to match mobile app subscription
+        //             
+        //             issueWebSocketService.sendDamageResolvedNotification(
+        //                 driver1.getId().toString(),
+        //                 response,
+        //                 staffName
+        //             );
+        //         }
+        //     }
+        // }
         
         return response;
     }
@@ -496,7 +539,6 @@ public class IssueServiceImpl implements IssueService {
     @Override
     @Transactional
     public GetBasicIssueResponse updateIssueStatus(UUID issueId, String status) {
-        log.info("🔄 Updating issue status: issueId={}, newStatus={}", issueId, status);
 
         // Validate status
         try {
@@ -520,14 +562,14 @@ public class IssueServiceImpl implements IssueService {
         // Set resolvedAt if status is RESOLVED
         if (IssueEnum.RESOLVED.name().equals(status)) {
             issue.setResolvedAt(java.time.LocalDateTime.now());
-            log.info("✅ Issue marked as RESOLVED at {}", issue.getResolvedAt());
+            
         }
 
         IssueEntity updated = issueEntityService.save(issue);
         GetBasicIssueResponse response = getBasicIssue(updated.getId());
 
         // Broadcast status change
-        log.info("📢 Issue status changed from {} to {}, broadcasting", oldStatus, status);
+        
         issueWebSocketService.broadcastIssueStatusChange(response);
 
         return response;
@@ -536,7 +578,6 @@ public class IssueServiceImpl implements IssueService {
     @Override
     @Transactional
     public GetBasicIssueResponse reportSealIssue(ReportSealIssueRequest request) {
-        log.info("🔓 Driver reporting seal removal issue for seal: {}", request.sealId());
 
         // Lấy VehicleAssignment
         var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(request.vehicleAssignmentId())
@@ -553,10 +594,6 @@ public class IssueServiceImpl implements IssueService {
                 ));
         
         // 🆕 Debug IssueType
-        log.info("🔍 DEBUG: IssueType ID: {}, Name: {}, Category: {}", 
-                issueType.getId(),
-                issueType.getIssueTypeName(),
-                issueType.getIssueCategory());
 
         // Lấy Seal cũ bị gỡ
         SealEntity oldSeal = sealEntityService.findEntityById(request.sealId())
@@ -570,14 +607,20 @@ public class IssueServiceImpl implements IssueService {
             throw new IllegalStateException("Seal does not belong to this vehicle assignment");
         }
 
-        // Lưu trạng thái order details (giống như createIssue)
+        // ✅ CRITICAL: Save statuses as JSON map to support combined reports
         List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
-        String tripStatusAtReport = orderDetails.stream()
-                .map(OrderDetailEntity::getStatus)
-                .reduce((s1, s2) -> s1 + "," + s2)
-                .orElse("");
-
-        log.info("💾 Saving trip status at report: {}", tripStatusAtReport);
+        String tripStatusAtReport = null;
+        if (!orderDetails.isEmpty()) {
+            StringBuilder jsonBuilder = new StringBuilder("{");
+            for (int i = 0; i < orderDetails.size(); i++) {
+                OrderDetailEntity od = orderDetails.get(i);
+                if (i > 0) jsonBuilder.append(",");
+                jsonBuilder.append("\"").append(od.getId()).append("\":\"").append(od.getStatus()).append("\"");
+            }
+            jsonBuilder.append("}");
+            tripStatusAtReport = jsonBuilder.toString();
+            log.info("💾 Saved trip status at report for damage issue (JSON): {}", tripStatusAtReport);
+        }
 
         // Update tất cả order details thành IN_TROUBLES with WebSocket notification
         orderDetails.forEach(orderDetail -> {
@@ -591,7 +634,7 @@ public class IssueServiceImpl implements IssueService {
         // Upload seal removal image to Cloudinary
         String sealRemovalImageUrl;
         try {
-            log.info("📤 Uploading seal removal image to Cloudinary...");
+            
             String fileName = "seal_removal_" + oldSeal.getId() + "_" + System.currentTimeMillis();
             var uploadResult = cloudinaryService.uploadFile(
                     request.sealRemovalImage().getBytes(),
@@ -599,7 +642,7 @@ public class IssueServiceImpl implements IssueService {
                     "issues/seal-removal"
             );
             sealRemovalImageUrl = (String) uploadResult.get("secure_url");
-            log.info("✅ Seal removal image uploaded: {}", sealRemovalImageUrl);
+            
         } catch (Exception e) {
             log.error("❌ Error uploading seal removal image: {}", e.getMessage());
             throw new RuntimeException("Failed to upload seal removal image", e);
@@ -626,17 +669,15 @@ public class IssueServiceImpl implements IssueService {
         // Update old seal status to REMOVED
         oldSeal.setStatus(SealEnum.REMOVED.name());
         sealEntityService.save(oldSeal);
-        log.info("🔓 Old seal {} marked as REMOVED due to issue report", oldSeal.getId());
 
         // Lưu issue
         IssueEntity saved = issueEntityService.save(issue);
-        log.info("✅ Seal removal issue saved with ID: {}", saved.getId());
 
         // Fetch full issue with all nested objects (vehicle, drivers, images)
         GetBasicIssueResponse response = getBasicIssue(saved.getId());
 
         // 📢 Broadcast seal issue to staff
-        log.info("🔓 Seal removal issue created, broadcasting to staff: {}", response.id());
+        
         issueWebSocketService.broadcastNewIssue(response);
 
         return response;
@@ -645,7 +686,6 @@ public class IssueServiceImpl implements IssueService {
     @Override
     @Transactional
     public GetBasicIssueResponse assignNewSeal(AssignNewSealRequest request) {
-        log.info("🔐 Staff assigning new seal {} to issue {}", request.newSealId(), request.issueId());
 
         // Tìm Issue
         IssueEntity issue = issueEntityService.findEntityById(request.issueId())
@@ -679,10 +719,6 @@ public class IssueServiceImpl implements IssueService {
                 ));
 
         // Debug log để kiểm tra seal status
-        log.info("🔍 Seal status validation - Seal ID: {}, Status: '{}', Expected: '{}'", 
-                newSeal.getId(), 
-                newSeal.getStatus(), 
-                SealEnum.ACTIVE.name());
 
         // Kiểm tra seal mới có status ACTIVE không
         if (!SealEnum.ACTIVE.name().equals(newSeal.getStatus())) {
@@ -708,22 +744,37 @@ public class IssueServiceImpl implements IssueService {
         GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(updated);
 
         // 📢 Broadcast status change
-        log.info("🔐 New seal assigned, broadcasting: {}", response.id());
+        
         issueWebSocketService.broadcastIssueStatusChange(response);
 
         // 📢 Send notification to driver
         if (issue.getVehicleAssignmentEntity() != null) {
             var driver1 = issue.getVehicleAssignmentEntity().getDriver1();
             if (driver1 != null) {
-                log.info("📲 Sending seal assignment notification to driver: {}", driver1.getId());
+                String driverId = driver1.getId().toString();
+                String driverUserId = driver1.getUser().getId().toString();
+                log.info("🔔 Sending SEAL_ASSIGNMENT notification:");
+                log.info("   Driver ID (CORRECT for WebSocket): {}", driverId);
+                log.info("   Driver User ID (DO NOT USE): {}", driverUserId);
+                log.info("   Topic: /topic/driver/{}/notifications", driverId);
+                log.info("   Old Seal: {}", issue.getOldSeal().getSealCode());
+                log.info("   New Seal: {}", newSeal.getSealCode());
+                log.info("   Staff: {}", staff.getFullName());
+                
                 issueWebSocketService.sendSealAssignmentNotification(
-                    driver1.getId().toString(),
+                    driverId,
                     response,
                     staff.getFullName(),
                     newSeal.getSealCode(),
                     issue.getOldSeal().getSealCode()
                 );
+                
+                log.info("✅ Seal assignment notification sent successfully");
+            } else {
+                log.warn("⚠️ Cannot send notification: driver1 is null");
             }
+        } else {
+            log.warn("⚠️ Cannot send notification: vehicle assignment is null");
         }
 
         return response;
@@ -732,7 +783,6 @@ public class IssueServiceImpl implements IssueService {
     @Override
     @Transactional
     public GetBasicIssueResponse confirmNewSeal(ConfirmNewSealRequest request) {
-        log.info("✅ Driver confirming new seal attachment for issue {}", request.issueId());
 
         // Tìm Issue
         IssueEntity issue = issueEntityService.findEntityById(request.issueId())
@@ -758,7 +808,6 @@ public class IssueServiceImpl implements IssueService {
         // Old seal: REMOVED
         oldSeal.setStatus(SealEnum.REMOVED.name());
         sealEntityService.save(oldSeal);
-        log.info("🔓 Old seal {} marked as REMOVED", oldSeal.getId());
 
         // New seal: IN_USE + Upload image to Cloudinary
         newSeal.setStatus(SealEnum.IN_USE.name());
@@ -779,7 +828,7 @@ public class IssueServiceImpl implements IssueService {
             );
             String imageUrl = uploadResult.get("secure_url").toString();
             newSeal.setSealAttachedImage(imageUrl);
-            log.info("📸 Seal image uploaded to Cloudinary: {}", imageUrl);
+            
         } catch (Exception e) {
             log.error("❌ Failed to upload seal image to Cloudinary: {}", e.getMessage(), e);
             // Fallback: store base64 if upload fails
@@ -788,7 +837,6 @@ public class IssueServiceImpl implements IssueService {
         
         newSeal.setSealDate(java.time.LocalDateTime.now());
         sealEntityService.save(newSeal);
-        log.info("🔐 New seal {} marked as IN_USE", newSeal.getId());
 
         // Update issue
         // Store the same URL in IssueEntity for consistency
@@ -806,7 +854,7 @@ public class IssueServiceImpl implements IssueService {
             );
             String imageUrl = uploadResult.get("secure_url").toString();
             issue.setNewSealAttachedImage(imageUrl);
-            log.info("📸 Issue seal image uploaded to Cloudinary: {}", imageUrl);
+            
         } catch (Exception e) {
             log.error("❌ Failed to upload issue seal image to Cloudinary: {}", e.getMessage(), e);
             // Fallback: store base64 if upload fails
@@ -817,32 +865,66 @@ public class IssueServiceImpl implements IssueService {
         issue.setStatus(IssueEnum.RESOLVED.name());
         issue.setResolvedAt(java.time.LocalDateTime.now());
 
-        // Restore order detail statuses
+        // ✅ CRITICAL: Restore order detail statuses from JSON map
+        // Format: {"orderDetailId1":"STATUS1","orderDetailId2":"STATUS2"}
+        // This correctly restores each OrderDetail to its original status (supports combined reports)
         var vehicleAssignment = issue.getVehicleAssignmentEntity();
         List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
         String tripStatusAtReport = issue.getTripStatusAtReport();
 
         if (tripStatusAtReport != null && !tripStatusAtReport.isEmpty()) {
-            String[] savedStatuses = tripStatusAtReport.split(",");
             UUID vehicleAssignmentId = vehicleAssignment != null ? vehicleAssignment.getId() : null;
             
-            for (int i = 0; i < Math.min(orderDetails.size(), savedStatuses.length); i++) {
-                OrderDetailEntity orderDetail = orderDetails.get(i);
-                String restoredStatus = savedStatuses[i].trim();
-                
-                try {
-                    OrderDetailStatusEnum restoredStatusEnum = OrderDetailStatusEnum.valueOf(restoredStatus);
-                    updateOrderDetailStatusWithNotification(
-                        orderDetail,
-                        restoredStatusEnum,
-                        vehicleAssignmentId
-                    );
-                } catch (IllegalArgumentException e) {
-                    log.warn("⚠️ Invalid status to restore: {}, skipping WebSocket", restoredStatus);
-                    orderDetail.setStatus(restoredStatus);
-                    orderDetailEntityService.save(orderDetail);
+            try {
+                // Parse JSON map: {"uuid1":"STATUS1","uuid2":"STATUS2"}
+                if (tripStatusAtReport.startsWith("{") && tripStatusAtReport.endsWith("}")) {
+                    log.info("🔄 Restoring statuses from JSON: {}", tripStatusAtReport);
+                    
+                    // Simple JSON parsing (avoiding dependencies)
+                    String jsonContent = tripStatusAtReport.substring(1, tripStatusAtReport.length() - 1); // Remove { }
+                    String[] entries = jsonContent.split(",");
+                    
+                    java.util.Map<String, String> statusMap = new java.util.HashMap<>();
+                    for (String entry : entries) {
+                        String[] parts = entry.split(":");
+                        if (parts.length == 2) {
+                            String id = parts[0].replace("\"", "").trim();
+                            String status = parts[1].replace("\"", "").trim();
+                            statusMap.put(id, status);
+                        }
+                    }
+                    
+                    // Restore each OrderDetail to its original status
+                    for (OrderDetailEntity orderDetail : orderDetails) {
+                        String savedStatus = statusMap.get(orderDetail.getId().toString());
+                        if (savedStatus != null) {
+                            try {
+                                OrderDetailStatusEnum restoredStatusEnum = OrderDetailStatusEnum.valueOf(savedStatus);
+                                updateOrderDetailStatusWithNotification(
+                                    orderDetail,
+                                    restoredStatusEnum,
+                                    vehicleAssignmentId
+                                );
+                                log.info("✅ Restored OrderDetail {} to status {}", orderDetail.getId(), savedStatus);
+                            } catch (IllegalArgumentException e) {
+                                log.warn("⚠️ Invalid status '{}' for OrderDetail {}", savedStatus, orderDetail.getId());
+                            }
+                        }
+                    }
+                } else {
+                    // Fallback: Old format (single status for all - backward compatibility)
+                    log.warn("⚠️ Old format detected, restoring all to: {}", tripStatusAtReport);
+                    OrderDetailStatusEnum restoredStatusEnum = OrderDetailStatusEnum.valueOf(tripStatusAtReport.trim());
+                    for (OrderDetailEntity orderDetail : orderDetails) {
+                        updateOrderDetailStatusWithNotification(
+                            orderDetail,
+                            restoredStatusEnum,
+                            vehicleAssignmentId
+                        );
+                    }
                 }
-                log.info("✅ Restored order detail {} to {}", orderDetail.getId(), restoredStatus);
+            } catch (Exception e) {
+                log.error("❌ Failed to restore statuses: {}", e.getMessage(), e);
             }
         }
 
@@ -852,7 +934,7 @@ public class IssueServiceImpl implements IssueService {
         GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(updated);
 
         // 📢 Broadcast resolution
-        log.info("✅ Seal replacement completed, broadcasting: {}", response.id());
+        
         issueWebSocketService.broadcastIssueStatusChange(response);
 
         // 📲 Send confirmation message to staff who assigned the seal
@@ -872,8 +954,7 @@ public class IssueServiceImpl implements IssueService {
                 String journeyCode = issue.getVehicleAssignmentEntity().getTrackingCode() != null ?
                         issue.getVehicleAssignmentEntity().getTrackingCode() :
                         "Chuyến #" + vehicleAssignmentId.substring(0, 8);
-                
-                log.info("📲 Sending seal confirmation message to staff: {}", staffId);
+
                 issueWebSocketService.sendSealConfirmationMessageToStaff(
                     staffId,
                     driverName,
@@ -892,8 +973,7 @@ public class IssueServiceImpl implements IssueService {
 
     @Override
     public capstone_project.dtos.response.order.seal.GetSealResponse getInUseSealByVehicleAssignment(UUID vehicleAssignmentId) {
-        log.info("Getting IN_USE seal for vehicle assignment: {}", vehicleAssignmentId);
-        
+
         // Tìm vehicle assignment
         var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId)
                 .orElseThrow(() -> new NotFoundException(
@@ -918,8 +998,7 @@ public class IssueServiceImpl implements IssueService {
 
     @Override
     public List<capstone_project.dtos.response.order.seal.GetSealResponse> getActiveSealsByVehicleAssignment(UUID vehicleAssignmentId) {
-        log.info("Getting ACTIVE seals for vehicle assignment: {}", vehicleAssignmentId);
-        
+
         // Tìm vehicle assignment
         var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId)
                 .orElseThrow(() -> new NotFoundException(
@@ -934,9 +1013,7 @@ public class IssueServiceImpl implements IssueService {
         List<SealEntity> activeSeals = allSeals.stream()
                 .filter(seal -> SealEnum.ACTIVE.name().equals(seal.getStatus()))
                 .toList();
-        
-        log.info("Found {} ACTIVE seals for vehicle assignment: {}", activeSeals.size(), vehicleAssignmentId);
-        
+
         // Convert to response
         return activeSeals.stream()
                 .map(sealMapper::toGetSealResponse)
@@ -945,8 +1022,7 @@ public class IssueServiceImpl implements IssueService {
 
     @Override
     public List<GetBasicIssueResponse> getPendingSealReplacementsByVehicleAssignment(UUID vehicleAssignmentId) {
-        log.info("Getting pending seal replacements for vehicle assignment: {}", vehicleAssignmentId);
-        
+
         // Tìm vehicle assignment
         var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId)
                 .orElseThrow(() -> new NotFoundException(
@@ -956,16 +1032,10 @@ public class IssueServiceImpl implements IssueService {
         
         // Lấy tất cả issues rồi filter theo vehicle assignment và các điều kiện khác
         List<IssueEntity> allIssues = issueEntityService.findAllSortedByReportedAtDesc();
-        log.info("🔍 DEBUG: Total issues found: {}", allIssues.size());
-        
+
         // Debug: Print all issues info
         for (IssueEntity issue : allIssues) {
-            log.info("🔍 DEBUG: Issue {} - Status: {}, Category: {}, NewSeal: {}, ConfirmedAt: {}", 
-                    issue.getId(),
-                    issue.getStatus(),
-                    issue.getIssueTypeEntity() != null ? issue.getIssueTypeEntity().getIssueCategory() : "NULL",
-                    issue.getNewSeal() != null ? issue.getNewSeal().getSealCode() : "NULL",
-                    issue.getNewSealConfirmedAt());
+            
         }
         
         // Filter chỉ lấy issues:
@@ -977,40 +1047,33 @@ public class IssueServiceImpl implements IssueService {
         List<IssueEntity> pendingReplacements = allIssues.stream()
                 .filter(issue -> {
                     boolean matchesVA = vehicleAssignment.equals(issue.getVehicleAssignmentEntity());
-                    log.info("🔍 FILTER VA: Issue {} matches VA: {}", issue.getId(), matchesVA);
+                    
                     return matchesVA;
                 })
                 .filter(issue -> {
                     boolean matchesStatus = IssueEnum.IN_PROGRESS.name().equals(issue.getStatus());
-                    log.info("🔍 FILTER STATUS: Issue {} status {} matches IN_PROGRESS: {}", 
-                            issue.getId(), issue.getStatus(), matchesStatus);
+                    
                     return matchesStatus;
                 })
                 .filter(issue -> {
                     String category = issue.getIssueTypeEntity() != null ? 
                             issue.getIssueTypeEntity().getIssueCategory() : "NULL";
                     boolean matchesCategory = IssueCategoryEnum.SEAL_REPLACEMENT.name().equals(category);
-                    log.info("🔍 FILTER CATEGORY: Issue {} category {} matches SEAL_REPLACEMENT: {}", 
-                            issue.getId(), category, matchesCategory);
+                    
                     return matchesCategory;
                 })
                 .filter(issue -> {
                     boolean hasNewSeal = issue.getNewSeal() != null;
-                    log.info("🔍 FILTER NEW SEAL: Issue {} has new seal: {}", 
-                            issue.getId(), hasNewSeal);
+                    
                     return hasNewSeal;
                 })
                 .filter(issue -> {
                     boolean notConfirmed = issue.getNewSealConfirmedAt() == null;
-                    log.info("🔍 FILTER CONFIRMED: Issue {} newSealConfirmedAt {} is null: {}", 
-                            issue.getId(), issue.getNewSealConfirmedAt(), notConfirmed);
+                    
                     return notConfirmed;
                 })
                 .toList();
-        
-        log.info("Found {} pending seal replacement(s) for vehicle assignment: {}", 
-                pendingReplacements.size(), vehicleAssignmentId);
-        
+
         // Convert to response
         return pendingReplacements.stream()
                 .map(issueMapper::toIssueBasicResponse)
@@ -1020,8 +1083,6 @@ public class IssueServiceImpl implements IssueService {
     @Override
     @Transactional
     public GetBasicIssueResponse reportDamageIssue(ReportDamageIssueRequest request) {
-        log.info("📦 Driver reporting damaged goods issue for {} order detail(s)", 
-                request.orderDetailIds() != null ? request.orderDetailIds().size() : 0);
 
         // Lấy VehicleAssignment
         var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(request.vehicleAssignmentId())
@@ -1042,20 +1103,39 @@ public class IssueServiceImpl implements IssueService {
             throw new IllegalStateException("Issue type must have DAMAGE category");
         }
 
-        // Lưu trạng thái hiện tại của vehicle assignment (lấy từ order detail đầu tiên)
-        String tripStatusAtReport = null;
+        // ✅ CRITICAL: Pre-fetch selected order details to build JSON status map
+        List<OrderDetailEntity> selectedOrderDetails = new java.util.ArrayList<>();
         if (request.orderDetailIds() != null && !request.orderDetailIds().isEmpty()) {
-            var firstOrderDetail = orderDetailEntityService.findByTrackingCode(
-                    request.orderDetailIds().get(0)
-            );
-            tripStatusAtReport = firstOrderDetail.map(OrderDetailEntity::getStatus).orElse(null);
+            for (String trackingCode : request.orderDetailIds()) {
+                try {
+                    OrderDetailEntity orderDetail = orderDetailEntityService.findByTrackingCode(trackingCode)
+                            .orElseThrow(() -> new NotFoundException(
+                                    ErrorEnum.ORDER_DETAIL_NOT_FOUND.getMessage() + trackingCode,
+                                    ErrorEnum.ORDER_DETAIL_NOT_FOUND.getErrorCode()
+                            ));
+                    selectedOrderDetails.add(orderDetail);
+                } catch (Exception e) {
+                    log.error("❌ Error fetching order detail {}: {}", trackingCode, e.getMessage());
+                    throw new RuntimeException("Failed to fetch order detail: " + trackingCode, e);
+                }
+            }
         }
-        log.info("💾 Saving trip status at report: {}", tripStatusAtReport);
 
-        // Tạo Issue trước
-        log.info("📍 Creating damage issue with location: lat={}, lng={}", 
-                request.locationLatitude(), request.locationLongitude());
-        
+        // ✅ CRITICAL: Build JSON status map from selected order details
+        String tripStatusAtReport = null;
+        if (!selectedOrderDetails.isEmpty()) {
+            StringBuilder jsonBuilder = new StringBuilder("{");
+            for (int i = 0; i < selectedOrderDetails.size(); i++) {
+                OrderDetailEntity od = selectedOrderDetails.get(i);
+                if (i > 0) jsonBuilder.append(",");
+                jsonBuilder.append("\"").append(od.getId()).append("\":\"").append(od.getStatus()).append("\"");
+            }
+            jsonBuilder.append("}");
+            tripStatusAtReport = jsonBuilder.toString();
+            log.info("💾 Saved trip status for combined damage report (JSON): {}", tripStatusAtReport);
+        }
+
+        // Tạo Issue với JSON status map
         IssueEntity issue = IssueEntity.builder()
                 .description(request.description())
                 .locationLatitude(request.locationLatitude() != null ? 
@@ -1072,46 +1152,33 @@ public class IssueServiceImpl implements IssueService {
 
         // Lưu issue
         IssueEntity saved = issueEntityService.save(issue);
-        log.info("✅ Issue created with ID: {}", saved.getId());
 
-        // Update tất cả order details bị hư hại
-        List<OrderDetailEntity> selectedOrderDetails = new java.util.ArrayList<>();
-        if (request.orderDetailIds() != null && !request.orderDetailIds().isEmpty()) {
-            for (String trackingCode : request.orderDetailIds()) {
+        // NOW update order details and link to issue
+        if (!selectedOrderDetails.isEmpty()) {
+            for (OrderDetailEntity orderDetail : selectedOrderDetails) {
                 try {
-                    OrderDetailEntity orderDetail = orderDetailEntityService.findByTrackingCode(trackingCode)
-                            .orElseThrow(() -> new NotFoundException(
-                                    ErrorEnum.ORDER_DETAIL_NOT_FOUND.getMessage() + trackingCode,
-                                    ErrorEnum.ORDER_DETAIL_NOT_FOUND.getErrorCode()
-                            ));
-
                     // Link order detail to issue and mark as IN_TROUBLES
-                    // Driver can continue trip, staff will update to COMPENSATION when processing refund
                     orderDetail.setIssueEntity(saved);
                     updateOrderDetailStatusWithNotification(
                         orderDetail,
                         OrderDetailStatusEnum.IN_TROUBLES,
                         vehicleAssignment.getId()
                     );
-                    
-                    selectedOrderDetails.add(orderDetail);
-                    
-                    log.info("🚨 Updated order detail {} to IN_TROUBLES (damaged goods) and linked to issue {}", 
-                             orderDetail.getId(), saved.getId());
                 } catch (Exception e) {
-                    log.error("❌ Error updating order detail {}: {}", trackingCode, e.getMessage());
-                    throw new RuntimeException("Failed to update order detail: " + trackingCode, e);
+                    log.error("❌ Error updating order detail {}: {}", orderDetail.getId(), e.getMessage());
+                    throw new RuntimeException("Failed to update order detail: " + orderDetail.getId(), e);
                 }
             }
             
             // Set orderDetails to issue for bidirectional relationship
             saved.setOrderDetails(selectedOrderDetails);
             issueEntityService.save(saved);
+
+            // ❌ REMOVED: Auto-update remaining order details to DELIVERED
+            // ✅ NEW FLOW: Driver must upload delivery photos for packages without issues
+            // This ensures we have photo confirmation for all successfully delivered packages
+            // Mobile app will prompt driver to take delivery photos after reporting damage
             
-            log.info("✅ Linked {} order details to DAMAGE issue {}", 
-                     selectedOrderDetails.size(), saved.getId());
-            
-            // Update remaining order details in this vehicle assignment to DELIVERED
             var affectedOrderDetailIds = selectedOrderDetails.stream()
                     .map(OrderDetailEntity::getId)
                     .collect(java.util.stream.Collectors.toSet());
@@ -1122,26 +1189,15 @@ public class IssueServiceImpl implements IssueService {
                     .filter(od -> "ONGOING_DELIVERED".equals(od.getStatus()) || "ON_DELIVERED".equals(od.getStatus()))
                     .collect(java.util.stream.Collectors.toList());
             
-            if (!remainingOrderDetails.isEmpty()) {
-                remainingOrderDetails.forEach(orderDetail -> {
-                    updateOrderDetailStatusWithNotification(
-                        orderDetail,
-                        OrderDetailStatusEnum.DELIVERED,
-                        vehicleAssignment.getId()
-                    );
-                    log.info("📦 OrderDetail {} (not damaged) status updated to DELIVERED", 
-                             orderDetail.getTrackingCode());
-                });
-                log.info("✅ Updated {} remaining order details to DELIVERED status", 
-                         remainingOrderDetails.size());
-            }
+            log.info("📦 Damage report: {} packages marked IN_TROUBLES, {} packages require delivery photo confirmation",
+                    selectedOrderDetails.size(), remainingOrderDetails.size());
         }
 
         // Upload damage images to Cloudinary and save to issue_images table
         if (request.damageImages() != null && !request.damageImages().isEmpty()) {
             for (MultipartFile imageFile : request.damageImages()) {
                 try {
-                    log.info("📤 Uploading damage image to Cloudinary...");
+                    
                     // Don't add .jpg extension - Cloudinary will add it based on the file
                     String imageUrl = cloudinaryService.uploadFile(imageFile.getBytes(), 
                             "damage_" + System.currentTimeMillis(), 
@@ -1151,7 +1207,7 @@ public class IssueServiceImpl implements IssueService {
                     if (imageUrl.contains(".jpg.jpg")) {
                         log.warn("⚠️ Double .jpg extension detected in URL: {}", imageUrl);
                     } else {
-                        log.info("✅ Damage image uploaded (no double extension): {}", imageUrl);
+                        
                     }
 
                     // Save to issue_images table
@@ -1163,8 +1219,7 @@ public class IssueServiceImpl implements IssueService {
                             .build();
                     
                     issueImageEntityService.save(issueImage);
-                    log.info("✅ Damage image saved to database");
-                    
+
                 } catch (Exception e) {
                     log.error("❌ Error uploading damage image: {}", e.getMessage());
                     throw new RuntimeException("Failed to upload damage image", e);
@@ -1172,11 +1227,15 @@ public class IssueServiceImpl implements IssueService {
             }
         }
 
+        // 🔐 SEAL REMOVAL: Removed auto-removal logic
+        // Driver will manually report seal removal when needed through the app
+        // This prevents conflicts with return goods flow where seal removal report is required AFTER customer payment
+
         // Fetch full issue with all nested objects (vehicle, drivers, images)
         GetBasicIssueResponse response = getBasicIssue(saved.getId());
 
         // 📢 Broadcast damage issue to staff
-        log.info("📦 Damage issue created, broadcasting to staff: {}", response.id());
+        
         issueWebSocketService.broadcastNewIssue(response);
 
         return response;
@@ -1191,11 +1250,6 @@ public class IssueServiceImpl implements IssueService {
             MultipartFile violationImage,
             Double locationLatitude,
             Double locationLongitude) {
-        
-        log.info("🚨 Driver reporting traffic penalty violation");
-        log.info("   - Vehicle Assignment ID: {}", vehicleAssignmentId);
-        log.info("   - Issue Type ID: {}", issueTypeId);
-        log.info("   - Violation Type: {}", violationType);
 
         // Get VehicleAssignment
         var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId)
@@ -1217,8 +1271,7 @@ public class IssueServiceImpl implements IssueService {
         }
 
         // Create Issue
-        log.info("📍 Creating penalty issue with location: lat={}, lng={}", locationLatitude, locationLongitude);
-        
+
         IssueEntity issue = IssueEntity.builder()
                 .description("Vi phạm giao thông: " + violationType)
                 .locationLatitude(locationLatitude != null ? 
@@ -1235,19 +1288,16 @@ public class IssueServiceImpl implements IssueService {
 
         // Save issue
         IssueEntity saved = issueEntityService.save(issue);
-        log.info("✅ Penalty issue created with ID: {}", saved.getId());
 
         // Upload penalty violation record image to Cloudinary
         if (violationImage != null && !violationImage.isEmpty()) {
             try {
-                log.info("📤 Uploading traffic violation record image to Cloudinary...");
+                
                 String imageUrl = cloudinaryService.uploadFile(
                         violationImage.getBytes(), 
                         "penalty_" + saved.getId() + "_" + System.currentTimeMillis(), 
                         "penalties/traffic-violations"
                 ).get("secure_url").toString();
-                
-                log.info("✅ Penalty image uploaded: {}", imageUrl);
 
                 // Save image URL to issue_images table
                 IssueImageEntity imageEntity = IssueImageEntity.builder()
@@ -1257,8 +1307,7 @@ public class IssueServiceImpl implements IssueService {
                         .build();
                 
                 issueImageEntityService.save(imageEntity);
-                log.info("✅ Penalty image saved to database");
-                
+
             } catch (Exception e) {
                 log.error("❌ Error uploading penalty image: {}", e.getMessage(), e);
                 throw new RuntimeException("Failed to upload penalty violation image", e);
@@ -1269,7 +1318,7 @@ public class IssueServiceImpl implements IssueService {
         GetBasicIssueResponse response = getBasicIssue(saved.getId());
 
         // Broadcast penalty issue to staff
-        log.info("🚨 Penalty issue created, broadcasting to staff: {}", response.id());
+        
         issueWebSocketService.broadcastNewIssue(response);
 
         return response;
@@ -1280,8 +1329,6 @@ public class IssueServiceImpl implements IssueService {
     @Override
     @Transactional
     public GetBasicIssueResponse reportOrderRejection(capstone_project.dtos.request.issue.ReportOrderRejectionRequest request) {
-        log.info("🚫 Driver reporting order rejection for vehicle assignment: {} with {} package(s)", 
-                 request.vehicleAssignmentId(), request.orderDetailIds().size());
 
         // Get Vehicle Assignment
         var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(request.vehicleAssignmentId())
@@ -1299,8 +1346,6 @@ public class IssueServiceImpl implements IssueService {
                         "No active ORDER_REJECTION issue type found",
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
-
-        log.info("📋 Auto-selected issue type: {} ({})", issueType.getIssueTypeName(), issueType.getId());
 
         // Get and validate selected order details (orderDetailIds are tracking codes)
         List<OrderDetailEntity> selectedOrderDetails = new java.util.ArrayList<>();
@@ -1331,15 +1376,22 @@ public class IssueServiceImpl implements IssueService {
                         .collect(java.util.stream.Collectors.joining(", "))
         );
 
-        // Save trip status at report (all order details in vehicle assignment)
-        List<OrderDetailEntity> allOrderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
-        String tripStatusAtReport = allOrderDetails.stream()
-                .map(OrderDetailEntity::getStatus)
-                .reduce((s1, s2) -> s1 + "," + s2)
-                .orElse("");
-        
-        log.info("💾 Saving trip status at report: {}", tripStatusAtReport);
-        
+        // ✅ CRITICAL: Save statuses as JSON map for SELECTED order details only
+        // Format: {"orderDetailId1":"STATUS1","orderDetailId2":"STATUS2"}
+        // Only save statuses for rejected packages, not all packages in vehicle assignment
+        String tripStatusAtReport = null;
+        if (!selectedOrderDetails.isEmpty()) {
+            StringBuilder jsonBuilder = new StringBuilder("{");
+            for (int i = 0; i < selectedOrderDetails.size(); i++) {
+                OrderDetailEntity od = selectedOrderDetails.get(i);
+                if (i > 0) jsonBuilder.append(",");
+                jsonBuilder.append("\"").append(od.getId()).append("\":\"").append(od.getStatus()).append("\"");
+            }
+            jsonBuilder.append("}");
+            tripStatusAtReport = jsonBuilder.toString();
+            log.info("💾 Saved trip status for order rejection (JSON, selected only): {}", tripStatusAtReport);
+        }
+
         // Update ONLY selected order details to IN_TROUBLES with WebSocket notification
         selectedOrderDetails.forEach(orderDetail -> {
             updateOrderDetailStatusWithNotification(
@@ -1364,8 +1416,6 @@ public class IssueServiceImpl implements IssueService {
 
         // Save issue first to get ID
         IssueEntity saved = issueEntityService.save(issue);
-        log.info("✅ ORDER_REJECTION issue created with ID: {} for {} package(s)", 
-                 saved.getId(), selectedOrderDetails.size());
 
         // Link selected order details to this issue (bidirectional)
         selectedOrderDetails.forEach(orderDetail -> {
@@ -1376,15 +1426,12 @@ public class IssueServiceImpl implements IssueService {
         // Set orderDetails to issue for bidirectional relationship
         saved.setOrderDetails(selectedOrderDetails);
         issueEntityService.save(saved);
-        
-        log.info("✅ Linked {} order details to ORDER_REJECTION issue {}", 
-                 selectedOrderDetails.size(), saved.getId());
 
         // Fetch full issue with all nested objects
         GetBasicIssueResponse response = getBasicIssue(saved.getId());
 
         // Broadcast to staff
-        log.info("🚨 ORDER_REJECTION issue created, broadcasting to staff: {}", response.id());
+        
         issueWebSocketService.broadcastNewIssue(response);
 
         return response;
@@ -1392,15 +1439,13 @@ public class IssueServiceImpl implements IssueService {
 
     @Override
     public capstone_project.dtos.response.issue.ReturnShippingFeeResponse calculateReturnShippingFee(UUID issueId) {
-        log.info("💰 Calculating return shipping fee for issue: {}", issueId);
-        
+
         // Use the overloaded method with null distance to use default calculation
         return calculateReturnShippingFee(issueId, null);
     }
     
     @Override
     public capstone_project.dtos.response.issue.ReturnShippingFeeResponse calculateReturnShippingFee(UUID issueId, java.math.BigDecimal actualDistanceKm) {
-        log.info("💰 Calculating return shipping fee for issue: {} with custom distance: {}", issueId, actualDistanceKm);
 
         // Get Issue
         IssueEntity issue = issueEntityService.findEntityById(issueId)
@@ -1421,8 +1466,6 @@ public class IssueServiceImpl implements IssueService {
             throw new IllegalStateException("No order details selected for return in this issue");
         }
 
-        log.info("📦 Calculating fee for {} selected package(s) to return", selectedOrderDetails.size());
-
         // Get order from first order detail (all should belong to same order)
         var order = selectedOrderDetails.get(0).getOrderEntity();
 
@@ -1432,7 +1475,7 @@ public class IssueServiceImpl implements IssueService {
             && issue.getVehicleAssignmentEntity().getVehicleEntity() != null 
             && issue.getVehicleAssignmentEntity().getVehicleEntity().getVehicleTypeEntity() != null) {
             vehicleType = issue.getVehicleAssignmentEntity().getVehicleEntity().getVehicleTypeEntity().getVehicleTypeName();
-            log.info("🚗 Found vehicle type from assignment: {}", vehicleType);
+            
         } else {
             log.warn("⚠️ No vehicle type found in assignment, using default");
             vehicleType = "car"; // Default fallback
@@ -1442,7 +1485,7 @@ public class IssueServiceImpl implements IssueService {
         java.math.BigDecimal distanceKm;
         if (actualDistanceKm != null && actualDistanceKm.compareTo(java.math.BigDecimal.ZERO) > 0) {
             distanceKm = actualDistanceKm;
-            log.info("📏 Using client-provided distance: {} km", distanceKm);
+            
         } else {
             // Calculate distance from delivery address back to pickup address (return route) with vehicle type
             distanceKm = contractService.calculateDistanceKm(
@@ -1450,7 +1493,7 @@ public class IssueServiceImpl implements IssueService {
                     order.getPickupAddress(),
                     vehicleType
             );
-            log.info("📏 Calculated return distance from addresses with vehicle type {}: {} km", vehicleType, distanceKm);
+            
         }
 
         // Get contract to calculate pricing
@@ -1481,20 +1524,14 @@ public class IssueServiceImpl implements IssueService {
             vehicleCountMap.put(sizeRuleId, vehicleCountMap.getOrDefault(sizeRuleId, 0) + 1);
         }
 
-        log.info("🚗 Vehicle count map for return (sizeRuleId -> count): {}", vehicleCountMap);
-
         // Calculate total weight of selected packages for logging
         double totalWeight = selectedOrderDetails.stream()
                 .mapToDouble(od -> od.getWeightBaseUnit() != null ? od.getWeightBaseUnit().doubleValue() : 0.0)
                 .sum();
-        log.info("⚖️ Total weight of packages to return: {} kg", totalWeight);
 
         // Calculate return shipping fee using contract pricing logic
         PriceCalculationResponse priceResponse =
                 contractService.calculateTotalPrice(contract, distanceKm, vehicleCountMap);
-
-        log.info("💵 Calculated return shipping fee: {} VND for {} package(s)", 
-                 priceResponse.getTotalPrice(), selectedOrderDetails.size());
 
         // Determine final fee (adjusted fee if set by staff, otherwise calculated fee)
         java.math.BigDecimal finalFee = issue.getAdjustedReturnFee() != null 
@@ -1516,23 +1553,11 @@ public class IssueServiceImpl implements IssueService {
     public capstone_project.dtos.response.issue.OrderRejectionDetailResponse processOrderRejection(
             capstone_project.dtos.request.issue.ProcessOrderRejectionRequest request
     ) {
-        log.info("⚙️ Staff processing ORDER_REJECTION issue: {}", request.issueId());
-        log.info("📦 Received {} route segments", request.routeSegments() != null ? request.routeSegments().size() : 0);
-        
+
         // Log first segment details for debugging
         if (request.routeSegments() != null && !request.routeSegments().isEmpty()) {
             var firstSegment = request.routeSegments().get(0);
-            log.info("🔍 First segment example: {} → {} | startLat={}, startLng={}, endLat={}, endLng={}, distance={}, pathLength={}, tollCount={}",
-                    firstSegment.startPointName(),
-                    firstSegment.endPointName(),
-                    firstSegment.startLatitude(),
-                    firstSegment.startLongitude(),
-                    firstSegment.endLatitude(),
-                    firstSegment.endLongitude(),
-                    firstSegment.distanceMeters(),
-                    firstSegment.pathCoordinatesJson() != null ? firstSegment.pathCoordinatesJson().length() : 0,
-                    firstSegment.tollDetails() != null ? firstSegment.tollDetails().size() : 0
-            );
+            
         }
 
         // Get Issue
@@ -1553,7 +1578,7 @@ public class IssueServiceImpl implements IssueService {
         // Update adjusted fee if provided
         if (request.adjustedReturnFee() != null) {
             issue.setAdjustedReturnFee(request.adjustedReturnFee());
-            log.info("💵 Staff adjusted return fee to: {}", request.adjustedReturnFee());
+            
         }
 
         // Set return shipping fee (use calculated fee)
@@ -1563,8 +1588,6 @@ public class IssueServiceImpl implements IssueService {
         java.math.BigDecimal finalFee = issue.getAdjustedReturnFee() != null 
                 ? issue.getAdjustedReturnFee() 
                 : issue.getReturnShippingFee();
-
-        log.info("💰 Return shipping fee calculated: {} VND (Staff will create payment link separately)", finalFee);
 
         // Get order and contract for reference (needed for journey creation)
         List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(
@@ -1576,23 +1599,20 @@ public class IssueServiceImpl implements IssueService {
 
         // NOTE: Payment link will be created separately via POST /api/payos-transaction/{contractId}/return-shipping
         // This avoids nested transaction issues and follows the same pattern as deposit/full payment
-        log.info("💳 Contract ID for payment: {} - Frontend will call payment endpoint separately", contract.getId());
 
         // ========== MERGE OLD JOURNEY + RETURN SEGMENTS ==========
-        // Step 1: Lấy journey history cũ để copy các segments đã đi
-        List<capstone_project.entity.order.order.JourneyHistoryEntity> oldJourneys = 
-                journeyHistoryEntityService.findByVehicleAssignmentId(
+        // Step 1: ✅ Lấy journey history ACTIVE/COMPLETED mới nhất để copy các segments đã đi
+        capstone_project.entity.order.order.JourneyHistoryEntity oldJourney = 
+                journeyHistoryEntityService.findLatestActiveJourney(
                         issue.getVehicleAssignmentEntity().getId()
-                );
+                ).orElse(null);
         
-        log.info("📜 Found {} existing journeys for vehicle assignment {}", 
-                oldJourneys.size(), issue.getVehicleAssignmentEntity().getId());
-        
-        // Get the latest ACTIVE or COMPLETED journey (should have segments already traveled)
-        capstone_project.entity.order.order.JourneyHistoryEntity oldJourney = oldJourneys.stream()
-                .filter(j -> "ACTIVE".equals(j.getStatus()) || "COMPLETED".equals(j.getStatus()))
-                .findFirst()
-                .orElse(oldJourneys.isEmpty() ? null : oldJourneys.get(0));
+        if (oldJourney != null) {
+            
+        } else {
+            log.warn("⚠️ No ACTIVE/COMPLETED journey found for vehicle assignment {}", 
+                    issue.getVehicleAssignmentEntity().getId());
+        }
         
         // Step 2: Create new journey for return route with merged segments
         capstone_project.entity.order.order.JourneyHistoryEntity returnJourney = 
@@ -1613,10 +1633,7 @@ public class IssueServiceImpl implements IssueService {
         if (oldJourney != null && oldJourney.getJourneySegments() != null) {
             List<capstone_project.entity.order.order.JourneySegmentEntity> oldSegments = 
                     oldJourney.getJourneySegments();
-            
-            log.info("📍 Copying {} segments from old journey, excluding last segment", 
-                    oldSegments.size());
-            
+
             // Copy all segments EXCEPT the last one (delivery → carrier)
             // The last segment will be replaced by return segments
             for (int i = 0; i < oldSegments.size() - 1; i++) {
@@ -1631,7 +1648,7 @@ public class IssueServiceImpl implements IssueService {
                         .startLongitude(oldSeg.getStartLongitude())
                         .endLatitude(oldSeg.getEndLatitude())
                         .endLongitude(oldSeg.getEndLongitude())
-                        .distanceMeters(oldSeg.getDistanceMeters())
+                        .distanceKilometers(oldSeg.getDistanceKilometers())
                         .status(oldSeg.getStatus()) // Keep original status (COMPLETED/ACTIVE)
                         .estimatedTollFee(oldSeg.getEstimatedTollFee())
                         .pathCoordinatesJson(oldSeg.getPathCoordinatesJson())
@@ -1641,28 +1658,15 @@ public class IssueServiceImpl implements IssueService {
                 
                 allSegments.add(copiedSegment);
             }
-            
-            log.info("✅ Copied {} old segments (excluding last delivery→carrier)", 
-                    allSegments.size());
+
         } else {
             log.warn("⚠️ No old journey found, creating return journey with only return segments");
         }
         
         // Step 4: Add return segments (delivery → pickup → carrier)
-        log.info("🔄 Adding {} return segments", request.routeSegments().size());
-        
+
         for (capstone_project.dtos.request.order.RouteSegmentInfo segmentInfo : request.routeSegments()) {
-            log.info("📍 Processing segment {}: {} → {} (lat: {}, lng: {}, endLat: {}, endLng: {}, distance: {}km, pathLength: {})",
-                    nextSegmentOrder,
-                    segmentInfo.startPointName(),
-                    segmentInfo.endPointName(),
-                    segmentInfo.startLatitude(),
-                    segmentInfo.startLongitude(),
-                    segmentInfo.endLatitude(),
-                    segmentInfo.endLongitude(),
-                    segmentInfo.distanceMeters(),
-                    segmentInfo.pathCoordinatesJson() != null ? segmentInfo.pathCoordinatesJson().length() : 0);
-            
+
             capstone_project.entity.order.order.JourneySegmentEntity segment = 
                     capstone_project.entity.order.order.JourneySegmentEntity.builder()
                     .segmentOrder(nextSegmentOrder++) // Continue from old segments
@@ -1672,7 +1676,7 @@ public class IssueServiceImpl implements IssueService {
                     .startLongitude(segmentInfo.startLongitude())
                     .endLatitude(segmentInfo.endLatitude())
                     .endLongitude(segmentInfo.endLongitude())
-                    .distanceMeters(segmentInfo.distanceMeters())
+                    .distanceKilometers(segmentInfo.distanceMeters())
                     .estimatedTollFee(segmentInfo.estimatedTollFee() != null ? segmentInfo.estimatedTollFee().longValue() : null) // Convert BigDecimal to Long
                     .status("PENDING")
                     .journeyHistory(returnJourney)
@@ -1693,36 +1697,32 @@ public class IssueServiceImpl implements IssueService {
 
             allSegments.add(segment);
         }
-        
-        log.info("📊 Total segments in new return journey: {} (old: {}, return: {})", 
-                allSegments.size(), 
-                allSegments.size() - request.routeSegments().size(),
-                request.routeSegments().size());
 
         returnJourney.setJourneySegments(allSegments);
         returnJourney = journeyHistoryEntityService.save(returnJourney);
-        log.info("🛣️ Created INACTIVE return journey: {}", returnJourney.getId());
 
         issue.setReturnJourney(returnJourney);
 
         // Set payment deadline from configuration (driver cannot wait too long)
         issue.setPaymentDeadline(java.time.LocalDateTime.now().plusMinutes(returnPaymentDeadlineMinutes));
-        log.info("⏰ Payment deadline set to {} minutes from now ({})", 
-                returnPaymentDeadlineMinutes, issue.getPaymentDeadline());
 
         // Update issue status to IN_PROGRESS
         issue.setStatus(IssueEnum.IN_PROGRESS.name());
 
         // Save issue
         issue = issueEntityService.save(issue);
-        log.info("✅ ORDER_REJECTION issue processed, status: IN_PROGRESS");
+
+        // ⏰ CRITICAL: Schedule real-time timeout check
+        // This ensures driver gets notification within seconds of deadline expiring
+        // Safety net scheduler will catch any missed cases due to server restart
+        paymentTimeoutSchedulerService.scheduleTimeoutCheck(issue);
 
         // Broadcast WebSocket notification for issue status change
         // This ensures customer order detail page receives update and refetches
         try {
             GetBasicIssueResponse issueResponse = issueMapper.toIssueBasicResponse(issue);
             issueWebSocketService.broadcastIssueStatusChange(issueResponse);
-            log.info("📢 Broadcasted issue status change via WebSocket for issue: {}", issue.getId());
+            
         } catch (Exception e) {
             log.error("❌ Failed to broadcast issue status change: {}", e.getMessage());
             // Don't fail the whole operation if broadcast fails
@@ -1735,8 +1735,6 @@ public class IssueServiceImpl implements IssueService {
         // 3. Frontend calls POST /api/payos-transaction/{contractId}/return-shipping
         // 4. Backend creates transaction + PayOS link
         // 5. Frontend redirects to PayOS checkout URL
-        log.info("💳 Contract ID: {} - Customer will create payment via frontend when clicking 'Pay' button", 
-                contract.getId());
 
         // Return detail response
         return getOrderRejectionDetail(issue.getId());
@@ -1744,7 +1742,6 @@ public class IssueServiceImpl implements IssueService {
 
     @Override
     public capstone_project.dtos.response.issue.OrderRejectionDetailResponse getOrderRejectionDetail(UUID issueId) {
-        log.info("📋 Getting ORDER_REJECTION detail for issue: {}", issueId);
 
         // Get Issue with all relations
         IssueEntity issue = issueEntityService.findByIdWithDetails(issueId)
@@ -1758,20 +1755,35 @@ public class IssueServiceImpl implements IssueService {
             throw new IllegalStateException("Issue is not ORDER_REJECTION type");
         }
 
-        // Get order details
-        List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(
-                issue.getVehicleAssignmentEntity()
-        );
+        // Get ONLY order details linked to this issue (not all order details in vehicle assignment)
+        List<OrderDetailEntity> orderDetails = issue.getOrderDetails();
+        
+        if (orderDetails == null || orderDetails.isEmpty()) {
+            throw new IllegalStateException("Issue has no linked order details");
+        }
+        
+        // Debug log
+//        log.info("📦 Issue {} has {} linked order details: {}",
+//                issueId,
+//                orderDetails.size(),
+//                orderDetails.stream()
+//                    .map(OrderDetailEntity::getTrackingCode)
+//                    .collect(java.util.stream.Collectors.joining(", ")));
 
         // Map to response
         List<capstone_project.dtos.response.issue.OrderDetailForIssueResponse> affectedOrderDetails = 
                 orderDetails.stream()
-                .map(od -> new capstone_project.dtos.response.issue.OrderDetailForIssueResponse(
-                        od.getTrackingCode(),
-                        od.getDescription(),
-                        od.getWeightBaseUnit(),
-                        od.getUnit()
-                ))
+                .map(od -> {
+                    String orderId = od.getOrderEntity() != null ? 
+                                    od.getOrderEntity().getId().toString() : null;
+                    return new capstone_project.dtos.response.issue.OrderDetailForIssueResponse(
+                            od.getTrackingCode(),
+                            od.getDescription(),
+                            od.getWeightBaseUnit(),
+                            od.getUnit(),
+                            orderId
+                    );
+                })
                 .collect(java.util.stream.Collectors.toList());
 
         // Get customer info from order
@@ -1829,11 +1841,11 @@ public class IssueServiceImpl implements IssueService {
         if (issue.getReturnJourney() != null) {
             var journey = issue.getReturnJourney();
             // Simple journey response without full segment details
-            // Calculate total distance from segments
+            // Calculate total distance from segments (already in km)
             Double totalDistance = journey.getJourneySegments() != null
                     ? journey.getJourneySegments().stream()
-                            .mapToInt(seg -> seg.getDistanceMeters() != null ? seg.getDistanceMeters() : 0)
-                            .sum() / 1000.0 // Convert meters to km
+                            .mapToInt(seg -> seg.getDistanceKilometers() != null ? seg.getDistanceKilometers() : 0)
+                            .sum() * 1.0
                     : 0.0;
             
             journeyResponse = new capstone_project.dtos.response.order.JourneyHistoryResponse(
@@ -1889,8 +1901,6 @@ public class IssueServiceImpl implements IssueService {
             List<org.springframework.web.multipart.MultipartFile> files,
             UUID issueId
     ) throws java.io.IOException {
-        log.info("📦 Driver confirming return delivery for issue: {}", issueId);
-        log.info("   - Number of images: {}", files != null ? files.size() : 0);
 
         // Get Issue
         IssueEntity issue = issueEntityService.findEntityById(issueId)
@@ -1927,8 +1937,7 @@ public class IssueServiceImpl implements IssueService {
                         .issueEntity(issue)
                         .build();
                 issueImageEntityService.save(imageEntity);
-                log.info("📸 Uploaded and saved return delivery image for issue: {}", issue.getId());
-                log.info("   - Cloudinary URL: {}", imageUrl);
+
             }
         }
 
@@ -1952,71 +1961,25 @@ public class IssueServiceImpl implements IssueService {
             );
         });
 
-        // Update Order status based on ALL OrderDetails using priority logic
-        // CRITICAL: Multi-trip support - check all order details across all trips
-        // Priority: DELIVERED > IN_TROUBLES > COMPENSATION > RETURNING > RETURNED
+        // ✅ CRITICAL FIX: Use OrderDetailStatusService to auto-update Order status
+        // This ensures correct priority logic (COMPENSATION > IN_TROUBLES > CANCELLED > RETURNING/RETURNED > DELIVERED)
+        // NEVER manually calculate Order status - delegate to the centralized service
         var vehicleAssignment = issue.getVehicleAssignmentEntity();
         if (vehicleAssignment != null) {
             Optional<OrderEntity> orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
             if (orderOpt.isPresent()) {
                 OrderEntity order = orderOpt.get();
-                String oldStatus = order.getStatus();
                 
-                // Get ALL orderDetails of this Order (across all trips)
-                var allDetailsInOrder = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(order.getId());
+                // Trigger auto-update using centralized service
+                // This will apply correct priority logic:
+                // - COMPENSATION (highest priority if ANY package compensated)
+                // - IN_TROUBLES (if ANY package has active issue)
+                // - CANCELLED (if ALL packages cancelled)
+                // - RETURNING/RETURNED (if ALL packages in return flow)
+                // - DELIVERED (only if ALL packages delivered)
+                orderDetailStatusService.triggerOrderStatusUpdate(order.getId());
                 
-                long deliveredCount = allDetailsInOrder.stream()
-                        .filter(od -> "DELIVERED".equals(od.getStatus())).count();
-                long successfulCount = allDetailsInOrder.stream()
-                        .filter(od -> "SUCCESSFUL".equals(od.getStatus())).count();
-                long inTroublesCount = allDetailsInOrder.stream()
-                        .filter(od -> "IN_TROUBLES".equals(od.getStatus())).count();
-                long compensationCount = allDetailsInOrder.stream()
-                        .filter(od -> "COMPENSATION".equals(od.getStatus())).count();
-                long returningCount = allDetailsInOrder.stream()
-                        .filter(od -> "RETURNING".equals(od.getStatus())).count();
-                long returnedCount = allDetailsInOrder.stream()
-                        .filter(od -> "RETURNED".equals(od.getStatus())).count();
-                
-                String newStatus;
-                String reason;
-                
-                // Apply priority logic
-                if (deliveredCount > 0 || successfulCount > 0) {
-                    // Has delivered packages → SUCCESSFUL
-                    newStatus = capstone_project.common.enums.OrderStatusEnum.SUCCESSFUL.name();
-                    reason = String.format("%d delivered/successful, %d returned", 
-                            deliveredCount + successfulCount, returnedCount);
-                } else if (inTroublesCount > 0) {
-                    // No delivered, has troubles → IN_TROUBLES
-                    newStatus = capstone_project.common.enums.OrderStatusEnum.IN_TROUBLES.name();
-                    reason = String.format("%d in troubles, %d returned", inTroublesCount, returnedCount);
-                } else if (compensationCount > 0) {
-                    // No delivered, no troubles, has compensation → COMPENSATION
-                    newStatus = capstone_project.common.enums.OrderStatusEnum.COMPENSATION.name();
-                    reason = String.format("%d compensated, %d returned", compensationCount, returnedCount);
-                } else if (returningCount > 0) {
-                    // Still has packages returning
-                    newStatus = capstone_project.common.enums.OrderStatusEnum.RETURNING.name();
-                    reason = String.format("%d returning, %d returned", returningCount, returnedCount);
-                } else if (returnedCount == allDetailsInOrder.size()) {
-                    // All returned → RETURNED
-                    newStatus = capstone_project.common.enums.OrderStatusEnum.RETURNED.name();
-                    reason = String.format("All %d packages returned", returnedCount);
-                } else {
-                    // Fallback
-                    newStatus = oldStatus;
-                    reason = "No status change needed";
-                }
-                
-                if (!newStatus.equals(oldStatus)) {
-                    order.setStatus(newStatus);
-                    orderEntityService.save(order);
-                    log.info("✅ Order {} status updated from {} to {} (driver confirmed return delivery, multi-trip: {})", 
-                             order.getId(), oldStatus, newStatus, reason);
-                } else {
-                    log.info("ℹ️ Order {} status unchanged: {} ({})", order.getId(), oldStatus, reason);
-                }
+                log.info("✅ Order status auto-updated after return delivery confirmation for Order: {}", order.getId());
             }
         }
 
@@ -2026,7 +1989,6 @@ public class IssueServiceImpl implements IssueService {
 
         // Save issue
         issue = issueEntityService.save(issue);
-        log.info("✅ ORDER_REJECTION issue resolved, goods returned to pickup");
 
         return getBasicIssue(issue.getId());
     }
@@ -2034,8 +1996,7 @@ public class IssueServiceImpl implements IssueService {
     @Override
     @Transactional
     public capstone_project.dtos.response.order.transaction.TransactionResponse createReturnPaymentTransaction(UUID issueId) {
-        log.info("💳 Customer creating return shipping payment transaction for issue: {}", issueId);
-        
+
         // Get Issue
         IssueEntity issue = issueEntityService.findEntityById(issueId)
                 .orElseThrow(() -> new NotFoundException(
@@ -2073,10 +2034,7 @@ public class IssueServiceImpl implements IssueService {
         var order = orderDetails.get(0).getOrderEntity();
         var contract = contractEntityService.getContractByOrderId(order.getId())
                 .orElseThrow(() -> new IllegalStateException("No contract found for order: " + order.getId()));
-        
-        log.info("💳 Creating return shipping payment for contract {} with amount {}", 
-                contract.getId(), finalFee);
-        
+
         // Create transaction using PayOS service
         capstone_project.dtos.response.order.transaction.TransactionResponse transactionResponse = 
                 payOSTransactionService.createReturnShippingTransaction(
@@ -2084,11 +2042,377 @@ public class IssueServiceImpl implements IssueService {
                         finalFee, 
                         issue.getId()
                 );
-        
-        log.info("✅ Created return shipping transaction: {} for issue: {}", transactionResponse.id(), issue.getId());
-        
+
         // Transaction already has issueId set, no need to link back
         return transactionResponse;
+    }
+    
+    // ===== REROUTE flow implementations =====
+    
+    @Override
+    @Transactional
+    public GetBasicIssueResponse reportRerouteIssue(
+            capstone_project.dtos.request.issue.ReportRerouteRequest request,
+            java.util.List<org.springframework.web.multipart.MultipartFile> files
+    ) throws java.io.IOException {
+        
+        // Validate vehicle assignment exists
+        VehicleAssignmentEntity vehicleAssignment = vehicleAssignmentEntityService.findEntityById(
+                request.vehicleAssignmentId()
+        ).orElseThrow(() -> new NotFoundException(
+                "Vehicle assignment not found: " + request.vehicleAssignmentId(),
+                ErrorEnum.NOT_FOUND.getErrorCode()
+        ));
+        
+        // Validate issue type exists and is REROUTE category
+        IssueTypeEntity issueType = issueTypeEntityService.findEntityById(request.issueTypeId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Issue type not found: " + request.issueTypeId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        if (!IssueCategoryEnum.REROUTE.name().equals(issueType.getIssueCategory())) {
+            throw new IllegalStateException("Issue type must be REROUTE category");
+        }
+        
+        // Validate affected segment exists by finding it from active journey
+        capstone_project.entity.order.order.JourneyHistoryEntity activeJourney = 
+                journeyHistoryEntityService.findLatestActiveJourney(request.vehicleAssignmentId())
+                .orElseThrow(() -> new NotFoundException(
+                        "No active journey found for vehicle assignment: " + request.vehicleAssignmentId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        capstone_project.entity.order.order.JourneySegmentEntity affectedSegment = 
+                activeJourney.getJourneySegments().stream()
+                .filter(seg -> seg.getId().equals(request.affectedSegmentId()))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException(
+                        "Journey segment not found in active journey: " + request.affectedSegmentId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        // Get current order detail status for tripStatusAtReport
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService
+                .findByVehicleAssignmentEntity(vehicleAssignment);
+        
+        // Build trip status map
+        java.util.Map<String, String> statusMap = new java.util.HashMap<>();
+        for (OrderDetailEntity od : orderDetails) {
+            statusMap.put(od.getId().toString(), od.getStatus());
+        }
+        
+        String tripStatusJson;
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper = 
+                    new com.fasterxml.jackson.databind.ObjectMapper();
+            tripStatusJson = objectMapper.writeValueAsString(statusMap);
+        } catch (Exception e) {
+            log.error("Failed to serialize trip status: {}", e.getMessage());
+            tripStatusJson = "{}";
+        }
+        
+        // Create issue entity
+        IssueEntity issue = IssueEntity.builder()
+                .description(request.description())
+                .locationLatitude(request.locationLatitude())
+                .locationLongitude(request.locationLongitude())
+                .status(IssueEnum.OPEN.name())
+                .reportedAt(java.time.LocalDateTime.now())
+                .vehicleAssignmentEntity(vehicleAssignment)
+                .issueTypeEntity(issueType)
+                .tripStatusAtReport(tripStatusJson)
+                .affectedSegment(affectedSegment) // Set affected segment
+                .build();
+        
+        issue = issueEntityService.save(issue);
+        
+        // Upload optional images if provided
+        if (files != null && !files.isEmpty()) {
+            for (org.springframework.web.multipart.MultipartFile file : files) {
+                var uploadResult = cloudinaryService.uploadFile(
+                        file.getBytes(),
+                        UUID.randomUUID().toString(),
+                        "reroute_issue"
+                );
+                String imageUrl = uploadResult.get("secure_url").toString();
+                
+                IssueImageEntity imageEntity = IssueImageEntity.builder()
+                        .imageUrl(imageUrl)
+                        .description("REROUTE_ISSUE")
+                        .issueEntity(issue)
+                        .build();
+                issueImageEntityService.save(imageEntity);
+            }
+        }
+        
+        log.info("✅ REROUTE issue reported: {} for segment {} at location ({}, {})",
+                issue.getId(), affectedSegment.getId(),
+                request.locationLatitude(), request.locationLongitude());
+        
+        // Broadcast issue creation
+        try {
+            GetBasicIssueResponse issueResponse = issueMapper.toIssueBasicResponse(issue);
+            issueWebSocketService.broadcastIssueStatusChange(issueResponse);
+        } catch (Exception e) {
+            log.error("❌ Failed to broadcast issue creation: {}", e.getMessage());
+        }
+        
+        return getBasicIssue(issue.getId());
+    }
+    
+    @Override
+    @Transactional
+    public capstone_project.dtos.response.issue.RerouteDetailResponse processReroute(
+            capstone_project.dtos.request.issue.ProcessRerouteRequest request
+    ) {
+        
+        // Get Issue
+        IssueEntity issue = issueEntityService.findEntityById(request.issueId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Issue not found: " + request.issueId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        // Validate issue type
+        if (!IssueCategoryEnum.REROUTE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new IllegalStateException("Issue is not REROUTE type");
+        }
+        
+        // Validate affected segment exists
+        if (issue.getAffectedSegment() == null) {
+            throw new IllegalStateException("Issue has no affected segment");
+        }
+        
+        // Get current active journey to copy segments
+        capstone_project.entity.order.order.JourneyHistoryEntity oldJourney = 
+                journeyHistoryEntityService.findLatestActiveJourney(
+                        issue.getVehicleAssignmentEntity().getId()
+                ).orElse(null);
+        
+        if (oldJourney == null) {
+            throw new IllegalStateException("No active journey found for vehicle assignment");
+        }
+        
+        log.info("🔄 Processing reroute for issue {} - Affected segment: {} (order: {})",
+                issue.getId(),
+                issue.getAffectedSegment().getId(),
+                issue.getAffectedSegment().getSegmentOrder());
+        
+        // Create new journey for rerouted path
+        capstone_project.entity.order.order.JourneyHistoryEntity reroutedJourney = 
+                capstone_project.entity.order.order.JourneyHistoryEntity.builder()
+                .journeyName("Rerouted Journey for " + issue.getVehicleAssignmentEntity().getTrackingCode())
+                .journeyType("REROUTE")
+                .status("ACTIVE") // Immediately active (no payment needed)
+                .reasonForReroute(issue.getDescription())
+                .totalTollFee(request.totalTollFee())
+                .totalTollCount(request.totalTollCount())
+                .vehicleAssignment(issue.getVehicleAssignmentEntity())
+                .build();
+        
+        // Build new journey segments: copy old segments + replace affected segment with new route
+        List<capstone_project.entity.order.order.JourneySegmentEntity> allSegments = 
+                new java.util.ArrayList<>();
+        int nextSegmentOrder = 1;
+        int affectedSegmentOrder = issue.getAffectedSegment().getSegmentOrder();
+        
+        // Copy old segments before affected segment
+        for (capstone_project.entity.order.order.JourneySegmentEntity oldSeg : 
+                oldJourney.getJourneySegments()) {
+            
+            if (oldSeg.getSegmentOrder() < affectedSegmentOrder) {
+                // Copy as-is
+                capstone_project.entity.order.order.JourneySegmentEntity copiedSegment = 
+                        capstone_project.entity.order.order.JourneySegmentEntity.builder()
+                        .segmentOrder(nextSegmentOrder++)
+                        .startPointName(oldSeg.getStartPointName())
+                        .endPointName(oldSeg.getEndPointName())
+                        .startLatitude(oldSeg.getStartLatitude())
+                        .startLongitude(oldSeg.getStartLongitude())
+                        .endLatitude(oldSeg.getEndLatitude())
+                        .endLongitude(oldSeg.getEndLongitude())
+                        .distanceKilometers(oldSeg.getDistanceKilometers())
+                        .status(oldSeg.getStatus()) // Keep status (COMPLETED/ACTIVE)
+                        .estimatedTollFee(oldSeg.getEstimatedTollFee())
+                        .pathCoordinatesJson(oldSeg.getPathCoordinatesJson())
+                        .tollDetailsJson(oldSeg.getTollDetailsJson())
+                        .journeyHistory(reroutedJourney)
+                        .build();
+                
+                allSegments.add(copiedSegment);
+                
+            } else if (oldSeg.getSegmentOrder() == affectedSegmentOrder) {
+                // Replace with new route segments
+                for (capstone_project.dtos.request.order.RouteSegmentInfo newSegInfo : 
+                        request.newRouteSegments()) {
+                    
+                    capstone_project.entity.order.order.JourneySegmentEntity newSegment = 
+                            capstone_project.entity.order.order.JourneySegmentEntity.builder()
+                            .segmentOrder(nextSegmentOrder++)
+                            .startPointName(newSegInfo.startPointName())
+                            .endPointName(newSegInfo.endPointName())
+                            .startLatitude(newSegInfo.startLatitude())
+                            .startLongitude(newSegInfo.startLongitude())
+                            .endLatitude(newSegInfo.endLatitude())
+                            .endLongitude(newSegInfo.endLongitude())
+                            .distanceKilometers(newSegInfo.distanceMeters())
+                            .estimatedTollFee(newSegInfo.estimatedTollFee() != null ? 
+                                    newSegInfo.estimatedTollFee().longValue() : null)
+                            .status("ACTIVE") // New segments are active
+                            .pathCoordinatesJson(newSegInfo.pathCoordinatesJson())
+                            .journeyHistory(reroutedJourney)
+                            .build();
+                    
+                    // Convert toll details to JSON
+                    if (newSegInfo.tollDetails() != null && !newSegInfo.tollDetails().isEmpty()) {
+                        try {
+                            com.fasterxml.jackson.databind.ObjectMapper objectMapper = 
+                                    new com.fasterxml.jackson.databind.ObjectMapper();
+                            newSegment.setTollDetailsJson(
+                                    objectMapper.writeValueAsString(newSegInfo.tollDetails())
+                            );
+                        } catch (Exception e) {
+                            log.warn("Failed to serialize toll details: {}", e.getMessage());
+                        }
+                    }
+                    
+                    allSegments.add(newSegment);
+                }
+                
+            } else {
+                // Copy remaining segments after affected segment
+                capstone_project.entity.order.order.JourneySegmentEntity copiedSegment = 
+                        capstone_project.entity.order.order.JourneySegmentEntity.builder()
+                        .segmentOrder(nextSegmentOrder++)
+                        .startPointName(oldSeg.getStartPointName())
+                        .endPointName(oldSeg.getEndPointName())
+                        .startLatitude(oldSeg.getStartLatitude())
+                        .startLongitude(oldSeg.getStartLongitude())
+                        .endLatitude(oldSeg.getEndLatitude())
+                        .endLongitude(oldSeg.getEndLongitude())
+                        .distanceKilometers(oldSeg.getDistanceKilometers())
+                        .status("PENDING") // Future segments become PENDING
+                        .estimatedTollFee(oldSeg.getEstimatedTollFee())
+                        .pathCoordinatesJson(oldSeg.getPathCoordinatesJson())
+                        .tollDetailsJson(oldSeg.getTollDetailsJson())
+                        .journeyHistory(reroutedJourney)
+                        .build();
+                
+                allSegments.add(copiedSegment);
+            }
+        }
+        
+        reroutedJourney.setJourneySegments(allSegments);
+        reroutedJourney = journeyHistoryEntityService.save(reroutedJourney);
+        
+        // Set old journey to CANCELLED
+        oldJourney.setStatus("CANCELLED");
+        journeyHistoryEntityService.save(oldJourney);
+        
+        // Link rerouted journey to issue
+        issue.setReroutedJourney(reroutedJourney);
+        issue.setStatus(IssueEnum.RESOLVED.name());
+        issue.setResolvedAt(java.time.LocalDateTime.now());
+        issue = issueEntityService.save(issue);
+        
+        log.info("✅ Reroute processed: Journey {} created with {} segments",
+                reroutedJourney.getId(), allSegments.size());
+        
+        // Send WebSocket notification to driver
+        try {
+            // Get Order ID through OrderDetail (VehicleAssignment → OrderDetail → Order)
+            List<OrderDetailEntity> orderDetails = orderDetailEntityService
+                    .findByVehicleAssignmentEntity(issue.getVehicleAssignmentEntity());
+            UUID orderId = orderDetails.isEmpty() ? null : orderDetails.get(0).getOrderEntity().getId();
+            
+            issueWebSocketService.sendRerouteResolvedNotification(
+                    issue.getVehicleAssignmentEntity().getDriver1().getId(),
+                    issue.getId(),
+                    orderId
+            );
+        } catch (Exception e) {
+            log.error("❌ Failed to send reroute notification to driver: {}", e.getMessage());
+        }
+        
+        // Broadcast issue status change
+        try {
+            GetBasicIssueResponse issueResponse = issueMapper.toIssueBasicResponse(issue);
+            issueWebSocketService.broadcastIssueStatusChange(issueResponse);
+        } catch (Exception e) {
+            log.error("❌ Failed to broadcast issue status: {}", e.getMessage());
+        }
+        
+        return getRerouteDetail(issue.getId());
+    }
+    
+    @Override
+    public capstone_project.dtos.response.issue.RerouteDetailResponse getRerouteDetail(UUID issueId) {
+        
+        // Get Issue with relations
+        IssueEntity issue = issueEntityService.findByIdWithDetails(issueId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Issue not found: " + issueId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        // Validate issue type
+        if (!IssueCategoryEnum.REROUTE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new IllegalStateException("Issue is not REROUTE type");
+        }
+        
+        // Get affected segment info
+        capstone_project.entity.order.order.JourneySegmentEntity affectedSegment = 
+                issue.getAffectedSegment();
+        
+        if (affectedSegment == null) {
+            throw new IllegalStateException("Issue has no affected segment");
+        }
+        
+        // Map rerouted journey if exists
+        capstone_project.dtos.response.order.JourneyHistoryResponse journeyResponse = null;
+        if (issue.getReroutedJourney() != null) {
+            var journey = issue.getReroutedJourney();
+            
+            // Calculate total distance
+            Double totalDistance = journey.getJourneySegments() != null
+                    ? journey.getJourneySegments().stream()
+                            .mapToInt(seg -> seg.getDistanceKilometers() != null ? 
+                                    seg.getDistanceKilometers() : 0)
+                            .sum() * 1.0
+                    : 0.0;
+            
+            journeyResponse = new capstone_project.dtos.response.order.JourneyHistoryResponse(
+                    journey.getId(),
+                    journey.getJourneyName(),
+                    journey.getJourneyType(),
+                    journey.getStatus(),
+                    journey.getTotalTollFee(),
+                    journey.getTotalTollCount(),
+                    totalDistance,
+                    journey.getReasonForReroute(),
+                    journey.getVehicleAssignment() != null ? 
+                            journey.getVehicleAssignment().getId() : null,
+                    null, // segments - can be expanded if needed
+                    journey.getCreatedAt(),
+                    journey.getModifiedAt()
+            );
+        }
+        
+        return new capstone_project.dtos.response.issue.RerouteDetailResponse(
+                issue.getId(),
+                issue.getId().toString(), // issueCode
+                issue.getDescription(),
+                issue.getStatus(),
+                issue.getReportedAt(),
+                issue.getResolvedAt(),
+                affectedSegment.getId(),
+                affectedSegment.getStartPointName(),
+                affectedSegment.getEndPointName(),
+                issue.getLocationLatitude(),
+                issue.getLocationLongitude(),
+                journeyResponse
+        );
     }
     
     /**
@@ -2107,13 +2431,7 @@ public class IssueServiceImpl implements IssueService {
         String oldStatus = orderDetail.getStatus();
         orderDetail.setStatus(newStatus.name());
         orderDetailEntityService.save(orderDetail);
-        
-        log.info("📦 Updated order detail {} ({}) from {} to {}",
-                orderDetail.getId(),
-                orderDetail.getTrackingCode(),
-                oldStatus,
-                newStatus.name());
-        
+
         // Send WebSocket notification
         try {
             OrderEntity order = orderDetail.getOrderEntity();

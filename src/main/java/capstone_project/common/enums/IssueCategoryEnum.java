@@ -12,5 +12,6 @@ public enum IssueCategoryEnum {
     GENERAL,
     ACCIDENT,
     SEAL_REPLACEMENT,
-    ORDER_REJECTION
+    ORDER_REJECTION,
+    REROUTE
 }

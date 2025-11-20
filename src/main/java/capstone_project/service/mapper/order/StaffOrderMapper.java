@@ -201,8 +201,6 @@ public class StaffOrderMapper {
             List<String> photoCompletions) {
         UUID vehicleAssignmentId = vehicleAssignmentResponse.id();
 
-        log.info("Processing vehicle assignment with ID: {}", vehicleAssignmentId);
-
         VehicleAssignmentEntity vehicleAssignmentEntity = null;
         try {
             vehicleAssignmentEntity = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId).orElse(null);
@@ -632,8 +630,6 @@ public class StaffOrderMapper {
                 null // Transactions list (will be fetched in service layer)
         );
     }
-
-
 
     /**
      * Calculate deposit amount based on adjusted value (if available) or total price and deposit percent from contract settings

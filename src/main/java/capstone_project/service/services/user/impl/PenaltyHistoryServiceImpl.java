@@ -75,7 +75,7 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
 
     @Override
     public List<PenaltyHistoryResponse> getByDriverId(UUID driverId) {
-        log.info("Getting penalty histories for driver ID: {}", driverId);
+        
         List<PenaltyHistoryEntity> penalties = entityService.findByDriverId(driverId);
         return penalties.stream()
                 .map(mapper::toPenaltyHistoryResponse)

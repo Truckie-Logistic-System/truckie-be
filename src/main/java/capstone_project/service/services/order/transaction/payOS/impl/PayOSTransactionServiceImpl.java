@@ -59,6 +59,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService;
     private final capstone_project.service.services.order.order.OrderStatusWebSocketService orderStatusWebSocketService;
     private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
+    
+    // Payment timeout scheduler to cancel scheduled task when payment received
+    private final capstone_project.config.expired.PaymentTimeoutSchedulerService paymentTimeoutSchedulerService;
 
     private final PayOSProperties properties;
     private final PayOS payOS;
@@ -66,6 +69,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
     private final TransactionMapper transactionMapper;
     private final ObjectMapper objectMapper;
+    
+    // ✅ NEW: OrderDetailStatusService for centralized Order status aggregation
+    private final capstone_project.service.services.order.order.OrderDetailStatusService orderDetailStatusService;
     
     // Constructor with @Lazy for IssueService to break circular dependency
     public PayOSTransactionServiceImpl(
@@ -83,6 +89,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService,
             capstone_project.service.services.order.order.OrderStatusWebSocketService orderStatusWebSocketService,
             capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService,
+            capstone_project.config.expired.PaymentTimeoutSchedulerService paymentTimeoutSchedulerService,
+            capstone_project.service.services.order.order.OrderDetailStatusService orderDetailStatusService,
             PayOSProperties properties,
             PayOS payOS,
             CustomPayOSClient customPayOSClient,
@@ -103,6 +111,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         this.issueWebSocketService = issueWebSocketService;
         this.orderStatusWebSocketService = orderStatusWebSocketService;
         this.orderDetailStatusWebSocketService = orderDetailStatusWebSocketService;
+        this.paymentTimeoutSchedulerService = paymentTimeoutSchedulerService;
+        this.orderDetailStatusService = orderDetailStatusService;
         this.properties = properties;
         this.payOS = payOS;
         this.customPayOSClient = customPayOSClient;
@@ -113,7 +123,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     @Override
     @Transactional
     public TransactionResponse createTransaction(UUID contractId) {
-        log.info("Creating transaction for contract {}", contractId);
 
         Long payOsOrderCode = System.currentTimeMillis();
 
@@ -156,11 +165,14 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         
         // Append orderId to returnUrl and cancelUrl for proper navigation after payment
         UUID orderId = contractEntity.getOrderEntity() != null ? contractEntity.getOrderEntity().getId() : null;
+        String orderCode = contractEntity.getOrderEntity() != null ? contractEntity.getOrderEntity().getOrderCode() : "N/A";
         String returnUrl = properties.getReturnUrl() + (orderId != null ? "?orderId=" + orderId : "");
         String cancelUrl = properties.getCancelUrl() + (orderId != null ? "?orderId=" + orderId : "");
         
-        log.info("🔄 Trying PayOS SDK 2.0.1 first...");
-        
+        // Create meaningful payment description (max 25 chars for PayOS)
+        String desc = String.format("Con lai %s", orderCode);
+        String paymentDescription = desc.length() > 25 ? desc.substring(0, 25) : desc;
+
         JsonNode response = null;
         boolean sdkSuccess = false;
 
@@ -169,12 +181,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
                 .orderCode(payOsOrderCode)
                 .amount((long) finalAmount)
-                .description("Create transaction")
+                .description(paymentDescription)
                 .returnUrl(returnUrl)
                 .cancelUrl(cancelUrl)
                 .build();
-            
-            log.info("📤 Calling PayOS SDK 2.0.1 paymentRequests().create()...");
+
             CreatePaymentLinkResponse sdkResponse = payOS.paymentRequests().create(paymentData);
             
             // Convert SDK response to JSON
@@ -196,18 +207,16 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             
             response = objectMapper.readValue(responseJson, JsonNode.class);
             sdkSuccess = true;
-            log.info("✅ PayOS SDK 2.0.1 SUCCESS!");
-            
+
         } catch (Exception sdkEx) {
             log.warn("⚠️ PayOS SDK 2.0.1 FAILED: {}", sdkEx.getMessage());
-            log.info("🔄 Falling back to CustomPayOSClient...");
-            
+
             try {
                 // Fallback to CustomPayOSClient
                 var customResponse = customPayOSClient.createPaymentLink(
                     payOsOrderCode,
                     finalAmount,
-                    "Create transaction",
+                    paymentDescription,
                     returnUrl,
                     cancelUrl
                 );
@@ -230,8 +239,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 );
                 
                 response = objectMapper.readValue(responseJson, JsonNode.class);
-                log.info("✅ CustomPayOSClient SUCCESS (Fallback)");
-                
+
             } catch (Exception customEx) {
                 log.error("❌ Both SDK and CustomPayOSClient FAILED!");
                 throw new RuntimeException("Failed to create payment link", customEx);
@@ -239,7 +247,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         }
         
         try {
-            log.info("✅ Payment link created successfully! (Method: {})", sdkSuccess ? "SDK 2.0.1" : "CustomPayOSClient");
 
             TransactionEntity transaction = TransactionEntity.builder()
                     .id(UUID.randomUUID())
@@ -263,14 +270,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         }
     }
 
-
     @Override
     @Transactional
     public TransactionResponse createDepositTransaction(UUID contractId) {
-        log.info("Creating transaction for contract {}", contractId);
-
-        log.info("Creating PayOS PaymentData: cancelUrl={}, returnUrl={}",
-                properties.getCancelUrl(), properties.getReturnUrl());
 
         Long payOsOrderCode = System.currentTimeMillis();
 
@@ -310,25 +312,14 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         
         // Append orderId to returnUrl and cancelUrl for proper navigation after payment
         UUID orderId = contractEntity.getOrderEntity() != null ? contractEntity.getOrderEntity().getId() : null;
+        String orderCode = contractEntity.getOrderEntity() != null ? contractEntity.getOrderEntity().getOrderCode() : "N/A";
         String returnUrl = properties.getReturnUrl() + (orderId != null ? "?orderId=" + orderId : "");
         String cancelUrl = properties.getCancelUrl() + (orderId != null ? "?orderId=" + orderId : "");
         
-        log.info("========== PAYOS DEBUG START ==========");
-        log.info("🔑 PayOS Credentials Check:");
-        log.info("   Client ID: {}", properties.getClientId());
-        log.info("   API Key: {}", properties.getApiKey() != null ? "***" + properties.getApiKey().substring(Math.max(0, properties.getApiKey().length() - 4)) : "null");
-        log.info("   Checksum Key: {}", properties.getChecksumKey() != null ? "***" + properties.getChecksumKey().substring(Math.max(0, properties.getChecksumKey().length() - 4)) : "null");
-        log.info("   Base URL: {}", properties.getBaseUrl());
-        
-        log.info("📦 PaymentData Fields:");
-        log.info("   orderCode: {}", payOsOrderCode);
-        log.info("   amount: {} (from depositAmount: {})", finalAmount, depositAmount);
-        log.info("   description: 'Create deposit' (length: {})", "Create deposit".length());
-        log.info("   cancelUrl: {}", cancelUrl);
-        log.info("   returnUrl: {}", returnUrl);
-        
-        log.info("🔄 Trying PayOS SDK 2.0.1 first...");
-        
+        // Create meaningful payment description (max 25 chars for PayOS)
+        String desc = String.format("Dat coc %s", orderCode);
+        String paymentDescription = desc.length() > 25 ? desc.substring(0, 25) : desc;
+
         JsonNode response = null;
         boolean sdkSuccess = false;
         
@@ -337,12 +328,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
                 .orderCode(payOsOrderCode)
                 .amount((long) finalAmount)
-                .description("Create deposit")
+                .description(paymentDescription)
                 .returnUrl(returnUrl)
                 .cancelUrl(cancelUrl)
                 .build();
-            
-            log.info("📤 Calling PayOS SDK 2.0.1 paymentRequests().create()...");
+
             CreatePaymentLinkResponse sdkResponse = payOS.paymentRequests().create(paymentData);
             
             // Convert SDK response to JSON
@@ -364,18 +354,16 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             
             response = objectMapper.readValue(responseJson, JsonNode.class);
             sdkSuccess = true;
-            log.info("✅ PayOS SDK 2.0.1 SUCCESS!");
-            
+
         } catch (Exception sdkEx) {
             log.warn("⚠️ PayOS SDK 2.0.1 FAILED: {}", sdkEx.getMessage());
-            log.info("🔄 Falling back to CustomPayOSClient...");
-            
+
             try {
                 // Fallback to CustomPayOSClient
                 var customResponse = customPayOSClient.createPaymentLink(
                     payOsOrderCode,
                     finalAmount,
-                    "Create deposit",
+                    paymentDescription,
                     returnUrl,
                     cancelUrl
                 );
@@ -398,8 +386,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 );
                 
                 response = objectMapper.readValue(responseJson, JsonNode.class);
-                log.info("✅ CustomPayOSClient SUCCESS (Fallback)");
-                
+
             } catch (Exception customEx) {
                 log.error("❌ Both SDK and CustomPayOSClient FAILED!");
                 throw new RuntimeException("Failed to create payment link", customEx);
@@ -407,10 +394,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         }
         
         try {
-            
-            log.info("✅ Payment link created successfully! (Method: {})", sdkSuccess ? "SDK 2.0.1" : "CustomPayOSClient");
-            log.info("📥 PayOS response: {}", objectMapper.writeValueAsString(response));
-            log.info("========== PAYOS DEBUG END ==========");
 
             TransactionEntity transaction = TransactionEntity.builder()
                     .id(UUID.randomUUID())
@@ -429,7 +412,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 //            contractEntity.setStatus(ContractStatusEnum.DEPOSITED.name());
 
             return transactionMapper.toTransactionResponse(savedEntity);
-
 
         } catch (Exception e) {
             log.error("========== PAYOS ERROR (DEPOSIT) ==========");
@@ -463,9 +445,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 ));
 
         BigDecimal totalValue = contractEntity.getTotalValue();
-        log.info("Total value for contract {} is {}", contractId, totalValue);
+        
         BigDecimal adjustedValue = contractEntity.getAdjustedValue();
-        log.info("Supported value for contract {} is {}", contractId, adjustedValue);
 
         if (adjustedValue != null && adjustedValue.compareTo(BigDecimal.ZERO) > 0) {
             totalValue = adjustedValue;
@@ -544,7 +525,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
     @Override
     public TransactionResponse getTransactionById(UUID transactionId) {
-        log.info("Fetching transaction with ID: {}", transactionId);
 
         if (transactionId == null) {
             log.error("Transaction ID is null");
@@ -565,7 +545,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
     @Override
     public List<TransactionResponse> getTransactionsByContractId(UUID contractId) {
-        log.info("Fetching transactions for contract {}", contractId);
 
         if (contractId == null) {
             log.error("Contract ID is null");
@@ -582,7 +561,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     
     @Override
     public List<TransactionResponse> getTransactionsByIssueId(UUID issueId) {
-        log.info("Fetching transactions for issue {}", issueId);
 
         if (issueId == null) {
             log.error("Issue ID is null");
@@ -599,7 +577,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
     @Override
     public GetTransactionStatusResponse getTransactionStatus(UUID transactionId) {
-        log.info("Getting transaction status for ID: {}", transactionId);
 
         if (transactionId == null) {
             log.error("Transaction ID is null");
@@ -621,7 +598,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     @Override
     @Transactional
     public void handleWebhook(String rawCallbackPayload) {
-        log.info("Handling webhook with payload: {}", rawCallbackPayload);
+        
         try {
             JsonNode webhookEvent = objectMapper.readTree(rawCallbackPayload);
 
@@ -631,7 +608,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
             // Skip test webhook
             if ("123".equals(orderCode)) {
-                log.info("Received PayOS test webhook with orderCode=123, skipping...");
+                
                 return;
             }
 
@@ -648,16 +625,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 transaction.setPaymentDate(java.time.LocalDateTime.now());
                 transactionEntityService.save(transaction);
 
-                log.info("Webhook processed successfully. TxnId={}, PayOS status={}, Mapped status={}",
-                        transaction.getId(), payOsStatus, mappedStatus);
-                log.info("🔍 Transaction type: {}, Issue ID: {}", 
-                        transaction.getTransactionType(), transaction.getIssueId());
-
                 // Check if this is a return shipping payment (ORDER_REJECTION)
                 boolean isReturnPayment = false;
                 if (TransactionEnum.PAID.equals(mappedStatus)) {
                     isReturnPayment = handleReturnShippingPayment(transaction);
-                    log.info("📊 Return payment check result: {}", isReturnPayment);
+                    
                 }
 
                 // Only update contract status if this is NOT a return payment
@@ -665,7 +637,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 if (!isReturnPayment) {
                     updateContractStatusIfNeeded(transaction);
                 } else {
-                    log.info("⏩ Skipping contract status update for return payment transaction");
+                    
                 }
             }, () -> {
                 log.warn("Transaction not found for orderCode {}", orderCode);
@@ -675,7 +647,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             log.error("Failed to handle webhook", e);
         }
     }
-
 
     private TransactionEnum mapPayOsStatusToEnum(String payOsStatus, String code) {
         if (code != null && code.equals("00")) {
@@ -695,7 +666,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             default -> TransactionEnum.PENDING;
         };
     }
-
 
     private void updateContractStatusIfNeeded(TransactionEntity transaction) {
         ContractEntity contract = transaction.getContractEntity();
@@ -728,24 +698,40 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 BigDecimal totalValue = validationTotalValue(contract.getId());
                 BigDecimal totalPaidAmount = transactionEntityService.sumPaidAmountByContractId(contract.getId());
 
-                log.info(">>>> DEBUG: Total Value = {}, Total Paid Amount from DB = {}", totalValue, totalPaidAmount);
-
                 if (totalPaidAmount == null) {
                     totalPaidAmount = BigDecimal.ZERO;
                 }
 
                 if (totalPaidAmount.compareTo(totalValue) >= 0) {
-                    log.info("Test1");
+                    
                     contract.setStatus(ContractStatusEnum.PAID.name());
                     // Update Order status only (OrderDetail will be updated when assigned to driver)
+                    OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
                     order.setStatus(OrderStatusEnum.FULLY_PAID.name());
                     orderEntityService.save(order);
+                    
+                    // Send WebSocket notification
+                    orderStatusWebSocketService.sendOrderStatusChange(
+                            order.getId(),
+                            order.getOrderCode(),
+                            previousStatus,
+                            OrderStatusEnum.FULLY_PAID
+                    );
                 } else {
-                    log.info("Test2");
+                    
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
                     // Update Order status only (OrderDetail will be updated when assigned to driver)
+                    OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
                     order.setStatus(OrderStatusEnum.ON_PLANNING.name());
                     orderEntityService.save(order);
+                    
+                    // Send WebSocket notification
+                    orderStatusWebSocketService.sendOrderStatusChange(
+                            order.getId(),
+                            order.getOrderCode(),
+                            previousStatus,
+                            OrderStatusEnum.ON_PLANNING
+                    );
                 }
             }
 
@@ -764,7 +750,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         }
 
         contractEntityService.save(contract);
-        log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
+        
     }
 
 //    private void updateContractStatusIfNeeded(TransactionEntity transaction) {
@@ -821,9 +807,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 //        }
 //
 //        contractEntityService.save(contract);
-//        log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
+//        
 //    }
-
 
     @Override
     public TransactionResponse syncTransaction(UUID transactionId) {
@@ -876,13 +861,10 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
      */
     private boolean handleReturnShippingPayment(TransactionEntity transaction) {
         try {
-            log.info("🔍 Checking if transaction {} is for return shipping...", transaction.getId());
-            log.info("   - Transaction type: {}", transaction.getTransactionType());
-            log.info("   - Issue ID: {}", transaction.getIssueId());
-            
+
             // Check if this transaction has an issueId (RETURN_SHIPPING type)
             if (transaction.getIssueId() == null) {
-                log.info("⏭️ Transaction {} is not for return shipping (no issueId) - skipping", transaction.getId());
+                
                 return false;
             }
             
@@ -892,15 +874,16 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                             "Issue not found: " + transaction.getIssueId(),
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
-            
-            log.info("✅ Found ORDER_REJECTION issue {} with return payment", issue.getId());
-            
+
+            // ⏰ CRITICAL: Cancel scheduled timeout check (customer paid on time)
+            paymentTimeoutSchedulerService.cancelTimeoutCheck(issue.getId());
+
             // Activate return journey
             if (issue.getReturnJourney() != null) {
                 var journey = issue.getReturnJourney();
                 journey.setStatus(CommonStatusEnum.ACTIVE.name());
                 journeyHistoryEntityService.save(journey);
-                log.info("🛣️ Activated return journey: {}", journey.getId());
+                
             }
             
             // Update order details status to RETURNING (customer paid, driver will return these packages)
@@ -936,11 +919,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                                     orderDetail.getTrackingCode(), e.getMessage());
                         }
                     }
-                    
-                    log.info("📦 OrderDetail {} status updated to RETURNING", orderDetail.getTrackingCode());
+
                 });
-                log.info("✅ Updated {} order details to RETURNING status", issue.getOrderDetails().size());
-                
+
                 // Update remaining order details in this vehicle assignment to DELIVERED
                 // AND update Order status to RETURNING
                 var vehicleAssignment = issue.getVehicleAssignmentEntity();
@@ -978,74 +959,28 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                                             orderDetail.getTrackingCode(), e.getMessage());
                                 }
                             }
-                            
-                            log.info("📦 OrderDetail {} (not affected) status updated to DELIVERED", orderDetail.getTrackingCode());
+
                         });
-                        log.info("✅ Updated {} remaining order details to DELIVERED status", remainingOrderDetails.size());
+                        
                     }
                     
-                    // Update Order status based on ALL OrderDetails using priority logic
-                    // CRITICAL: Multi-trip support - check all order details across all trips
-                    // Priority: DELIVERED > IN_TROUBLES > RETURNING > RETURNED
+                    // ✅ CRITICAL FIX: Use OrderDetailStatusService to auto-update Order status
+                    // This ensures correct priority logic (COMPENSATION > IN_TROUBLES > CANCELLED > RETURNING/RETURNED > DELIVERED)
+                    // NEVER manually calculate Order status - delegate to the centralized service
                     Optional<OrderEntity> orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
                     if (orderOpt.isPresent()) {
                         OrderEntity order = orderOpt.get();
-                        String oldStatus = order.getStatus();
                         
-                        // Get ALL orderDetails of this Order (across all trips)
-                        var allDetailsInOrder = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(order.getId());
+                        // Trigger auto-update using centralized service
+                        // This will apply correct priority logic:
+                        // - COMPENSATION (highest priority if ANY package compensated)
+                        // - IN_TROUBLES (if ANY package has active issue)
+                        // - CANCELLED (if ALL packages cancelled)
+                        // - RETURNING/RETURNED (if ALL packages in return flow)
+                        // - DELIVERED (only if ALL packages delivered)
+                        orderDetailStatusService.triggerOrderStatusUpdate(order.getId());
                         
-                        long deliveredCount = allDetailsInOrder.stream()
-                                .filter(od -> "DELIVERED".equals(od.getStatus())).count();
-                        long successfulCount = allDetailsInOrder.stream()
-                                .filter(od -> "SUCCESSFUL".equals(od.getStatus())).count();
-                        long inTroublesCount = allDetailsInOrder.stream()
-                                .filter(od -> "IN_TROUBLES".equals(od.getStatus())).count();
-                        long returningCount = allDetailsInOrder.stream()
-                                .filter(od -> "RETURNING".equals(od.getStatus())).count();
-                        long returnedCount = allDetailsInOrder.stream()
-                                .filter(od -> "RETURNED".equals(od.getStatus())).count();
-                        long compensationCount = allDetailsInOrder.stream()
-                                .filter(od -> "COMPENSATION".equals(od.getStatus())).count();
-                        
-                        String newStatus;
-                        String reason;
-                        
-                        // Apply priority logic
-                        if (deliveredCount > 0 || successfulCount > 0) {
-                            // Has delivered packages → SUCCESSFUL
-                            newStatus = capstone_project.common.enums.OrderStatusEnum.SUCCESSFUL.name();
-                            reason = String.format("%d delivered/successful, %d returning", 
-                                    deliveredCount + successfulCount, returningCount);
-                        } else if (inTroublesCount > 0) {
-                            // No delivered, has troubles → IN_TROUBLES
-                            newStatus = capstone_project.common.enums.OrderStatusEnum.IN_TROUBLES.name();
-                            reason = String.format("%d in troubles, %d returning", inTroublesCount, returningCount);
-                        } else if (returningCount > 0) {
-                            // No delivered, no troubles, has returning → RETURNING
-                            newStatus = capstone_project.common.enums.OrderStatusEnum.RETURNING.name();
-                            reason = String.format("%d packages returning", returningCount);
-                        } else if (returnedCount > 0) {
-                            // Has returned packages
-                            newStatus = capstone_project.common.enums.OrderStatusEnum.RETURNED.name();
-                            reason = String.format("%d packages returned", returnedCount);
-                        } else if (compensationCount > 0) {
-                            newStatus = capstone_project.common.enums.OrderStatusEnum.COMPENSATION.name();
-                            reason = String.format("%d compensated", compensationCount);
-                        } else {
-                            // Fallback
-                            newStatus = oldStatus;
-                            reason = "No status change needed";
-                        }
-                        
-                        if (!newStatus.equals(oldStatus)) {
-                            order.setStatus(newStatus);
-                            orderEntityService.save(order);
-                            log.info("✅ Order {} status updated from {} to {} (customer paid return shipping, multi-trip: {})", 
-                                     order.getId(), oldStatus, newStatus, reason);
-                        } else {
-                            log.info("ℹ️ Order {} status unchanged: {} ({})", order.getId(), oldStatus, reason);
-                        }
+                        log.info("✅ Order status auto-updated after return payment success for Order: {}", order.getId());
                     }
                 }
             }
@@ -1053,8 +988,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             // ✅ Keep issue in IN_PROGRESS status after payment
             // Issue will only be RESOLVED when driver confirms return delivery
             // No need to update issue status here - driver still needs to physically return the goods
-            log.info("ℹ️ Issue {} remains IN_PROGRESS - driver needs to confirm return delivery", issue.getId());
-            
+
             // Send WebSocket notification to driver
             try {
                 var vehicleAssignment = issue.getVehicleAssignmentEntity();
@@ -1080,8 +1014,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                             returnJourneyId,
                             orderId
                     );
-                    
-                    log.info("📢 Sent return payment success notification to driver: {} with orderId: {}", driverId, orderId);
+
                 }
             } catch (Exception e) {
                 log.error("❌ Failed to send driver notification: {}", e.getMessage(), e);
@@ -1133,9 +1066,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                         paymentAmount,
                         vehicleAssignmentCode
                 );
-                
-                log.info("📢 Broadcast return payment success notification to all staff");
-                
+
                 // CRITICAL: Broadcast issue update so staff UI can refetch issue detail
                 // This allows staff to see updated transaction status immediately
                 try {
@@ -1145,8 +1076,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     
                     // Broadcast to all subscribed clients (including staff viewing issue detail)
                     issueWebSocketService.broadcastIssueStatusChange(updatedIssueResponse);
-                    
-                    log.info("✅ Broadcast issue update after payment success");
+
                 } catch (Exception broadcastEx) {
                     log.error("❌ Failed to broadcast issue update: {}", broadcastEx.getMessage(), broadcastEx);
                 }
@@ -1167,37 +1097,89 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     @Override
     @Transactional
     public TransactionResponse createReturnShippingTransaction(UUID contractId, BigDecimal amount, UUID issueId) {
-        log.info("Creating return shipping transaction for contract {} (issueId: {})", contractId, issueId);
 
-        ContractEntity contractEntity = getAndValidateContract(contractId);
+        // CRITICAL: Return shipping payment is INDEPENDENT from contract payment
+        // Contract is already PAID - this is a NEW payment for return shipping cost
+        // DO NOT validate contract status here
+        ContractEntity contractEntity = contractEntityService.findEntityById(contractId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        // Validate customer is active
+        OrderEntity orderEntity = orderEntityService.findEntityById(contractEntity.getOrderEntity().getId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found for contract",
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        CustomerEntity customerEntity = customerEntityService.findEntityById(orderEntity.getSender().getId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Customer not found for order",
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        if (!customerEntity.getStatus().equals(CommonStatusEnum.ACTIVE.name())) {
+            log.error("Customer {} is not active", customerEntity.getId());
+            throw new BadRequestException(
+                    "Customer is not active",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        UserEntity userEntity = userEntityService.findEntityById(customerEntity.getUser().getId())
+                .orElseThrow(() -> new NotFoundException(
+                        "User not found for customer",
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        if (!userEntity.getStatus().equals(CommonStatusEnum.ACTIVE.name())) {
+            log.error("User {} is not active", userEntity.getId());
+            throw new BadRequestException(
+                    "User is not active",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+        
         UUID orderId = contractEntity.getOrderEntity() != null ? contractEntity.getOrderEntity().getId() : null;
+        
+        // Get issue details for meaningful description (max 25 chars for PayOS)
+        String paymentDescription = "Tra hang";
+        if (issueId != null) {
+            try {
+                capstone_project.entity.issue.IssueEntity issue = issueEntityService.findEntityById(issueId)
+                        .orElse(null);
+                if (issue != null && issue.getVehicleAssignmentEntity() != null) {
+                    String trackingCode = issue.getVehicleAssignmentEntity().getTrackingCode();
+                    
+                    // Get affected order details count from issue relationship
+                    List<capstone_project.entity.order.order.OrderDetailEntity> affectedOrderDetails = 
+                            issue.getOrderDetails();
+                    
+                    if (affectedOrderDetails != null && !affectedOrderDetails.isEmpty()) {
+                        int packageCount = affectedOrderDetails.size();
+                        // Format: "Tra hang TC123 (3k)" - ensure max 25 chars
+                        String desc = String.format("Tra hang %s (%dk)", trackingCode, packageCount);
+                        paymentDescription = desc.length() > 25 ? desc.substring(0, 25) : desc;
+                    } else {
+                        // Format: "Tra hang TC123" - ensure max 25 chars
+                        String desc = String.format("Tra hang %s", trackingCode);
+                        paymentDescription = desc.length() > 25 ? desc.substring(0, 25) : desc;
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to get issue details for payment description: {}", e.getMessage());
+            }
+        }
         
         // Append orderId to returnUrl for proper navigation after payment
         String returnUrl = properties.getReturnUrl() + (orderId != null ? "?orderId=" + orderId : "");
-        
-        log.info("Creating PayOS PaymentData: cancelUrl={}, returnUrl={}",
-                properties.getCancelUrl(), returnUrl);
 
         Long payOsOrderCode = System.currentTimeMillis();
         
         int finalAmount = amount.setScale(0, RoundingMode.HALF_UP).intValueExact();
-        
-        log.info("========== PAYOS DEBUG START (RETURN SHIPPING) ==========");
-        log.info("🔑 PayOS Credentials Check:");
-        log.info("   Client ID: {}", properties.getClientId());
-        log.info("   API Key: {}", properties.getApiKey() != null ? "***" + properties.getApiKey().substring(Math.max(0, properties.getApiKey().length() - 4)) : "null");
-        log.info("   Checksum Key: {}", properties.getChecksumKey() != null ? "***" + properties.getChecksumKey().substring(Math.max(0, properties.getChecksumKey().length() - 4)) : "null");
-        log.info("   Base URL: {}", properties.getBaseUrl());
-        
-        log.info("📦 PaymentData Fields:");
-        log.info("   orderCode: {}", payOsOrderCode);
-        log.info("   amount: {} (from BigDecimal: {})", finalAmount, amount);
-        log.info("   description: 'Create deposit' (length: {})", "Create deposit".length());
-        log.info("   cancelUrl: {}", properties.getCancelUrl());
-        log.info("   returnUrl: {}", properties.getReturnUrl());
-        log.info("   issueId: {}", issueId);
-        log.info("🔄 Trying PayOS SDK 2.0.1 first...");
-        
+
         JsonNode response = null;
         boolean sdkSuccess = false;
 
@@ -1206,12 +1188,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
                 .orderCode(payOsOrderCode)
                 .amount((long) finalAmount)
-                .description("Return shipping payment")
+                .description(paymentDescription)
                 .returnUrl(returnUrl)
                 .cancelUrl(properties.getCancelUrl())
                 .build();
-            
-            log.info("📤 Calling PayOS SDK 2.0.1 paymentRequests().create()...");
+
             CreatePaymentLinkResponse sdkResponse = payOS.paymentRequests().create(paymentData);
             
             // Convert SDK response to JSON
@@ -1233,18 +1214,16 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             
             response = objectMapper.readValue(responseJson, JsonNode.class);
             sdkSuccess = true;
-            log.info("✅ PayOS SDK 2.0.1 SUCCESS!");
-            
+
         } catch (Exception sdkEx) {
             log.warn("⚠️ PayOS SDK 2.0.1 FAILED: {}", sdkEx.getMessage());
-            log.info("🔄 Falling back to CustomPayOSClient...");
-            
+
             try {
                 // Fallback to CustomPayOSClient
                 var customResponse = customPayOSClient.createPaymentLink(
                     payOsOrderCode,
                     finalAmount,
-                    "Return shipping payment",
+                    paymentDescription,
                     returnUrl,
                     properties.getCancelUrl()
                 );
@@ -1267,8 +1246,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 );
                 
                 response = objectMapper.readValue(responseJson, JsonNode.class);
-                log.info("✅ CustomPayOSClient SUCCESS (Fallback)");
-                
+
             } catch (Exception customEx) {
                 log.error("❌ Both SDK and CustomPayOSClient FAILED!");
                 throw new RuntimeException("Failed to create payment link", customEx);
@@ -1276,9 +1254,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         }
         
         try {
-            log.info("✅ Payment link created successfully! (Method: {})", sdkSuccess ? "SDK 2.0.1" : "CustomPayOSClient");
-            log.info("📥 PayOS response: {}", objectMapper.writeValueAsString(response));
-            log.info("========== PAYOS DEBUG END ==========");
 
             TransactionEntity transaction = TransactionEntity.builder()
                     .id(UUID.randomUUID())
@@ -1298,10 +1273,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 //            contractEntity.setStatus(ContractStatusEnum.DEPOSITED.name());
 
             // Transaction already has issueId set, no need to link back to issue
-            log.info("✅ Created return shipping transaction {} for issue {}", savedEntity.getId(), issueId);
 
             return transactionMapper.toTransactionResponse(savedEntity);
-
 
         } catch (Exception e) {
             log.error("========== PAYOS ERROR (RETURN SHIPPING) ==========");

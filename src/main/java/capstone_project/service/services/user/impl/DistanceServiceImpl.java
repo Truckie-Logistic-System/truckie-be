@@ -72,7 +72,7 @@ public class DistanceServiceImpl implements DistanceService {
     }
 
     private RouteResponse callVietMapApi(UUID orderId) {
-        log.info("Fetching order with ID: {}", orderId);
+        
         OrderEntity order = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
@@ -81,9 +81,6 @@ public class DistanceServiceImpl implements DistanceService {
 
         AddressEntity pickup = order.getPickupAddress();
         AddressEntity delivery = order.getDeliveryAddress();
-
-        log.info("Pickup address: {}", pickup);
-        log.info("Delivery address: {}", delivery);
 
         if (pickup == null || delivery == null) {
             log.error("Order {} is missing pickup or delivery address", orderId);
@@ -113,12 +110,10 @@ public class DistanceServiceImpl implements DistanceService {
             );
             
             String pathJson = objectMapper.writeValueAsString(path);
-            log.info("Calling VietMap route-tolls API with path: {}", pathJson);
-            
+
             // Call route-tolls API (vehicle type null = car by default)
             String vietmapResponse = vietmapService.routeTolls(pathJson, null);
-            log.info("VietMap route-tolls API response: {}", vietmapResponse);
-            
+
             // Parse response and convert to RouteResponse format
             return parseRouteTollsResponse(vietmapResponse);
             
@@ -157,9 +152,7 @@ public class DistanceServiceImpl implements DistanceService {
         // Calculate distance from path coordinates
         double distanceKm = calculatePathDistance(pathCoordinates);
         double distanceMeters = distanceKm * 1000;
-        
-        log.info("Calculated distance from route-tolls path: {} km ({} meters)", distanceKm, distanceMeters);
-        
+
         // Create RouteResponse.Path with calculated distance
         RouteResponse.Path path = new RouteResponse.Path(
             distanceMeters,  // distance in meters

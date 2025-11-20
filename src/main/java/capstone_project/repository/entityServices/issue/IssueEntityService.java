@@ -25,4 +25,10 @@ public interface IssueEntityService extends BaseEntityService<IssueEntity, UUID>
     List<IssueEntity> findAllSortedByReportedAtDesc();
 
     Optional<IssueEntity> findByIdWithDetails(UUID id);
+    
+    /**
+     * Find all ORDER_REJECTION issues that are IN_PROGRESS
+     * Optimized query for ReturnPaymentTimeoutScheduler
+     */
+    List<IssueEntity> findInProgressOrderRejections();
 }

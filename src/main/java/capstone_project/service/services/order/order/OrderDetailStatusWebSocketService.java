@@ -57,9 +57,7 @@ public class OrderDetailStatusWebSocketService {
             
             String topic = "/topic/orders/" + orderId + "/order-details/status";
             messagingTemplate.convertAndSend(topic, message);
-            
-            log.info("📦 [OrderDetailStatusWebSocket] Sent status change notification: {} -> {} for package {} (order {})",
-                    previousStatus, newStatus, trackingCode, orderCode);
+
         } catch (Exception e) {
             // Don't throw exception - WebSocket notification failure shouldn't break business logic
             log.error("❌ [OrderDetailStatusWebSocket] Failed to send status change notification for package {}: {}",
@@ -118,8 +116,6 @@ public class OrderDetailStatusWebSocketService {
                 return "Kiện hàng gặp sự cố";
             case COMPENSATION:
                 return "Kiện hàng đang được bồi thường";
-            case SUCCESSFUL:
-                return "Kiện hàng đã hoàn thành";
             case RETURNING:
                 return "Kiện hàng đang được trả về";
             case RETURNED:

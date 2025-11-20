@@ -33,7 +33,6 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
 
     @Override
     public List<VehicleTypeResponse> getAllVehicleTypes() {
-        log.info("Fetching all vehicle types");
 
         List<VehicleTypeEntity> cachedEntities = redisService.getList(
                 VEHICLE_TYPE_ALL_CACHE_KEY, VehicleTypeEntity.class
@@ -42,10 +41,10 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
         List<VehicleTypeEntity> entities;
 
         if (cachedEntities != null) {
-            log.info("Returning cached vehicle types");
+            
             entities = cachedEntities;
         } else {
-            log.info("No cached vehicle types found, fetching from database");
+            
             entities = vehicleTypeEntityService.findAll();
             if (entities.isEmpty()) {
                 throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
@@ -78,7 +77,7 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
     @Override
     @Transactional
     public VehicleTypeResponse createVehicleType(VehicleTypeRequest vehicleTypeRequest) {
-        log.info("Creating new vehicle type");
+        
         Optional<VehicleTypeEntity> existingVehicleType = vehicleTypeEntityService.findByVehicleTypeName(vehicleTypeRequest.vehicleTypeName());
 
         if (existingVehicleType.isPresent()) {
@@ -99,7 +98,6 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
     @Override
     @Transactional
     public VehicleTypeResponse updateVehicleType(UUID id, VehicleTypeRequest vehicleTypeRequest) {
-        log.info("Updating vehicle type with ID: {}", id);
 
         VehicleTypeEntity existingVehicleType = vehicleTypeEntityService.findEntityById(id)
                 .orElseThrow(() -> {

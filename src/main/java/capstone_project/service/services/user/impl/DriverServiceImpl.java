@@ -54,11 +54,10 @@ public class DriverServiceImpl implements DriverService {
 
     @Override
     public List<DriverResponse> getAllDrivers() {
-        log.info("Getting all drivers");
 
         List<DriverEntity> driverEntities = driverEntityService.findAll();
         if (driverEntities.isEmpty()) {
-            log.info("No drivers found");
+            
             throw new BadRequestException(
                     "No drivers found",
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -72,7 +71,6 @@ public class DriverServiceImpl implements DriverService {
 
     @Override
     public DriverResponse getDriverById(UUID id) {
-        log.info("Getting driver by ID: {}", id);
 
         if (id == null) {
             log.error("Driver ID is null");
@@ -98,15 +96,12 @@ public class DriverServiceImpl implements DriverService {
         List<PenaltyHistoryResponse> penaltyHistories = penaltyHistoryService.getByDriverId(id);
         driverResponse.setPenaltyHistories(penaltyHistories);
 
-        log.info("Found {} penalty histories for driver ID: {}", penaltyHistories.size(), id);
-
         return driverResponse;
     }
 
     @Override
     public DriverResponse getDriverByUserId() {
         UUID userId = userContextUtils.getCurrentUserId();
-        log.info("Getting driver by current authenticated User ID: {}", userId);
 
         DriverEntity driverEntity = driverEntityService.findByUserId(userId)
                 .orElseThrow(() -> {
@@ -122,7 +117,7 @@ public class DriverServiceImpl implements DriverService {
 
     @Override
     public DriverResponse updateDriver(UUID driverId, UpdateDriverRequest updateDriverRequest) {
-        log.info("Updating driver: {}", driverId);
+        
         if (driverId == null) {
             log.error("Driver ID is null");
             throw new BadRequestException(
@@ -147,7 +142,7 @@ public class DriverServiceImpl implements DriverService {
 
     @Override
     public DriverResponse updateDriverStatus(UUID driverId, String status) {
-        log.info("Updating driver status: {}", driverId);
+        
         if (driverId == null) {
             log.error("Driver ID is null");
             throw new BadRequestException(
@@ -216,10 +211,9 @@ public class DriverServiceImpl implements DriverService {
         }
     }
 
-
     @Override
     public List<DriverResponse> getAllDriversByUserRoleName(String roleName) {
-        log.info("Getting drivers by role name: {}", roleName);
+        
         if (roleName == null || roleName.isBlank()) {
             log.error("Role name is null or blank");
             throw new BadRequestException(
@@ -230,7 +224,7 @@ public class DriverServiceImpl implements DriverService {
 
         List<DriverEntity> driverEntities = driverEntityService.findByUser_Role_RoleName(roleName);
         if (driverEntities.isEmpty()) {
-            log.info("No drivers found with role name: {}", roleName);
+            
             throw new BadRequestException(
                     "No drivers found with role name: " + roleName,
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -245,7 +239,6 @@ public class DriverServiceImpl implements DriverService {
     @Override
     @Transactional
     public List<DriverResponse> generateBulkDrivers(Integer count) {
-        log.info("Generating {} bulk drivers", count);
 
         // Prepare lists to store the results
         List<DriverEntity> createdDrivers = new ArrayList<>();
@@ -253,7 +246,6 @@ public class DriverServiceImpl implements DriverService {
 
         // Find the highest existing driver number
         int startId = findHighestDriverNumber() + 1;
-        log.info("Starting driver generation from ID: {}", startId);
 
         // Get the DRIVER role
         RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.DRIVER.name())
@@ -337,7 +329,6 @@ public class DriverServiceImpl implements DriverService {
             DriverEntity savedDriver = driverEntityService.save(driverEntity);
             createdDrivers.add(savedDriver);
 
-            log.info("Created driver: {} with username: {}", fullName, username);
         }
 
         // Map the driver entities to responses
@@ -345,7 +336,6 @@ public class DriverServiceImpl implements DriverService {
             driverResponses.add(driverMapper.mapDriverResponse(driver));
         }
 
-        log.info("Successfully generated {} drivers", driverResponses.size());
         return driverResponses;
     }
 
@@ -377,7 +367,6 @@ public class DriverServiceImpl implements DriverService {
                 }
             }
 
-            log.info("Found highest driver number: {}", highestNumber);
         } catch (Exception e) {
             log.error("Error finding highest driver number, using default: {}", highestNumber, e);
         }
@@ -387,8 +376,7 @@ public class DriverServiceImpl implements DriverService {
 
     @Override
     public DriverResponse validateDriverByPhone(String phoneNumber) {
-        log.info("Validating driver with phone number: {}", phoneNumber);
-        
+
         // Validate phone number format
         if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
             throw new BadRequestException(
@@ -434,10 +422,7 @@ public class DriverServiceImpl implements DriverService {
                 ErrorEnum.INVALID_REQUEST.getErrorCode()
             );
         }
-        
-        log.info("Driver {} ({}) validated successfully for assignment", 
-            driver.getUser().getFullName(), phoneNumber);
-        
+
         // Map driver entity to response
         DriverResponse driverResponse = driverMapper.mapDriverResponse(driver);
         

@@ -82,4 +82,9 @@ public class IssueEntityServiceImpl implements IssueEntityService {
         // Return the issue (drivers and order detail are now loaded in session)
         return issueOpt;
     }
+    
+    @Override
+    public List<IssueEntity> findInProgressOrderRejections() {
+        return issueRepository.findInProgressOrderRejections();
+    }
 }

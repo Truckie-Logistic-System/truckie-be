@@ -25,8 +25,7 @@ public class DirectPayOSApiTest {
     private static final String BASE_URL = "https://api-merchant.payos.vn";
 
     public void testDirectPayOSCall() {
-        log.info("========== DIRECT PAYOS API TEST START ==========");
-        
+
         try {
             long orderCode = System.currentTimeMillis();
             
@@ -40,9 +39,7 @@ public class DirectPayOSApiTest {
                   "cancelUrl": "http://localhost:5173/payment/return"
                 }
                 """, orderCode);
-            
-            log.info("📤 Request Body:\n{}", requestBody);
-            
+
             // Create HTTP client
             HttpClient client = HttpClient.newHttpClient();
             
@@ -54,21 +51,12 @@ public class DirectPayOSApiTest {
                     .header("x-api-key", API_KEY)
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
-            
-            log.info("📡 Calling PayOS API directly (bypass SDK)...");
-            
+
             // Send request
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            
-            log.info("📥 Response Status: {}", response.statusCode());
-            log.info("📥 Response Headers: {}", response.headers().map());
-            log.info("📥 Response Body:\n{}", response.body());
-            
+
             if (response.statusCode() == 200) {
-                log.info("✅ DIRECT API CALL SUCCESSFUL!");
-                log.info("✅ This means PayOS server is working fine");
-                log.info("🐛 Problem is likely in PayOS Java SDK signature verification logic");
-                log.info("💡 SOLUTION: We need to create custom HTTP client instead of using SDK");
+
             } else {
                 log.error("❌ DIRECT API CALL FAILED!");
                 log.error("❌ Status: {}", response.statusCode());
@@ -78,15 +66,11 @@ public class DirectPayOSApiTest {
             // Try to verify signature manually
             String responseSignature = response.headers().firstValue("x-signature").orElse(null);
             if (responseSignature != null) {
-                log.info("🔐 Response Signature: {}", responseSignature);
-                log.info("🔐 Attempting manual signature verification...");
-                
+
                 String calculatedSignature = calculateSignature(response.body(), CHECKSUM_KEY);
-                log.info("🔐 Calculated Signature: {}", calculatedSignature);
-                
+
                 if (responseSignature.equals(calculatedSignature)) {
-                    log.info("✅ MANUAL SIGNATURE VERIFICATION PASSED!");
-                    log.info("🐛 SDK signature verification logic is BUGGY!");
+
                 } else {
                     log.error("❌ MANUAL SIGNATURE VERIFICATION FAILED!");
                     log.error("❌ PayOS server signature generation is problematic");
@@ -96,8 +80,7 @@ public class DirectPayOSApiTest {
         } catch (Exception e) {
             log.error("❌ Error in direct PayOS API test", e);
         }
-        
-        log.info("========== DIRECT PAYOS API TEST END ==========");
+
     }
     
     private String calculateSignature(String data, String key) {

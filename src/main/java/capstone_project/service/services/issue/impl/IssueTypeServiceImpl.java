@@ -25,10 +25,9 @@ public class IssueTypeServiceImpl implements IssueTypeService {
     private final IssueTypeEntityService issueTypeEntityService;
     private final IssueMapper issueMapper;
 
-
     @Override
     public List<GetIssueTypeResponse> getAllIssueType() {
-        log.info("Get all issue type");
+        
         List<IssueTypeEntity> issueTypeEntities = issueTypeEntityService.findAll();
         if (issueTypeEntities.isEmpty()) {
             throw new NotFoundException(
@@ -42,7 +41,7 @@ public class IssueTypeServiceImpl implements IssueTypeService {
 
     @Override
     public GetIssueTypeResponse getIssueTypeById(UUID id) {
-        log.info("getIssueTypeById");
+        
         Optional<IssueTypeEntity> issueTypeEntitie = issueTypeEntityService.findEntityById(id);
         if (issueTypeEntitie.isEmpty()) {
             throw new NotFoundException(
@@ -56,7 +55,7 @@ public class IssueTypeServiceImpl implements IssueTypeService {
 
     @Override
     public List<GetIssueTypeResponse> getIssueTypeContainNameResponseList(String name) {
-        log.info("getIssueTypeContainNameResponseList");
+        
         if(name == null || name.isEmpty()) {
             throw new NotFoundException(
                     ErrorEnum.NOT_FOUND.getMessage() + " name",
