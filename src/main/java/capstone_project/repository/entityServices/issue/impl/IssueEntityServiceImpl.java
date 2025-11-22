@@ -66,20 +66,26 @@ public class IssueEntityServiceImpl implements IssueEntityService {
 
     @Override
     public Optional<IssueEntity> findByIdWithDetails(UUID id) {
-        // Fetch with vehicle first
+        // Fetch with vehicle and drivers first
         Optional<IssueEntity> issueOpt = issueRepository.findByIdWithVehicle(id);
         if (issueOpt.isEmpty()) {
             return Optional.empty();
         }
         
-        // Then fetch drivers separately to avoid MultipleBagFetchException
-        issueRepository.findByIdWithDriver1(id);
-        issueRepository.findByIdWithDriver2(id);
+        // Fetch driver1 with user (separate query to avoid MultipleBagFetchException)
+        Optional<IssueEntity> driver1Opt = issueRepository.findByIdWithDriver1(id);
+        
+        // Fetch driver2 with user
+        Optional<IssueEntity> driver2Opt = issueRepository.findByIdWithDriver2(id);
         
         // Fetch order detail
-        issueRepository.findByIdWithOrderDetail(id);
+        Optional<IssueEntity> orderDetailOpt = issueRepository.findByIdWithOrderDetail(id);
         
-        // Return the issue (drivers and order detail are now loaded in session)
+        // ✅ Fetch reroutedJourney for REROUTE issues (includes journey segments)
+        Optional<IssueEntity> rerouteJourneyOpt = issueRepository.findByIdWithReroutedJourney(id);
+        
+        // Return the issue - all related entities are now loaded in Hibernate session
+        // The original issueOpt will have access to all fetched entities through session cache
         return issueOpt;
     }
     

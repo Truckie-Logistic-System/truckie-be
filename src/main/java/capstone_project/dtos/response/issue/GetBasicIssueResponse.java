@@ -5,6 +5,8 @@ import capstone_project.dtos.response.order.seal.GetSealResponse;
 import capstone_project.dtos.response.user.CustomerResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.dtos.response.refund.GetRefundResponse;
+import capstone_project.dtos.response.order.JourneySegmentResponse;
+import capstone_project.dtos.response.order.JourneyHistoryResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.issue.IssueTypeEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -52,6 +54,10 @@ public record GetBasicIssueResponse (
         BigDecimal finalFee,
         List<OrderDetailForIssueResponse> affectedOrderDetails, // Multiple order details can be rejected
         GetRefundResponse returnTransaction, // The refund/transaction for return payment (deprecated)
-        List<capstone_project.dtos.response.order.transaction.TransactionResponse> transactions // All payment transactions
+        List<capstone_project.dtos.response.order.transaction.TransactionResponse> transactions, // All payment transactions
+        
+        // REROUTE specific fields
+        JourneySegmentResponse affectedSegment, // The segment where issue occurred
+        JourneyHistoryResponse reroutedJourney // The new journey created after rerouting
 ) {
 }

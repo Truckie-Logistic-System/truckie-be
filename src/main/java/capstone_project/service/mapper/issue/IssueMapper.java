@@ -13,7 +13,10 @@ import org.mapstruct.Mapping;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = {
+    capstone_project.service.mapper.vehicle.VehicleAssignmentMapper.class,
+    capstone_project.service.mapper.order.JourneyHistoryMapper.class
+})
 public interface IssueMapper {
     GetIssueTypeResponse toIssueTypeResponse(IssueTypeEntity issueType);
 
@@ -21,6 +24,7 @@ public interface IssueMapper {
 
     @Mapping(source = "issueTypeEntity.issueCategory", target = "issueCategory")
     @Mapping(source = "issueTypeEntity", target = "issueTypeEntity")
+    @Mapping(source = "vehicleAssignmentEntity", target = "vehicleAssignmentEntity")
     @Mapping(target = "orderDetail", expression = "java(mapOrderDetail(issue))")
     @Mapping(target = "issueImages", expression = "java(mapIssueImages(issue))")
     @Mapping(target = "sender", expression = "java(mapSender(issue))")
@@ -29,6 +33,8 @@ public interface IssueMapper {
     @Mapping(source = "returnShippingFee", target = "calculatedFee")
     @Mapping(source = "adjustedReturnFee", target = "adjustedFee")
     @Mapping(target = "finalFee", expression = "java(calculateFinalFee(issue))")
+    @Mapping(target = "affectedSegment", expression = "java(mapAffectedSegment(issue))")
+    @Mapping(source = "reroutedJourney", target = "reroutedJourney")
     GetBasicIssueResponse toIssueBasicResponse(IssueEntity issue);
 
     List<GetBasicIssueResponse> toIssueBasicResponses(List<IssueEntity> issues);
@@ -129,6 +135,31 @@ public interface IssueMapper {
             return issue.getAdjustedReturnFee();
         }
         return issue.getReturnShippingFee();
+    }
+    
+    // Map affected segment for REROUTE
+    default capstone_project.dtos.response.order.JourneySegmentResponse mapAffectedSegment(IssueEntity issue) {
+        if (issue.getAffectedSegment() == null) {
+            return null;
+        }
+        
+        var segment = issue.getAffectedSegment();
+        return new capstone_project.dtos.response.order.JourneySegmentResponse(
+            segment.getId(),
+            segment.getSegmentOrder(),
+            segment.getStartPointName(),
+            segment.getEndPointName(),
+            segment.getStartLatitude(),
+            segment.getStartLongitude(),
+            segment.getEndLatitude(),
+            segment.getEndLongitude(),
+            segment.getDistanceKilometers(),
+            segment.getPathCoordinatesJson(),
+            segment.getTollDetailsJson(),
+            segment.getStatus(),
+            segment.getCreatedAt(),
+            segment.getModifiedAt()
+        );
     }
     
     // Map return transaction/refund for ORDER_REJECTION

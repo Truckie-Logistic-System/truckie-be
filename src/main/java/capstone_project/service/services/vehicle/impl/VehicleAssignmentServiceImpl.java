@@ -999,9 +999,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 segment.setEndLatitude(segmentInfo.endLatitude());
                 segment.setEndLongitude(segmentInfo.endLongitude());
 
-                // Convert BigDecimal -> Integer (rounding)
-                segment.setDistanceKilometers(segmentInfo.distanceMeters() != null
-                        ? segmentInfo.distanceMeters().setScale(0, RoundingMode.HALF_UP).intValue()
+                // Set distance kilometers as BigDecimal (with 2 decimal places)
+                segment.setDistanceKilometers(segmentInfo.distanceKilometers() != null
+                        ? segmentInfo.distanceKilometers().setScale(2, RoundingMode.HALF_UP)
                         : null);
 
                 // Convert BigDecimal -> Long (rounding)
@@ -1703,8 +1703,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             RouteSegmentInfo segment = segments.get(i);
 
             // Add distance
-            if (segment.distanceMeters() != null) {
-                totalDistance = totalDistance.add(segment.distanceMeters());
+            if (segment.distanceKilometers() != null) {
+                totalDistance = totalDistance.add(segment.distanceKilometers());
             }
 
             // Add toll fee

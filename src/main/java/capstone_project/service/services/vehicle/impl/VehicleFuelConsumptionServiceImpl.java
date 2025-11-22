@@ -338,7 +338,9 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
             for (JourneySegmentEntity segment : segments) {
 
                 // ✅ Field renamed to distanceKilometers for clarity
-                BigDecimal segmentDistanceKm = new BigDecimal(segment.getDistanceKilometers());
+                BigDecimal segmentDistanceKm = segment.getDistanceKilometers() != null 
+                        ? segment.getDistanceKilometers() 
+                        : BigDecimal.ZERO;
 
                 // Determine cargo weight for this segment
                 BigDecimal cargoWeight = getCargoWeightForSegment(segment, segments, orderDetails);

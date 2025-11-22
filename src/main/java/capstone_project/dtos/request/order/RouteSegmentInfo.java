@@ -14,7 +14,7 @@ public record RouteSegmentInfo(
         BigDecimal startLongitude,
         BigDecimal endLatitude,
         BigDecimal endLongitude,
-        Integer distanceMeters,
+        BigDecimal distanceKilometers,
         String pathCoordinatesJson,
         List<Object> tollDetails, // Can be empty list or actual toll details
         BigDecimal estimatedTollFee // Estimated toll fee for this segment

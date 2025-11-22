@@ -601,7 +601,7 @@ public class SimpleOrderMapper {
         }
 
         return segments.stream()
-                .mapToDouble(segment -> segment.distanceMeters() != null ? segment.distanceMeters() : 0.0)
+                .mapToDouble(segment -> segment.distanceKilometers() != null ? segment.distanceKilometers().doubleValue() : 0.0)
                 .sum();
     }
 

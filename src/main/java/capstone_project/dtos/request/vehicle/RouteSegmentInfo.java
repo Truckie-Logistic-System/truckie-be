@@ -14,7 +14,7 @@ public record RouteSegmentInfo(
         BigDecimal startLongitude,
         BigDecimal endLatitude,
         BigDecimal endLongitude,
-        BigDecimal distanceMeters,
+        BigDecimal distanceKilometers,
         List<List<BigDecimal>> pathCoordinates,
         BigDecimal estimatedTollFee,
         List<TollDetail> tollDetails,

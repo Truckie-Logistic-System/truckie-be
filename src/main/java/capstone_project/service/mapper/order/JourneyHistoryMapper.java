@@ -59,7 +59,7 @@ public abstract class JourneyHistoryMapper {
 
         // Sum all segment distances (in km)
         return entity.getJourneySegments().stream()
-                .mapToDouble(segment -> segment.getDistanceKilometers() != null ? segment.getDistanceKilometers() : 0.0)
+                .mapToDouble(segment -> segment.getDistanceKilometers() != null ? segment.getDistanceKilometers().doubleValue() : 0.0)
                 .sum();
     }
 

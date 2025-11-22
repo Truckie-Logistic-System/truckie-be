@@ -2,6 +2,8 @@ package capstone_project.repository.repositories.order.order;
 
 import capstone_project.entity.order.order.JourneyHistoryEntity;
 import capstone_project.repository.repositories.common.BaseRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -43,4 +45,13 @@ public interface JourneyHistoryRepository extends BaseRepository<JourneyHistoryE
             UUID vehicleAssignmentId,
             List<String> statuses
     );
+    
+    /**
+     * ✅ Find journey by ID with all segments eagerly loaded
+     * Use this when you need the full route/path for display on map
+     */
+    @Query("SELECT DISTINCT j FROM JourneyHistoryEntity j " +
+           "LEFT JOIN FETCH j.journeySegments " +
+           "WHERE j.id = :id")
+    Optional<JourneyHistoryEntity> findByIdWithSegments(@Param("id") UUID id);
 }

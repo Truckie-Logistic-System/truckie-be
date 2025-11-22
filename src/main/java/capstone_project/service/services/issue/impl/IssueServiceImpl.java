@@ -70,6 +70,11 @@ public class IssueServiceImpl implements IssueService {
     // ✅ NEW: OrderDetailStatusService for centralized Order status aggregation
     private final capstone_project.service.services.order.order.OrderDetailStatusService orderDetailStatusService;
     
+    // ✅ REROUTE dependencies
+    private final capstone_project.service.mapper.vehicle.VehicleAssignmentMapper vehicleAssignmentMapper;
+    private final capstone_project.service.mapper.order.JourneyHistoryMapper journeyHistoryMapper;
+    private final capstone_project.repository.repositories.order.order.JourneyHistoryRepository journeyHistoryRepository;
+    
     // Return payment deadline configuration
     @org.springframework.beans.factory.annotation.Value("${issue.return-payment.deadline-minutes:30}")
     private int returnPaymentDeadlineMinutes;
@@ -83,83 +88,13 @@ public class IssueServiceImpl implements IssueService {
         IssueEntity getIssue = issueEntityService.findByIdWithDetails(issueId)
                 .orElseThrow(() -> new RuntimeException("Issue not found"));
 
-        GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(getIssue);
-
-        // Fetch issue images
-        List<String> issueImages = issueImageEntityService.findByIssueEntity_Id(issueId)
-                .stream()
-                .map(capstone_project.entity.issue.IssueImageEntity::getImageUrl)
-                .collect(java.util.stream.Collectors.toList());
-
-        if (!issueImages.isEmpty()) {
-            
-        }
-        
-        // Populate vehicle assignment với nested objects (now with user info already loaded)
-        if (getIssue.getVehicleAssignmentEntity() != null) {
-            var vehicleAssignment = getIssue.getVehicleAssignmentEntity();
-            var enrichedVA = mapVehicleAssignmentWithDetails(vehicleAssignment);
-            
-            // Create new response with enriched vehicle assignment, issue images, and order detail
-            return new GetBasicIssueResponse(
-                response.id(),
-                response.description(),
-                response.locationLatitude(),
-                response.locationLongitude(),
-                response.status(),
-                response.issueCategory(),
-                response.reportedAt(),
-                response.resolvedAt(),
-                enrichedVA,
-                response.staff(),
-                response.issueTypeEntity(),
-                response.oldSeal(),
-                response.newSeal(),
-                response.sealRemovalImage(),
-                response.newSealAttachedImage(),
-                response.newSealConfirmedAt(),
-                issueImages,
-                response.orderDetail(),
-                response.sender(),
-                response.paymentDeadline(),
-                response.calculatedFee(),
-                response.adjustedFee(),
-                response.finalFee(),
-                response.affectedOrderDetails(),
-                response.returnTransaction(),
-                null // transactions - will be populated in mapper if needed
-            );
-        }
-        
-        // Return with issue images and order detail even if no vehicle assignment
-        return new GetBasicIssueResponse(
-            response.id(),
-            response.description(),
-            response.locationLatitude(),
-            response.locationLongitude(),
-            response.status(),
-            response.issueCategory(),
-            response.reportedAt(),
-            response.resolvedAt(),
-            response.vehicleAssignmentEntity(),
-            response.staff(),
-            response.issueTypeEntity(),
-            response.oldSeal(),
-            response.newSeal(),
-            response.sealRemovalImage(),
-            response.newSealAttachedImage(),
-            response.newSealConfirmedAt(),
-            issueImages,
-            response.orderDetail(),
-            response.sender(),
-            response.paymentDeadline(),
-            response.calculatedFee(),
-            response.adjustedFee(),
-            response.finalFee(),
-            response.affectedOrderDetails(),
-            response.returnTransaction(),
-            null // transactions - will be populated in mapper if needed
-        );
+        // Mapper will handle all nested mappings including:
+        // - vehicleAssignment with vehicle, drivers
+        // - issueImages
+        // - orderDetail
+        // - affectedSegment (for REROUTE)
+        // - reroutedJourney (for REROUTE)
+        return issueMapper.toIssueBasicResponse(getIssue);
     }
     
     private capstone_project.dtos.response.vehicle.VehicleAssignmentResponse mapVehicleAssignmentWithDetails(
@@ -1676,7 +1611,7 @@ public class IssueServiceImpl implements IssueService {
                     .startLongitude(segmentInfo.startLongitude())
                     .endLatitude(segmentInfo.endLatitude())
                     .endLongitude(segmentInfo.endLongitude())
-                    .distanceKilometers(segmentInfo.distanceMeters())
+                    .distanceKilometers(segmentInfo.distanceKilometers())
                     .estimatedTollFee(segmentInfo.estimatedTollFee() != null ? segmentInfo.estimatedTollFee().longValue() : null) // Convert BigDecimal to Long
                     .status("PENDING")
                     .journeyHistory(returnJourney)
@@ -1844,8 +1779,8 @@ public class IssueServiceImpl implements IssueService {
             // Calculate total distance from segments (already in km)
             Double totalDistance = journey.getJourneySegments() != null
                     ? journey.getJourneySegments().stream()
-                            .mapToInt(seg -> seg.getDistanceKilometers() != null ? seg.getDistanceKilometers() : 0)
-                            .sum() * 1.0
+                            .mapToDouble(seg -> seg.getDistanceKilometers() != null ? seg.getDistanceKilometers().doubleValue() : 0.0)
+                            .sum()
                     : 0.0;
             
             journeyResponse = new capstone_project.dtos.response.order.JourneyHistoryResponse(
@@ -2150,12 +2085,24 @@ public class IssueServiceImpl implements IssueService {
                 issue.getId(), affectedSegment.getId(),
                 request.locationLatitude(), request.locationLongitude());
         
-        // Broadcast issue creation
+        // ✅ CRITICAL: Update all OrderDetails in VehicleAssignment to IN_TROUBLES
+        try {
+            orderDetailStatusService.updateOrderDetailStatusByAssignment(
+                    vehicleAssignment.getId(),
+                    OrderDetailStatusEnum.IN_TROUBLES
+            );
+            log.info("✅ Updated OrderDetails to IN_TROUBLES for vehicle assignment: {}", 
+                    vehicleAssignment.getId());
+        } catch (Exception e) {
+            log.error("❌ Failed to update OrderDetails to IN_TROUBLES: {}", e.getMessage());
+        }
+        
+        // 📢 Broadcast new reroute issue to all staff clients
         try {
             GetBasicIssueResponse issueResponse = issueMapper.toIssueBasicResponse(issue);
-            issueWebSocketService.broadcastIssueStatusChange(issueResponse);
+            issueWebSocketService.broadcastNewIssue(issueResponse);
         } catch (Exception e) {
-            log.error("❌ Failed to broadcast issue creation: {}", e.getMessage());
+            log.error("❌ Failed to broadcast new issue: {}", e.getMessage());
         }
         
         return getBasicIssue(issue.getId());
@@ -2211,104 +2158,63 @@ public class IssueServiceImpl implements IssueService {
                 .vehicleAssignment(issue.getVehicleAssignmentEntity())
                 .build();
         
-        // Build new journey segments: copy old segments + replace affected segment with new route
+        // ✅ CRITICAL: Frontend sends COMPLETE journey with affected segment already replaced
+        // Just use request.newRouteSegments directly - no need to copy old segments
         List<capstone_project.entity.order.order.JourneySegmentEntity> allSegments = 
                 new java.util.ArrayList<>();
-        int nextSegmentOrder = 1;
-        int affectedSegmentOrder = issue.getAffectedSegment().getSegmentOrder();
         
-        // Copy old segments before affected segment
-        for (capstone_project.entity.order.order.JourneySegmentEntity oldSeg : 
-                oldJourney.getJourneySegments()) {
+        log.info("📦 Building new journey from {} segments sent by frontend", 
+                request.newRouteSegments().size());
+        
+        // Create segments from request (frontend already built complete journey)
+        for (capstone_project.dtos.request.order.RouteSegmentInfo newSegInfo : 
+                request.newRouteSegments()) {
             
-            if (oldSeg.getSegmentOrder() < affectedSegmentOrder) {
-                // Copy as-is
-                capstone_project.entity.order.order.JourneySegmentEntity copiedSegment = 
-                        capstone_project.entity.order.order.JourneySegmentEntity.builder()
-                        .segmentOrder(nextSegmentOrder++)
-                        .startPointName(oldSeg.getStartPointName())
-                        .endPointName(oldSeg.getEndPointName())
-                        .startLatitude(oldSeg.getStartLatitude())
-                        .startLongitude(oldSeg.getStartLongitude())
-                        .endLatitude(oldSeg.getEndLatitude())
-                        .endLongitude(oldSeg.getEndLongitude())
-                        .distanceKilometers(oldSeg.getDistanceKilometers())
-                        .status(oldSeg.getStatus()) // Keep status (COMPLETED/ACTIVE)
-                        .estimatedTollFee(oldSeg.getEstimatedTollFee())
-                        .pathCoordinatesJson(oldSeg.getPathCoordinatesJson())
-                        .tollDetailsJson(oldSeg.getTollDetailsJson())
-                        .journeyHistory(reroutedJourney)
-                        .build();
-                
-                allSegments.add(copiedSegment);
-                
-            } else if (oldSeg.getSegmentOrder() == affectedSegmentOrder) {
-                // Replace with new route segments
-                for (capstone_project.dtos.request.order.RouteSegmentInfo newSegInfo : 
-                        request.newRouteSegments()) {
-                    
-                    capstone_project.entity.order.order.JourneySegmentEntity newSegment = 
-                            capstone_project.entity.order.order.JourneySegmentEntity.builder()
-                            .segmentOrder(nextSegmentOrder++)
-                            .startPointName(newSegInfo.startPointName())
-                            .endPointName(newSegInfo.endPointName())
-                            .startLatitude(newSegInfo.startLatitude())
-                            .startLongitude(newSegInfo.startLongitude())
-                            .endLatitude(newSegInfo.endLatitude())
-                            .endLongitude(newSegInfo.endLongitude())
-                            .distanceKilometers(newSegInfo.distanceMeters())
-                            .estimatedTollFee(newSegInfo.estimatedTollFee() != null ? 
-                                    newSegInfo.estimatedTollFee().longValue() : null)
-                            .status("ACTIVE") // New segments are active
-                            .pathCoordinatesJson(newSegInfo.pathCoordinatesJson())
-                            .journeyHistory(reroutedJourney)
-                            .build();
-                    
-                    // Convert toll details to JSON
-                    if (newSegInfo.tollDetails() != null && !newSegInfo.tollDetails().isEmpty()) {
-                        try {
-                            com.fasterxml.jackson.databind.ObjectMapper objectMapper = 
-                                    new com.fasterxml.jackson.databind.ObjectMapper();
-                            newSegment.setTollDetailsJson(
-                                    objectMapper.writeValueAsString(newSegInfo.tollDetails())
-                            );
-                        } catch (Exception e) {
-                            log.warn("Failed to serialize toll details: {}", e.getMessage());
-                        }
-                    }
-                    
-                    allSegments.add(newSegment);
+            capstone_project.entity.order.order.JourneySegmentEntity newSegment = 
+                    capstone_project.entity.order.order.JourneySegmentEntity.builder()
+                    .segmentOrder(newSegInfo.segmentOrder()) // Use order from frontend
+                    .startPointName(newSegInfo.startPointName())
+                    .endPointName(newSegInfo.endPointName())
+                    .startLatitude(newSegInfo.startLatitude())
+                    .startLongitude(newSegInfo.startLongitude())
+                    .endLatitude(newSegInfo.endLatitude())
+                    .endLongitude(newSegInfo.endLongitude())
+                    .distanceKilometers(newSegInfo.distanceKilometers())
+                    .estimatedTollFee(newSegInfo.estimatedTollFee() != null ? 
+                            newSegInfo.estimatedTollFee().longValue() : null)
+                    .status("ACTIVE") // All segments in rerouted journey are ACTIVE
+                    .pathCoordinatesJson(newSegInfo.pathCoordinatesJson())
+                    .journeyHistory(reroutedJourney)
+                    .build();
+            
+            // Convert toll details to JSON
+            if (newSegInfo.tollDetails() != null && !newSegInfo.tollDetails().isEmpty()) {
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper objectMapper = 
+                            new com.fasterxml.jackson.databind.ObjectMapper();
+                    newSegment.setTollDetailsJson(
+                            objectMapper.writeValueAsString(newSegInfo.tollDetails())
+                    );
+                } catch (Exception e) {
+                    log.warn("Failed to serialize toll details: {}", e.getMessage());
                 }
-                
-            } else {
-                // Copy remaining segments after affected segment
-                capstone_project.entity.order.order.JourneySegmentEntity copiedSegment = 
-                        capstone_project.entity.order.order.JourneySegmentEntity.builder()
-                        .segmentOrder(nextSegmentOrder++)
-                        .startPointName(oldSeg.getStartPointName())
-                        .endPointName(oldSeg.getEndPointName())
-                        .startLatitude(oldSeg.getStartLatitude())
-                        .startLongitude(oldSeg.getStartLongitude())
-                        .endLatitude(oldSeg.getEndLatitude())
-                        .endLongitude(oldSeg.getEndLongitude())
-                        .distanceKilometers(oldSeg.getDistanceKilometers())
-                        .status("PENDING") // Future segments become PENDING
-                        .estimatedTollFee(oldSeg.getEstimatedTollFee())
-                        .pathCoordinatesJson(oldSeg.getPathCoordinatesJson())
-                        .tollDetailsJson(oldSeg.getTollDetailsJson())
-                        .journeyHistory(reroutedJourney)
-                        .build();
-                
-                allSegments.add(copiedSegment);
             }
+            
+            allSegments.add(newSegment);
+            
+            log.info("✅ Created segment {}: {} → {} ({}km)", 
+                    newSegInfo.segmentOrder(),
+                    newSegInfo.startPointName(),
+                    newSegInfo.endPointName(),
+                    newSegInfo.distanceKilometers());
         }
         
         reroutedJourney.setJourneySegments(allSegments);
         reroutedJourney = journeyHistoryEntityService.save(reroutedJourney);
         
         // Set old journey to CANCELLED
-        oldJourney.setStatus("CANCELLED");
-        journeyHistoryEntityService.save(oldJourney);
+        // oldJourney.setStatus("CANCELLED");
+        // journeyHistoryEntityService.save(oldJourney);
         
         // Link rerouted journey to issue
         issue.setReroutedJourney(reroutedJourney);
@@ -2319,20 +2225,83 @@ public class IssueServiceImpl implements IssueService {
         log.info("✅ Reroute processed: Journey {} created with {} segments",
                 reroutedJourney.getId(), allSegments.size());
         
+        // ✅ CRITICAL: Restore OrderDetails status from tripStatusAtReport
+        String tripStatusAtReport = issue.getTripStatusAtReport();
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService
+                .findByVehicleAssignmentEntity(issue.getVehicleAssignmentEntity());
+        
+        if (tripStatusAtReport != null && !tripStatusAtReport.isEmpty()) {
+            try {
+                // Parse JSON map: {"uuid1":"STATUS1","uuid2":"STATUS2"}
+                if (tripStatusAtReport.startsWith("{") && tripStatusAtReport.endsWith("}")) {
+                    log.info("🔄 Restoring statuses from JSON (processReroute): {}", tripStatusAtReport);
+                    
+                    // Simple JSON parsing
+                    String jsonContent = tripStatusAtReport.substring(1, tripStatusAtReport.length() - 1);
+                    String[] entries = jsonContent.split(",");
+                    
+                    java.util.Map<String, String> statusMap = new java.util.HashMap<>();
+                    for (String entry : entries) {
+                        String[] parts = entry.split(":");
+                        if (parts.length == 2) {
+                            String id = parts[0].replace("\"", "").trim();
+                            String status = parts[1].replace("\"", "").trim();
+                            statusMap.put(id, status);
+                        }
+                    }
+                    
+                    // Restore each OrderDetail to its original status
+                    for (OrderDetailEntity orderDetail : orderDetails) {
+                        String savedStatus = statusMap.get(orderDetail.getId().toString());
+                        if (savedStatus != null) {
+                            try {
+                                OrderDetailStatusEnum restoredStatusEnum = OrderDetailStatusEnum.valueOf(savedStatus);
+                                updateOrderDetailStatusWithNotification(
+                                    orderDetail,
+                                    restoredStatusEnum,
+                                    issue.getVehicleAssignmentEntity().getId()
+                                );
+                                log.info("✅ Restored OrderDetail {} to status {}", 
+                                        orderDetail.getId(), savedStatus);
+                            } catch (IllegalArgumentException e) {
+                                log.warn("⚠️ Invalid status '{}' for OrderDetail {}", 
+                                        savedStatus, orderDetail.getId());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error("❌ Failed to restore statuses (processReroute): {}", e.getMessage(), e);
+            }
+        } else {
+            log.warn("⚠️ No tripStatusAtReport found for issue {}, cannot restore statuses", 
+                    issue.getId());
+        }
+        
         // Send WebSocket notification to driver
         try {
             // Get Order ID through OrderDetail (VehicleAssignment → OrderDetail → Order)
-            List<OrderDetailEntity> orderDetails = orderDetailEntityService
-                    .findByVehicleAssignmentEntity(issue.getVehicleAssignmentEntity());
+            // orderDetails already fetched above for status restoration
             UUID orderId = orderDetails.isEmpty() ? null : orderDetails.get(0).getOrderEntity().getId();
             
+            // ✅ CRITICAL: Use driver ID (not user ID) to match mobile app subscription
+            var driver = issue.getVehicleAssignmentEntity().getDriver1();
+            UUID driverId = driver.getId();
+            UUID userId = driver.getUser() != null ? driver.getUser().getId() : null;
+            
+            log.info("📢 Sending reroute resolved notification:");
+            log.info("   Driver ID: {} (for WebSocket subscription)", driverId);
+            log.info("   User ID: {} (DO NOT USE for WebSocket)", userId);
+            log.info("   Issue ID: {}", issue.getId());
+            log.info("   Order ID: {}", orderId);
+            
             issueWebSocketService.sendRerouteResolvedNotification(
-                    issue.getVehicleAssignmentEntity().getDriver1().getId(),
+                    driverId, // ✅ CORRECT: Driver ID
                     issue.getId(),
                     orderId
             );
         } catch (Exception e) {
-            log.error("❌ Failed to send reroute notification to driver: {}", e.getMessage());
+            log.error("❌ Failed to send reroute notification to driver: {}", e.getMessage(), e);
         }
         
         // Broadcast issue status change
@@ -2361,57 +2330,87 @@ public class IssueServiceImpl implements IssueService {
             throw new IllegalStateException("Issue is not REROUTE type");
         }
         
-        // Get affected segment info
-        capstone_project.entity.order.order.JourneySegmentEntity affectedSegment = 
+        // Get affected segment full info
+        capstone_project.entity.order.order.JourneySegmentEntity affectedSegmentEntity = 
                 issue.getAffectedSegment();
         
-        if (affectedSegment == null) {
+        if (affectedSegmentEntity == null) {
             throw new IllegalStateException("Issue has no affected segment");
         }
         
-        // Map rerouted journey if exists
-        capstone_project.dtos.response.order.JourneyHistoryResponse journeyResponse = null;
-        if (issue.getReroutedJourney() != null) {
-            var journey = issue.getReroutedJourney();
-            
-            // Calculate total distance
-            Double totalDistance = journey.getJourneySegments() != null
-                    ? journey.getJourneySegments().stream()
-                            .mapToInt(seg -> seg.getDistanceKilometers() != null ? 
-                                    seg.getDistanceKilometers() : 0)
-                            .sum() * 1.0
-                    : 0.0;
-            
-            journeyResponse = new capstone_project.dtos.response.order.JourneyHistoryResponse(
-                    journey.getId(),
-                    journey.getJourneyName(),
-                    journey.getJourneyType(),
-                    journey.getStatus(),
-                    journey.getTotalTollFee(),
-                    journey.getTotalTollCount(),
-                    totalDistance,
-                    journey.getReasonForReroute(),
-                    journey.getVehicleAssignment() != null ? 
-                            journey.getVehicleAssignment().getId() : null,
-                    null, // segments - can be expanded if needed
-                    journey.getCreatedAt(),
-                    journey.getModifiedAt()
-            );
+        // Map affected segment to response
+        capstone_project.dtos.response.order.JourneySegmentResponse affectedSegment = 
+                new capstone_project.dtos.response.order.JourneySegmentResponse(
+                    affectedSegmentEntity.getId(),
+                    affectedSegmentEntity.getSegmentOrder(),
+                    affectedSegmentEntity.getStartPointName(),
+                    affectedSegmentEntity.getEndPointName(),
+                    affectedSegmentEntity.getStartLatitude(),
+                    affectedSegmentEntity.getStartLongitude(),
+                    affectedSegmentEntity.getEndLatitude(),
+                    affectedSegmentEntity.getEndLongitude(),
+                    affectedSegmentEntity.getDistanceKilometers(),
+                    affectedSegmentEntity.getPathCoordinatesJson(),
+                    affectedSegmentEntity.getTollDetailsJson(),
+                    affectedSegmentEntity.getStatus(),
+                    affectedSegmentEntity.getCreatedAt(),
+                    affectedSegmentEntity.getModifiedAt()
+                );
+        
+        // Map vehicle assignment with vehicle & driver details
+        capstone_project.dtos.response.vehicle.VehicleAssignmentResponse vehicleAssignment = null;
+        if (issue.getVehicleAssignmentEntity() != null) {
+            vehicleAssignment = vehicleAssignmentMapper.toResponse(issue.getVehicleAssignmentEntity());
         }
+        
+        // Get latest ACTIVE journey with full segments
+        capstone_project.dtos.response.order.JourneyHistoryResponse activeJourney = null;
+        if (issue.getVehicleAssignmentEntity() != null) {
+            // Query journey histories separately to get full segments
+            var journeyHistories = journeyHistoryRepository.findByVehicleAssignment_Id(
+                    issue.getVehicleAssignmentEntity().getId());
+            
+            // Find latest ACTIVE journey
+            var activeJourneyEntity = journeyHistories.stream()
+                    .filter(j -> "ACTIVE".equals(j.getStatus()))
+                    .max((j1, j2) -> j1.getCreatedAt().compareTo(j2.getCreatedAt()))
+                    .orElse(null);
+            
+            if (activeJourneyEntity != null) {
+                // Fetch with segments
+                var journeyWithSegments = journeyHistoryRepository.findByIdWithSegments(
+                        activeJourneyEntity.getId()).orElse(null);
+                if (journeyWithSegments != null) {
+                    activeJourney = journeyHistoryMapper.toResponse(journeyWithSegments);
+                }
+            }
+        }
+        
+        // Map rerouted journey if exists
+        capstone_project.dtos.response.order.JourneyHistoryResponse reroutedJourney = null;
+        if (issue.getReroutedJourney() != null) {
+            reroutedJourney = journeyHistoryMapper.toResponse(issue.getReroutedJourney());
+        }
+        
+        // Get issue images
+        List<String> issueImages = issueImageEntityService.findByIssueEntity_Id(issueId)
+                .stream()
+                .map(capstone_project.entity.issue.IssueImageEntity::getImageUrl)
+                .collect(java.util.stream.Collectors.toList());
         
         return new capstone_project.dtos.response.issue.RerouteDetailResponse(
                 issue.getId(),
-                issue.getId().toString(), // issueCode
-                issue.getDescription(),
                 issue.getStatus(),
+                issue.getDescription(),
                 issue.getReportedAt(),
                 issue.getResolvedAt(),
-                affectedSegment.getId(),
-                affectedSegment.getStartPointName(),
-                affectedSegment.getEndPointName(),
                 issue.getLocationLatitude(),
                 issue.getLocationLongitude(),
-                journeyResponse
+                affectedSegment,
+                vehicleAssignment,
+                activeJourney,
+                reroutedJourney,
+                issueImages
         );
     }
     

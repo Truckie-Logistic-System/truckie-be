@@ -23,7 +23,7 @@ import java.util.List;
  *             "startLongitude": 106.123456,
  *             "endLatitude": 10.234567,
  *             "endLongitude": 106.234567,
- *             "distanceMeters": 15000,
+ *             "distanceKilometers": 15000,
  *             "pathCoordinates": [[106.123456, 10.123456], [106.234567, 10.234567]],
  *             "estimatedTollFee": 15000
  *           },
@@ -35,7 +35,7 @@ import java.util.List;
  *             "startLongitude": 106.234567,
  *             "endLatitude": 10.345678,
  *             "endLongitude": 106.345678,
- *             "distanceMeters": 20000,
+ *             "distanceKilometers": 20000,
  *             "pathCoordinates": [[106.234567, 10.234567], [106.345678, 10.345678]],
  *             "estimatedTollFee": 25000
  *           }
