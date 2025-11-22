@@ -334,4 +334,13 @@ public class IssuesController {
         final var result = issueService.getRerouteDetail(issueId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+    
+    // Get suggested alternative routes for REROUTE issue
+    @GetMapping("/reroute/{issueId}/suggested-routes")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.vietmap.VietmapRouteV3Response>> getSuggestedRoutesForReroute(
+            @PathVariable("issueId") UUID issueId) {
+        final var result = issueService.getSuggestedRoutesForReroute(issueId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }

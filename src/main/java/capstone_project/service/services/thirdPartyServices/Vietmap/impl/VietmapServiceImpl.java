@@ -349,6 +349,14 @@ public class VietmapServiceImpl implements VietmapService {
             VietmapRouteV3Response response = objectMapper.readValue(jsonResponse, VietmapRouteV3Response.class);
             
             log.info("Vietmap Route API v3 response code: {}", response.getCode());
+            
+            // Check for API error
+            if (!"OK".equals(response.getCode())) {
+                String errorMsg = response.getMessage() != null ? response.getMessage() : response.getMessages();
+                log.error("Vietmap Route API v3 returned error - Code: {}, Message: {}", response.getCode(), errorMsg);
+                throw new RuntimeException("Vietmap Route API v3 error: " + response.getCode() + " - " + errorMsg);
+            }
+            
             return response;
             
         } catch (WebClientResponseException ex) {

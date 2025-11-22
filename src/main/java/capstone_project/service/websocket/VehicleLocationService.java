@@ -167,7 +167,12 @@ public class VehicleLocationService {
                             enhancedMessage.setVelocityLat(message.getVelocityLat());
                             enhancedMessage.setVelocityLng(message.getVelocityLng());
                             
-                            // DEBUG: Log the complete message being sent
+                            // DEBUG: Log speed values to identify discrepancy
+                            log.info("=== [WEBSOCKET SPEED DEBUG] Vehicle {} ({}) - Speed from mobile: {} km/h, Speed being sent: {} km/h", 
+                                    message.getVehicleId(), 
+                                    message.getLicensePlateNumber(),
+                                    message.getSpeed() != null ? message.getSpeed().doubleValue() + "" : "NULL",
+                                    enhancedMessage.getSpeed() != null ? enhancedMessage.getSpeed().doubleValue() + "" : "NULL");
 
                             messagingTemplate.convertAndSend(orderTopic, enhancedMessage);
                             broadcastedOrders.add(orderId); // Mark as broadcast

@@ -81,6 +81,9 @@ public class IssueServiceImpl implements IssueService {
     
     // Payment timeout scheduler for real-time timeout detection
     private final capstone_project.config.expired.PaymentTimeoutSchedulerService paymentTimeoutSchedulerService;
+    
+    // ✅ Vietmap Service for getting suggested routes (Route V3 API)
+    private final capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService vietmapService;
 
     @Override
     public GetBasicIssueResponse getBasicIssue(UUID issueId) {
@@ -432,6 +435,21 @@ public class IssueServiceImpl implements IssueService {
             }
         } else {
             log.warn("⚠️ No tripStatusAtReport found for issue {}, cannot restore statuses", issueId);
+        }
+        
+        // ✅ CRITICAL FIX: Trigger Order status aggregation after restoring OrderDetails
+        // This ensures Order status is updated based on ALL OrderDetails after restoration
+        // Handles case: All OrderDetails were IN_TROUBLES → Order IN_TROUBLES
+        //               After restore → Order status should reflect restored statuses
+        if (!orderDetails.isEmpty()) {
+            UUID orderId = orderDetails.get(0).getOrderEntity().getId();
+            log.info("🔄 Triggering Order status update after OrderDetail restoration for Order {}", orderId);
+            try {
+                orderDetailStatusService.triggerOrderStatusUpdate(orderId);
+                log.info("✅ Order status updated successfully after issue resolution");
+            } catch (Exception e) {
+                log.error("❌ Failed to update Order status after issue resolution: {}", e.getMessage(), e);
+            }
         }
 
         // Update issue status to RESOLVED
@@ -860,6 +878,21 @@ public class IssueServiceImpl implements IssueService {
                 }
             } catch (Exception e) {
                 log.error("❌ Failed to restore statuses: {}", e.getMessage(), e);
+            }
+        }
+        
+        // ✅ CRITICAL FIX: Trigger Order status aggregation after restoring OrderDetails
+        // This ensures Order status is updated based on ALL OrderDetails after restoration
+        // Handles case: All OrderDetails were IN_TROUBLES → Order IN_TROUBLES
+        //               After seal replacement → Order status should reflect restored statuses
+        if (!orderDetails.isEmpty()) {
+            UUID orderId = orderDetails.get(0).getOrderEntity().getId();
+            log.info("🔄 Triggering Order status update after OrderDetail restoration for Order {}", orderId);
+            try {
+                orderDetailStatusService.triggerOrderStatusUpdate(orderId);
+                log.info("✅ Order status updated successfully after seal replacement");
+            } catch (Exception e) {
+                log.error("❌ Failed to update Order status after seal replacement: {}", e.getMessage(), e);
             }
         }
 
@@ -2278,6 +2311,21 @@ public class IssueServiceImpl implements IssueService {
                     issue.getId());
         }
         
+        // ✅ CRITICAL FIX: Trigger Order status aggregation after restoring OrderDetails
+        // This ensures Order status is updated based on ALL OrderDetails after restoration
+        // Handles case: All OrderDetails were IN_TROUBLES → Order IN_TROUBLES
+        //               After reroute → Order status should reflect restored statuses
+        if (!orderDetails.isEmpty()) {
+            UUID orderId = orderDetails.get(0).getOrderEntity().getId();
+            log.info("🔄 Triggering Order status update after OrderDetail restoration for Order {}", orderId);
+            try {
+                orderDetailStatusService.triggerOrderStatusUpdate(orderId);
+                log.info("✅ Order status updated successfully after reroute");
+            } catch (Exception e) {
+                log.error("❌ Failed to update Order status after reroute: {}", e.getMessage(), e);
+            }
+        }
+        
         // Send WebSocket notification to driver
         try {
             // Get Order ID through OrderDetail (VehicleAssignment → OrderDetail → Order)
@@ -2448,6 +2496,177 @@ public class IssueServiceImpl implements IssueService {
         } catch (Exception e) {
             log.error("❌ Failed to send WebSocket notification for order detail {}: {}",
                     orderDetail.getTrackingCode(), e.getMessage());
+        }
+    }
+    
+    /**
+     * Get suggested alternative routes for reroute issue using Vietmap Route V3 API
+     * Returns multiple route options for staff to choose from
+     * 
+     * @param issueId The reroute issue ID
+     * @return Vietmap Route V3 response with alternative routes
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public capstone_project.dtos.response.vietmap.VietmapRouteV3Response getSuggestedRoutesForReroute(UUID issueId) {
+        // 1️⃣ Get issue and validate
+        IssueEntity issue = issueEntityService.findByIdWithDetails(issueId)
+                .orElseThrow(() -> new NotFoundException(ErrorEnum.ISSUE_NOT_FOUND));
+        
+        if (!IssueCategoryEnum.REROUTE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new BadRequestException("Issue is not a REROUTE issue", ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+        
+        if (issue.getAffectedSegment() == null) {
+            throw new BadRequestException("Affected segment not found for this issue", ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+        
+        // 2️⃣ Get 3 points: start, issue location, end
+        var affectedSegment = issue.getAffectedSegment();
+        
+        // Validate coordinates are not null
+        if (affectedSegment.getStartLatitude() == null || affectedSegment.getStartLongitude() == null) {
+            throw new BadRequestException("Tọa độ điểm bắt đầu không hợp lệ", ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+        if (affectedSegment.getEndLatitude() == null || affectedSegment.getEndLongitude() == null) {
+            throw new BadRequestException("Tọa độ điểm kết thúc không hợp lệ", ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+        if (issue.getLocationLatitude() == null || issue.getLocationLongitude() == null) {
+            throw new BadRequestException("Tọa độ vị trí sự cố không hợp lệ", ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+        
+        // Start point: beginning of affected segment
+        String startPoint = String.format("%s,%s", 
+                affectedSegment.getStartLatitude(), 
+                affectedSegment.getStartLongitude());
+        
+        // Middle point: issue reported location
+        String issuePoint = String.format("%s,%s",
+                issue.getLocationLatitude(),
+                issue.getLocationLongitude());
+        
+        // End point: end of affected segment
+        String endPoint = String.format("%s,%s",
+                affectedSegment.getEndLatitude(),
+                affectedSegment.getEndLongitude());
+        
+        // Validate coordinate ranges (Vietnam approximate bounds)
+        validateCoordinates(affectedSegment.getStartLatitude().doubleValue(), affectedSegment.getStartLongitude().doubleValue(), "điểm bắt đầu");
+        validateCoordinates(affectedSegment.getEndLatitude().doubleValue(), affectedSegment.getEndLongitude().doubleValue(), "điểm kết thúc");
+        validateCoordinates(issue.getLocationLatitude().doubleValue(), issue.getLocationLongitude().doubleValue(), "vị trí sự cố");
+        
+        // Validate start and end points are not identical (zero-distance edge case)
+        if (affectedSegment.getStartLatitude().equals(affectedSegment.getEndLatitude()) && 
+            affectedSegment.getStartLongitude().equals(affectedSegment.getEndLongitude())) {
+            throw new BadRequestException("Điểm bắt đầu và điểm kết thúc không được trùng nhau", ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+        
+        // 3️⃣ Get vehicle capacity from vehicle type (ton → kg)
+        var vehicle = issue.getVehicleAssignmentEntity().getVehicleEntity();
+        var vehicleType = vehicle.getVehicleTypeEntity();
+        
+        // Weight limit in tons, convert to kg for API
+        Integer capacityKg = vehicleType.getWeightLimitTon() != null
+                ? vehicleType.getWeightLimitTon().multiply(new java.math.BigDecimal(1000)).intValue()
+                : null;
+        
+        log.info("🚛 Getting suggested routes for reroute issue {}:", issue.getId());
+        log.info("   Start: {} ({})", affectedSegment.getStartPointName(), startPoint);
+        log.info("   Issue: Lat {} Lng {} ({})", issue.getLocationLatitude(), issue.getLocationLongitude(), issuePoint);
+        log.info("   End: {} ({})", affectedSegment.getEndPointName(), endPoint);
+        log.info("   Vehicle: {} - {} (capacity: {} kg)", 
+                vehicle.getLicensePlateNumber(),
+                vehicleType.getVehicleTypeName(),
+                capacityKg);
+        
+        // 4️⃣ Build Vietmap Route V3 request
+        // Let VietmapServiceImpl use defaultTime from properties
+        capstone_project.dtos.request.vietmap.VietmapRouteV3Request request = 
+                capstone_project.dtos.request.vietmap.VietmapRouteV3Request.builder()
+                        .points(java.util.List.of(startPoint, issuePoint, endPoint))
+                        .vehicle("truck") // Default vehicle type
+                        .capacity(capacityKg) // Required for truck
+                        // time: will use default from VietmapServiceImpl properties
+                        // pointsEncoded: default true (encoded polyline)
+                        .alternative(true) // Get alternative routes
+                        .build();
+        
+        // 5️⃣ Call Vietmap Route V3 API
+        try {
+            capstone_project.dtos.response.vietmap.VietmapRouteV3Response response = 
+                    vietmapService.routeV3(request);
+            
+            // Validate response has routes
+            if (response.getPaths() == null || response.getPaths().isEmpty()) {
+                log.warn("⚠️ No routes found for the requested points");
+                throw new RuntimeException("Không tìm thấy lộ trình phù hợp cho các điểm đã chọn");
+            }
+            
+            // Limit route count to prevent memory issues (max 10 routes)
+            if (response.getPaths().size() > 10) {
+                log.warn("⚠️ API returned {} routes, limiting to first 10", response.getPaths().size());
+                response.setPaths(response.getPaths().subList(0, 10));
+            }
+            
+            // Validate each route has required fields
+            for (int i = 0; i < response.getPaths().size(); i++) {
+                var path = response.getPaths().get(i);
+                if (path.getPoints() == null || path.getPoints().toString().trim().isEmpty()) {
+                    log.error("❌ Route {} has no points data", i);
+                    throw new RuntimeException("Lộ trình " + (i + 1) + " thiếu dữ liệu tọa độ");
+                }
+                if (path.getDistance() == null || path.getDistance() <= 0) {
+                    log.error("❌ Route {} has invalid distance: {}", i, path.getDistance());
+                    throw new RuntimeException("Lộ trình " + (i + 1) + " có khoảng cách không hợp lệ");
+                }
+                if (path.getTime() == null || path.getTime() <= 0) {
+                    log.error("❌ Route {} has invalid time: {}", i, path.getTime());
+                    throw new RuntimeException("Lộ trình " + (i + 1) + " có thời gian không hợp lệ");
+                }
+                // Gracefully handle null/empty instructions array
+                if (path.getInstructions() == null) {
+                    log.warn("⚠️ Route {} has no instructions, setting empty array", i);
+                    path.setInstructions(java.util.List.of());
+                }
+            }
+            
+            log.info("✅ Received {} suggested route(s) from Vietmap API", 
+                    response.getPaths().size());
+            
+            // Log route summary for debugging
+            for (int i = 0; i < response.getPaths().size(); i++) {
+                var path = response.getPaths().get(i);
+                double distanceKm = path.getDistance() / 1000.0;
+                long timeMinutes = path.getTime() / 60000;
+                log.info("   Route {}: {:.2f} km, {} minutes, points_encoded: {}", 
+                        i + 1, distanceKm, timeMinutes, path.getPointsEncoded());
+            }
+            
+            return response;
+            
+        } catch (RuntimeException e) {
+            // Re-throw our custom exceptions
+            throw e;
+        } catch (Exception e) {
+            log.error("❌ Failed to get suggested routes from Vietmap API: {}", e.getMessage());
+            throw new RuntimeException("Không thể lấy gợi ý lộ trình: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Validate coordinate ranges (Vietnam approximate bounds)
+     */
+    private void validateCoordinates(Double latitude, Double longitude, String pointName) {
+        // Vietnam approximate bounds: 8.0 to 24.0 latitude, 102.0 to 110.0 longitude
+        if (latitude < 8.0 || latitude > 24.0) {
+            throw new BadRequestException(
+                    String.format("Tọa độ vĩ độ (%.6f) của %s không hợp lệ (phải trong khoảng [8.0, 24.0])", latitude, pointName), 
+                    ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+        if (longitude < 102.0 || longitude > 110.0) {
+            throw new BadRequestException(
+                    String.format("Tọa độ kinh độ (%.6f) của %s không hợp lệ (phải trong khoảng [102.0, 110.0])", longitude, pointName), 
+                    ErrorEnum.INVALID_REQUEST.getErrorCode());
         }
     }
 

@@ -1,5 +1,6 @@
 package capstone_project.dtos.response.vietmap;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,6 +17,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class VietmapRouteV3Response {
     
     /**
@@ -32,7 +34,13 @@ public class VietmapRouteV3Response {
     private String code;
     
     /**
-     * Additional messages related to the request (if any)
+     * Error message (singular) - used when API returns error
+     */
+    @JsonProperty("message")
+    private String message;
+    
+    /**
+     * Additional messages (plural) - used in success response (if any)
      */
     @JsonProperty("messages")
     private String messages;
@@ -50,6 +58,7 @@ public class VietmapRouteV3Response {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class RoutePath {
         
         /**
@@ -75,6 +84,12 @@ public class VietmapRouteV3Response {
          */
         @JsonProperty("transfers")
         private Integer transfers;
+        
+        /**
+         * Number of transfer (singular) - used in some API responses
+         */
+        @JsonProperty("transfer")
+        private Integer transfer;
         
         /**
          * Whether the points and snapped_waypoints fields are polyline-encoded strings

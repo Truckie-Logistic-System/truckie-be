@@ -193,10 +193,20 @@ public interface IssueService {
     );
     
     /**
-     * Get REROUTE issue detail (Staff)
+     * Get reroute issue detail
+     * 
      * @param issueId Issue ID
      * @return Reroute detail
      */
     capstone_project.dtos.response.issue.RerouteDetailResponse getRerouteDetail(UUID issueId);
+    
+    /**
+     * Get suggested alternative routes for reroute issue using Vietmap Route V3 API
+     * Returns multiple route options for staff to choose from
+     * 
+     * @param issueId The reroute issue ID
+     * @return Vietmap Route V3 response with alternative routes
+     */
+    capstone_project.dtos.response.vietmap.VietmapRouteV3Response getSuggestedRoutesForReroute(UUID issueId);
 
 }
