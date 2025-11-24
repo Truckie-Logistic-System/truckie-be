@@ -39,6 +39,7 @@ import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import capstone_project.service.services.user.DistanceService;
 import capstone_project.service.services.map.VietMapDistanceService;
+import capstone_project.service.services.pricing.UnifiedPricingService;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -68,6 +69,7 @@ public class ContractServiceImpl implements ContractService {
     private final CloudinaryService cloudinaryService;
     private final UserContextUtils userContextUtils;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
+    private final UnifiedPricingService unifiedPricingService;
 
     private final ContractMapper contractMapper;
 
@@ -739,15 +741,8 @@ public class ContractServiceImpl implements ContractService {
             throw new BadRequestException("Contract missing order/category", ErrorEnum.INVALID.getErrorCode());
         }
 
-        List<DistanceRuleEntity> distanceRules = distanceRuleEntityService.findAll()
-                .stream()
-                .sorted(Comparator.comparing(DistanceRuleEntity::getFromKm))
-                .toList();
-
-        if (distanceRules.isEmpty()) {
-            throw new RuntimeException("No distance rules found");
-        }
-
+        log.info("🧮 Using unified pricing for contract calculation");
+        
         BigDecimal total = BigDecimal.ZERO;
         List<PriceCalculationResponse.CalculationStep> steps = new ArrayList<>();
 
@@ -759,111 +754,64 @@ public class ContractServiceImpl implements ContractService {
                     .orElseThrow(() -> new NotFoundException("Vehicle rule not found: " + sizeRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()));
 
-            BigDecimal ruleTotal = BigDecimal.ZERO;
-            BigDecimal remaining = distanceKm;
+            // Use unified pricing service for consistent calculation
+            UnifiedPricingService.UnifiedPriceResult pricingResult = unifiedPricingService.calculatePrice(
+                    sizeRuleId, 
+                    distanceKm, 
+                    numOfVehicles, 
+                    contract.getOrderEntity().getCategory().getId()
+            );
 
-            for (DistanceRuleEntity distanceRule : distanceRules) {
-                if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
-
-                BigDecimal from = distanceRule.getFromKm();
-                BigDecimal to = distanceRule.getToKm();
-
-                BasingPriceEntity basePriceEntity = basingPriceEntityService
-                        .findBasingPriceEntityBysizeRuleEntityIdAndDistanceRuleEntityId(
-                                sizeRule.getId(), distanceRule.getId())
-                        .orElseThrow(() -> new RuntimeException("No base price found for tier "
-                                + from + "-" + to + " and sizeRule=" + sizeRule.getId()));
-
-                if (from.compareTo(BigDecimal.ZERO) == 0 && to.compareTo(BigDecimal.valueOf(4)) == 0) {
-                    // fixed tier
-                    ruleTotal = ruleTotal.add(basePriceEntity.getBasePrice());
-                    remaining = remaining.subtract(to);
-
-                    steps.add(PriceCalculationResponse.CalculationStep.builder()
-                            .sizeRuleName(sizeRule.getSizeRuleName())
-                            .numOfVehicles(numOfVehicles)
-                            .distanceRange("0-4 km")
-                            .unitPrice(basePriceEntity.getBasePrice())
-                            .appliedKm(BigDecimal.valueOf(4))
-                            .subtotal(basePriceEntity.getBasePrice())
-                            .build());
-
-                } else {
-                    BigDecimal tierDistance = (to == null) ? remaining : remaining.min(to.subtract(from));
-                    BigDecimal add = basePriceEntity.getBasePrice().multiply(tierDistance);
-                    ruleTotal = ruleTotal.add(add);
-                    remaining = remaining.subtract(tierDistance);
-
-                    steps.add(PriceCalculationResponse.CalculationStep.builder()
-                            .sizeRuleName(sizeRule.getSizeRuleName())
-                            .numOfVehicles(numOfVehicles)
-                            .distanceRange(from + "-" + (to == null ? "∞" : to) + " km")
-                            .unitPrice(basePriceEntity.getBasePrice())
-                            .appliedKm(tierDistance)
-                            .subtotal(add)
-                            .build());
-                }
+            if (!pricingResult.isSuccess()) {
+                throw new RuntimeException("Pricing calculation failed: " + pricingResult.getErrorMessage());
             }
 
-            if (numOfVehicles > 0) {
-                ruleTotal = ruleTotal.multiply(BigDecimal.valueOf(numOfVehicles));
+            BigDecimal vehicleTotal = pricingResult.getTotalPrice();
+            total = total.add(vehicleTotal);
+
+            // Build calculation steps for each distance tier
+            for (UnifiedPricingService.TierCalculationResult tierResult : pricingResult.getTierResults()) {
+                steps.add(PriceCalculationResponse.CalculationStep.builder()
+                        .sizeRuleName(sizeRule.getSizeRuleName())
+                        .numOfVehicles(numOfVehicles)
+                        .distanceRange(tierResult.getDistanceRange())
+                        .unitPrice(tierResult.getUnitPrice())
+                        .appliedKm(tierResult.getAppliedKm())
+                        .subtotal(tierResult.getSubtotal().multiply(BigDecimal.valueOf(numOfVehicles)))
+                        .build());
             }
 
-            total = total.add(ruleTotal);
+            log.info("✅ Vehicle {} ({}x): {} VND with {} tiers", 
+                    sizeRule.getSizeRuleName(), numOfVehicles, vehicleTotal, pricingResult.getTierResults().size());
         }
 
-        BigDecimal totalBeforeAdjustment = total;
-        BigDecimal categoryExtraFee = BigDecimal.ZERO;
-        BigDecimal categoryMultiplier = BigDecimal.ONE;
-        BigDecimal promotionDiscount = BigDecimal.ZERO;
-
+        // Get category adjustment values for response DTO (UnifiedPricingService already applied them)
         CategoryPricingDetailEntity adjustment = categoryPricingDetailEntityService.findByCategoryId(contract.getOrderEntity().getCategory().getId());
+        BigDecimal categoryMultiplier = BigDecimal.ONE;
+        BigDecimal categoryExtraFee = BigDecimal.ZERO;
+        
         if (adjustment != null) {
             categoryMultiplier = adjustment.getPriceMultiplier() != null ? adjustment.getPriceMultiplier() : BigDecimal.ONE;
             categoryExtraFee = adjustment.getExtraFee() != null ? adjustment.getExtraFee() : BigDecimal.ZERO;
-
-            BigDecimal adjustedTotal = total.multiply(categoryMultiplier).add(categoryExtraFee);
-
-            steps.add(PriceCalculationResponse.CalculationStep.builder()
-                    .sizeRuleName("Điều chỉnh loại hàng: " + contract.getOrderEntity().getCategory().getCategoryName())
-                    .numOfVehicles(0)
-                    .distanceRange("×" + categoryMultiplier + " + " + categoryExtraFee + " VND")
-                    .unitPrice(categoryMultiplier)
-                    .appliedKm(BigDecimal.ZERO)
-                    .subtotal(adjustedTotal.subtract(total)) // phần chênh lệch
-                    .build());
-
-            total = adjustedTotal;
         }
 
-        if (promotionDiscount.compareTo(BigDecimal.ZERO) > 0) {
-            steps.add(PriceCalculationResponse.CalculationStep.builder()
-                    .sizeRuleName("Khuyến mãi")
-                    .numOfVehicles(0)
-                    .distanceRange("N/A")
-                    .unitPrice(promotionDiscount.negate())
-                    .appliedKm(BigDecimal.ZERO)
-                    .subtotal(promotionDiscount.negate())
-                    .build());
-
-            total = total.subtract(promotionDiscount);
-        }
+        BigDecimal promotionDiscount = BigDecimal.ZERO;
 
         if (total.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("Total price must not be negative");
         }
 
-//        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+        log.info("✅ Unified pricing calculation completed: {} VND (category: ×{} + {})", 
+                total, categoryMultiplier, categoryExtraFee);
 
         return PriceCalculationResponse.builder()
                 .totalPrice(total)
-                .totalBeforeAdjustment(totalBeforeAdjustment)
+                .totalBeforeAdjustment(total) // Unified pricing already includes adjustments
                 .categoryExtraFee(categoryExtraFee)
                 .categoryMultiplier(categoryMultiplier)
                 .promotionDiscount(promotionDiscount)
                 .finalTotal(total)
                 .steps(steps)
-//                .summary("Tổng giá trị hợp đồng: " + total + " (tính trong " + elapsedMs + " ms)")
                 .build();
     }
 
@@ -1027,7 +975,7 @@ public class ContractServiceImpl implements ContractService {
      * Set contract deadlines based on order details
      * Reasonable deadlines for Vietnamese logistics:
      * - Contract signing: 24 hours after contract draft creation
-     * - Deposit payment: 48 hours after contract signing
+     * - Deposit payment: 24 hours after contract signing (set when customer signs)
      * - Full payment: 1 day before pickup time (earliest estimated start time)
      */
     private void setContractDeadlines(ContractEntity contract, OrderEntity order) {
@@ -1036,8 +984,8 @@ public class ContractServiceImpl implements ContractService {
         // Signing deadline: 24 hours from contract creation
         contract.setSigningDeadline(now.plusHours(24));
         
-        // Deposit payment deadline: 48 hours after signing (72 hours from creation)
-        contract.setDepositPaymentDeadline(now.plusHours(72));
+        // Deposit payment deadline: Will be set when customer signs the contract (24h after signing)
+        // Do NOT set here - will be set in signContractAndOrder() method
         
         // Full payment deadline: 1 day before pickup time
         // Get the earliest estimated start time from order details

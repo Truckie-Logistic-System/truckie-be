@@ -2,7 +2,6 @@ package capstone_project.common.utils;
 
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
-import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.OrderDetailForPackingResponse;
 import capstone_project.dtos.response.order.contract.PackedDetailResponse;
 import capstone_project.entity.order.order.OrderDetailEntity;
@@ -215,17 +214,23 @@ public class BinPacker {
     }
 
     /**
-     * Main packing function.
+     * Optimized bin packing algorithm for vehicle assignment.
+     * 
+     * Strategy:
+     * 1. Validate package weights against maximum vehicle capacity (10 tons)
+     * 2. Sort packages by weight (heaviest first) and volume for optimal packing
+     * 3. Try to place packages in existing vehicles first (minimize vehicle count)
+     * 4. Upgrade to larger vehicles when needed (cost optimization)
+     * 5. Open new vehicles only when necessary (resource optimization)
      *
      * @param details      order details list (entities)
-     * @param sizeRules sorted vehicle rules (from small->large or as you prefer)
+     * @param sizeRules sorted vehicle rules (from small->large capacity)
      *
      * @return List<ContainerState> each corresponds to one used container (vehicle)
+     * @throws RuntimeException if any package exceeds maximum vehicle capacity
      */
     public static List<ContainerState> pack(List<OrderDetailEntity> details, List<SizeRuleEntity> sizeRules) {
-        // convert OrderDetailEntity -> BoxItem (SỬA LỖI CONVERT WEIGHT)
-
-        // * Chuyển đổi OrderDetailEntity thành BoxItem
+        // convert OrderDetailEntity -> BoxItem
         List<BoxItem> boxes = new ArrayList<>();
         for (OrderDetailEntity d : details) {
             OrderSizeEntity s = d.getOrderSizeEntity();
@@ -235,139 +240,170 @@ public class BinPacker {
             int lz = convertToInt(s.getMaxHeight());
             long w = convertWeightToLong(d.getWeightTons());
 
+            // Check if sizeRules is empty
+            if (sizeRules.isEmpty()) {
+                throw new IllegalArgumentException("No vehicle size rules provided for packing");
+            }
+            
+            // Validate package weight against maximum vehicle capacity
+            SizeRuleEntity largestVehicle = sizeRules.get(sizeRules.size() - 1);
+            long maxVehicleWeight = convertWeightToLong(largestVehicle.getMaxWeight());
+            
+            if (w > maxVehicleWeight) {
+                double packageTons = w / 1000.0;
+                double maxTons = maxVehicleWeight / 1000.0;
+                log.error("❌ Package {} exceeds maximum vehicle capacity: {:.2f} tons > {:.2f} tons",
+                        d.getId(), packageTons, maxTons);
+                throw new RuntimeException(
+                    String.format("Không có loại xe nào chứa được kiện hàng: %s (trọng lượng %.2f tấn vượt quá giới hạn %.2f tấn). " +
+                    "Vui lòng chia kiện hàng này thành nhiều kiện nhỏ hơn.",
+                    d.getId(), packageTons, maxTons)
+                );
+            }
+            
             boxes.add(new BoxItem(d.getId(), lx, ly, lz, w));
         }
 
-        // Sắp xếp tối ưu hơn
+        // Optimized sorting strategy: heaviest first, then by volume
+        // This ensures large/heavy packages are placed first for better space utilization
         boxes.sort((a, b) -> {
-            int cmp = Long.compare(b.weight, a.weight); // * so sánh theo trọng lượng giảm dần
+            // Primary: Sort by weight (heaviest first)
+            int cmp = Long.compare(b.weight, a.weight);
             if (cmp != 0) return cmp;
 
+            // Secondary: Sort by volume (largest first) for better packing
+            cmp = Long.compare(b.volume, a.volume);
+            if (cmp != 0) return cmp;
+
+            // Tertiary: Sort by longest dimension (to minimize container upgrades)
             int aMaxDim = Math.max(a.lx, Math.max(a.ly, a.lz));
             int bMaxDim = Math.max(b.lx, Math.max(b.ly, b.lz));
-            cmp = Integer.compare(bMaxDim, aMaxDim);  // * Nếu trọng lượng bằng nhau → so theo chiều (dài, rộng, cao) lớn nhất giảm dần
-            if (cmp != 0) return cmp;
-
-            return Long.compare(b.volume, a.volume);  // * Nếu vẫn bằng → so theo thể tích lỡn nhất giảm dần
-            /**
-             * b.volume > a.volume -> return positive -> b trước a
-             * b.volume < a.volume -> return negative -> a trước b
-             * b.volume == a.volume -> return 0
-             * */
+            return Integer.compare(bMaxDim, aMaxDim);
         });
+
+        log.info("📦 Starting bin packing for {} packages", boxes.size());
 
         List<ContainerState> used = new ArrayList<>();
 
         for (BoxItem box : boxes) {
             boolean placed = false;
 
-            // * 1. Thử đặt kiện vào các xe hiện có TRƯỚC
-            
+            // Strategy 1: Try to place in existing vehicles (minimize vehicle count)
             if (!used.isEmpty()) {
-                for (ContainerState c : used) {
-                    
+                // Sort containers by remaining capacity (place in fullest container that fits)
+                List<ContainerState> sortedContainers = used.stream()
+                        .sorted((c1, c2) -> {
+                            long remaining1 = convertWeightToLong(c1.rule.getMaxWeight()) - c1.currentWeight;
+                            long remaining2 = convertWeightToLong(c2.rule.getMaxWeight()) - c2.currentWeight;
+                            return Long.compare(remaining1, remaining2);
+                        })
+                        .toList();
+
+                for (ContainerState c : sortedContainers) {
                     Placement p = tryPlaceBoxInContainer(box, c);
                     if (p != null) {
                         c.addPlacement(p);
                         placed = true;
-                        
+                        log.debug("✅ Placed box {} in existing vehicle {} ({})",
+                                box.id, c.rule.getSizeRuleName(), used.indexOf(c) + 1);
                         break;
-                    } else {
-                        
                     }
                 }
-            } else {
-                
             }
 
-            if (placed) {
-                
-                continue;
-            }
+            if (placed) continue;
 
-            // 2. Thử UPGRADE từng xe hiện có lên xe lớn hơn
-            
-            if (!used.isEmpty()) {
-                for (int i = 0; i < used.size(); i++) {
-                    ContainerState current = used.get(i);
+            // Strategy 2: Try upgrading existing vehicles (cost optimization)
+            if (!used.isEmpty() && !placed) {
+                // Try upgrading the vehicle that's closest to capacity
+                List<ContainerState> sortedByCapacity = used.stream()
+                        .sorted((c1, c2) -> {
+                            double util1 = (double) c1.currentWeight / convertWeightToLong(c1.rule.getMaxWeight());
+                            double util2 = (double) c2.currentWeight / convertWeightToLong(c2.rule.getMaxWeight());
+                            return Double.compare(util2, util1); // Highest utilization first
+                        })
+                        .toList();
+
+                for (int i = 0; i < sortedByCapacity.size() && !placed; i++) {
+                    ContainerState current = sortedByCapacity.get(i);
+                    int originalIndex = used.indexOf(current);
 
                     SizeRuleEntity upgradedRule = findNextBiggerRule(current.rule, sizeRules);
                     while (upgradedRule != null && !placed) {
-                        
                         ContainerState upgraded = upgradeContainer(current, upgradedRule);
                         if (upgraded != null) {
                             Placement p = tryPlaceBoxInContainer(box, upgraded);
                             if (p != null) {
                                 upgraded.addPlacement(p);
-                                used.set(i, upgraded);
+                                used.set(originalIndex, upgraded);
                                 placed = true;
-                                
+                                log.debug("⬆️ Upgraded vehicle {} from {} to {} for box {}",
+                                        originalIndex + 1, current.rule.getSizeRuleName(),
+                                        upgraded.rule.getSizeRuleName(), box.id);
                                 break;
-                            } else {
-                                
                             }
-                        } else {
-                            
                         }
                         upgradedRule = findNextBiggerRule(upgradedRule, sizeRules);
                     }
-                    if (placed) break;
                 }
-            } else {
-                
             }
 
-            if (placed) {
-                
-                continue;
-            }
+            if (placed) continue;
 
-            // 3. Mở xe mới - tìm xe NHỎ NHẤT có thể chở
-            
-            SizeRuleEntity bestRule = null;
-            ContainerState bestContainer = null;
+            // Strategy 3: Open new vehicle with optimal size (resource optimization)
+            if (!placed) {
+                SizeRuleEntity bestRule = null;
+                ContainerState bestContainer = null;
 
-            for (SizeRuleEntity rule : sizeRules) {
-                int maxX = convertToInt(rule.getMaxLength());
-                int maxY = convertToInt(rule.getMaxWidth());
-                int maxZ = convertToInt(rule.getMaxHeight());
+                for (SizeRuleEntity rule : sizeRules) {
+                    int maxX = convertToInt(rule.getMaxLength());
+                    int maxY = convertToInt(rule.getMaxWidth());
+                    int maxZ = convertToInt(rule.getMaxHeight());
 
-                // * Kiểm tra xem kích thước kiện hàng có nhỏ hơn hoặc bằng kích thước xe không
-                if (box.lx <= maxX && box.ly <= maxY && box.lz <= maxZ) {
+                    // Check if package dimensions fit within vehicle dimensions
+                    if (box.lx <= maxX && box.ly <= maxY && box.lz <= maxZ) {
+                        ContainerState candidate = new ContainerState(rule, maxX, maxY, maxZ);
 
-                    // Tạo "container" mô phỏng chiếc xe mới theo quy tắc này
-                    ContainerState candidate = new ContainerState(rule, maxX, maxY, maxZ);
-
-                    if (!candidate.checkWeightAfterAdd(box.weight)) {
-                        continue;
-                    }
-
-                    Placement p = tryPlaceBoxInContainer(box, candidate);
-                    if (p != null) {
-                        
-                        // Tìm xe NHỎ NHẤT
-                        if (bestRule == null || compareSizeRules(rule, bestRule) < 0) {
-                            bestRule = rule;
-                            bestContainer = candidate;
-                            bestContainer.addPlacement(p);
-                            
+                        // Check weight capacity
+                        if (!candidate.checkWeightAfterAdd(box.weight)) {
+                            continue;
                         }
-                    } else {
-                        
+
+                        Placement p = tryPlaceBoxInContainer(box, candidate);
+                        if (p != null) {
+                            // Select the SMALLEST vehicle that fits (cost optimization)
+                            if (bestRule == null || compareSizeRules(rule, bestRule) < 0) {
+                                bestRule = rule;
+                                bestContainer = candidate;
+                                bestContainer.addPlacement(p);
+                            }
+                        }
                     }
+                }
+
+                if (bestContainer != null) {
+                    used.add(bestContainer);
+                    log.debug("🚛 Opened new vehicle {} ({}) for box {}",
+                            used.size(), bestRule.getSizeRuleName(), box.id);
                 } else {
-                    
+                    double packageTons = box.weight / 1000.0;
+                    log.error("❌ CRITICAL: No suitable vehicle found for box {} ({}x{}x{}, {:.2f} tons)",
+                            box.id, box.lx, box.ly, box.lz, packageTons);
+                    throw new RuntimeException(
+                        String.format("Không có loại xe nào phù hợp với kiện hàng: %s (kích thước %dx%dx%d, trọng lượng %.2f tấn)",
+                        box.id, box.lx, box.ly, box.lz, packageTons)
+                    );
                 }
             }
+        }
 
-            if (bestContainer != null) {
-                used.add(bestContainer);
-                
-            } else {
-                log.error("CRITICAL ERROR: No vehicle can carry box {} ({}x{}x{}, weight={})",
-                        box.id, box.lx, box.ly, box.lz, box.weight);
-                throw new RuntimeException("Không có loại xe nào chứa được kiện  : " + box.id);
-            }
+        // Log packing summary
+        log.info("✅ Bin packing completed: {} packages assigned to {} vehicles", boxes.size(), used.size());
+        for (int i = 0; i < used.size(); i++) {
+            ContainerState container = used.get(i);
+            double utilization = (double) container.currentWeight / convertWeightToLong(container.rule.getMaxWeight()) * 100;
+            log.info("   Vehicle {}: {} - {} packages, {:.1f}% weight utilization",
+                    i + 1, container.rule.getSizeRuleName(), container.placements.size(), utilization);
         }
 
         return used;
@@ -391,36 +427,22 @@ public class BinPacker {
         return null;
     }
 
-    private static boolean tryUpgradeExistingContainer(BoxItem box, List<ContainerState> used,
-                                                       List<SizeRuleEntity> sizeRules) {
+    public static ContainerState upgradeContainer(ContainerState current, SizeRuleEntity upgradedRule) {
+        int maxX = convertToInt(upgradedRule.getMaxLength());
+        int maxY = convertToInt(upgradedRule.getMaxWidth());
+        int maxZ = convertToInt(upgradedRule.getMaxHeight());
 
-        for (int i = 0; i < used.size(); i++) {
-            ContainerState current = used.get(i);
+        ContainerState upgraded = new ContainerState(upgradedRule, maxX, maxY, maxZ);
 
-            Placement directPlacement = tryPlaceBoxInContainer(box, current);
-            if (directPlacement != null) {
-                current.addPlacement(directPlacement);
-                
-                return true;
+        // repack lại toàn bộ các box cũ
+        for (BoxItem box : current.placements.stream().map(p -> p.box).toList()) {
+            Placement p = tryPlaceBoxInContainer(box, upgraded);
+            if (p == null) {
+                return null; // upgrade thất bại
             }
-
-            SizeRuleEntity currentRule = current.rule;
-            for (SizeRuleEntity biggerRule : sizeRules) {
-                if (compareSizeRules(biggerRule, currentRule) <= 0) continue;
-
-                ContainerState upgraded = upgradeContainer(current, biggerRule);
-                if (upgraded != null) {
-                    Placement p = tryPlaceBoxInContainer(box, upgraded);
-                    if (p != null) {
-                        upgraded.addPlacement(p);
-                        used.set(i, upgraded);
-                        
-                        return true;
-                    }
-                }
-            }
+            upgraded.addPlacement(p);
         }
-        return false;
+        return upgraded;
     }
 
     private static int compareSizeRules(SizeRuleEntity a, SizeRuleEntity b) {
@@ -444,26 +466,8 @@ public class BinPacker {
         return Math.round(w.doubleValue() * 1000.0);
     }
 
-    public static ContainerState upgradeContainer(ContainerState current, SizeRuleEntity upgradedRule) {
-        int maxX = convertToInt(upgradedRule.getMaxLength());
-        int maxY = convertToInt(upgradedRule.getMaxWidth());
-        int maxZ = convertToInt(upgradedRule.getMaxHeight());
-
-        ContainerState upgraded = new ContainerState(upgradedRule, maxX, maxY, maxZ);
-
-        // repack lại toàn bộ các box cũ
-        for (BoxItem box : current.placements.stream().map(p -> p.box).toList()) {
-            Placement p = tryPlaceBoxInContainer(box, upgraded);
-            if (p == null) {
-                return null; // upgrade thất bại
-            }
-            upgraded.addPlacement(p);
-        }
-        return upgraded;
-    }
-
     // Convert ContainerState -> ContractRuleAssignResponse
-    public static List<ContractRuleAssignResponse> toContractResponses(
+    public static List<capstone_project.dtos.response.order.contract.ContractRuleAssignResponse> toContractResponses(
             List<ContainerState> used,
             List<OrderDetailEntity> details
     ) {
@@ -471,11 +475,10 @@ public class BinPacker {
         Map<UUID, OrderDetailEntity> detailMap = details.stream()
                 .collect(Collectors.toMap(OrderDetailEntity::getId, Function.identity()));
 
-        List<ContractRuleAssignResponse> out = new ArrayList<>();
+        List<capstone_project.dtos.response.order.contract.ContractRuleAssignResponse> out = new ArrayList<>();
         int vehicleIndex = 0;
 
         for (ContainerState c : used) {
-
             // Phát hiện đơn vị chủ đạo từ các detail
             String dominantUnit = c.placements.stream()
                     .map(pl -> {
@@ -533,7 +536,7 @@ public class BinPacker {
                     ))
                     .toList();
 
-            ContractRuleAssignResponse resp = ContractRuleAssignResponse.builder()
+            capstone_project.dtos.response.order.contract.ContractRuleAssignResponse resp = capstone_project.dtos.response.order.contract.ContractRuleAssignResponse.builder()
                     .vehicleIndex(vehicleIndex++)
                     .sizeRuleId(c.rule.getId())
                     .sizeRuleName(c.rule.getSizeRuleName())
@@ -552,7 +555,7 @@ public class BinPacker {
     public static class ManualResult {
         public List<ContainerState> containers;
         public List<BoxItem> unplaced;
-        public Map<ContainerState, BigDecimal> containerLoads; // Thêm map này
+        public Map<ContainerState, BigDecimal> containerLoads;
     }
 
     public static ManualResult packManual(List<OrderDetailEntity> details, List<ContainerState> fixedContainers) {

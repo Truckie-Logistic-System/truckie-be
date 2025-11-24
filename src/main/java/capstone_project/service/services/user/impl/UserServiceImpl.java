@@ -11,6 +11,8 @@ import capstone_project.service.mapper.user.UserMapper;
 import capstone_project.service.services.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -255,5 +257,33 @@ public class UserServiceImpl implements UserService {
         return userEntities.stream()
                 .map(userMapper::mapUserResponse)
                 .toList();
+    }
+
+    @Override
+    public UserResponse getCurrentUserProfile() {
+        log.info("[getCurrentUserProfile] - Getting current user profile");
+        
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            log.error("[getCurrentUserProfile] - No authenticated user found");
+            throw new BadRequestException(
+                    "No authenticated user found",
+                    ErrorEnum.UNAUTHORIZED.getErrorCode()
+            );
+        }
+
+        String username = authentication.getName();
+        log.info("[getCurrentUserProfile] - Getting profile for username: {}", username);
+        
+        UserEntity userEntity = userEntityService.getUserByUserName(username)
+                .orElseThrow(() -> {
+                    log.error("[getCurrentUserProfile] - User not found with username: {}", username);
+                    return new BadRequestException(
+                            "User not found with username: " + username,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    );
+                });
+
+        return userMapper.mapUserResponse(userEntity);
     }
 }

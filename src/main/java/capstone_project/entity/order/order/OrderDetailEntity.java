@@ -4,7 +4,7 @@ import capstone_project.entity.common.BaseEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.issue.IssueEntity;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
@@ -18,6 +18,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderDetailEntity extends BaseEntity {
+    @DecimalMin(value = "0.01", message = "Trọng lượng kiện hàng phải tối thiểu 0.01 tấn")
+    @DecimalMax(value = "10.0", message = "Trọng lượng kiện hàng không được vượt quá 10 tấn")
     @Column(name = "weight_tons")
     private BigDecimal weightTons;
 

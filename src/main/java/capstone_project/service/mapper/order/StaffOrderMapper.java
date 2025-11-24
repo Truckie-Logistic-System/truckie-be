@@ -28,6 +28,7 @@ import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
 import capstone_project.service.services.order.seal.SealService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
+import capstone_project.service.services.pricing.PricingUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -651,18 +652,16 @@ public class StaffOrderMapper {
         try {
             // Get the latest contract setting
             var contractSetting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc().orElse(null);
-            if (contractSetting == null || contractSetting.getDepositPercent() == null) {
-                // Default to 30% if no setting found
-                return baseAmount.multiply(new BigDecimal("0.30")).setScale(0, RoundingMode.HALF_UP);
-            }
-
-            // Calculate deposit amount: baseAmount * (depositPercent / 100)
-            BigDecimal depositPercent = contractSetting.getDepositPercent();
-            return baseAmount.multiply(depositPercent).divide(new BigDecimal("100"), 0, RoundingMode.HALF_UP);
+            BigDecimal depositPercent = contractSetting != null && contractSetting.getDepositPercent() != null 
+                    ? contractSetting.getDepositPercent() 
+                    : new BigDecimal("30"); // Default to 30%
+            
+            // Use unified pricing for consistent rounding across all systems
+            return PricingUtils.calculateRoundedDeposit(baseAmount, depositPercent);
         } catch (Exception e) {
             log.warn("Error calculating deposit amount: {}", e.getMessage());
-            // Default to 30% on error
-            return baseAmount.multiply(new BigDecimal("0.30")).setScale(0, RoundingMode.HALF_UP);
+            // Default to 30% on error using unified pricing
+            return PricingUtils.calculateRoundedDeposit(baseAmount, new BigDecimal("30"));
         }
     }
 }

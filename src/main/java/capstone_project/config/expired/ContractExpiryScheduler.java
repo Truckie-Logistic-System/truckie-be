@@ -21,8 +21,8 @@ import java.util.List;
  * 
  * Checks for:
  * 1. Expired signing deadline - Contracts in CONTRACT_DRAFT status that haven't been signed within 24 hours
- * 2. Expired deposit payment deadline - Contracts in CONTRACT_SIGNED status without deposit payment within 48 hours
- * 3. Expired full payment deadline - Contracts in DEPOSITED status without full payment before pickup time
+ * 2. Expired deposit payment deadline - Contracts in CONTRACT_SIGNED status without deposit payment within 24 hours after signing
+ * 3. Expired full payment deadline - Contracts in DEPOSITED status without full payment before 1 day prior to pickup time
  * 
  * When deadlines are missed, the order and contract are automatically cancelled
  */
@@ -38,8 +38,8 @@ public class ContractExpiryScheduler {
      * Check for expired contracts every 10 minutes
      * Reasonable deadlines:
      * - Contract signing: 24 hours after contract draft creation
-     * - Deposit payment: 48 hours after contract signing
-     * - Full payment: Before pickup time (estimate start time)
+     * - Deposit payment: 24 hours after contract signing
+     * - Full payment: 1 day before pickup time (earliest estimated start time)
      */
     @Scheduled(fixedRate = 600000) // Runs every 10 minutes
     @Transactional
@@ -94,7 +94,7 @@ public class ContractExpiryScheduler {
 
     /**
      * Check for contracts in CONTRACT_SIGNED status with expired deposit payment deadline
-     * Deadline: 48 hours after contract signing
+     * Deadline: 24 hours after contract signing
      */
     private void checkExpiredDepositPaymentDeadlines(LocalDateTime now) {
         try {
@@ -113,7 +113,7 @@ public class ContractExpiryScheduler {
                 try {
                     cancelOrderAndContract(
                             contract, 
-                            "Hợp đồng hết hạn thanh toán cọc - đã quá 48 giờ kể từ khi ký hợp đồng",
+                            "Hợp đồng hết hạn thanh toán cọc - đã quá 24 giờ kể từ khi ký hợp đồng",
                             "deposit payment deadline"
                     );
                 } catch (Exception e) {

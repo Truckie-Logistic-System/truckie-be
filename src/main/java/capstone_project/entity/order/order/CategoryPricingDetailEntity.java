@@ -21,7 +21,7 @@ public class CategoryPricingDetailEntity extends BaseEntity {
     @Column(name = "price_multiplier", precision = 11, scale = 8)
     private BigDecimal priceMultiplier;
 
-    @Column(name = "extra_fee", precision = 11, scale = 8)
+    @Column(name = "extra_fee", precision = 15, scale = 2)
     private BigDecimal extraFee;
 
     @OneToOne(fetch = FetchType.LAZY)

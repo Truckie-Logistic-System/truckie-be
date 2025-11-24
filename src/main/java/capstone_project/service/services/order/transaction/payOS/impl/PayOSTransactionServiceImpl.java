@@ -21,6 +21,8 @@ import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.order.TransactionMapper;
 import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
+import capstone_project.service.services.pricing.PricingUtils;
+import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
@@ -157,11 +159,10 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             );
         }
 
-        BigDecimal depositAmount = totalValue.multiply(depositPercent)
-                .divide(BigDecimal.valueOf(100), RoundingMode.HALF_UP);
-
-        BigDecimal remainingAmount = totalValue.subtract(depositAmount);
-        int finalAmount = remainingAmount.setScale(0, RoundingMode.HALF_UP).intValueExact();
+        // Use unified rounding for consistent pricing across all systems
+        BigDecimal depositAmount = PricingUtils.calculateRoundedDeposit(totalValue, depositPercent);
+        BigDecimal remainingAmount = PricingUtils.calculateRoundedRemaining(totalValue, depositAmount);
+        int finalAmount = PricingUtils.roundForDisplay(remainingAmount);
         
         // Append orderId to returnUrl and cancelUrl for proper navigation after payment
         UUID orderId = contractEntity.getOrderEntity() != null ? contractEntity.getOrderEntity().getId() : null;
@@ -305,10 +306,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             );
         }
 
-        BigDecimal depositAmount = totalValue.multiply(depositPercent)
-                .divide(BigDecimal.valueOf(100), RoundingMode.HALF_UP);
-
-        int finalAmount = depositAmount.setScale(0, RoundingMode.HALF_UP).intValueExact();
+        // Use unified rounding for consistent pricing across all systems
+        BigDecimal depositAmount = PricingUtils.calculateRoundedDeposit(totalValue, depositPercent);
+        int finalAmount = PricingUtils.roundForDisplay(depositAmount);
         
         // Append orderId to returnUrl and cancelUrl for proper navigation after payment
         UUID orderId = contractEntity.getOrderEntity() != null ? contractEntity.getOrderEntity().getId() : null;
@@ -1178,7 +1178,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         Long payOsOrderCode = System.currentTimeMillis();
         
-        int finalAmount = amount.setScale(0, RoundingMode.HALF_UP).intValueExact();
+        // Use unified rounding for consistent pricing across all systems
+        int finalAmount = PricingUtils.roundForDisplay(amount);
 
         JsonNode response = null;
         boolean sdkSuccess = false;

@@ -634,7 +634,20 @@ public class OrderServiceImpl implements OrderService {
 
         OrderEntity orderEntity = contractEntity.getOrderEntity();
 
+        // Update contract status to SIGNED
         contractEntity.setStatus(ContractStatusEnum.CONTRACT_SIGNED.name());
+        
+        // Set deposit payment deadline: 24 hours after signing
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        contractEntity.setDepositPaymentDeadline(now.plusHours(24));
+        
+        // Save contract with updated deadline
+        contractEntityService.save(contractEntity);
+        
+        log.info("✅ Contract {} signed successfully. Deposit payment deadline set to: {}", 
+                contractId, contractEntity.getDepositPaymentDeadline());
+        
+        // Update order status
         changeAStatusOrder(orderEntity.getId(), OrderStatusEnum.CONTRACT_SIGNED);
 
         return true;

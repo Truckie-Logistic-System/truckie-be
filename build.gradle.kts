@@ -89,6 +89,10 @@ dependencies {
     implementation("com.cloudinary:cloudinary-http44:1.39.0")
     implementation("com.google.firebase:firebase-admin:9.3.0")
 
+    // AI & ML (REST API approach - no SDK needed)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+
     // PAYMENT
     implementation("vn.payos:payos-java:2.0.1")
     implementation("com.stripe:stripe-java:29.5.0")
