@@ -29,6 +29,9 @@ import capstone_project.service.mapper.issue.IssueMapper;
 import capstone_project.service.mapper.order.SealMapper;
 import capstone_project.service.services.issue.IssueService;
 import capstone_project.service.services.cloudinary.CloudinaryService;
+import capstone_project.service.services.notification.NotificationService;
+import capstone_project.service.services.notification.NotificationBuilder;
+import capstone_project.dtos.request.notification.CreateNotificationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -82,8 +85,14 @@ public class IssueServiceImpl implements IssueService {
     // Payment timeout scheduler for real-time timeout detection
     private final capstone_project.config.expired.PaymentTimeoutSchedulerService paymentTimeoutSchedulerService;
     
+    // ✅ NEW: Email service for customer notifications
+    private final capstone_project.service.services.email.EmailNotificationService emailNotificationService;
+    
     // ✅ Vietmap Service for getting suggested routes (Route V3 API)
     private final capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService vietmapService;
+    
+    // ✅ Notification Service for persistent notifications
+    private final capstone_project.service.services.notification.NotificationService notificationService;
 
     @Override
     public GetBasicIssueResponse getBasicIssue(UUID issueId) {
@@ -262,6 +271,9 @@ public class IssueServiceImpl implements IssueService {
 
         // Lưu
         IssueEntity saved = issueEntityService.save(issue);
+        
+        // Create issue notification
+        createIssueNotifications(saved);
 
         // Convert sang response
         GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(saved);
@@ -629,9 +641,65 @@ public class IssueServiceImpl implements IssueService {
         // Fetch full issue with all nested objects (vehicle, drivers, images)
         GetBasicIssueResponse response = getBasicIssue(saved.getId());
 
-        // 📢 Broadcast seal issue to staff
-        
+        // Broadcast seal issue to staff
         issueWebSocketService.broadcastNewIssue(response);
+        
+        // 📧 Send persistent notification to STAFF about new seal issue
+        try {
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            if (!staffUsers.isEmpty()) {
+                var driver = vehicleAssignment.getDriver1();
+                var order = !orderDetails.isEmpty() ? orderDetails.get(0).getOrderEntity() : null;
+                
+                for (var staff : staffUsers) {
+                    var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildNewIssueReported(
+                        staff.getId(),
+                        capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(saved.getId()),
+                        issueType.getIssueTypeName(),
+                        order != null ? order.getOrderCode() : "N/A",
+                        driver != null && driver.getUser() != null ? driver.getUser().getFullName() : "Tài xế",
+                        driver != null && driver.getUser() != null ? driver.getUser().getPhoneNumber() : "N/A",
+                        vehicleAssignment.getVehicleEntity() != null ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "N/A",
+                        order != null ? order.getId() : null,
+                        saved.getId(),
+                        vehicleAssignment.getId()
+                    );
+                    
+                    notificationService.createNotification(notificationRequest);
+                }
+                log.info("📧 Staff notifications created for new seal issue");
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create staff notifications for seal issue", e);
+            // Don't fail the main flow if notification fails
+        }
+        
+        // 📧 Send persistent notification to CUSTOMER about seal removal
+        try {
+            if (!orderDetails.isEmpty()) {
+                var order = orderDetails.get(0).getOrderEntity();
+                var customer = order.getSender();
+                
+                var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildSealReplaced(
+                    customer.getId(),
+                    order.getOrderCode(),
+                    capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(saved.getId()),
+                    oldSeal.getSealCode(),
+                    "ĐANG CHỜ GÁN SEAL MỚI",
+                    "Tài xế",
+                    "Seal " + oldSeal.getSealCode() + " đã được tháo do: " + request.description(),
+                    order.getId(),
+                    saved.getId(),
+                    vehicleAssignment.getId()
+                );
+                
+                notificationService.createNotification(notificationRequest);
+                log.info("📧 Customer notification created for seal removal");
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create customer notification for seal removal", e);
+            // Don't fail the main flow if notification fails
+        }
 
         return response;
     }
@@ -728,6 +796,54 @@ public class IssueServiceImpl implements IssueService {
             }
         } else {
             log.warn("⚠️ Cannot send notification: vehicle assignment is null");
+        }
+        
+        // 📧 Send persistent notification to CUSTOMER about seal replacement
+        try {
+            var vehicleAssignment = issue.getVehicleAssignmentEntity();
+            if (vehicleAssignment != null) {
+                var orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
+                if (orderDetails != null && !orderDetails.isEmpty()) {
+                    var order = orderDetails.get(0).getOrderEntity();
+                    var customer = order.getSender();
+                    
+                    // Use new NotificationBuilder with enhanced seal change information
+                    var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildSealReplaced(
+                        customer.getId(),
+                        order.getOrderCode(),
+                        capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(issue.getId()),
+                        issue.getOldSeal().getSealCode(),
+                        newSeal.getSealCode(),
+                        staff.getFullName(),
+                        "Seal " + issue.getOldSeal().getSealCode() + " đã được tháo, seal " + newSeal.getSealCode() + " đã được gán. Lý do: " + issue.getDescription(),
+                        order.getId(),
+                        issue.getId(),
+                        vehicleAssignment.getId()
+                    );
+                    
+                    notificationService.createNotification(notificationRequest);
+                    log.info("📧 Customer notification created for seal replacement using NotificationBuilder");
+                    
+                    // Send detailed email notification to customer
+                    try {
+                        emailNotificationService.sendSealReplacementEmail(
+                            customer.getUser().getEmail(),
+                            order.getOrderCode(),
+                            issue.getOldSeal().getSealCode(),
+                            newSeal.getSealCode(),
+                            issue.getDescription(),
+                            staff.getFullName()
+                        );
+                        log.info("📧 Seal replacement email sent to customer: {}", customer.getUser().getEmail());
+                    } catch (Exception e) {
+                        log.error("❌ Failed to send seal replacement email to {}: {}", customer.getUser().getEmail(), e.getMessage(), e);
+                        // Don't fail the main flow if email fails
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create customer notification for seal replacement", e);
+            // Don't fail the main flow if notification fails
         }
 
         return response;
@@ -935,6 +1051,39 @@ public class IssueServiceImpl implements IssueService {
                 );
             }
         }
+        
+        // 📧 Send persistent notification to CUSTOMER about seal replacement completion
+        try {
+            if (issue.getVehicleAssignmentEntity() != null) {
+                var notificationOrderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(issue.getVehicleAssignmentEntity());
+                if (notificationOrderDetails != null && !notificationOrderDetails.isEmpty()) {
+                    var order = notificationOrderDetails.get(0).getOrderEntity();
+                    var customer = order.getSender();
+                    var driver = issue.getVehicleAssignmentEntity().getDriver1();
+                    
+                    // Use new NotificationBuilder
+                    var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildSealReplacementCompleted(
+                        customer.getId(),
+                        order.getOrderCode(),
+                        capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(issue.getId()),
+                        oldSeal.getSealCode(),
+                        newSeal.getSealCode(),
+                        driver != null && driver.getUser() != null ? driver.getUser().getFullName() : "Tài xế",
+                        newSeal.getSealAttachedImage(),
+                        issue.getSealRemovalImage(),
+                        order.getId(),
+                        issue.getId(),
+                        issue.getVehicleAssignmentEntity().getId()
+                    );
+                    
+                    notificationService.createNotification(notificationRequest);
+                    log.info("📧 Customer notification created for seal replacement confirmation using NotificationBuilder");
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create customer notification for seal replacement confirmation", e);
+            // Don't fail the main flow if notification fails
+        }
 
         return response;
     }
@@ -949,21 +1098,16 @@ public class IssueServiceImpl implements IssueService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
         
-        // Lấy seal đang IN_USE
-        SealEntity inUseSeal = sealEntityService.findByVehicleAssignment(vehicleAssignment, SealEnum.IN_USE.name());
+        // Find active seal
+        List<SealEntity> allSeals = sealEntityService.findAllByVehicleAssignment(vehicleAssignment);
+        SealEntity activeSeal = allSeals.stream()
+                .filter(seal -> SealEnum.ACTIVE.name().equals(seal.getStatus()))
+                .findFirst()
+                .orElse(null);
         
-        if (inUseSeal == null) {
-            log.warn("Không tìm thấy seal IN_USE cho vehicle assignment: {}", vehicleAssignmentId);
-            throw new NotFoundException(
-                    "Không tìm thấy seal đang được sử dụng cho vehicle assignment này",
-                    ErrorEnum.NOT_FOUND.getErrorCode()
-            );
-        }
-        
-        // Convert to response
-        return sealMapper.toGetSealResponse(inUseSeal);
+        return activeSeal != null ? sealMapper.toGetSealResponse(activeSeal) : null;
     }
-
+    
     @Override
     public List<capstone_project.dtos.response.order.seal.GetSealResponse> getActiveSealsByVehicleAssignment(UUID vehicleAssignmentId) {
 
@@ -1120,6 +1264,9 @@ public class IssueServiceImpl implements IssueService {
 
         // Lưu issue
         IssueEntity saved = issueEntityService.save(issue);
+        
+        // Create damage notification
+        createIssueNotifications(saved);
 
         // NOW update order details and link to issue
         if (!selectedOrderDetails.isEmpty()) {
@@ -1203,8 +1350,66 @@ public class IssueServiceImpl implements IssueService {
         GetBasicIssueResponse response = getBasicIssue(saved.getId());
 
         // 📢 Broadcast damage issue to staff
-        
         issueWebSocketService.broadcastNewIssue(response);
+        
+        // 📧 Send persistent notification to STAFF about new damage issue
+        try {
+            // Find staff users (simplified - get first staff for now)
+            // TODO: Implement proper staff selection logic (by role, department, etc.)
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            if (!staffUsers.isEmpty()) {
+                var driver = vehicleAssignment.getDriver1();
+                var order = !selectedOrderDetails.isEmpty() ? selectedOrderDetails.get(0).getOrderEntity() : null;
+                
+                for (var staff : staffUsers) {
+                    var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildNewIssueReported(
+                        staff.getId(),
+                        capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(saved.getId()),
+                        issueType.getIssueTypeName(),
+                        order != null ? order.getOrderCode() : "N/A",
+                        driver != null && driver.getUser() != null ? driver.getUser().getFullName() : "Tài xế",
+                        driver != null && driver.getUser() != null ? driver.getUser().getPhoneNumber() : "N/A",
+                        vehicleAssignment.getVehicleEntity() != null ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "N/A",
+                        order != null ? order.getId() : null,
+                        saved.getId(),
+                        vehicleAssignment.getId()
+                    );
+                    
+                    notificationService.createNotification(notificationRequest);
+                }
+                log.info("📧 Staff notifications created for new damage issue");
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create staff notifications for damage issue", e);
+            // Don't fail the main flow if notification fails
+        }
+        
+        // 📧 Send persistent notification to CUSTOMER about package damage
+        try {
+            if (!selectedOrderDetails.isEmpty()) {
+                var order = selectedOrderDetails.get(0).getOrderEntity();
+                var customer = order.getSender();
+                
+                var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildPackageDamaged(
+                    customer.getId(),
+                    order.getOrderCode(),
+                    capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(saved.getId()),
+                    selectedOrderDetails.size(),
+                    orderDetailEntityService.findByVehicleAssignmentId(vehicleAssignment.getId()).size(),
+                    selectedOrderDetails,
+                    order.getId(),
+                    saved.getId(),
+                    selectedOrderDetails.stream().map(OrderDetailEntity::getId).collect(java.util.stream.Collectors.toList()),
+                    vehicleAssignment.getId()
+                );
+                
+                notificationService.createNotification(notificationRequest);
+                log.info("📧 Customer notification created for package damage");
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create customer notification for package damage", e);
+            // Don't fail the main flow if notification fails
+        }
 
         return response;
     }
@@ -1286,8 +1491,38 @@ public class IssueServiceImpl implements IssueService {
         GetBasicIssueResponse response = getBasicIssue(saved.getId());
 
         // Broadcast penalty issue to staff
-        
         issueWebSocketService.broadcastNewIssue(response);
+        
+        // 📧 Send persistent notification to STAFF about new penalty issue
+        try {
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            if (!staffUsers.isEmpty()) {
+                var driver = vehicleAssignment.getDriver1();
+                var orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
+                var order = !orderDetails.isEmpty() ? orderDetails.get(0).getOrderEntity() : null;
+                
+                for (var staff : staffUsers) {
+                    var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildNewIssueReported(
+                        staff.getId(),
+                        capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(saved.getId()),
+                        issueType.getIssueTypeName(),
+                        order != null ? order.getOrderCode() : "N/A",
+                        driver != null && driver.getUser() != null ? driver.getUser().getFullName() : "Tài xế",
+                        driver != null && driver.getUser() != null ? driver.getUser().getPhoneNumber() : "N/A",
+                        vehicleAssignment.getVehicleEntity() != null ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "N/A",
+                        order != null ? order.getId() : null,
+                        saved.getId(),
+                        vehicleAssignment.getId()
+                    );
+                    
+                    notificationService.createNotification(notificationRequest);
+                }
+                log.info("📧 Staff notifications created for new penalty issue");
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create staff notifications for penalty issue", e);
+            // Don't fail the main flow if notification fails
+        }
 
         return response;
     }
@@ -1399,8 +1634,77 @@ public class IssueServiceImpl implements IssueService {
         GetBasicIssueResponse response = getBasicIssue(saved.getId());
 
         // Broadcast to staff
-        
         issueWebSocketService.broadcastNewIssue(response);
+        
+        // 📧 Send persistent notification to STAFF about new order rejection issue
+        try {
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            if (!staffUsers.isEmpty()) {
+                var driver = vehicleAssignment.getDriver1();
+                var order = !selectedOrderDetails.isEmpty() ? selectedOrderDetails.get(0).getOrderEntity() : null;
+                
+                for (var staff : staffUsers) {
+                    var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildNewIssueReported(
+                        staff.getId(),
+                        capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(saved.getId()),
+                        issueType.getIssueTypeName(),
+                        order != null ? order.getOrderCode() : "N/A",
+                        driver != null && driver.getUser() != null ? driver.getUser().getFullName() : "Tài xế",
+                        driver != null && driver.getUser() != null ? driver.getUser().getPhoneNumber() : "N/A",
+                        vehicleAssignment.getVehicleEntity() != null ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "N/A",
+                        order != null ? order.getId() : null,
+                        saved.getId(),
+                        vehicleAssignment.getId()
+                    );
+                    
+                    notificationService.createNotification(notificationRequest);
+                }
+                log.info("📧 Staff notifications created for new order rejection issue");
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create staff notifications for order rejection issue", e);
+            // Don't fail the main flow if notification fails
+        }
+        
+        // 📧 Send persistent notification to CUSTOMER about order rejection
+        try {
+            if (!selectedOrderDetails.isEmpty()) {
+                var order = selectedOrderDetails.get(0).getOrderEntity();
+                var customer = order.getSender();
+                String deliveryLocation;
+if (order.getDeliveryAddress() != null) {
+    var address = order.getDeliveryAddress();
+    deliveryLocation = String.format("%s, %s, %s", 
+        address.getStreet() != null ? address.getStreet() : "",
+        address.getWard() != null ? address.getWard() : "",
+        address.getProvince() != null ? address.getProvince() : "").trim();
+    if (deliveryLocation.startsWith(", ")) deliveryLocation = deliveryLocation.substring(2);
+    if (deliveryLocation.isEmpty()) deliveryLocation = "Địa chỉ nhận hàng";
+} else {
+    deliveryLocation = "Địa chỉ nhận hàng";
+}
+                
+                var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildOrderRejectedByReceiver(
+                    customer.getId(),
+                    order.getOrderCode(),
+                    capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(saved.getId()),
+                    selectedOrderDetails.size(),
+                    orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment).size(),
+                    deliveryLocation != null ? deliveryLocation : "Địa chỉ nhận hàng",
+                    selectedOrderDetails,
+                    order.getId(),
+                    saved.getId(),
+                    selectedOrderDetails.stream().map(OrderDetailEntity::getId).collect(java.util.stream.Collectors.toList()),
+                    vehicleAssignment.getId()
+                );
+                
+                notificationService.createNotification(notificationRequest);
+                log.info("📧 Customer notification created for order rejection");
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create customer notification for order rejection", e);
+            // Don't fail the main flow if notification fails
+        }
 
         return response;
     }
@@ -2138,6 +2442,63 @@ public class IssueServiceImpl implements IssueService {
             log.error("❌ Failed to broadcast new issue: {}", e.getMessage());
         }
         
+        // 📧 Send persistent notification to STAFF about new reroute issue
+        try {
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            if (!staffUsers.isEmpty()) {
+                var driver = vehicleAssignment.getDriver1();
+                var order = !orderDetails.isEmpty() ? orderDetails.get(0).getOrderEntity() : null;
+                
+                for (var staff : staffUsers) {
+                    var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildNewIssueReported(
+                        staff.getId(),
+                        capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(issue.getId()),
+                        issueType.getIssueTypeName(),
+                        order != null ? order.getOrderCode() : "N/A",
+                        driver != null && driver.getUser() != null ? driver.getUser().getFullName() : "Tài xế",
+                        driver != null && driver.getUser() != null ? driver.getUser().getPhoneNumber() : "N/A",
+                        vehicleAssignment.getVehicleEntity() != null ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "N/A",
+                        order != null ? order.getId() : null,
+                        issue.getId(),
+                        vehicleAssignment.getId()
+                    );
+                    
+                    notificationService.createNotification(notificationRequest);
+                }
+                log.info("📧 Staff notifications created for new reroute issue");
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create staff notifications for reroute issue", e);
+            // Don't fail the main flow if notification fails
+        }
+        
+        // 📧 Send persistent notification to CUSTOMER about route delay
+        try {
+            if (!orderDetails.isEmpty()) {
+                var order = orderDetails.get(0).getOrderEntity();
+                var customer = order.getSender();
+                
+                var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildNewIssueReported(
+                    customer.getId(),
+                    capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(issue.getId()),
+                    issueType.getIssueTypeName(),
+                    order.getOrderCode(),
+                    "Tài xế",
+                    "N/A",
+                    vehicleAssignment.getVehicleEntity() != null ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "N/A",
+                    order.getId(),
+                    issue.getId(),
+                    vehicleAssignment.getId()
+                );
+                
+                notificationService.createNotification(notificationRequest);
+                log.info("📧 Customer notification created for route delay");
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create customer notification for route delay", e);
+            // Don't fail the main flow if notification fails
+        }
+        
         return getBasicIssue(issue.getId());
     }
     
@@ -2667,6 +3028,68 @@ public class IssueServiceImpl implements IssueService {
             throw new BadRequestException(
                     String.format("Tọa độ kinh độ (%.6f) của %s không hợp lệ (phải trong khoảng [102.0, 110.0])", longitude, pointName), 
                     ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+    }
+
+    /**
+     * Create issue notifications - broadcast to staff, notify customer if damage
+     */
+    private void createIssueNotifications(IssueEntity issue) {
+        try {
+            VehicleAssignmentEntity assignment = issue.getVehicleAssignmentEntity();
+            if (assignment == null) {
+                log.warn("Cannot create issue notifications - no vehicle assignment");
+                return;
+            }
+            
+            List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(assignment);
+            if (orderDetails == null || orderDetails.isEmpty()) {
+                log.warn("Cannot create issue notifications - no order details");
+                return;
+            }
+            
+            OrderEntity order = orderDetails.get(0).getOrderEntity();
+            if (order == null) {
+                log.warn("Cannot create issue notifications - no order");
+                return;
+            }
+            
+            String issueCode = "ISS-" + issue.getId().toString().substring(0, 8).toUpperCase();
+            String issueTypeName = issue.getIssueTypeEntity() != null ? 
+                issue.getIssueTypeEntity().getIssueTypeName() : "Sự cố";
+            
+            // Notification 1: Broadcast to ALL STAFF
+            try {
+                List<UserEntity> staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+                for (UserEntity staff : staffUsers) {
+                    String driverName = assignment.getDriver1() != null && assignment.getDriver1().getUser() != null ? 
+                        assignment.getDriver1().getUser().getFullName() : "N/A";
+                    String driverPhone = assignment.getDriver1() != null && assignment.getDriver1().getUser() != null ? 
+                        assignment.getDriver1().getUser().getPhoneNumber() : "N/A";
+                    String vehiclePlate = assignment.getVehicleEntity() != null ? 
+                        assignment.getVehicleEntity().getLicensePlateNumber() : "N/A";
+                    
+                    CreateNotificationRequest staffNotif = NotificationBuilder.buildNewIssueReported(
+                        staff.getId(),
+                        issueCode,
+                        issueTypeName,
+                        order.getOrderCode(),
+                        driverName,
+                        driverPhone,
+                        vehiclePlate,
+                        order.getId(),
+                        issue.getId(),
+                        assignment.getId()
+                    );
+                    notificationService.createNotification(staffNotif);
+                }
+                log.info("✅ Broadcast NEW_ISSUE_REPORTED to {} staff members", staffUsers.size());
+            } catch (Exception e) {
+                log.error("❌ Failed to broadcast issue notifications to staff: {}", e.getMessage());
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to create issue notifications: {}", e.getMessage());
         }
     }
 

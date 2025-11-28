@@ -1,6 +1,7 @@
 package capstone_project.dtos.response.order.contract;
 
 import capstone_project.dtos.response.order.GetOrderResponse;
+import capstone_project.dtos.response.setting.CarrierSettingResponse;
 import capstone_project.dtos.response.setting.ContractSettingResponse;
 import capstone_project.dtos.response.user.CustomerResponse;
 import lombok.Builder;
@@ -16,9 +17,8 @@ public record FullContractPDFResponse(
 
         BigDecimal distanceKm,
 
-
+        CarrierSettingResponse carrierInfo,
         CustomerResponse customerInfo,
-//        UserResponse senderInfo,
         GetOrderResponse orderInfo,
         PriceCalculationResponse priceDetails,
         List<ContractRuleAssignResponse> assignResult,

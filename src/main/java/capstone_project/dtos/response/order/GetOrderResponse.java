@@ -27,6 +27,10 @@ public record GetOrderResponse(
     CustomerResponse sender,
     CategoryResponse category,
     List<GetOrderDetailResponse> orderDetails,
-    List<VehicleAssignmentResponse> vehicleAssignments  // Moved from orderDetail level
+    List<VehicleAssignmentResponse> vehicleAssignments,  // Moved from orderDetail level
+    // Insurance fields
+    Boolean hasInsurance,           // Khách hàng có mua bảo hiểm hay không
+    BigDecimal totalInsuranceFee,   // Tổng phí bảo hiểm (đã bao gồm VAT)
+    BigDecimal totalDeclaredValue   // Tổng giá trị khai báo của tất cả kiện hàng
 ) {
 }

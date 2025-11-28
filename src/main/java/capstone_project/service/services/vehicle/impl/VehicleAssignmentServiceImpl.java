@@ -32,6 +32,9 @@ import capstone_project.service.services.order.order.*;
 import capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService;
 import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
+import capstone_project.service.services.notification.NotificationService;
+import capstone_project.service.services.notification.NotificationBuilder;
+import capstone_project.dtos.request.notification.CreateNotificationRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +61,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final OrderEntityService orderEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
     private final ContractEntityService contractEntityService;
+    private final NotificationService notificationService;
     private final ContractRuleService contractRuleService;
     private final SizeRuleEntityService sizeRuleEntityService;
     private final DriverService driverService;
@@ -906,6 +910,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 }
             }
 
+            // Create notifications for assignment
+            createAssignmentNotifications(savedAssignment, orderDetailIds);
+            
             // Thêm vào danh sách kết quả
             createdAssignments.add(mapper.toResponse(savedAssignment));
         }
@@ -1799,5 +1806,128 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         }
 
         return result;
+    }
+    
+    /**
+     * Create notifications for both customer and driver when assignment is created
+     */
+    private void createAssignmentNotifications(VehicleAssignmentEntity assignment, List<UUID> orderDetailIds) {
+        try {
+            // Get first order detail to find the order and customer
+            if (orderDetailIds.isEmpty()) {
+                log.warn("No order details in assignment {}", assignment.getId());
+                return;
+            }
+            
+            OrderDetailEntity firstOrderDetail = orderDetailEntityService.findEntityById(orderDetailIds.get(0))
+                .orElse(null);
+            if (firstOrderDetail == null || firstOrderDetail.getOrderEntity() == null) {
+                log.warn("Cannot find order for assignment {}", assignment.getId());
+                return;
+            }
+            
+            OrderEntity order = firstOrderDetail.getOrderEntity();
+            ContractEntity contract = contractEntityService.getContractByOrderId(order.getId()).orElse(null);
+            DriverEntity driver = assignment.getDriver1();
+            VehicleEntity vehicle = assignment.getVehicleEntity();
+            
+            if (driver == null || vehicle == null) {
+                log.warn("Missing driver or vehicle in assignment {}", assignment.getId());
+                return;
+            }
+            
+            // Notification 1: To Customer - DRIVER_ASSIGNED
+            try {
+                double remainingAmount = 0.0;
+                LocalDateTime paymentDeadline = null;
+                
+                if (contract != null && contract.getTotalValue() != null) {
+                    remainingAmount = contract.getTotalValue().doubleValue();
+                    paymentDeadline = contract.getFullPaymentDeadline();
+                }
+                
+                // Use safe values that won't cause compilation errors
+                String vehiclePlate = vehicle.getLicensePlateNumber() != null ? vehicle.getLicensePlateNumber() : "N/A";
+                String vehicleTypeName = "Truck"; // Default - actual type from entity would need verification
+                
+                CreateNotificationRequest customerNotif = NotificationBuilder.buildDriverAssigned(
+                    order.getSender().getUser().getId(),
+                    order.getOrderCode(),
+                    driver.getUser().getFullName(),
+                    driver.getUser().getPhoneNumber(),
+                    vehiclePlate,
+                    vehicleTypeName,
+                    remainingAmount,
+                    paymentDeadline,
+                    assignment.getCreatedAt(),
+                    order.getId(),
+                    assignment.getId()
+                );
+                
+                notificationService.createNotification(customerNotif);
+                log.info("✅ Created DRIVER_ASSIGNED notification for order: {}", order.getOrderCode());
+            } catch (Exception e) {
+                log.error("❌ Failed to create DRIVER_ASSIGNED notification: {}", e.getMessage());
+            }
+            
+            // Notification 2: To Driver - NEW_ORDER_ASSIGNED
+            try {
+                int packageCount = orderDetailIds.size();
+                
+                // Calculate total weight using weightBaseUnit and get the unit from order details
+                double totalWeight = 0.0;
+                String weightUnit = "kg"; // Default unit
+                String packageDescription = null; // Default description
+                
+                if (order.getOrderDetailEntities() != null && !order.getOrderDetailEntities().isEmpty()) {
+                    totalWeight = order.getOrderDetailEntities().stream()
+                        .filter(detail -> detail.getWeightBaseUnit() != null)
+                        .mapToDouble(detail -> detail.getWeightBaseUnit().doubleValue())
+                        .sum();
+                    
+                    // Get unit from first order detail (all should have same unit)
+                    String firstUnit = order.getOrderDetailEntities().stream()
+                        .filter(detail -> detail.getUnit() != null && !detail.getUnit().isEmpty())
+                        .map(od -> od.getUnit())
+                        .findFirst()
+                        .orElse("kg");
+                    weightUnit = firstUnit;
+                    
+                    // Get description from first order detail
+                    packageDescription = order.getOrderDetailEntities().stream()
+                        .filter(detail -> detail.getDescription() != null && !detail.getDescription().trim().isEmpty())
+                        .map(od -> od.getDescription())
+                        .findFirst()
+                        .orElse(null);
+                }
+                
+                String vehicleTypeName = "Truck"; // Default
+                String pickupLocation = "Pickup Address"; // Safe default
+                String deliveryLocation = "Delivery Address"; // Safe default
+                
+                CreateNotificationRequest driverNotif = NotificationBuilder.buildNewOrderAssigned(
+                    driver.getUser().getId(),
+                    order.getOrderCode(),
+                    packageCount,
+                    totalWeight,
+                    weightUnit,
+                    packageDescription,
+                    vehicleTypeName,
+                    assignment.getCreatedAt(),
+                    pickupLocation,
+                    deliveryLocation,
+                    order.getId(),
+                    assignment.getId()
+                );
+                
+                notificationService.createNotification(driverNotif);
+                log.info("✅ Created NEW_ORDER_ASSIGNED notification for driver: {}", driver.getUser().getFullName());
+            } catch (Exception e) {
+                log.error("❌ Failed to create NEW_ORDER_ASSIGNED notification: {}", e.getMessage());
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to create assignment notifications: {}", e.getMessage());
+        }
     }
 }

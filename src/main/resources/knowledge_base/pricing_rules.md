@@ -82,6 +82,44 @@ Hệ thống tự động chọn xe nhỏ nhất đủ chở để tối ưu chi
    - Tổng 1 xe: 520,000 VND
 4. **Tổng cho 2 xe: 520,000 × 2 = 1,040,000 VND**
 
+---
+
+## 🛡️ Phí Bảo Hiểm Hàng Hóa (Tùy Chọn)
+
+### Công Thức Tính Phí Bảo Hiểm
+
+**Phí BH = Giá trị Khai báo × Tỷ lệ BH × (1 + 10% VAT)**
+
+### Tỷ Lệ Phí Bảo Hiểm
+
+| Loại Hàng | Tỷ lệ (chưa VAT) | Tỷ lệ (có VAT) | Ví dụ (100 triệu VNĐ) |
+|-----------|------------------|----------------|----------------------|
+| **Hàng thông thường** | 0.08% | 0.088% | 88.000 VNĐ |
+| **Hàng dễ vỡ/Rủi ro cao** | 0.15% | 0.165% | 165.000 VNĐ |
+
+### Ví Dụ Tính Phí Bảo Hiểm
+
+**Đơn hàng: 3 kiện hàng điện tử (dễ vỡ), tổng giá trị khai báo 200.000.000 VNĐ**
+
+1. Loại hàng: **Dễ vỡ** → Tỷ lệ 0.15% (chưa VAT)
+2. Phí BH (chưa VAT) = 200.000.000 × 0.15% = **300.000 VNĐ**
+3. VAT = 300.000 × 10% = **30.000 VNĐ**
+4. **Tổng phí BH = 330.000 VNĐ** (hoặc 200.000.000 × 0.165%)
+
+### Quyền Lợi Khi Mua Bảo Hiểm
+
+✅ **CÓ MUA BẢO HIỂM + CÓ CHỨNG TỪ**:
+- Bồi thường = Tỷ lệ hư hại × Giá trị Khai báo
+- **Ví dụ**: Hàng 100 triệu, hư 50% → Bồi thường **50 triệu VNĐ**
+
+❌ **KHÔNG MUA BẢO HIỂM** (hoặc không có chứng từ):
+- Bồi thường tối đa = **10 × Cước phí vận chuyển**
+- **Ví dụ**: Cước 500.000 VNĐ → Bồi thường tối đa **5 triệu VNĐ** (dù hàng 100 triệu)
+
+⚠️ **QUAN TRỌNG**: Khách hàng **BẮT BUỘC** cung cấp **Hóa đơn VAT, chứng từ mua bán** chứng minh giá trị hàng khi xảy ra sự cố. Nếu không → Bảo hiểm bị **VÔ HIỆU HÓA**.
+
+---
+
 ### Lưu Ý Quan Trọng
 
 ⚠️ **Giá tham khảo**: Đây chỉ là ước tính dựa trên công thức chuẩn. Giá thực tế có thể thay đổi tùy theo:
@@ -90,6 +128,7 @@ Hệ thống tự động chọn xe nhỏ nhất đủ chở để tối ưu chi
 - **Thời gian giao hàng**: Giờ cao điểm (+10-20%), đêm khuya (+20-30%)
 - **Khu vực**: Vùng sâu vùng xa, khu công nghiệp, cảng biển
 - **Phụ phí bổ sung**: Cầu đường, phà, cao tốc, bốc xếp
+- **Bảo hiểm**: Phí BH cộng thêm nếu khách chọn mua (0.088% - 0.165% giá trị khai báo)
 - **Khuyến mãi**: Hợp đồng dài hạn, khách hàng VIP có thể được giảm giá
 
 📞 **Liên hệ nhân viên** để nhận báo giá chính xác sau khi đo đạc thực tế và khảo sát tuyến đường.

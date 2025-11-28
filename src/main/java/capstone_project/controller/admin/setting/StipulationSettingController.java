@@ -14,7 +14,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("${stipulation-setting.api.base-path}")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('ADMIN')")
+@PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
 public class StipulationSettingController {
 
     private final StipulationSettingService stipulationSettingService;

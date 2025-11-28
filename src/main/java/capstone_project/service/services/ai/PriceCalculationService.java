@@ -1,5 +1,6 @@
 package capstone_project.service.services.ai;
 
+import capstone_project.common.enums.CategoryName;
 import capstone_project.common.utils.BinPacker;
 import capstone_project.dtos.request.chat.PriceEstimateRequest;
 import capstone_project.entity.order.order.CategoryEntity;
@@ -17,6 +18,8 @@ import capstone_project.repository.entityServices.pricing.DistanceRuleEntityServ
 import capstone_project.repository.entityServices.pricing.SizeRuleEntityService;
 import capstone_project.service.services.pricing.UnifiedPricingService;
 import capstone_project.service.services.redis.RedisService;
+import capstone_project.service.services.setting.CarrierSettingService;
+import capstone_project.dtos.response.setting.CarrierSettingResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -68,7 +71,9 @@ public class PriceCalculationService {
             // 2. Lấy category ID từ category name
             UUID categoryId = null;
             if (request.categoryName() != null && !request.categoryName().equals("Hàng thông thường")) {
-                CategoryEntity category = categoryEntityService.findByCategoryName(request.categoryName()).orElse(null);
+                // Convert String to CategoryName enum for repository lookup
+                CategoryName categoryNameEnum = CategoryName.fromString(request.categoryName());
+                CategoryEntity category = categoryEntityService.findByCategoryName(categoryNameEnum).orElse(null);
                 if (category != null) {
                     categoryId = category.getId();
                 } else {
@@ -138,14 +143,25 @@ public class PriceCalculationService {
             List<OrderDetailEntity> fakeDetails = createFakeOrderDetails(packageInfo);
 
             // 2. Get available vehicles for category
-            CategoryEntity category = categoryEntityService.findByCategoryName(categoryName)
+            // Convert String to CategoryName enum for repository lookup
+            log.info("🔍 DEBUG: Incoming category name: '{}'", categoryName);
+            CategoryName categoryNameEnum = CategoryName.fromString(categoryName);
+            log.info("🔍 DEBUG: Resolved CategoryName enum: '{}'", categoryNameEnum);
+            CategoryEntity category = categoryEntityService.findByCategoryName(categoryNameEnum)
                     .orElseThrow(() -> new RuntimeException("Category not found: " + categoryName));
+            log.info("🔍 DEBUG: Found category entity - ID: '{}', Name: '{}'", category.getId(), category.getCategoryName());
             
             List<SizeRuleEntity> allVehicles = sizeRuleService.findAllByCategoryId(category.getId())
                     .stream()
                     .filter(rule -> "ACTIVE".equals(rule.getStatus()))
                     .sorted(Comparator.comparing(SizeRuleEntity::getMaxWeight))
                     .collect(Collectors.toList());
+            log.info("🔍 DEBUG: Found {} size rules for category ID: {}", allVehicles.size(), category.getId());
+            if (!allVehicles.isEmpty()) {
+                log.info("🔍 DEBUG: Size rules weight range: {} - {} tons", 
+                    allVehicles.get(0).getMaxWeight(), 
+                    allVehicles.get(allVehicles.size() - 1).getMaxWeight());
+            }
 
             if (allVehicles.isEmpty()) {
                 return AllVehiclePriceResult.error("Không tìm thấy loại xe nào cho category: " + categoryName);
@@ -339,7 +355,7 @@ public class PriceCalculationService {
 
             CategoryEntity category = categoryEntityService.findEntityById(categoryId).orElse(null);
             if (category != null) {
-                breakdown.append(String.format("\n📦 **Điều chỉnh loại hàng:** %s\n", category.getCategoryName()));
+                breakdown.append(String.format("\n📦 **Điều chỉnh loại hàng:** %s\n", category.getCategoryName().name()));
                 breakdown.append(String.format("- Hệ số: %.1fx\n", multiplier.doubleValue()));
                 breakdown.append(String.format("- Phụ phí: %,d VND\n", extraFee.intValue()));
             }
@@ -362,15 +378,15 @@ public class PriceCalculationService {
             
             // Calculate pricing for EACH category using BinPacker allocation
             for (CategoryEntity category : allCategories) {
-                log.info("🏷️ Calculating for category: {}", category.getCategoryName());
+                log.info("🏷️ Calculating for category: {}", category.getCategoryName().name());
                 
-                AllVehiclePriceResult result = estimatePriceWithDimensions(weight, distance, packageInfo, category.getCategoryName());
+                AllVehiclePriceResult result = estimatePriceWithDimensions(weight, distance, packageInfo, category.getCategoryName().name());
                 
                 if (result.isSuccess()) {
-                    log.info("✅ Success for {}: Price {} VND", category.getCategoryName(), result.getEstimatedPrice());
+                    log.info("✅ Success for {}: Price {} VND", category.getCategoryName().name(), result.getEstimatedPrice());
                     results.add(result);
                 } else {
-                    log.warn("❌ Failed for {}: {}", category.getCategoryName(), result.getErrorMessage());
+                    log.warn("❌ Failed for {}: {}", category.getCategoryName().name(), result.getErrorMessage());
                     results.add(AllVehiclePriceResult.error(result.getErrorMessage()));
                 }
             }
@@ -475,13 +491,13 @@ public class PriceCalculationService {
         
         // Calculate pricing for EACH category with the SAME best vehicle
         for (CategoryEntity category : allCategories) {
-            log.info("🏷️ Calculating for category: {}", category.getCategoryName());
+            log.info("🏷️ Calculating for category: {}", category.getCategoryName().name());
             
-            PriceEstimateRequest request = new PriceEstimateRequest(distance, weight, null, category.getCategoryName());
+            PriceEstimateRequest request = new PriceEstimateRequest(distance, weight, null, category.getCategoryName().name());
             PriceEstimateResult result = estimatePriceForSpecificVehicle(request, bestVehicle);
             
             if (result.isSuccess()) {
-                log.info("✅ Success for {}: Price {} VND", category.getCategoryName(), result.getEstimatedPrice());
+                log.info("✅ Success for {}: Price {} VND", category.getCategoryName().name(), result.getEstimatedPrice());
                 
                 results.add(AllVehiclePriceResult.success(
                         result.getEstimatedPrice(),
@@ -489,10 +505,10 @@ public class PriceCalculationService {
                         result.getBreakdown(),
                         false, // No vehicle recommendation since we only show one vehicle
                         bestVehicle.getMaxWeight().doubleValue(),
-                        category.getCategoryName()
+                        category.getCategoryName().name()
                 ));
             } else {
-                log.warn("❌ Failed for category {}: {}", category.getCategoryName(), result.getErrorMessage());
+                log.warn("❌ Failed for category {}: {}", category.getCategoryName().name(), result.getErrorMessage());
             }
         }
         
@@ -525,7 +541,7 @@ public class PriceCalculationService {
         
         // Calculate for each category
         for (CategoryEntity category : allCategories) {
-            log.info("🏷️ Multi-vehicle pricing for category: {}", category.getCategoryName());
+            log.info("🏷️ Multi-vehicle pricing for category: {}", category.getCategoryName().name());
             
             // Calculate price for each vehicle type in optimal allocation
             BigDecimal totalPrice = BigDecimal.ZERO;
@@ -550,7 +566,7 @@ public class PriceCalculationService {
                 if (count > 0) {
                     PriceEstimateRequest request = new PriceEstimateRequest(distance, 
                             vehicle.getMaxWeight().multiply(BigDecimal.valueOf(1000)), 
-                            null, category.getCategoryName());
+                            null, category.getCategoryName().name());
                     
                     PriceEstimateResult singleVehicleResult = estimatePriceForSpecificVehicle(request, vehicle);
                     
@@ -578,7 +594,7 @@ public class PriceCalculationService {
                 // Calculate price for this vehicle type
                 PriceEstimateRequest request = new PriceEstimateRequest(distance, 
                         vehicle.getMaxWeight().multiply(BigDecimal.valueOf(1000)), // Use max capacity per vehicle
-                        null, category.getCategoryName());
+                        null, category.getCategoryName().name());
                 
                 PriceEstimateResult singleVehicleResult = estimatePriceForSpecificVehicle(request, vehicle);
                 
@@ -605,7 +621,7 @@ public class PriceCalculationService {
                 if (vehiclesNeeded > optimalAllocation.getTotalVehicleCount()) {
                     PriceEstimateRequest largestRequest = new PriceEstimateRequest(distance, 
                             largestVehicle.getMaxWeight().multiply(BigDecimal.valueOf(1000)), 
-                            null, category.getCategoryName());
+                            null, category.getCategoryName().name());
                     PriceEstimateResult largestResult = estimatePriceForSpecificVehicle(largestRequest, largestVehicle);
                     
                     if (largestResult.isSuccess()) {
@@ -625,7 +641,7 @@ public class PriceCalculationService {
                     multiVehicleBreakdown.toString(),
                     false,
                     optimalAllocation.getTotalCapacity().doubleValue(),
-                    category.getCategoryName()
+                    category.getCategoryName().name()
             ));
         }
         
@@ -647,7 +663,9 @@ public class PriceCalculationService {
             // 2. Lấy category ID từ category name
             UUID categoryId = null;
             if (request.categoryName() != null && !request.categoryName().equals("Hàng thông thường")) {
-                CategoryEntity category = categoryEntityService.findByCategoryName(request.categoryName()).orElse(null);
+                // Convert String to CategoryName enum for repository lookup
+                CategoryName categoryNameEnum = CategoryName.fromString(request.categoryName());
+                CategoryEntity category = categoryEntityService.findByCategoryName(categoryNameEnum).orElse(null);
                 if (category != null) {
                     categoryId = category.getId();
                 }
@@ -765,7 +783,9 @@ public class PriceCalculationService {
      */
     private void addSimpleCategoryAdjustmentBreakdown(StringBuilder breakdown, String categoryName) {
         if (categoryName != null && !categoryName.equals("Hàng thông thường")) {
-            CategoryEntity category = categoryEntityService.findByCategoryName(categoryName).orElse(null);
+            // Convert String to CategoryName enum for repository lookup
+            CategoryName categoryNameEnum = CategoryName.fromString(categoryName);
+            CategoryEntity category = categoryEntityService.findByCategoryName(categoryNameEnum).orElse(null);
             if (category != null) {
                 CategoryPricingDetailEntity pricingDetail = categoryPricingDetailService.findByCategoryId(category.getId());
                 if (pricingDetail != null) {

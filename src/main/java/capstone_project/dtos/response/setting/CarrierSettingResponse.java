@@ -15,6 +15,7 @@ import java.util.UUID;
 public class CarrierSettingResponse {
     private UUID id;
     private String carrierName;
+    private String representativeName;
     private String carrierAddressLine;
     private String carrierEmail;
     private String carrierPhone;

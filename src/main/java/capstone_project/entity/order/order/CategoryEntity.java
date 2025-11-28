@@ -1,5 +1,6 @@
 package capstone_project.entity.order.order;
 
+import capstone_project.common.enums.CategoryName;
 import capstone_project.entity.common.BaseEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -15,10 +16,11 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class CategoryEntity extends BaseEntity {
 
+    @Enumerated(EnumType.STRING)
     @Size(max = 100)
     @NotNull
     @Column(name = "category_name", nullable = false, length = 100)
-    private String categoryName;
+    private CategoryName categoryName;
 
     @Size(max = 200)
     @Column(name = "description", length = 200)

@@ -23,6 +23,10 @@ import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
 import capstone_project.service.services.pricing.PricingUtils;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
+import capstone_project.service.services.notification.NotificationService;
+import capstone_project.service.services.notification.NotificationBuilder;
+import capstone_project.dtos.request.notification.CreateNotificationRequest;
+import capstone_project.repository.entityServices.auth.UserEntityService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
@@ -52,6 +56,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final UserEntityService userEntityService;
     private final ContractSettingEntityService contractSettingEntityService;
     private final ObjectProvider<OrderService> orderServiceObjectProvider;
+    private final NotificationService notificationService;
     
     // ORDER_REJECTION dependencies - Use @Lazy to break circular dependency
     private final capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService;
@@ -84,6 +89,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             UserEntityService userEntityService,
             ContractSettingEntityService contractSettingEntityService,
             ObjectProvider<OrderService> orderServiceObjectProvider,
+            NotificationService notificationService,
             capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService,
             @org.springframework.context.annotation.Lazy capstone_project.service.services.issue.IssueService issueService,
             capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService journeyHistoryEntityService,
@@ -106,6 +112,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         this.userEntityService = userEntityService;
         this.contractSettingEntityService = contractSettingEntityService;
         this.orderServiceObjectProvider = orderServiceObjectProvider;
+        this.notificationService = notificationService;
         this.issueEntityService = issueEntityService;
         this.issueService = issueService;
         this.journeyHistoryEntityService = journeyHistoryEntityService;
@@ -625,6 +632,15 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 transaction.setPaymentDate(java.time.LocalDateTime.now());
                 transactionEntityService.save(transaction);
 
+                // 📧 Send payment notifications based on transaction status
+                try {
+                    sendPaymentNotification(transaction, mappedStatus);
+                } catch (Exception e) {
+                    log.error("❌ Failed to send payment notification for transaction {}: {}", 
+                        transaction.getId(), e.getMessage());
+                    // Don't fail the main flow if notification fails
+                }
+
                 // Check if this is a return shipping payment (ORDER_REJECTION)
                 boolean isReturnPayment = false;
                 if (TransactionEnum.PAID.equals(mappedStatus)) {
@@ -717,6 +733,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                             previousStatus,
                             OrderStatusEnum.FULLY_PAID
                     );
+                    
+                    // Create payment success notifications
+                    createPaymentNotifications(order, contract, totalValue.doubleValue());
                 } else {
                     
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
@@ -1297,6 +1316,222 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             log.error("========== PAYOS ERROR END ==========");
             
             throw new RuntimeException("Failed to create payment link", e);
+        }
+    }
+    
+    /**
+     * Helper method to send payment notifications based on transaction status
+     */
+    private void sendPaymentNotification(TransactionEntity transaction, TransactionEnum status) {
+        try {
+            ContractEntity contract = transaction.getContractEntity();
+            if (contract == null || contract.getOrderEntity() == null) {
+                log.warn("Cannot send payment notification: no contract or order found for transaction {}", 
+                    transaction.getId());
+                return;
+            }
+            
+            OrderEntity order = contract.getOrderEntity();
+            CustomerEntity customer = order.getSender();
+            
+            if (customer == null) {
+                log.warn("Cannot send payment notification: no customer found for order {}", order.getId());
+                return;
+            }
+            
+            switch (status) {
+                case PAID:
+                    // Customer notification: Payment successful
+                    CreateNotificationRequest customerNotification = CreateNotificationRequest.builder()
+                        .userId(customer.getId())
+                        .recipientRole("CUSTOMER")
+                        .title("Thanh toán thành công")
+                        .description("Đơn hàng " + order.getOrderCode() + " đã được thanh toán thành công với số tiền " + 
+                            transaction.getAmount() + " VNĐ")
+                        .notificationType(capstone_project.common.enums.NotificationTypeEnum.PAYMENT_FULL_SUCCESS)
+                        .relatedOrderId(order.getId())
+                        .relatedContractId(contract.getId())
+                        .build();
+                    
+                    notificationService.createNotification(customerNotification);
+                    
+                    // Staff notification: Payment received
+                    sendPaymentNotificationToStaff(order, transaction, "Thanh toán mới nhận được", 
+                        "Đơn hàng " + order.getOrderCode() + " đã thanh toán thành công");
+                    
+                    log.info("📧 Payment success notifications sent for transaction {}", transaction.getId());
+                    break;
+                    
+                case CANCELLED:
+                    // Customer notification: Payment cancelled
+                    CreateNotificationRequest cancelledNotification = CreateNotificationRequest.builder()
+                        .userId(customer.getId())
+                        .recipientRole("CUSTOMER")
+                        .title("Thanh toán đã hủy")
+                        .description("Thanh toán cho đơn hàng " + order.getOrderCode() + " đã bị hủy")
+                        .notificationType(capstone_project.common.enums.NotificationTypeEnum.ORDER_CANCELLED)
+                        .relatedOrderId(order.getId())
+                        .relatedContractId(contract.getId())
+                        .build();
+                    
+                    notificationService.createNotification(cancelledNotification);
+                    
+                    // Staff notification: Payment cancelled
+                    sendPaymentNotificationToStaff(order, transaction, "Thanh toán bị hủy", 
+                        "Thanh toán cho đơn hàng " + order.getOrderCode() + " đã bị hủy");
+                    
+                    log.info("📧 Payment cancelled notifications sent for transaction {}", transaction.getId());
+                    break;
+                    
+                case FAILED:
+                    // Customer notification: Payment failed
+                    CreateNotificationRequest failedNotification = CreateNotificationRequest.builder()
+                        .userId(customer.getId())
+                        .recipientRole("CUSTOMER")
+                        .title("Thanh toán thất bại")
+                        .description("Thanh toán cho đơn hàng " + order.getOrderCode() + " đã thất bại. Vui lòng thử lại.")
+                        .notificationType(capstone_project.common.enums.NotificationTypeEnum.ORDER_CANCELLED)
+                        .relatedOrderId(order.getId())
+                        .relatedContractId(contract.getId())
+                        .build();
+                    
+                    notificationService.createNotification(failedNotification);
+                    
+                    // Staff notification: Payment failed
+                    sendPaymentNotificationToStaff(order, transaction, "Thanh toán thất bại", 
+                        "Thanh toán cho đơn hàng " + order.getOrderCode() + " đã thất bại");
+                    
+                    log.info("📧 Payment failed notifications sent for transaction {}", transaction.getId());
+                    break;
+                    
+                case REFUNDED:
+                    // Customer notification: Refund processed
+                    CreateNotificationRequest refundNotification = CreateNotificationRequest.builder()
+                        .userId(customer.getId())
+                        .recipientRole("CUSTOMER")
+                        .title("Hoàn tiền thành công")
+                        .description("Đã hoàn tiền " + transaction.getAmount() + " VNĐ cho đơn hàng " + order.getOrderCode())
+                        .notificationType(capstone_project.common.enums.NotificationTypeEnum.PAYMENT_RECEIVED)
+                        .relatedOrderId(order.getId())
+                        .relatedContractId(contract.getId())
+                        .build();
+                    
+                    notificationService.createNotification(refundNotification);
+                    
+                    // Staff notification: Refund processed
+                    sendPaymentNotificationToStaff(order, transaction, "Hoàn tiền đã xử lý", 
+                        "Đã hoàn tiền cho đơn hàng " + order.getOrderCode());
+                    
+                    log.info("📧 Refund notifications sent for transaction {}", transaction.getId());
+                    break;
+                    
+                default:
+                    // Other statuses (PENDING, EXPIRED) may not need notifications
+                    break;
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to send payment notification for transaction {}: {}", 
+                transaction.getId(), e.getMessage());
+            // Don't throw - Notification failure shouldn't break business logic
+        }
+    }
+    
+    /**
+     * Helper method to send payment notifications to all staff users
+     */
+    private void sendPaymentNotificationToStaff(OrderEntity order, TransactionEntity transaction, 
+            String title, String description) {
+        try {
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            if (!staffUsers.isEmpty()) {
+                for (var staff : staffUsers) {
+                    CreateNotificationRequest staffNotification = CreateNotificationRequest.builder()
+                        .userId(staff.getId())
+                        .recipientRole("STAFF")
+                        .title(title)
+                        .description(description + " (Số tiền: " + transaction.getAmount() + " VNĐ)")
+                        .notificationType(capstone_project.common.enums.NotificationTypeEnum.PAYMENT_RECEIVED)
+                        .relatedOrderId(order.getId())
+                        .relatedContractId(transaction.getContractEntity() != null ? transaction.getContractEntity().getId() : null)
+                        .build();
+                    
+                    notificationService.createNotification(staffNotification);
+                }
+                log.info("📧 Payment notification sent to {} staff users for order {}", 
+                    staffUsers.size(), order.getOrderCode());
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to send payment notification to staff for order {}: {}", 
+                order.getOrderCode(), e.getMessage());
+            // Don't throw - Notification failure shouldn't break business logic
+        }
+    }
+    
+    /**
+     * Create payment success notifications for customer and driver
+     */
+    private void createPaymentNotifications(OrderEntity order, ContractEntity contract, double totalAmount) {
+        try {
+            CustomerEntity customer = order.getSender();
+            if (customer == null || customer.getUser() == null) {
+                log.warn("Cannot find customer for order {}", order.getOrderCode());
+                return;
+            }
+            
+            String contractCode = contract.getContractName() != null ? 
+                contract.getContractName() : "HĐ-" + order.getOrderCode();
+            
+            // Notification 1: To Customer - PAYMENT_FULL_SUCCESS
+            try {
+                CreateNotificationRequest customerNotif = NotificationBuilder.buildPaymentFullSuccess(
+                    customer.getUser().getId(),
+                    order.getOrderCode(),
+                    contractCode,
+                    totalAmount,
+                    order.getId(),
+                    contract.getId()
+                );
+                
+                notificationService.createNotification(customerNotif);
+                log.info("✅ Created PAYMENT_FULL_SUCCESS notification for order: {}", order.getOrderCode());
+            } catch (Exception e) {
+                log.error("❌ Failed to create PAYMENT_FULL_SUCCESS notification: {}", e.getMessage());
+            }
+            
+            // Notification 2: To Driver - PAYMENT_RECEIVED (if driver assigned)
+            try {
+                // Get order details from order entity
+                List<capstone_project.entity.order.order.OrderDetailEntity> orderDetails = 
+                    order.getOrderDetailEntities();
+                
+                if (orderDetails != null && !orderDetails.isEmpty()) {
+                    capstone_project.entity.vehicle.VehicleAssignmentEntity assignment = 
+                        orderDetails.get(0).getVehicleAssignmentEntity();
+                    
+                    if (assignment != null && assignment.getDriver1() != null) {
+                        capstone_project.entity.user.driver.DriverEntity driver = assignment.getDriver1();
+                        
+                        CreateNotificationRequest driverNotif = NotificationBuilder.buildPaymentReceived(
+                            driver.getUser().getId(),
+                            order.getOrderCode(),
+                            totalAmount,
+                            customer.getUser().getFullName(),
+                            customer.getUser().getPhoneNumber(),
+                            order.getId(),
+                            contract.getId()
+                        );
+                        
+                        notificationService.createNotification(driverNotif);
+                        log.info("✅ Created PAYMENT_RECEIVED notification for driver: {}", 
+                            driver.getUser().getFullName());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("❌ Failed to create PAYMENT_RECEIVED notification: {}", e.getMessage());
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to create payment notifications: {}", e.getMessage());
         }
     }
 }

@@ -230,20 +230,37 @@ public class BinPacker {
      * @throws RuntimeException if any package exceeds maximum vehicle capacity
      */
     public static List<ContainerState> pack(List<OrderDetailEntity> details, List<SizeRuleEntity> sizeRules) {
+        log.info("[BinPacker] Starting pack() with {} packages and {} size rules", details.size(), sizeRules.size());
+        
+        // Check if sizeRules is empty (before loop)
+        if (sizeRules.isEmpty()) {
+            log.error("[BinPacker] No vehicle size rules provided for packing");
+            throw new IllegalArgumentException("Không có loại xe nào được cấu hình cho danh mục hàng hóa này");
+        }
+        
+        // Log size rules for debugging
+        for (SizeRuleEntity rule : sizeRules) {
+            log.info("[BinPacker] SizeRule: name='{}', weight={}, length={}, width={}, height={}",
+                    rule.getSizeRuleName(), rule.getMaxWeight(), rule.getMaxLength(), 
+                    rule.getMaxWidth(), rule.getMaxHeight());
+        }
+        
         // convert OrderDetailEntity -> BoxItem
         List<BoxItem> boxes = new ArrayList<>();
         for (OrderDetailEntity d : details) {
             OrderSizeEntity s = d.getOrderSizeEntity();
-            if (s == null) throw new IllegalArgumentException("missing size for detail " + d.getId());
+            if (s == null) {
+                log.error("[BinPacker] OrderDetail {} has NULL OrderSizeEntity!", d.getId());
+                throw new IllegalArgumentException("Kiện hàng " + d.getId() + " không có thông tin kích thước. Vui lòng cập nhật kích thước cho kiện hàng.");
+            }
+            
             int lx = convertToInt(s.getMaxLength());
             int ly = convertToInt(s.getMaxWidth());
             int lz = convertToInt(s.getMaxHeight());
             long w = convertWeightToLong(d.getWeightTons());
-
-            // Check if sizeRules is empty
-            if (sizeRules.isEmpty()) {
-                throw new IllegalArgumentException("No vehicle size rules provided for packing");
-            }
+            
+            log.info("[BinPacker] Package: id={}, weight={}kg, size={}x{}x{} (units)",
+                    d.getId(), w, lx, ly, lz);
             
             // Validate package weight against maximum vehicle capacity
             SizeRuleEntity largestVehicle = sizeRules.get(sizeRules.size() - 1);
@@ -252,12 +269,12 @@ public class BinPacker {
             if (w > maxVehicleWeight) {
                 double packageTons = w / 1000.0;
                 double maxTons = maxVehicleWeight / 1000.0;
-                log.error("❌ Package {} exceeds maximum vehicle capacity: {:.2f} tons > {:.2f} tons",
-                        d.getId(), packageTons, maxTons);
-                throw new RuntimeException(
-                    String.format("Không có loại xe nào chứa được kiện hàng: %s (trọng lượng %.2f tấn vượt quá giới hạn %.2f tấn). " +
+                log.error("[BinPacker] Package {} exceeds capacity: {}kg > {}kg (max)", d.getId(), w, maxVehicleWeight);
+                throw new BadRequestException(
+                    String.format("Không có loại xe nào chứa được kiện hàng (trọng lượng %.2f tấn vượt quá giới hạn %.2f tấn). " +
                     "Vui lòng chia kiện hàng này thành nhiều kiện nhỏ hơn.",
-                    d.getId(), packageTons, maxTons)
+                    packageTons, maxTons),
+                    ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode()
                 );
             }
             
@@ -383,15 +400,32 @@ public class BinPacker {
 
                 if (bestContainer != null) {
                     used.add(bestContainer);
-                    log.debug("🚛 Opened new vehicle {} ({}) for box {}",
+                    log.info("[BinPacker] Opened new vehicle {} ({}) for box {}",
                             used.size(), bestRule.getSizeRuleName(), box.id);
                 } else {
                     double packageTons = box.weight / 1000.0;
-                    log.error("❌ CRITICAL: No suitable vehicle found for box {} ({}x{}x{}, {:.2f} tons)",
-                            box.id, box.lx, box.ly, box.lz, packageTons);
-                    throw new RuntimeException(
-                        String.format("Không có loại xe nào phù hợp với kiện hàng: %s (kích thước %dx%dx%d, trọng lượng %.2f tấn)",
-                        box.id, box.lx, box.ly, box.lz, packageTons)
+                    double packageLengthM = box.lx / (double) UNIT_MULTIPLIER;
+                    double packageWidthM = box.ly / (double) UNIT_MULTIPLIER;
+                    double packageHeightM = box.lz / (double) UNIT_MULTIPLIER;
+                    
+                    // Find the largest vehicle dimensions for error message
+                    SizeRuleEntity largestRule = sizeRules.get(sizeRules.size() - 1);
+                    double maxVehicleLength = largestRule.getMaxLength() != null ? largestRule.getMaxLength().doubleValue() : 0;
+                    double maxVehicleWidth = largestRule.getMaxWidth() != null ? largestRule.getMaxWidth().doubleValue() : 0;
+                    double maxVehicleHeight = largestRule.getMaxHeight() != null ? largestRule.getMaxHeight().doubleValue() : 0;
+                    
+                    log.error("[BinPacker] CRITICAL: No suitable vehicle found for package: " +
+                            "id={}, size={}x{}x{}m (vehicle max={}x{}x{}m), weight={}T (vehicle max={}T)",
+                            box.id, packageLengthM, packageWidthM, packageHeightM,
+                            maxVehicleLength, maxVehicleWidth, maxVehicleHeight,
+                            packageTons, largestRule.getMaxWeight());
+                    
+                    throw new BadRequestException(
+                        String.format("Kiện hàng có kích thước %.2fx%.2fx%.2f m, %.2f tấn không vừa với bất kỳ loại xe nào. " +
+                        "Xe lớn nhất chỉ chứa được %.2fx%.2fx%.2f m. Vui lòng chia nhỏ kiện hàng.",
+                        packageLengthM, packageWidthM, packageHeightM, packageTons,
+                        maxVehicleLength, maxVehicleWidth, maxVehicleHeight),
+                        ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode()
                     );
                 }
             }

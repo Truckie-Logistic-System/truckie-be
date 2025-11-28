@@ -158,7 +158,7 @@ public class StaffOrderMapper {
                 response.sender().getRepresentativeName(),
                 response.sender().getRepresentativePhone(),
                 response.sender().getCompanyName(),
-                response.category().categoryName(),
+                response.category().categoryName().name(),
                 staffOrderDetails,
                 vehicleAssignments  // Add aggregated vehicle assignments
         );

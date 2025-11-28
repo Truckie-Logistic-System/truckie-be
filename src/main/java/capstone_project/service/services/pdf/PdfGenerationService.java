@@ -107,23 +107,40 @@ public class PdfGenerationService {
 
             context.setVariable("depositPercent", setting.getDepositPercent());
             context.setVariable("expiredDepositDate", setting.getExpiredDepositDate());
-            context.setVariable("insuranceRate", setting.getInsuranceRate());
+            context.setVariable("insuranceRateNormal", setting.getInsuranceRateNormal());
+            context.setVariable("insuranceRateFragile", setting.getInsuranceRateFragile());
+            context.setVariable("vatRate", setting.getVatRate());
 
             String htmlContent = templateEngine.process("contract-pdf", context);
 
 
             try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                System.out.println("🔧 DEBUG: PdfGenerationService.generateContractPdf() called at " + java.time.LocalDateTime.now());
                 ITextRenderer renderer = new ITextRenderer();
 
+                // Add Times New Roman font (serif - matches frontend)
+                renderer.getFontResolver().addFont(
+                        "src/main/resources/fonts/TimesNewRoman.ttf",
+                        com.lowagie.text.pdf.BaseFont.IDENTITY_H,
+                        com.lowagie.text.pdf.BaseFont.EMBEDDED
+                );
+                // Also add DejaVu Sans as fallback
                 renderer.getFontResolver().addFont(
                         "src/main/resources/fonts/DejaVuSans.ttf",
                         com.lowagie.text.pdf.BaseFont.IDENTITY_H,
                         com.lowagie.text.pdf.BaseFont.EMBEDDED
                 );
 
+                // Set page size and margins for proper pagination
                 renderer.setDocumentFromString(htmlContent);
+                
+                // Configure page settings
+                renderer.getSharedContext().setPrint(true);
+                renderer.getSharedContext().setInteractive(false);
+                
+                // Layout and create PDF with proper page breaks
                 renderer.layout();
-                renderer.createPDF(baos);
+                renderer.createPDF(baos, true); // true enables multi-page support
                 return baos.toByteArray();
             }
 

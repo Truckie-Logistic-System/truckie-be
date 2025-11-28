@@ -3,6 +3,7 @@ package capstone_project.service.services.order.order;
 import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
+import capstone_project.dtos.request.order.contract.GenerateContractPdfRequest;
 import capstone_project.dtos.response.order.contract.BothOptimalAndRealisticAssignVehiclesResponse;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
@@ -44,6 +45,12 @@ public interface ContractService {
     BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to, String vehicleType);
 
     ContractResponse uploadContractFile(ContractFileUploadRequest contractFileUploadRequest) throws IOException;
+
+    /**
+     * Generate contract PDF on server-side and upload to Cloudinary
+     * This avoids frontend PDF generation issues with page breaks
+     */
+    ContractResponse generateAndSaveContractPdf(GenerateContractPdfRequest request);
 
     void deleteContractByOrderId(UUID orderId);
 

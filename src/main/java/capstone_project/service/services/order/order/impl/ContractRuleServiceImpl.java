@@ -442,7 +442,8 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                 vehicleCountMap
         );
 
-        contractEntity.setTotalValue(newTotal.getTotalPrice());
+        // Use grandTotal which includes insurance fee (if applicable)
+        contractEntity.setTotalValue(newTotal.getGrandTotal());
         contractEntityService.save(contractEntity);
 
         return ListContractRuleAssignResult.builder()
@@ -598,8 +599,8 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                 vehicleCountMap
         );
 
-        BigDecimal newTotal = newTotalResponse.getTotalPrice();
-        contractEntity.setTotalValue(newTotal);
+        // Use grandTotal which includes insurance fee (if applicable)
+        contractEntity.setTotalValue(newTotalResponse.getGrandTotal());
         contractEntityService.save(contractEntity);
 
         return contractRuleMapper.toContractRuleResponse(saved);

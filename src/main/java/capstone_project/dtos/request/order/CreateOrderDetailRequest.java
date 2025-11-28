@@ -20,5 +20,10 @@ public record CreateOrderDetailRequest(
 
         @NotBlank(message = "Order size ID cannot be blank")
         @UUID(message = "Order size ID must be a valid UUID")
-        String orderSizeId
+        String orderSizeId,
+
+        // Giá trị khai báo của kiện hàng (VNĐ) - dùng để tính phí bảo hiểm
+        @NotNull(message = "Declared value cannot be null")
+        @Min(value = 0L, message = "Declared value must be positive or zero")
+        BigDecimal declaredValue
 ) {}

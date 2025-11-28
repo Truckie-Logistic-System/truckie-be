@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thông báo thay thế seal</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #1890ff;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #1890ff;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 24px;
+            color: #262626;
+            margin: 0;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .info-box {
+            background-color: #f6ffed;
+            border: 1px solid #b7eb8f;
+            border-left: 5px solid #52c41a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .seal-info {
+            background-color: #fff2f0;
+            border: 1px solid #ffccc7;
+            border-left: 5px solid #ff4d4f;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        .seal-code {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 18px;
+            color: #ff4d4f;
+        }
+        .footer {
+            text-align: center;
+            border-top: 1px solid #e0e0e0;
+            padding-top: 20px;
+            margin-top: 30px;
+            font-size: 12px;
+            color: #666;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #1890ff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .btn:hover {
+            background-color: #40a9ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🚚 Truckie</div>
+            <h1 class="title">🔐 Thông báo thay thế seal</h1>
+        </div>
+        
+        <div class="content">
+            <p>Kính gửi Quý khách,</p>
+            <p>Chúng tôi xin thông báo về việc thay thế seal cho đơn hàng của Quý khách. Thông tin chi tiết như sau:</p>
+            
+            <div class="info-box">
+                <h3>📦 Thông tin đơn hàng</h3>
+                <p><strong>Mã đơn hàng:</strong> <span th:text="${orderCode}">ORD-001</span></p>
+                <p><strong>Nhân viên thực hiện:</strong> <span th:text="${staffName}">Nguyễn Văn A</span></p>
+                <p><strong>Thời gian:</strong> <span th:text="${#temporals.format(#temporals.createNow(), 'HH:mm dd/MM/yyyy')}">10:30 24/11/2025</span></p>
+            </div>
+            
+            <div class="seal-info">
+                <h3>🔒 Thông tin thay thế seal</h3>
+                <p><strong>Seal cũ đã được tháo:</strong> <span class="seal-code" th:text="${oldSealCode}">SEAL-OLD-001</span></p>
+                <p><strong>Seal mới đã được gắn:</strong> <span class="seal-code" th:text="${newSealCode}">SEAL-NEW-002</span></p>
+                <p><strong>Lý do thay thế:</strong> <span th:text="${reason}">Yêu cầu từ khách hàng</span></p>
+            </div>
+            
+            <p>Việc thay thế seal đã được thực hiện theo đúng quy trình và đảm bảo an toàn cho hàng hóa của Quý khách.</p>
+            
+            <p>Quý khách có thể theo dõi tình trạng đơn hàng và các thông tin liên quan bằng cách nhấn vào nút dưới đây:</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a th:href="${frontendUrl + '/orders/' + orderCode}" class="btn">
+                    Xem chi tiết đơn hàng
+                </a>
+            </div>
+            
+            <p>Nếu có bất kỳ câu hỏi nào, xin vui lòng liên hệ với chúng tôi qua:</p>
+            <ul>
+                <li>📞 Hotline: 1900-1234</li>
+                <li>📧 Email: support@truckie.vn</li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025 Truckie - Hệ thống quản lý vận chuyển thông minh</p>
+            <p>Email này được gửi tự động, vui lòng không trả lời.</p>
+        </div>
+    </div>
+</body>
+</html>

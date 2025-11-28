@@ -6,6 +6,8 @@ public record UpdateContractSettingRequest(
 
         BigDecimal depositPercent,
         Integer expiredDepositDate,
-        BigDecimal insuranceRate
+        BigDecimal insuranceRateNormal,
+        BigDecimal insuranceRateFragile,
+        BigDecimal vatRate
 ) {
 }

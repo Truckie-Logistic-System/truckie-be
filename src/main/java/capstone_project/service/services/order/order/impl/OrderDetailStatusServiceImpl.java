@@ -11,6 +11,10 @@ import capstone_project.repository.entityServices.order.order.OrderDetailEntityS
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.service.services.order.order.OrderDetailStatusService;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
+import capstone_project.service.services.notification.NotificationService;
+import capstone_project.service.services.notification.NotificationBuilder;
+import capstone_project.dtos.request.notification.CreateNotificationRequest;
+import capstone_project.repository.entityServices.auth.UserEntityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +37,8 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
     private final OrderDetailEntityService orderDetailEntityService;
     private final OrderEntityService orderEntityService;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
+    private final NotificationService notificationService;
+    private final UserEntityService userEntityService;
     
     @Override
     @Transactional
@@ -275,6 +281,188 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
                 log.error("❌ Failed to send WebSocket notification for order status change: {}", e.getMessage());
                 // Don't throw - WebSocket failure shouldn't break business logic
             }
+            
+            // 📧 Send persistent notifications for order status changes
+            try {
+                // Get order details count for multi-trip awareness
+                int totalPackageCount = allDetails.size();
+                String customerName = order.getSender() != null && order.getSender().getUser() != null 
+                    ? order.getSender().getUser().getFullName() : "Khách hàng";
+                
+                // Get vehicle assignment from first order detail (for driver info)
+                var firstDetail = allDetails.get(0);
+                var vehicleAssignment = firstDetail.getVehicleAssignmentEntity();
+                
+                switch (newOrderStatus) {
+                    case ON_PLANNING:
+                        // Staff notification: Deposit received, ready for planning
+                        sendStaffNotification(NotificationBuilder.buildStaffDepositReceived(
+                            null, // Will be set for each staff
+                            order.getOrderCode(),
+                            0, // Deposit amount - not available here
+                            customerName,
+                            totalPackageCount,
+                            order.getId()
+                        ));
+                        break;
+                        
+                    case PICKING_UP:
+                        // Customer notification: Driver started picking up (Email: YES - for live tracking)
+                        if (order.getSender() != null && order.getSender().getUser() != null && vehicleAssignment != null) {
+                            String driverName = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
+                                ? vehicleAssignment.getDriver1().getUser().getFullName() : "Tài xế";
+                            String driverPhone = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
+                                ? vehicleAssignment.getDriver1().getUser().getPhoneNumber() : "";
+                            String vehiclePlate = vehicleAssignment.getVehicleEntity() != null 
+                                ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "";
+                                
+                            notificationService.createNotification(NotificationBuilder.buildPickingUpStarted(
+                                order.getSender().getUser().getId(),
+                                order.getOrderCode(),
+                                driverName,
+                                driverPhone,
+                                vehiclePlate,
+                                totalPackageCount,
+                                order.getId(),
+                                vehicleAssignment.getId()
+                            ));
+                        }
+                        break;
+                        
+                    case ON_DELIVERED:
+                        // Customer notification: Delivery started
+                        if (order.getSender() != null && order.getSender().getUser() != null && vehicleAssignment != null) {
+                            String driverName = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
+                                ? vehicleAssignment.getDriver1().getUser().getFullName() : "Tài xế";
+                            String vehiclePlate = vehicleAssignment.getVehicleEntity() != null 
+                                ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "";
+                            String deliveryLocation = order.getDeliveryAddress() != null 
+                                ? order.getDeliveryAddress().getStreet() : "điểm giao hàng";
+                                
+                            notificationService.createNotification(NotificationBuilder.buildDeliveryStarted(
+                                order.getSender().getUser().getId(),
+                                order.getOrderCode(),
+                                driverName,
+                                vehiclePlate,
+                                totalPackageCount,
+                                deliveryLocation,
+                                order.getId(),
+                                vehicleAssignment.getId()
+                            ));
+                        }
+                        break;
+                        
+                    case ONGOING_DELIVERED:
+                        // Customer notification: Near delivery point
+                        if (order.getSender() != null && order.getSender().getUser() != null && vehicleAssignment != null) {
+                            String driverName = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
+                                ? vehicleAssignment.getDriver1().getUser().getFullName() : "Tài xế";
+                            String driverPhone = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
+                                ? vehicleAssignment.getDriver1().getUser().getPhoneNumber() : "";
+                            String deliveryLocation = order.getDeliveryAddress() != null 
+                                ? order.getDeliveryAddress().getStreet() : "điểm giao hàng";
+                                
+                            notificationService.createNotification(NotificationBuilder.buildDeliveryInProgress(
+                                order.getSender().getUser().getId(),
+                                order.getOrderCode(),
+                                driverName,
+                                driverPhone,
+                                totalPackageCount,
+                                deliveryLocation,
+                                order.getId(),
+                                vehicleAssignment.getId()
+                            ));
+                        }
+                        break;
+                        
+                    case DELIVERED:
+                        // Customer notification: All packages delivered
+                        if (order.getSender() != null && order.getSender().getUser() != null) {
+                            String deliveryLocation = order.getDeliveryAddress() != null 
+                                ? order.getDeliveryAddress().getStreet() : "điểm giao hàng";
+                            String receiverName = order.getReceiverName() != null 
+                                ? order.getReceiverName() : "người nhận";
+                            
+                            notificationService.createNotification(NotificationBuilder.buildDeliveryCompleted(
+                                order.getSender().getUser().getId(),
+                                order.getOrderCode(),
+                                totalPackageCount,
+                                totalPackageCount,
+                                deliveryLocation,
+                                receiverName,
+                                allDetails,
+                                order.getId(),
+                                allDetails.stream().map(OrderDetailEntity::getId).toList(),
+                                vehicleAssignment != null ? vehicleAssignment.getId() : null,
+                                true // All packages delivered
+                            ));
+                        }
+                        break;
+                        
+                    case CANCELLED:
+                        // Customer notification: Order cancelled
+                        if (order.getSender() != null && order.getSender().getUser() != null) {
+                            notificationService.createNotification(NotificationBuilder.buildOrderCancelledMultiTrip(
+                                order.getSender().getUser().getId(),
+                                order.getOrderCode(),
+                                totalPackageCount,
+                                totalPackageCount,
+                                "Quá hạn thanh toán", // Default reason
+                                order.getId(),
+                                allDetails.stream().map(OrderDetailEntity::getId).toList(),
+                                true // All packages cancelled
+                            ));
+                        }
+                        // Staff notification: Order cancelled
+                        sendStaffNotification(NotificationBuilder.buildStaffOrderCancelled(
+                            null,
+                            order.getOrderCode(),
+                            totalPackageCount,
+                            totalPackageCount,
+                            "Quá hạn thanh toán",
+                            customerName,
+                            order.getId()
+                        ));
+                        break;
+                        
+                    case RETURNING:
+                        // Customer notification: Returning packages
+                        // This is handled in IssueServiceImpl when return shipping is required
+                        break;
+                        
+                    case RETURNED:
+                        // Customer notification: All packages returned
+                        if (order.getSender() != null && order.getSender().getUser() != null) {
+                            String pickupLocation = order.getPickupAddress() != null 
+                                ? order.getPickupAddress().getStreet() : "điểm lấy hàng";
+                            notificationService.createNotification(NotificationBuilder.buildReturnCompleted(
+                                order.getSender().getUser().getId(),
+                                order.getOrderCode(),
+                                totalPackageCount,
+                                totalPackageCount,
+                                pickupLocation,
+                                allDetails,
+                                order.getId(),
+                                allDetails.stream().map(OrderDetailEntity::getId).toList(),
+                                vehicleAssignment != null ? vehicleAssignment.getId() : null,
+                                true // All packages returned
+                            ));
+                        }
+                        break;
+                        
+                    case COMPENSATION:
+                        // Customer notification: Compensation processed
+                        // This is handled in IssueServiceImpl when compensation is calculated
+                        break;
+                        
+                    default:
+                        // Other status changes may not need notifications
+                        break;
+                }
+            } catch (Exception e) {
+                log.error("❌ Failed to send order status notifications: {}", e.getMessage());
+                // Don't throw - Notification failure shouldn't break business logic
+            }
         } else {
             
         }
@@ -496,5 +684,39 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
             case RETURNED -> OrderStatusEnum.RETURNED;
             case CANCELLED -> OrderStatusEnum.CANCELLED;
         };
+    }
+    
+    /**
+     * Helper method to send staff notifications
+     * Creates a notification for each staff user from a template
+     */
+    private void sendStaffNotification(CreateNotificationRequest template) {
+        try {
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            if (!staffUsers.isEmpty()) {
+                for (var staff : staffUsers) {
+                    // Create a new notification request for each staff user
+                    CreateNotificationRequest staffNotification = CreateNotificationRequest.builder()
+                        .userId(staff.getId())
+                        .recipientRole("STAFF")
+                        .title(template.getTitle())
+                        .description(template.getDescription())
+                        .notificationType(template.getNotificationType())
+                        .relatedOrderId(template.getRelatedOrderId())
+                        .relatedIssueId(template.getRelatedIssueId())
+                        .relatedVehicleAssignmentId(template.getRelatedVehicleAssignmentId())
+                        .relatedContractId(template.getRelatedContractId())
+                        .metadata(template.getMetadata())
+                        .build();
+                    
+                    notificationService.createNotification(staffNotification);
+                }
+                log.info("📧 Staff notifications sent: {} staff users notified, type: {}", 
+                    staffUsers.size(), template.getNotificationType());
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to send staff notification: {}", e.getMessage());
+            // Don't throw - Notification failure shouldn't break business logic
+        }
     }
 }

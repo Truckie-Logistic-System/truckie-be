@@ -38,6 +38,10 @@ import capstone_project.service.services.order.order.OrderStatusWebSocketService
 import capstone_project.service.services.order.order.PhotoCompletionService;
 import capstone_project.service.services.order.seal.SealService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
+import capstone_project.service.services.notification.NotificationService;
+import capstone_project.service.services.notification.NotificationBuilder;
+import capstone_project.service.services.pricing.InsuranceCalculationService;
+import capstone_project.dtos.request.notification.CreateNotificationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -78,7 +82,9 @@ public class OrderServiceImpl implements OrderService {
     private final capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService;
     private final capstone_project.repository.entityServices.issue.IssueImageEntityService issueImageEntityService;
+    private final NotificationService notificationService; // For notification creation
     private final capstone_project.service.mapper.issue.IssueMapper issueMapper;
+    private final InsuranceCalculationService insuranceCalculationService; // For insurance fee calculation
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -134,6 +140,9 @@ public class OrderServiceImpl implements OrderService {
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
         try {
+            // Xác định có mua bảo hiểm hay không (mặc định: false)
+            Boolean hasInsurance = orderRequest.hasInsurance() != null ? orderRequest.hasInsurance() : false;
+            
             //Save order
             OrderEntity newOrder = OrderEntity.builder()
                     .notes(orderRequest.notes())
@@ -149,10 +158,49 @@ public class OrderServiceImpl implements OrderService {
                     .sender(sender)
                     .deliveryAddress(deliveryAddress)
                     .pickupAddress(pickupAddress)
+                    .hasInsurance(hasInsurance)
+                    .totalInsuranceFee(BigDecimal.ZERO)
+                    .totalDeclaredValue(BigDecimal.ZERO)
                     .build();
             OrderEntity saveOrder = orderEntityService.save(newOrder);
 
             saveOrder.setOrderDetailEntities(batchCreateOrderDetails(listCreateOrderDetailRequests, saveOrder, orderRequest.estimateStartTime()));
+            
+            // Tính phí bảo hiểm nếu có mua bảo hiểm
+            CategoryName categoryName = category.getCategoryName();
+            insuranceCalculationService.updateOrderInsurance(saveOrder, categoryName);
+            saveOrder = orderEntityService.save(saveOrder);
+            
+            // Create ORDER_CREATED notification for customer with full package details
+            try {
+                List<OrderDetailEntity> orderDetails = saveOrder.getOrderDetailEntities() != null ? 
+                    new ArrayList<>(saveOrder.getOrderDetailEntities()) : new ArrayList<>();
+                
+                log.info("🔍 Creating ORDER_CREATED notification with {} packages", orderDetails.size());
+                
+                // Debug: Log all order details
+                orderDetails.forEach(detail -> 
+                    log.info("🔍 Package: {} - {} - {} {}", 
+                        detail.getTrackingCode(), 
+                        detail.getDescription(),
+                        detail.getWeightBaseUnit(),
+                        detail.getUnit())
+                );
+                
+                CreateNotificationRequest notificationRequest = NotificationBuilder.buildOrderCreated(
+                    sender.getUser().getId(),
+                    saveOrder.getOrderCode(),
+                    orderDetails,
+                    saveOrder.getId()
+                );
+                
+                notificationService.createNotification(notificationRequest);
+                log.info("✅ Created ORDER_CREATED notification for order: {}", saveOrder.getOrderCode());
+            } catch (Exception e) {
+                log.error("❌ Failed to create ORDER_CREATED notification: {}", e.getMessage());
+                // Don't fail the order creation if notification fails
+            }
+            
             return orderMapper.toCreateOrderResponse(saveOrder);
 
         } catch (Exception e) {
@@ -400,6 +448,7 @@ public class OrderServiceImpl implements OrderService {
                             .estimatedStartTime(estimateStartTime)
                             .orderEntity(savedOrder)
                             .orderSizeEntity(orderSizeEntity)
+                            .declaredValue(request.declaredValue() != null ? request.declaredValue() : BigDecimal.ZERO)
                             .build();
                 })
                 .collect(Collectors.toList());

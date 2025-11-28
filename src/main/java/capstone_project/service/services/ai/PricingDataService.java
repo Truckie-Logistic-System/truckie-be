@@ -153,12 +153,12 @@ public class PricingDataService {
 
             // Find category
             CategoryEntity category = categoryRepository.findAll().stream()
-                    .filter(c -> c.getCategoryName().equalsIgnoreCase(categoryName))
+                    .filter(c -> c.getCategoryName().name().equalsIgnoreCase(categoryName))
                     .findFirst()
                     .orElse(categoryRepository.findAll().get(0)); // Default to first category
 
             example.append(String.format("## Ví Dụ Tính Phí: %.1f tấn, %.0f km, %s\n\n",
-                    weightTons, distanceKm, category.getCategoryName()));
+                    weightTons, distanceKm, category.getCategoryName().name()));
 
             example.append(String.format("1. **Chọn xe**: %s (tải trọng tối đa %.2f tấn)\n",
                     vehicleTypeName,
@@ -198,7 +198,7 @@ public class PricingDataService {
                     .orElse(null);
 
             if (categoryPrice != null) {
-                example.append(String.format("3. **Điều chỉnh loại hàng** (%s):\n", category.getCategoryName()));
+                example.append(String.format("3. **Điều chỉnh loại hàng** (%s):\n", category.getCategoryName().name()));
                 example.append(String.format("   - Hệ số nhân: ×%.2f\n",
                         categoryPrice.getPriceMultiplier()
                 ));
@@ -212,11 +212,24 @@ public class PricingDataService {
                 ));
             }
 
-            example.append(String.format("4. **Giá ước tính (đã làm tròn)**: **%s VND**\n\n",
+            example.append(String.format("4. **Cước vận chuyển (đã làm tròn)**: **%s VND**\n\n",
                     VND_FORMAT.format(pricingResult.getTotalPrice())
             ));
 
-            example.append("⚠️ **Lưu ý**: Giá thực tế có thể khác sau khi nhân viên khảo sát chi tiết hàng hóa.\n");
+            // Add insurance fee section
+            example.append("5. **Phí bảo hiểm hàng hóa (TÙY CHỌN)**:\n");
+            example.append("   - Hàng thông thường: 0.08% × Giá trị khai báo × 1.10 (VAT) = **0.088%** giá trị khai báo\n");
+            example.append("   - Hàng dễ vỡ/rủi ro cao: 0.15% × Giá trị khai báo × 1.10 (VAT) = **0.165%** giá trị khai báo\n");
+            example.append("   - Ví dụ: Hàng trị giá 100 triệu VND:\n");
+            example.append("     + Hàng thường: 100,000,000 × 0.088% = **88,000 VND**\n");
+            example.append("     + Hàng dễ vỡ: 100,000,000 × 0.165% = **165,000 VND**\n\n");
+
+            example.append("6. **TỔNG CHI PHÍ = Cước vận chuyển + Phí bảo hiểm (nếu có)**\n\n");
+
+            example.append("⚠️ **Lưu ý quan trọng**:\n");
+            example.append("   - Giá trên chưa bao gồm VAT (10%) cho cước vận chuyển\n");
+            example.append("   - Bảo hiểm là TÙY CHỌN, giúp bảo vệ quyền lợi khi xảy ra sự cố\n");
+            example.append("   - Nếu KHÔNG mua bảo hiểm → Bồi thường tối đa 10 × Cước phí (Điều 546 Luật TM 2005)\n");
             example.append("📞 Để biết giá chính xác, vui lòng tạo đơn hàng hoặc liên hệ hotline.\n");
 
         } catch (Exception e) {
@@ -266,12 +279,12 @@ public class PricingDataService {
         try {
             // Find category
             CategoryEntity category = categoryRepository.findAll().stream()
-                    .filter(c -> c.getCategoryName().equalsIgnoreCase(categoryName))
+                    .filter(c -> c.getCategoryName().name().equalsIgnoreCase(categoryName))
                     .findFirst()
                     .orElse(categoryRepository.findAll().get(0));
 
             comparison.append(String.format("## So Sánh Giá Xe: %.1f tấn, %.0f km, %s\n\n",
-                    weightTons, distanceKm, category.getCategoryName()));
+                    weightTons, distanceKm, category.getCategoryName().name()));
 
             // Get all suitable vehicles
             List<SizeRuleEntity> suitableVehicles = sizeRuleRepository.findAll().stream()

@@ -1,5 +1,6 @@
 package capstone_project.service.services.order.order.impl;
 
+import capstone_project.common.enums.CategoryName;
 import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.ContractStatusEnum;
 import capstone_project.common.enums.ErrorEnum;
@@ -11,6 +12,7 @@ import capstone_project.common.utils.UserContextUtils;
 import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
+import capstone_project.dtos.request.order.contract.GenerateContractPdfRequest;
 import capstone_project.dtos.response.order.contract.*;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
@@ -40,9 +42,14 @@ import capstone_project.service.services.order.order.OrderStatusWebSocketService
 import capstone_project.service.services.user.DistanceService;
 import capstone_project.service.services.map.VietMapDistanceService;
 import capstone_project.service.services.pricing.UnifiedPricingService;
-import jakarta.transaction.Transactional;
-import lombok.AllArgsConstructor;
+import capstone_project.service.services.pricing.InsuranceCalculationService;
+import capstone_project.service.services.notification.NotificationService;
+import capstone_project.service.services.notification.NotificationBuilder;
+import capstone_project.dtos.request.notification.CreateNotificationRequest;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -52,12 +59,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@AllArgsConstructor
 public class ContractServiceImpl implements ContractService {
 
     private final ContractEntityService contractEntityService;
     private final ContractRuleEntityService contractRuleEntityService;
     private final SizeRuleEntityService sizeRuleEntityService;
+    private final NotificationService notificationService;
     private final CategoryPricingDetailEntityService categoryPricingDetailEntityService;
     private final OrderEntityService orderEntityService;
     private final DistanceRuleEntityService distanceRuleEntityService;
@@ -70,11 +77,63 @@ public class ContractServiceImpl implements ContractService {
     private final UserContextUtils userContextUtils;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
     private final UnifiedPricingService unifiedPricingService;
+    private final InsuranceCalculationService insuranceCalculationService;
+    
+    private capstone_project.service.services.pdf.PdfGenerationService pdfGenerationService;
 
     private final ContractMapper contractMapper;
 
     private static final double EARTH_RADIUS_KM = 6371.0;
     private final UserEntityServiceImpl userEntityServiceImpl;
+
+    // Manual constructor to break circular dependency
+    public ContractServiceImpl(
+            ContractEntityService contractEntityService,
+            ContractRuleEntityService contractRuleEntityService,
+            SizeRuleEntityService sizeRuleEntityService,
+            NotificationService notificationService,
+            CategoryPricingDetailEntityService categoryPricingDetailEntityService,
+            OrderEntityService orderEntityService,
+            DistanceRuleEntityService distanceRuleEntityService,
+            BasingPriceEntityService basingPriceEntityService,
+            OrderDetailEntityService orderDetailEntityService,
+            VehicleEntityService vehicleEntityService,
+            DistanceService distanceService,
+            VietMapDistanceService vietMapDistanceService,
+            CloudinaryService cloudinaryService,
+            UserContextUtils userContextUtils,
+            OrderStatusWebSocketService orderStatusWebSocketService,
+            UnifiedPricingService unifiedPricingService,
+            InsuranceCalculationService insuranceCalculationService,
+            ContractMapper contractMapper,
+            UserEntityServiceImpl userEntityServiceImpl
+    ) {
+        this.contractEntityService = contractEntityService;
+        this.contractRuleEntityService = contractRuleEntityService;
+        this.sizeRuleEntityService = sizeRuleEntityService;
+        this.notificationService = notificationService;
+        this.categoryPricingDetailEntityService = categoryPricingDetailEntityService;
+        this.orderEntityService = orderEntityService;
+        this.distanceRuleEntityService = distanceRuleEntityService;
+        this.basingPriceEntityService = basingPriceEntityService;
+        this.orderDetailEntityService = orderDetailEntityService;
+        this.vehicleEntityService = vehicleEntityService;
+        this.distanceService = distanceService;
+        this.vietMapDistanceService = vietMapDistanceService;
+        this.cloudinaryService = cloudinaryService;
+        this.userContextUtils = userContextUtils;
+        this.orderStatusWebSocketService = orderStatusWebSocketService;
+        this.unifiedPricingService = unifiedPricingService;
+        this.insuranceCalculationService = insuranceCalculationService;
+        this.contractMapper = contractMapper;
+        this.userEntityServiceImpl = userEntityServiceImpl;
+    }
+
+    @Autowired
+    @Lazy
+    public void setPdfGenerationService(capstone_project.service.services.pdf.PdfGenerationService pdfGenerationService) {
+        this.pdfGenerationService = pdfGenerationService;
+    }
 
     @Override
     public List<ContractResponse> getAllContracts() {
@@ -144,6 +203,31 @@ public class ContractServiceImpl implements ContractService {
         contractEntity.setOrderEntity(order);
 
         ContractEntity savedContract = contractEntityService.save(contractEntity);
+        
+        // Create notification for contract ready
+        try {
+            // ContractEntity doesn't have code/depositValue, using contractName and totalValue
+            String contractCode = savedContract.getContractName() != null ? savedContract.getContractName() : "HĐ-" + order.getOrderCode();
+            double depositAmount = 0.0; // Will be set by contract rules later
+            double totalAmount = savedContract.getTotalValue() != null ? savedContract.getTotalValue().doubleValue() : 0.0;
+            
+            CreateNotificationRequest notificationRequest = NotificationBuilder.buildContractReady(
+                order.getSender().getUser().getId(),
+                order.getOrderCode(),
+                contractCode,
+                depositAmount,
+                totalAmount,
+                savedContract.getSigningDeadline(),
+                savedContract.getDepositPaymentDeadline(),
+                order.getId(),
+                savedContract.getId()
+            );
+            
+            notificationService.createNotification(notificationRequest);
+            log.info("✅ Created CONTRACT_READY notification for order: {}", order.getOrderCode());
+        } catch (Exception e) {
+            log.error("❌ Failed to create CONTRACT_READY notification: {}", e.getMessage());
+        }
 
         return contractMapper.toContractResponse(savedContract);
     }
@@ -242,12 +326,14 @@ public class ContractServiceImpl implements ContractService {
 
         PriceCalculationResponse totalPriceResponse = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
 
-        BigDecimal totalPrice = totalPriceResponse.getTotalPrice();
+        // Use grandTotal which includes insurance fee (if applicable)
+        BigDecimal grandTotal = totalPriceResponse.getGrandTotal();
 
         UserEntity currentStaff = userContextUtils.getCurrentUser();
 
-        savedContract.setTotalValue(totalPrice);
+        savedContract.setTotalValue(grandTotal);
         savedContract.setStaff(currentStaff);
+        
         ContractEntity updatedContract = contractEntityService.save(savedContract);
 
         return contractMapper.toContractResponse(updatedContract);
@@ -363,39 +449,53 @@ public class ContractServiceImpl implements ContractService {
 
         PriceCalculationResponse totalPriceResponse = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
 
-        BigDecimal totalPrice = totalPriceResponse.getTotalPrice();
+        // Use grandTotal which includes insurance fee (if applicable)
+        BigDecimal grandTotal = totalPriceResponse.getGrandTotal();
 
         UserEntity currentStaff = userContextUtils.getCurrentUser();
 
-        savedContract.setTotalValue(totalPrice);
+        savedContract.setTotalValue(grandTotal);
         savedContract.setStaff(currentStaff);
+        
         ContractEntity updatedContract = contractEntityService.save(savedContract);
 
         return contractMapper.toContractResponse(updatedContract);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public BothOptimalAndRealisticAssignVehiclesResponse getBothOptimalAndRealisticAssignVehiclesResponse(UUID orderId) {
+        log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] START for orderId={}", orderId);
+        
         List<ContractRuleAssignResponse> optimal = null;
         List<ContractRuleAssignResponse> realistic = null;
 
-        optimal = assignVehiclesOptimal(orderId);
+        try {
+            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] Calling assignVehiclesOptimal...");
+            optimal = assignVehiclesOptimal(orderId);
+            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] assignVehiclesOptimal completed, result size: {}", 
+                    optimal != null ? optimal.size() : "null");
+        } catch (Exception e) {
+            log.error("[getBothOptimalAndRealisticAssignVehiclesResponse] Optimal assignment failed for orderId={}", orderId, e);
+            throw e; // Re-throw to return proper error response
+        }
 
-        realistic = assignVehiclesWithAvailability(orderId);
-//        try {
-//        } catch (Exception e) {
-//            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Optimal assignment failed for orderId={}, reason={}", orderId, e.getMessage());
-//        }
-//
-//        try {
-//        } catch (Exception e) {
-//            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Realistic assignment failed for orderId={}, reason={}", orderId, e.getMessage());
-//        }
+        try {
+            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] Calling assignVehiclesWithAvailability...");
+            realistic = assignVehiclesWithAvailability(orderId);
+            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] assignVehiclesWithAvailability completed, result size: {}", 
+                    realistic != null ? realistic.size() : "null");
+        } catch (Exception e) {
+            log.error("[getBothOptimalAndRealisticAssignVehiclesResponse] Realistic assignment failed for orderId={}", orderId, e);
+            throw e; // Re-throw to return proper error response
+        }
 
         if (optimal == null && realistic == null) {
+            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Both optimal and realistic are null for orderId={}", orderId);
             return null;
         }
 
+        log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] SUCCESS for orderId={}", orderId);
         return new BothOptimalAndRealisticAssignVehiclesResponse(optimal, realistic);
     }
 
@@ -430,20 +530,25 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ContractRuleAssignResponse> assignVehiclesWithAvailability(UUID orderId) {
+        log.info("[assignVehiclesWithAvailability] START for orderId={}", orderId);
         List<ContractRuleAssignResponse> optimal = assignVehiclesOptimal(orderId);
 
         OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
 
+        // Null-safe sorting to avoid NPE
         List<SizeRuleEntity> sortedSizeRules = sizeRuleEntityService
                 .findAllByCategoryId(orderEntity.getCategory().getId())
                 .stream()
                 .filter(rule -> CommonStatusEnum.ACTIVE.name().equals(rule.getStatus()))
-                .sorted(Comparator.comparing(SizeRuleEntity::getMaxWeight)
-                        .thenComparing(SizeRuleEntity::getMaxLength)
-                        .thenComparing(SizeRuleEntity::getMaxWidth)
-                        .thenComparing(SizeRuleEntity::getMaxHeight))
+                .filter(rule -> rule.getMaxWeight() != null) // Filter out rules with null maxWeight
+                .sorted(Comparator.comparing(
+                        (SizeRuleEntity r) -> r.getMaxWeight() != null ? r.getMaxWeight() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxLength() != null ? r.getMaxLength() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxWidth() != null ? r.getMaxWidth() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxHeight() != null ? r.getMaxHeight() : BigDecimal.ZERO))
                 .toList();
 
         // map ruleId -> số lượng xe khả dụng
@@ -649,8 +754,10 @@ public class ContractServiceImpl implements ContractService {
 //    }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId) {
         final long t0 = System.nanoTime();
+        log.info("[assignVehiclesOptimal] START for orderId={}", orderId);
 
         OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
@@ -659,32 +766,67 @@ public class ContractServiceImpl implements ContractService {
         if (details.isEmpty()) {
             throw new NotFoundException("No order details found for this order", ErrorEnum.NOT_FOUND.getErrorCode());
         }
+        log.info("[assignVehiclesOptimal] Found {} order details", details.size());
 
         if (orderEntity.getCategory() == null) {
+            log.error("[assignVehiclesOptimal] Order category is null for orderId={}", orderId);
             throw new BadRequestException("Order category is required", ErrorEnum.INVALID.getErrorCode());
         }
 
+        UUID categoryId = orderEntity.getCategory().getId();
+        String categoryName = orderEntity.getCategory().getCategoryName().name();
+        log.info("[assignVehiclesOptimal] Order category: id={}, name='{}'", categoryId, categoryName);
+
+        // Fetch and filter size rules with null-safe sorting
         List<SizeRuleEntity> sortedsizeRules = sizeRuleEntityService
-                .findAllByCategoryId(orderEntity.getCategory().getId())
+                .findAllByCategoryId(categoryId)
                 .stream()
                 .filter(rule -> CommonStatusEnum.ACTIVE.name().equals(rule.getStatus()))
-                .sorted(Comparator.comparing(SizeRuleEntity::getMaxWeight)
-                        .thenComparing(SizeRuleEntity::getMaxLength)
-                        .thenComparing(SizeRuleEntity::getMaxWidth)
-                        .thenComparing(SizeRuleEntity::getMaxHeight))
+                .filter(rule -> rule.getMaxWeight() != null) // Filter out rules with null maxWeight
+                .sorted(Comparator.comparing(
+                        (SizeRuleEntity r) -> r.getMaxWeight() != null ? r.getMaxWeight() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxLength() != null ? r.getMaxLength() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxWidth() != null ? r.getMaxWidth() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxHeight() != null ? r.getMaxHeight() : BigDecimal.ZERO))
                 .toList();
 
-        if (sortedsizeRules.isEmpty()) {
-            throw new NotFoundException("No vehicle rules found for this category", ErrorEnum.NOT_FOUND.getErrorCode());
+        log.info("[assignVehiclesOptimal] Found {} ACTIVE size rules for categoryId={}", sortedsizeRules.size(), categoryId);
+        
+        // Log each size rule for debugging
+        for (SizeRuleEntity rule : sortedsizeRules) {
+            log.info("[assignVehiclesOptimal] SizeRule: id={}, name='{}', maxWeight={}, maxLength={}, maxWidth={}, maxHeight={}",
+                    rule.getId(), rule.getSizeRuleName(), rule.getMaxWeight(), 
+                    rule.getMaxLength(), rule.getMaxWidth(), rule.getMaxHeight());
         }
 
-        List<BinPacker.ContainerState> containers = BinPacker.pack(details, sortedsizeRules);
+        if (sortedsizeRules.isEmpty()) {
+            log.error("[assignVehiclesOptimal] No vehicle rules found for category: id={}, name='{}'", categoryId, categoryName);
+            throw new NotFoundException("No vehicle rules found for this category: " + categoryName, ErrorEnum.NOT_FOUND.getErrorCode());
+        }
 
-        List<ContractRuleAssignResponse> responses = BinPacker.toContractResponses(containers, details);
+        // Log order detail sizes for debugging
+        for (OrderDetailEntity detail : details) {
+            OrderSizeEntity size = detail.getOrderSizeEntity();
+            if (size != null) {
+                log.info("[assignVehiclesOptimal] OrderDetail: id={}, weight={}, length={}, width={}, height={}",
+                        detail.getId(), detail.getWeightTons(), size.getMaxLength(), size.getMaxWidth(), size.getMaxHeight());
+            } else {
+                log.warn("[assignVehiclesOptimal] OrderDetail: id={} has NULL OrderSizeEntity!", detail.getId());
+            }
+        }
 
-        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
-
-        return responses;
+        try {
+            List<BinPacker.ContainerState> containers = BinPacker.pack(details, sortedsizeRules);
+            List<ContractRuleAssignResponse> responses = BinPacker.toContractResponses(containers, details);
+            
+            long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+            log.info("[assignVehiclesOptimal] SUCCESS - {} vehicles assigned in {}ms", responses.size(), elapsedMs);
+            
+            return responses;
+        } catch (Exception e) {
+            log.error("[assignVehiclesOptimal] BinPacker failed for orderId={}", orderId, e);
+            throw e;
+        }
     }
 
     /**
@@ -801,8 +943,32 @@ public class ContractServiceImpl implements ContractService {
             throw new IllegalArgumentException("Total price must not be negative");
         }
 
-        log.info("✅ Unified pricing calculation completed: {} VND (category: ×{} + {})", 
-                total, categoryMultiplier, categoryExtraFee);
+        // Calculate insurance fee
+        OrderEntity order = contract.getOrderEntity();
+        CategoryName categoryName = order.getCategory().getCategoryName();
+        boolean isFragile = insuranceCalculationService.isFragileCategory(categoryName);
+        boolean hasInsurance = Boolean.TRUE.equals(order.getHasInsurance());
+        
+        BigDecimal totalDeclaredValue = BigDecimal.ZERO;
+        BigDecimal insuranceFee = BigDecimal.ZERO;
+        // Use display rate for response (e.g., 0.15 = 0.15%), calculation uses decimal internally
+        BigDecimal insuranceRateForDisplay = insuranceCalculationService.getInsuranceRateForDisplay(isFragile);
+        BigDecimal vatRate = insuranceCalculationService.getVatRate();
+        
+        if (hasInsurance) {
+            List<OrderDetailEntity> orderDetails = orderDetailEntityService
+                    .findOrderDetailEntitiesByOrderEntityId(order.getId());
+            totalDeclaredValue = insuranceCalculationService.calculateTotalDeclaredValue(orderDetails);
+            insuranceFee = insuranceCalculationService.calculateTotalInsuranceFee(orderDetails, categoryName);
+            log.info("🛡️ Insurance calculated: totalDeclaredValue={}, insuranceFee={}, rate={}%, isFragile={}", 
+                    totalDeclaredValue, insuranceFee, insuranceRateForDisplay, isFragile);
+        }
+        
+        // Grand total = transport fee + insurance fee
+        BigDecimal grandTotal = total.add(insuranceFee);
+
+        log.info("✅ Unified pricing calculation completed: {} VND (category: ×{} + {}, insurance: {})", 
+                grandTotal, categoryMultiplier, categoryExtraFee, insuranceFee);
 
         return PriceCalculationResponse.builder()
                 .totalPrice(total)
@@ -811,6 +977,12 @@ public class ContractServiceImpl implements ContractService {
                 .categoryMultiplier(categoryMultiplier)
                 .promotionDiscount(promotionDiscount)
                 .finalTotal(total)
+                .totalDeclaredValue(totalDeclaredValue)
+                .insuranceFee(insuranceFee)
+                .insuranceRate(insuranceRateForDisplay) // Display rate as percentage (0.15 = 0.15%)
+                .vatRate(vatRate)
+                .hasInsurance(hasInsurance)
+                .grandTotal(grandTotal)
                 .steps(steps)
                 .build();
     }
@@ -961,6 +1133,111 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    @Transactional
+    public ContractResponse generateAndSaveContractPdf(GenerateContractPdfRequest request) {
+        log.info("[ContractService] Generating PDF for contract: {}", request.contractId());
+        
+        // Get contract entity
+        ContractEntity contract = contractEntityService.findEntityById(request.contractId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Contract not found: " + request.contractId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        OrderEntity order = contract.getOrderEntity();
+        if (order == null) {
+            throw new BadRequestException(
+                    "Contract has no associated order",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        try {
+            // Get vehicle assignment data for PDF
+            List<ContractRuleAssignResponse> assignResult = assignVehiclesWithAvailability(order.getId());
+            
+            Map<UUID, Integer> vehicleCountMap = assignResult.stream()
+                    .collect(Collectors.groupingBy(
+                            ContractRuleAssignResponse::getSizeRuleId,
+                            Collectors.summingInt(a -> 1)
+                    ));
+
+            BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
+
+            // Generate PDF using backend PdfGenerationService (handles pagination properly)
+            byte[] pdfBytes = pdfGenerationService.generateContractPdf(
+                    contract,
+                    order,
+                    assignResult,
+                    distanceKm,
+                    vehicleCountMap
+            );
+
+            // Upload to Cloudinary
+            String fileName = "contract_" + request.contractName() + "_" + System.currentTimeMillis() + ".pdf";
+            Map<String, Object> uploadResult = cloudinaryService.uploadFile(
+                    pdfBytes,
+                    fileName,
+                    "CONTRACTS"
+            );
+
+            // Get the correct URL based on resource type
+            String fileUrl;
+            String resourceType = uploadResult.get("resource_type").toString();
+            
+            if ("raw".equals(resourceType)) {
+                String publicId = uploadResult.get("public_id").toString();
+                fileUrl = cloudinaryService.getRawFileUrl(publicId);
+            } else {
+                fileUrl = uploadResult.get("secure_url").toString();
+            }
+
+            // Update contract entity with PDF URL and metadata
+            contract.setAttachFileUrl(fileUrl);
+            contract.setContractName(request.contractName());
+            contract.setEffectiveDate(request.effectiveDate());
+            contract.setExpirationDate(request.expirationDate());
+            contract.setAdjustedValue(request.adjustedValue());
+            contract.setDescription(request.description());
+
+            // Set staff user ID from current authenticated user
+            UUID staffUserId = userContextUtils.getCurrentUserId();
+            UserEntity staffUser = new UserEntity();
+            staffUser.setId(staffUserId);
+            contract.setStaff(staffUser);
+
+            ContractEntity updated = contractEntityService.save(contract);
+
+            // Update order status to CONTRACT_DRAFT
+            OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
+            order.setStatus(OrderStatusEnum.CONTRACT_DRAFT.name());
+            orderEntityService.save(order);
+
+            // Send WebSocket notification for status change
+            try {
+                orderStatusWebSocketService.sendOrderStatusChange(
+                        order.getId(),
+                        order.getOrderCode(),
+                        previousStatus,
+                        OrderStatusEnum.CONTRACT_DRAFT
+                );
+            } catch (Exception e) {
+                log.error("Failed to send WebSocket notification: {}", e.getMessage());
+            }
+
+            log.info("[ContractService] PDF generated and saved successfully for contract: {}", request.contractId());
+            return contractMapper.toContractResponse(updated);
+
+        } catch (Exception e) {
+            log.error("[ContractService] Error generating PDF for contract {}: {}", request.contractId(), e.getMessage(), e);
+            throw new BadRequestException(
+                    "Failed to generate contract PDF: " + e.getMessage(),
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+    }
+
+    @Override
     public ContractResponse getContractByOrderId(UUID orderId) {
         
         ContractEntity contractEntity = contractEntityService.getContractByOrderId(orderId)
@@ -974,14 +1251,22 @@ public class ContractServiceImpl implements ContractService {
     /**
      * Set contract deadlines based on order details
      * Reasonable deadlines for Vietnamese logistics:
-     * - Contract signing: 24 hours after contract draft creation
+     * - Effective date: Now (contract creation time)
+     * - Expiration date: 1 year from effective date
+     * - Contract signing: 24 hours after contract draft creation (staff exports contract)
      * - Deposit payment: 24 hours after contract signing (set when customer signs)
      * - Full payment: 1 day before pickup time (earliest estimated start time)
      */
     private void setContractDeadlines(ContractEntity contract, OrderEntity order) {
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
         
-        // Signing deadline: 24 hours from contract creation
+        // Effective date: Contract creation time
+        contract.setEffectiveDate(now);
+        
+        // Expiration date: 1 year from effective date
+        contract.setExpirationDate(now.plusYears(1));
+        
+        // Signing deadline: 24 hours from contract creation (when staff exports contract)
         contract.setSigningDeadline(now.plusHours(24));
         
         // Deposit payment deadline: Will be set when customer signs the contract (24h after signing)
@@ -997,6 +1282,5 @@ public class ContractServiceImpl implements ContractService {
         
         // Set deadline to 1 day before pickup time
         contract.setFullPaymentDeadline(earliestPickupTime.minusDays(1));
-
     }
 }

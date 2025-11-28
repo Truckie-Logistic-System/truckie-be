@@ -39,5 +39,8 @@ public record CreateOrderRequest(
 
         @NotBlank(message = "Category ID cannot be blank")
         @UUID(message = "Category ID must be a valid UUID")
-        String categoryId
+        String categoryId,
+
+        // Khách hàng có mua bảo hiểm hay không (mặc định: false)
+        Boolean hasInsurance
 ) {}

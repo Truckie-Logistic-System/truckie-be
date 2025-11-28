@@ -152,7 +152,6 @@ public class SecurityConfigurer {
                     "/api/loading/**",
                     "/api/v1/address/**",
                     "/api/v1/emails/**",
-                    "/api/v1/notifications/**",
                     "/api/v1/public/stipulations/**", // Public stipulation endpoint for customers
                     "/api/public/chat/**", // AI Chatbot public endpoint - no auth required
                     "/api/v1/transactions/stripe/webhook",
@@ -330,7 +329,7 @@ public class SecurityConfigurer {
                         // ================= SETTING =================
                         .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(weightUnitSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(stipulationSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(stipulationSettingApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= SEAL =================
                         .requestMatchers(sealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())

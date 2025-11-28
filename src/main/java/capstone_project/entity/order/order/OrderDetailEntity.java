@@ -72,6 +72,11 @@ public class OrderDetailEntity extends BaseEntity {
     @JoinColumn(name = "issue_id")
     private IssueEntity issueEntity;
 
+    // Giá trị khai báo của kiện hàng (VNĐ) - dùng để tính phí bảo hiểm
+    @DecimalMin(value = "0", message = "Giá trị khai báo không được âm")
+    @Column(name = "declared_value", precision = 19, scale = 2)
+    private BigDecimal declaredValue;
+
 //    @ElementCollection
 //    @CollectionTable(
 //            name = "contract_rule_order_details",

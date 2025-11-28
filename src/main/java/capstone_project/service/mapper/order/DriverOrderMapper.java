@@ -121,7 +121,7 @@ public class DriverOrderMapper {
                 response.sender().getRepresentativeName(),
                 response.sender().getRepresentativePhone(),
                 response.sender().getCompanyName(),
-                response.category().categoryName(),
+                response.category().categoryName().name(),
                 simpleOrderDetails,
                 vehicleAssignments  // Add aggregated vehicle assignments
         );

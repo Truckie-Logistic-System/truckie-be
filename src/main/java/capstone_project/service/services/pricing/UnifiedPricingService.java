@@ -157,7 +157,7 @@ public class UnifiedPricingService {
 
         CategoryPricingDetailEntity pricingDetail = categoryPricingDetailService.findByCategoryId(categoryId);
         if (pricingDetail == null) {
-            log.warn("⚠️ No pricing detail for category: {}", category.getCategoryName());
+            log.warn("⚠️ No pricing detail for category: {}", category.getCategoryName().name());
             return basePrice;
         }
 
@@ -171,7 +171,7 @@ public class UnifiedPricingService {
         BigDecimal adjustedPrice = basePrice.multiply(multiplier).add(extraFee);
 
         log.debug("🏷️ Category adjustment for {}: {} × {} + {} = {} VND", 
-                category.getCategoryName(), basePrice, multiplier, extraFee, adjustedPrice);
+                category.getCategoryName().name(), basePrice, multiplier, extraFee, adjustedPrice);
 
         return adjustedPrice;
     }

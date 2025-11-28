@@ -1,6 +1,6 @@
 package capstone_project.service.services.order.category.impl;
 
-import capstone_project.common.enums.CategoryEnum;
+import capstone_project.common.enums.CategoryName;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CategoryRequest;
@@ -9,7 +9,6 @@ import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
 import capstone_project.service.mapper.order.CategoryMapper;
 import capstone_project.service.services.order.category.CategoryService;
-import capstone_project.service.services.redis.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,36 +24,16 @@ public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryEntityService categoryEntityService;
     private final CategoryMapper categoryMapper;
-    private final RedisService redisService;
-
-    private static final String CATEGORY_ALL_CACHE_KEY = "categories:all";
-    private static final String CATEGORY_ALL_BY_NAME_CACHE_KEY = "categories:all:name:";
-    private static final String CATEGORY_BY_ID_CACHE_KEY_PREFIX = "category:";
-    private static final String CATEGORY_BY_NAME_CACHE_KEY_PREFIX = "category:name:";
 
     @Override
     public List<CategoryResponse> getAllCategories() {
+        List<CategoryEntity> categories = categoryEntityService.findAll();
 
-        List<CategoryEntity> cachedCategories = redisService.getList(
-                CATEGORY_ALL_CACHE_KEY, CategoryEntity.class
-        );
-
-        List<CategoryEntity> categories;
-
-        if (cachedCategories != null) {
-            
-            categories = cachedCategories;
-        } else {
-            
-            categories = categoryEntityService.findAll();
-
-            if (categories.isEmpty()) {
-                log.warn("No categories found in the database");
-                throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
-            }
-
-            redisService.save(CATEGORY_ALL_CACHE_KEY, categories);
+        if (categories.isEmpty()) {
+            log.warn("No categories found in the database");
+            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
         }
+
         return categories.stream()
                 .map(categoryMapper::toCategoryResponse)
                 .toList();
@@ -68,65 +47,32 @@ public class CategoryServiceImpl implements CategoryService {
             throw new NotFoundException(ErrorEnum.INVALID.getMessage(), ErrorEnum.INVALID.getErrorCode());
         }
 
-        List<CategoryEntity> cachedCategories = redisService.getList(
-                CATEGORY_ALL_BY_NAME_CACHE_KEY + categoryName, CategoryEntity.class
-        );
+        // Convert String to CategoryName enum for exact matching
+        CategoryName categoryNameEnum = CategoryName.fromString(categoryName);
+        Optional<CategoryEntity> categoryEntity = categoryEntityService.findByCategoryName(categoryNameEnum);
 
-        if (cachedCategories != null) {
-            
-            return cachedCategories.stream()
-                    .map(categoryMapper::toCategoryResponse)
-                    .toList();
-        }
-
-        List<CategoryEntity> categoryEntities = categoryEntityService.findByCategoryNameLikeIgnoreCase(categoryName);
-
-        if (categoryEntities.isEmpty()) {
-            log.warn("No categories found with categoryName containing: {}", categoryName);
+        if (categoryEntity.isEmpty()) {
+            log.warn("No category found with enum name: {}", categoryNameEnum);
             throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
-        redisService.save(CATEGORY_ALL_BY_NAME_CACHE_KEY + categoryName, categoryEntities);
-
-        return categoryEntities.stream()
-                .map(categoryMapper::toCategoryResponse)
-                .toList();
+        return List.of(categoryMapper.toCategoryResponse(categoryEntity.get()));
     }
 
     @Override
     public CategoryResponse getCategoryById(UUID id) {
-
-        String cacheKey = CATEGORY_BY_ID_CACHE_KEY_PREFIX + id;
-        CategoryEntity cachedCategory = redisService.get(cacheKey, CategoryEntity.class);
-
-        if (cachedCategory != null) {
-            
-            return categoryMapper.toCategoryResponse(cachedCategory);
-        }
-
         CategoryEntity categoryEntity = categoryEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
-
-        redisService.save(cacheKey, categoryEntity);
 
         return categoryMapper.toCategoryResponse(categoryEntity);
     }
 
     @Override
     public CategoryResponse getCategoryByName(String categoryName) {
-
-        String cacheKey = CATEGORY_BY_NAME_CACHE_KEY_PREFIX + categoryName;
-        CategoryEntity cachedCategory = redisService.get(cacheKey, CategoryEntity.class);
-
-        if (cachedCategory != null) {
-            
-            return categoryMapper.toCategoryResponse(cachedCategory);
-        }
-
-        CategoryEntity categoryEntity = categoryEntityService.findByCategoryName(categoryName)
+        // Convert String to CategoryName enum for repository lookup
+        CategoryName categoryNameEnum = CategoryName.fromString(categoryName);
+        CategoryEntity categoryEntity = categoryEntityService.findByCategoryName(categoryNameEnum)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
-
-        redisService.save(cacheKey, categoryEntity);
 
         return categoryMapper.toCategoryResponse(categoryEntity);
     }
@@ -134,23 +80,16 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public CategoryResponse createCategory(CategoryRequest categoryRequest) {
 
-        Optional<CategoryEntity> existingCategory = categoryEntityService.findByCategoryName(categoryRequest.categoryName());
+        // Convert String to CategoryName enum for repository lookup
+        CategoryName categoryNameEnum = CategoryName.fromString(categoryRequest.categoryName());
+        Optional<CategoryEntity> existingCategory = categoryEntityService.findByCategoryName(categoryNameEnum);
         if (existingCategory.isPresent()) {
             log.warn("Category with name '{}' already exists", categoryRequest.categoryName());
             throw new NotFoundException("Category with this name already exists", ErrorEnum.ALREADY_EXISTED.getErrorCode());
         }
 
-        try {
-            CategoryEnum.valueOf(categoryRequest.categoryName());
-        } catch (NotFoundException e) {
-            log.error("Invalid category type: {}", categoryRequest.categoryName());
-            throw new NotFoundException("Invalid category type: " + categoryRequest.categoryName(), ErrorEnum.ENUM_INVALID.getErrorCode());
-        }
-
         CategoryEntity categoryEntity = categoryMapper.mapRequestToEntity(categoryRequest);
         CategoryEntity savedCategory = categoryEntityService.save(categoryEntity);
-
-        redisService.delete(CATEGORY_ALL_CACHE_KEY);
 
         return categoryMapper.toCategoryResponse(savedCategory);
     }
@@ -161,26 +100,39 @@ public class CategoryServiceImpl implements CategoryService {
         CategoryEntity existingCategory = categoryEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
-//        if (categoryRequest.categoryName() != null) {
-//            try {
-//                CategoryEnum.valueOf(categoryRequest.categoryName());
-//            } catch (NotFoundException e) {
-//                log.error("Invalid category type: {}", categoryRequest.categoryName());
-//                throw new NotFoundException("Invalid category type: " + categoryRequest.categoryName(), ErrorEnum.ENUM_INVALID.getErrorCode());
-//            }
-//        }
+        // Check if new category name conflicts with existing category
+        if (categoryRequest.categoryName() != null && !categoryRequest.categoryName().equals(existingCategory.getCategoryName().name())) {
+            // Convert String categoryName to CategoryName enum for repository lookup
+            CategoryName categoryNameEnum = CategoryName.fromString(categoryRequest.categoryName());
+            Optional<CategoryEntity> conflictingCategory = categoryEntityService.findByCategoryName(categoryNameEnum);
+            if (conflictingCategory.isPresent()) {
+                log.warn("Category with name '{}' already exists", categoryRequest.categoryName());
+                throw new NotFoundException("Category with this name already exists", ErrorEnum.ALREADY_EXISTED.getErrorCode());
+            }
+        }
 
         categoryMapper.toCategoryEntity(categoryRequest, existingCategory);
         CategoryEntity updatedCategory = categoryEntityService.save(existingCategory);
-
-        redisService.delete(CATEGORY_ALL_CACHE_KEY);
-        redisService.delete(CATEGORY_BY_ID_CACHE_KEY_PREFIX + id);
 
         return categoryMapper.toCategoryResponse(updatedCategory);
     }
 
     @Override
     public void deleteCategory(UUID id) {
+        CategoryEntity existingCategory = categoryEntityService.findEntityById(id)
+                .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
+        // Check if category is being used by any order details
+        // Note: This check should be done at the repository level with a proper query
+        // For now, we'll proceed with the deletion and let the database handle foreign key constraints
+        
+        try {
+            categoryEntityService.delete(existingCategory);
+
+            log.info("Successfully deleted category with id: {} and name: {}", id, existingCategory.getCategoryName().name());
+        } catch (Exception e) {
+            log.error("Failed to delete category with id: {}. It may be in use by other records.", id, e);
+            throw new NotFoundException("Cannot delete category: it may be in use by order details", ErrorEnum.INTERNAL_SERVER_ERROR.getErrorCode());
+        }
     }
 }

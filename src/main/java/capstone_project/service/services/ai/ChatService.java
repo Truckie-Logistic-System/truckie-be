@@ -1,5 +1,6 @@
 package capstone_project.service.services.ai;
 
+import capstone_project.common.enums.CategoryName;
 import capstone_project.dtos.request.chat.ChatMessageRequest;
 import capstone_project.dtos.request.chat.PriceEstimateRequest;
 import capstone_project.dtos.response.chat.ChatMessageResponse;
@@ -72,20 +73,25 @@ public class ChatService {
                 
                 if (packageInfo != null) {
                     // ACCURATE pricing with dimensions using BinPacker
+                    // Convert String categoryName to CategoryName enum for pricing methods
+                    CategoryName categoryNameEnum = CategoryName.fromString(priceIntent.getCategoryName());
+                    
                     log.info("📦 Using ACCURATE pricing with {} packages", packageInfo.size());
                     allResults = priceCalculationService.calculateAllVehiclesPriceWithDimensions(
                             priceIntent.getWeight(),
                             priceIntent.getDistance(),
-                            priceIntent.getCategoryName(),
+                            categoryNameEnum.name(),
                             packageInfo
                     );
                 } else {
                     // QUICK pricing (weight only)
                     log.info("⚡ Using QUICK pricing (weight only)");
+                    // Convert String categoryName to CategoryName enum for pricing methods
+                    CategoryName categoryNameEnum = CategoryName.fromString(priceIntent.getCategoryName());
                     allResults = priceCalculationService.calculateAllVehiclesPrice(
                             priceIntent.getWeight(),
                             priceIntent.getDistance(),
-                            priceIntent.getCategoryName()
+                            categoryNameEnum.name()
                     );
                 }
 
@@ -116,13 +122,13 @@ public class ChatService {
                     categoryResponse.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
                     categoryResponse.append("💡 **Lưu ý:** Giá hàng dễ vỡ cao hơn do cần bảo quản đặc biệt.\n");
                     categoryResponse.append("⚠️ **GIÁ TRÊN CHỈ LÀ THAM KHẢO** - **CHƯA TÍNH KÍCH THƯỚC HÀNG HÓA**:\n");
-categoryResponse.append("- Giá ước tính dựa trên **TRỌNG LƯỢNG** và **KHOẢNG CÁCH**\n");
-categoryResponse.append("- Số lượng xe thực tế có thể khác do **KÍCH THƯỚC** kiện hàng\n");
-categoryResponse.append("- Các yếu tố ảnh hưởng: điều kiện đường, thời gian, khu vực, phí cầu đường\n\n");
-categoryResponse.append("🎯 **ĐỂ CÓ GIÁ CHÍNH XÁC HƠN:**\n");
-categoryResponse.append("  • Cung cấp **SỐ LƯỢNG KIỆN HÀNG** và **KÍCH THƯỚC CHI TIẾT** (dài × rộng × cao, mét)\n");
-categoryResponse.append("  • **ĐẶT HÀNG TRỰC TIẾP** qua hệ thống để nhận báo giá chính xác nhất\n");
-categoryResponse.append("  • Nhân viên sẽ xác nhận giá cuối cùng sau khi kiểm tra thông tin đầy đủ\n\n");
+                    categoryResponse.append("- Giá ước tính dựa trên **TRỌNG LƯỢNG** và **KHOẢNG CÁCH**\n");
+                    categoryResponse.append("- Số lượng xe thực tế có thể khác do **KÍCH THƯỚC** kiện hàng\n");
+                    categoryResponse.append("- Các yếu tố ảnh hưởng: điều kiện đường, thời gian, khu vực, phí cầu đường\n\n");
+                    categoryResponse.append("🎯 **ĐỂ CÓ GIÁ CHÍNH XÁC HƠN:**\n");
+                    categoryResponse.append("  • Cung cấp **SỐ LƯỢNG KIỆN HÀNG** và **KÍCH THƯỚC CHI TIẾT** (dài × rộng × cao, mét)\n");
+                    categoryResponse.append("  • **ĐẶT HÀNG TRỰC TIẾP** qua hệ thống để nhận báo giá chính xác nhất\n");
+                    categoryResponse.append("  • Nhân viên sẽ xác nhận giá cuối cùng sau khi kiểm tra thông tin đầy đủ\n\n");
                     categoryResponse.append("Bạn muốn đặt hàng loại hàng nào?");
 
                     // Save and return response
@@ -442,10 +448,12 @@ categoryResponse.append("  • Nhân viên sẽ xác nhận giá cuối cùng sa
             log.error("❌ DEBUG: Failed to load carrier settings", e);
         }
 
-        // 4. Static markdown files (FAQ, Process, etc.)
+        // 4. Static markdown files (FAQ, Process, Insurance Policy, etc.)
         String[] kbFiles = {
                 "knowledge_base/faq.md",
-                "knowledge_base/process.md"
+                "knowledge_base/process.md",
+                "knowledge_base/insurance_policy.md",
+                "knowledge_base/terms_and_conditions.md"
         };
 
         for (String filePath : kbFiles) {
