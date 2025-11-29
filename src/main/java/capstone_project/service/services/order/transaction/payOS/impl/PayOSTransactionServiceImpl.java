@@ -26,13 +26,17 @@ import capstone_project.service.services.order.order.OrderStatusWebSocketService
 import capstone_project.service.services.notification.NotificationService;
 import capstone_project.service.services.notification.NotificationBuilder;
 import capstone_project.dtos.request.notification.CreateNotificationRequest;
+import capstone_project.service.events.payment.DepositPaidEvent;
+import capstone_project.service.events.payment.FullPaymentPaidEvent;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import vn.payos.PayOS;
 import vn.payos.exception.PayOSException;
@@ -44,10 +48,15 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Slf4j
 public class PayOSTransactionServiceImpl implements PayOSTransactionService {
+
+    // 🔒 Deduplication lock to prevent duplicate webhook processing
+    private static final ConcurrentHashMap<String, Long> processingWebhooks = new ConcurrentHashMap<>();
+    private static final long WEBHOOK_LOCK_TIMEOUT_MS = 30000; // 30 seconds
 
     private final TransactionEntityService transactionEntityService;
     private final ContractEntityService contractEntityService;
@@ -57,6 +66,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final ContractSettingEntityService contractSettingEntityService;
     private final ObjectProvider<OrderService> orderServiceObjectProvider;
     private final NotificationService notificationService;
+    private final ApplicationEventPublisher applicationEventPublisher;
     
     // ORDER_REJECTION dependencies - Use @Lazy to break circular dependency
     private final capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService;
@@ -90,6 +100,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             ContractSettingEntityService contractSettingEntityService,
             ObjectProvider<OrderService> orderServiceObjectProvider,
             NotificationService notificationService,
+            ApplicationEventPublisher applicationEventPublisher,
             capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService,
             @org.springframework.context.annotation.Lazy capstone_project.service.services.issue.IssueService issueService,
             capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService journeyHistoryEntityService,
@@ -113,6 +124,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         this.contractSettingEntityService = contractSettingEntityService;
         this.orderServiceObjectProvider = orderServiceObjectProvider;
         this.notificationService = notificationService;
+        this.applicationEventPublisher = applicationEventPublisher;
         this.issueEntityService = issueEntityService;
         this.issueService = issueService;
         this.journeyHistoryEntityService = journeyHistoryEntityService;
@@ -603,19 +615,24 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     }
 
     @Override
-    @Transactional
     public void handleWebhook(String rawCallbackPayload) {
         
+        log.info("🔔 PayOS Webhook received - Raw payload: {}", rawCallbackPayload);
+        
+        String parsedOrderCode = null;
         try {
             JsonNode webhookEvent = objectMapper.readTree(rawCallbackPayload);
 
-            String orderCode = webhookEvent.path("data").path("orderCode").asText(null);
+            parsedOrderCode = webhookEvent.path("data").path("orderCode").asText(null);
+            final String orderCode = parsedOrderCode;
             String payOsStatus = webhookEvent.path("data").path("status").asText(null);
             String payOsCode = webhookEvent.path("data").path("code").asText(null);
 
+            log.info("🔍 Webhook parsed - orderCode: {}, status: {}, code: {}", orderCode, payOsStatus, payOsCode);
+
             // Skip test webhook
             if ("123".equals(orderCode)) {
-                
+                log.info("⏭️ Skipping test webhook");
                 return;
             }
 
@@ -624,13 +641,37 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 return;
             }
 
-            transactionEntityService.findByGatewayOrderCode(orderCode).ifPresentOrElse(transaction -> {
+            // 🔒 DEDUPLICATION: Check if this orderCode is already being processed
+            Long existingTimestamp = processingWebhooks.get(orderCode);
+            long currentTime = System.currentTimeMillis();
+            if (existingTimestamp != null && (currentTime - existingTimestamp) < WEBHOOK_LOCK_TIMEOUT_MS) {
+                log.info("⏭️ Webhook for orderCode {} is already being processed, skipping duplicate", orderCode);
+                return;
+            }
+            
+            // Mark this orderCode as being processed
+            processingWebhooks.put(orderCode, currentTime);
+            
+            try {
+                transactionEntityService.findByGatewayOrderCode(orderCode).ifPresentOrElse(transaction -> {
                 TransactionEnum mappedStatus = mapPayOsStatusToEnum(payOsStatus, payOsCode);
+                
+                log.info("🔄 Processing transaction {} - Current status: {}, New status: {}", 
+                    transaction.getId(), transaction.getStatus(), mappedStatus.name());
 
-                transaction.setStatus(mappedStatus.name());
-                transaction.setGatewayResponse(rawCallbackPayload);
-                transaction.setPaymentDate(java.time.LocalDateTime.now());
-                transactionEntityService.save(transaction);
+                // 🔍 DEDUPLICATION: Skip if transaction already has the target status
+                // Re-fetch from database to get latest status (avoid race condition)
+                TransactionEntity freshTransaction = transactionEntityService.findEntityById(transaction.getId()).orElse(null);
+                if (freshTransaction != null && mappedStatus.name().equals(freshTransaction.getStatus())) {
+                    log.info("⏭️ Transaction {} already has status {}, skipping duplicate processing", 
+                        transaction.getId(), mappedStatus.name());
+                    return;
+                }
+                
+                // Update transaction status in separate transaction
+                updateTransactionStatus(transaction, mappedStatus, rawCallbackPayload);
+                
+                log.info("✅ Transaction {} updated to status: {}", transaction.getId(), mappedStatus.name());
 
                 // 📧 Send payment notifications based on transaction status
                 try {
@@ -651,17 +692,34 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 // Only update contract status if this is NOT a return payment
                 // Return payments should not affect contract/order status
                 if (!isReturnPayment) {
+                    log.info("📋 Updating contract status for transaction: {}", transaction.getId());
                     updateContractStatusIfNeeded(transaction);
                 } else {
-                    
+                    log.info("⏭️ Skipping contract status update for return payment: {}", transaction.getId());
                 }
             }, () -> {
-                log.warn("Transaction not found for orderCode {}", orderCode);
+                log.warn("❌ Transaction not found for orderCode {}", orderCode);
             });
+            } finally {
+                // Clean up the lock after processing
+                processingWebhooks.remove(orderCode);
+            }
 
         } catch (Exception e) {
             log.error("Failed to handle webhook", e);
+            // Clean up on error
+            if (parsedOrderCode != null) {
+                processingWebhooks.remove(parsedOrderCode);
+            }
         }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateTransactionStatus(TransactionEntity transaction, TransactionEnum status, String rawCallbackPayload) {
+        transaction.setStatus(status.name());
+        transaction.setGatewayResponse(rawCallbackPayload);
+        transaction.setPaymentDate(java.time.LocalDateTime.now());
+        transactionEntityService.save(transaction);
     }
 
     private TransactionEnum mapPayOsStatusToEnum(String payOsStatus, String code) {
@@ -684,6 +742,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     }
 
     private void updateContractStatusIfNeeded(TransactionEntity transaction) {
+        log.info("📋 Starting contract status update for transaction: {}", transaction.getId());
+        
         ContractEntity contract = transaction.getContractEntity();
         if (contract == null) {
             log.warn("Transaction {} has no contract linked", transaction.getId());
@@ -709,8 +769,13 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
+        log.info("🔍 Current statuses - Contract: {}, Order: {}, Transaction: {}", 
+            contract.getStatus(), order.getStatus(), transaction.getStatus());
+
         switch (TransactionEnum.valueOf(transaction.getStatus())) {
             case PAID -> {
+                log.info("🔍 Processing PAID transaction: {}", transaction.getId());
+                
                 BigDecimal totalValue = validationTotalValue(contract.getId());
                 BigDecimal totalPaidAmount = transactionEntityService.sumPaidAmountByContractId(contract.getId());
 
@@ -718,13 +783,21 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     totalPaidAmount = BigDecimal.ZERO;
                 }
 
+                log.info("💰 Payment calculation - totalPaid: {}, totalValue: {}, comparison: {}", 
+                    totalPaidAmount, totalValue, totalPaidAmount.compareTo(totalValue));
+
                 if (totalPaidAmount.compareTo(totalValue) >= 0) {
+                    log.info("📋 Processing FULL payment scenario");
                     
+                    // Update contract and order status
                     contract.setStatus(ContractStatusEnum.PAID.name());
-                    // Update Order status only (OrderDetail will be updated when assigned to driver)
                     OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
                     order.setStatus(OrderStatusEnum.FULLY_PAID.name());
                     orderEntityService.save(order);
+                    contractEntityService.save(contract);
+                    
+                    log.info("✅ Order {} status updated from {} to {}", 
+                        order.getOrderCode(), previousStatus, OrderStatusEnum.FULLY_PAID);
                     
                     // Send WebSocket notification
                     orderStatusWebSocketService.sendOrderStatusChange(
@@ -734,15 +807,20 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                             OrderStatusEnum.FULLY_PAID
                     );
                     
-                    // Create payment success notifications
-                    createPaymentNotifications(order, contract, totalValue.doubleValue());
-                } else {
+                    log.info("📡 WebSocket notification sent for full payment");
                     
+                } else {
+                    log.info("💰 Processing DEPOSIT payment scenario");
+                    
+                    // Update contract and order status
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
-                    // Update Order status only (OrderDetail will be updated when assigned to driver)
                     OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
                     order.setStatus(OrderStatusEnum.ON_PLANNING.name());
                     orderEntityService.save(order);
+                    contractEntityService.save(contract);
+                    
+                    log.info("✅ Order {} status updated from {} to {}", 
+                        order.getOrderCode(), previousStatus, OrderStatusEnum.ON_PLANNING);
                     
                     // Send WebSocket notification
                     orderStatusWebSocketService.sendOrderStatusChange(
@@ -751,6 +829,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                             previousStatus,
                             OrderStatusEnum.ON_PLANNING
                     );
+                    
+                    log.info("📡 WebSocket notification sent for deposit payment");
                 }
             }
 
@@ -1058,6 +1138,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                         if (order.getSender() != null && order.getSender().getUser() != null) {
                             customerName = order.getSender().getUser().getFullName();
                         }
+                        
+                        // Return shipping notification is handled by sendPaymentNotification method
+                        log.info("✅ Return shipping payment processed for order: {}", order.getOrderCode());
                     }
                 }
                 
@@ -1101,6 +1184,45 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 }
             } catch (Exception e) {
                 log.error("❌ Failed to send staff notification: {}", e.getMessage(), e);
+                // Don't throw - notification failure shouldn't break payment processing
+            }
+            
+            // Create STAFF_RETURN_PAYMENT persistent notification
+            try {
+                var vehicleAssignment = issue.getVehicleAssignmentEntity();
+                UUID staffOrderId = null;
+                String staffCustomerName = "N/A";
+                int returnPackageCount = issue.getOrderDetails() != null ? issue.getOrderDetails().size() : 0;
+                double returnFee = transaction.getAmount() != null ? transaction.getAmount().doubleValue() : 0.0;
+                
+                if (vehicleAssignment != null) {
+                    Optional<OrderEntity> staffOrderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
+                    if (staffOrderOpt.isPresent()) {
+                        OrderEntity staffOrder = staffOrderOpt.get();
+                        staffOrderId = staffOrder.getId();
+                        if (staffOrder.getSender() != null) {
+                            staffCustomerName = staffOrder.getSender().getRepresentativeName() != null ?
+                                staffOrder.getSender().getRepresentativeName() : staffOrder.getSender().getUser().getUsername();
+                        }
+                        
+                        var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+                        for (var staff : staffUsers) {
+                            CreateNotificationRequest staffNotif = NotificationBuilder.buildStaffReturnPayment(
+                                staff.getId(),
+                                staffOrder.getOrderCode(),
+                                returnFee,
+                                staffCustomerName,
+                                returnPackageCount,
+                                staffOrderId,
+                                issue.getId()
+                            );
+                            notificationService.createNotification(staffNotif);
+                        }
+                        log.info("✅ Created STAFF_RETURN_PAYMENT notifications for {} staff users", staffUsers.size());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("❌ Failed to create STAFF_RETURN_PAYMENT notification: {}", e.getMessage());
                 // Don't throw - notification failure shouldn't break payment processing
             }
             
@@ -1341,31 +1463,81 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             
             switch (status) {
                 case PAID:
+                    // Determine notification type based on transaction type
+                    String transactionType = transaction.getTransactionType();
+                    capstone_project.common.enums.NotificationTypeEnum notificationType;
+                    String title;
+                    String description;
+                    
+                    if ("DEPOSIT".equals(transactionType)) {
+                        notificationType = capstone_project.common.enums.NotificationTypeEnum.PAYMENT_DEPOSIT_SUCCESS;
+                        title = "Thanh toán cọc thành công";
+                        description = "Đơn hàng " + order.getOrderCode() + " đã thanh toán cọc thành công với số tiền " + 
+                            transaction.getAmount() + " VNĐ";
+                        log.info("💰 Processing DEPOSIT payment notification for transaction: {}", transaction.getId());
+                    } else if ("FULL_PAYMENT".equals(transactionType)) {
+                        notificationType = capstone_project.common.enums.NotificationTypeEnum.PAYMENT_FULL_SUCCESS;
+                        title = "Thanh toán đầy đủ thành công";
+                        description = "Đơn hàng " + order.getOrderCode() + " đã thanh toán đầy đủ thành công với số tiền " + 
+                            transaction.getAmount() + " VNĐ";
+                        log.info("💰 Processing FULL_PAYMENT notification for transaction: {}", transaction.getId());
+                    } else if ("RETURN_SHIPPING".equals(transactionType)) {
+                        notificationType = capstone_project.common.enums.NotificationTypeEnum.RETURN_PAYMENT_SUCCESS;
+                        title = "Thanh toán cước trả hàng thành công";
+                        description = "Đơn hàng " + order.getOrderCode() + " đã thanh toán cước trả hàng thành công với số tiền " + 
+                            transaction.getAmount() + " VNĐ";
+                        log.info("💰 Processing RETURN_SHIPPING payment notification for transaction: {}", transaction.getId());
+                    } else {
+                        // Default to full payment
+                        notificationType = capstone_project.common.enums.NotificationTypeEnum.PAYMENT_FULL_SUCCESS;
+                        title = "Thanh toán thành công";
+                        description = "Đơn hàng " + order.getOrderCode() + " đã được thanh toán thành công với số tiền " + 
+                            transaction.getAmount() + " VNĐ";
+                        log.warn("⚠️ Unknown transaction type: {}, defaulting to PAYMENT_FULL_SUCCESS", transactionType);
+                    }
+                    
                     // Customer notification: Payment successful
+                    log.info("🔍 Debug: Customer ID: {}, User ID: {}", customer.getId(), 
+                        customer.getUser() != null ? customer.getUser().getId() : "NULL");
+                    
+                    if (customer.getUser() == null) {
+                        log.error("❌ Customer {} has no associated user!", customer.getId());
+                        return;
+                    }
+                    
                     CreateNotificationRequest customerNotification = CreateNotificationRequest.builder()
-                        .userId(customer.getId())
+                        .userId(customer.getUser().getId())
                         .recipientRole("CUSTOMER")
-                        .title("Thanh toán thành công")
-                        .description("Đơn hàng " + order.getOrderCode() + " đã được thanh toán thành công với số tiền " + 
-                            transaction.getAmount() + " VNĐ")
-                        .notificationType(capstone_project.common.enums.NotificationTypeEnum.PAYMENT_FULL_SUCCESS)
+                        .title(title)
+                        .description(description)
+                        .notificationType(notificationType)
                         .relatedOrderId(order.getId())
                         .relatedContractId(contract.getId())
                         .build();
                     
                     notificationService.createNotification(customerNotification);
                     
-                    // Staff notification: Payment received
-                    sendPaymentNotificationToStaff(order, transaction, "Thanh toán mới nhận được", 
-                        "Đơn hàng " + order.getOrderCode() + " đã thanh toán thành công");
+                    // Staff notification: Payment received - use correct notification type based on transaction type
+                    if ("FULL_PAYMENT".equals(transactionType)) {
+                        sendFullPaymentNotificationToStaff(order, transaction);
+                        // Driver notification: NEW_ORDER_ASSIGNED when full payment received
+                        sendFullPaymentNotificationToDriver(order);
+                    } else {
+                        sendPaymentNotificationToStaff(order, transaction, "Thanh toán mới nhận được", 
+                            "Đơn hàng " + order.getOrderCode() + " đã thanh toán thành công");
+                    }
                     
-                    log.info("📧 Payment success notifications sent for transaction {}", transaction.getId());
+                    log.info("✅ {} notification created for transaction {}", notificationType, transaction.getId());
                     break;
                     
                 case CANCELLED:
                     // Customer notification: Payment cancelled
+                    if (customer.getUser() == null) {
+                        log.error("❌ Customer {} has no associated user for cancellation notification!", customer.getId());
+                        break;
+                    }
                     CreateNotificationRequest cancelledNotification = CreateNotificationRequest.builder()
-                        .userId(customer.getId())
+                        .userId(customer.getUser().getId())
                         .recipientRole("CUSTOMER")
                         .title("Thanh toán đã hủy")
                         .description("Thanh toán cho đơn hàng " + order.getOrderCode() + " đã bị hủy")
@@ -1379,39 +1551,20 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     // Staff notification: Payment cancelled
                     sendPaymentNotificationToStaff(order, transaction, "Thanh toán bị hủy", 
                         "Thanh toán cho đơn hàng " + order.getOrderCode() + " đã bị hủy");
-                    
-                    log.info("📧 Payment cancelled notifications sent for transaction {}", transaction.getId());
-                    break;
-                    
-                case FAILED:
-                    // Customer notification: Payment failed
-                    CreateNotificationRequest failedNotification = CreateNotificationRequest.builder()
-                        .userId(customer.getId())
-                        .recipientRole("CUSTOMER")
-                        .title("Thanh toán thất bại")
-                        .description("Thanh toán cho đơn hàng " + order.getOrderCode() + " đã thất bại. Vui lòng thử lại.")
-                        .notificationType(capstone_project.common.enums.NotificationTypeEnum.ORDER_CANCELLED)
-                        .relatedOrderId(order.getId())
-                        .relatedContractId(contract.getId())
-                        .build();
-                    
-                    notificationService.createNotification(failedNotification);
-                    
-                    // Staff notification: Payment failed
-                    sendPaymentNotificationToStaff(order, transaction, "Thanh toán thất bại", 
-                        "Thanh toán cho đơn hàng " + order.getOrderCode() + " đã thất bại");
-                    
-                    log.info("📧 Payment failed notifications sent for transaction {}", transaction.getId());
                     break;
                     
                 case REFUNDED:
-                    // Customer notification: Refund processed
+                    // Customer notification: Payment refunded
+                    if (customer.getUser() == null) {
+                        log.error("❌ Customer {} has no associated user for refund notification!", customer.getId());
+                        break;
+                    }
                     CreateNotificationRequest refundNotification = CreateNotificationRequest.builder()
-                        .userId(customer.getId())
+                        .userId(customer.getUser().getId())
                         .recipientRole("CUSTOMER")
-                        .title("Hoàn tiền thành công")
-                        .description("Đã hoàn tiền " + transaction.getAmount() + " VNĐ cho đơn hàng " + order.getOrderCode())
-                        .notificationType(capstone_project.common.enums.NotificationTypeEnum.PAYMENT_RECEIVED)
+                        .title("Đã hoàn tiền")
+                        .description("Đã hoàn tiền cho đơn hàng " + order.getOrderCode())
+                        .notificationType(capstone_project.common.enums.NotificationTypeEnum.ORDER_CANCELLED)
                         .relatedOrderId(order.getId())
                         .relatedContractId(contract.getId())
                         .build();
@@ -1437,7 +1590,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     }
     
     /**
-     * Helper method to send payment notifications to all staff users
+     * Helper method to send payment notifications to all staff users (for DEPOSIT)
      */
     private void sendPaymentNotificationToStaff(OrderEntity order, TransactionEntity transaction, 
             String title, String description) {
@@ -1450,7 +1603,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                         .recipientRole("STAFF")
                         .title(title)
                         .description(description + " (Số tiền: " + transaction.getAmount() + " VNĐ)")
-                        .notificationType(capstone_project.common.enums.NotificationTypeEnum.PAYMENT_RECEIVED)
+                        .notificationType(capstone_project.common.enums.NotificationTypeEnum.STAFF_DEPOSIT_RECEIVED)
                         .relatedOrderId(order.getId())
                         .relatedContractId(transaction.getContractEntity() != null ? transaction.getContractEntity().getId() : null)
                         .build();
@@ -1468,70 +1621,124 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     }
     
     /**
-     * Create payment success notifications for customer and driver
+     * Helper method to send FULL_PAYMENT notifications to all staff users
      */
-    private void createPaymentNotifications(OrderEntity order, ContractEntity contract, double totalAmount) {
+    private void sendFullPaymentNotificationToStaff(OrderEntity order, TransactionEntity transaction) {
         try {
             CustomerEntity customer = order.getSender();
-            if (customer == null || customer.getUser() == null) {
-                log.warn("Cannot find customer for order {}", order.getOrderCode());
+            String customerName = "Khách hàng";
+            if (customer != null) {
+                customerName = customer.getRepresentativeName() != null ? 
+                    customer.getRepresentativeName() : 
+                    (customer.getUser() != null ? customer.getUser().getUsername() : "Khách hàng");
+            }
+            
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            for (var staff : staffUsers) {
+                CreateNotificationRequest staffNotif = NotificationBuilder.buildStaffFullPayment(
+                    staff.getId(),
+                    order.getOrderCode(),
+                    transaction.getAmount().doubleValue(),
+                    customerName,
+                    order.getId()
+                );
+                notificationService.createNotification(staffNotif);
+            }
+            log.info("✅ Created STAFF_FULL_PAYMENT notifications for {} staff users", staffUsers.size());
+        } catch (Exception e) {
+            log.error("❌ Failed to create STAFF_FULL_PAYMENT notification: {}", e.getMessage());
+        }
+    }
+    
+    /**
+     * Helper method to send NEW_ORDER_ASSIGNED notification to driver when full payment received
+     */
+    private void sendFullPaymentNotificationToDriver(OrderEntity order) {
+        try {
+            List<capstone_project.entity.order.order.OrderDetailEntity> orderDetails = order.getOrderDetailEntities();
+            
+            if (orderDetails == null || orderDetails.isEmpty()) {
+                log.warn("No order details found for order {}", order.getOrderCode());
                 return;
             }
             
-            String contractCode = contract.getContractName() != null ? 
-                contract.getContractName() : "HĐ-" + order.getOrderCode();
+            capstone_project.entity.vehicle.VehicleAssignmentEntity assignment = 
+                orderDetails.get(0).getVehicleAssignmentEntity();
             
-            // Notification 1: To Customer - PAYMENT_FULL_SUCCESS
-            try {
-                CreateNotificationRequest customerNotif = NotificationBuilder.buildPaymentFullSuccess(
-                    customer.getUser().getId(),
-                    order.getOrderCode(),
-                    contractCode,
-                    totalAmount,
-                    order.getId(),
-                    contract.getId()
-                );
-                
-                notificationService.createNotification(customerNotif);
-                log.info("✅ Created PAYMENT_FULL_SUCCESS notification for order: {}", order.getOrderCode());
-            } catch (Exception e) {
-                log.error("❌ Failed to create PAYMENT_FULL_SUCCESS notification: {}", e.getMessage());
+            if (assignment == null || assignment.getDriver1() == null) {
+                log.warn("No driver assigned for order {}", order.getOrderCode());
+                return;
             }
             
-            // Notification 2: To Driver - PAYMENT_RECEIVED (if driver assigned)
-            try {
-                // Get order details from order entity
-                List<capstone_project.entity.order.order.OrderDetailEntity> orderDetails = 
-                    order.getOrderDetailEntities();
-                
-                if (orderDetails != null && !orderDetails.isEmpty()) {
-                    capstone_project.entity.vehicle.VehicleAssignmentEntity assignment = 
-                        orderDetails.get(0).getVehicleAssignmentEntity();
-                    
-                    if (assignment != null && assignment.getDriver1() != null) {
-                        capstone_project.entity.user.driver.DriverEntity driver = assignment.getDriver1();
-                        
-                        CreateNotificationRequest driverNotif = NotificationBuilder.buildPaymentReceived(
-                            driver.getUser().getId(),
-                            order.getOrderCode(),
-                            totalAmount,
-                            customer.getUser().getFullName(),
-                            customer.getUser().getPhoneNumber(),
-                            order.getId(),
-                            contract.getId()
-                        );
-                        
-                        notificationService.createNotification(driverNotif);
-                        log.info("✅ Created PAYMENT_RECEIVED notification for driver: {}", 
-                            driver.getUser().getFullName());
-                    }
-                }
-            } catch (Exception e) {
-                log.error("❌ Failed to create PAYMENT_RECEIVED notification: {}", e.getMessage());
+            capstone_project.entity.user.driver.DriverEntity driver = assignment.getDriver1();
+            
+            // Get vehicle type description instead of name
+            String vehicleTypeDescription = (assignment.getVehicleEntity() != null && 
+                assignment.getVehicleEntity().getVehicleTypeEntity() != null &&
+                assignment.getVehicleEntity().getVehicleTypeEntity().getDescription() != null) 
+                ? assignment.getVehicleEntity().getVehicleTypeEntity().getDescription() : "Truck";
+            
+            // Get pickup location
+            String pickupLocation = "Chưa xác định";
+            if (order.getPickupAddress() != null) {
+                capstone_project.entity.user.address.AddressEntity pickupAddr = order.getPickupAddress();
+                pickupLocation = formatAddress(pickupAddr.getStreet(), pickupAddr.getWard(), pickupAddr.getProvince());
             }
             
+            // Get delivery location
+            String deliveryLocation = "Chưa xác định";
+            if (order.getDeliveryAddress() != null) {
+                capstone_project.entity.user.address.AddressEntity deliveryAddr = order.getDeliveryAddress();
+                deliveryLocation = formatAddress(deliveryAddr.getStreet(), deliveryAddr.getWard(), deliveryAddr.getProvince());
+            }
+            
+            // Get category description
+            String categoryDescription = "Hàng hóa";
+            if (order.getCategory() != null && order.getCategory().getDescription() != null) {
+                categoryDescription = order.getCategory().getDescription();
+            } else if (order.getCategory() != null && order.getCategory().getCategoryName() != null) {
+                categoryDescription = order.getCategory().getCategoryName().name();
+            }
+            
+            CreateNotificationRequest driverNotif = NotificationBuilder.buildNewOrderAssigned(
+                driver.getUser().getId(),
+                order.getOrderCode(),
+                assignment.getTrackingCode() != null ? assignment.getTrackingCode() : "N/A",
+                orderDetails,
+                vehicleTypeDescription,
+                (orderDetails.get(0).getEstimatedStartTime() != null)
+                    ? orderDetails.get(0).getEstimatedStartTime() : null,
+                pickupLocation,
+                deliveryLocation,
+                categoryDescription,
+                order.getId(),
+                assignment.getId()
+            );
+            
+            notificationService.createNotification(driverNotif);
+            log.info("✅ Created NEW_ORDER_ASSIGNED notification for driver: {} (Tracking: {})", 
+                driver.getUser().getFullName(), assignment.getTrackingCode());
         } catch (Exception e) {
-            log.error("❌ Failed to create payment notifications: {}", e.getMessage());
+            log.error("❌ Failed to create NEW_ORDER_ASSIGNED notification: {}", e.getMessage(), e);
         }
+    }
+    
+    /**
+     * Format address from street, ward, province components
+     */
+    private String formatAddress(String street, String ward, String province) {
+        StringBuilder sb = new StringBuilder();
+        if (street != null && !street.isEmpty()) {
+            sb.append(street);
+        }
+        if (ward != null && !ward.isEmpty()) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(ward);
+        }
+        if (province != null && !province.isEmpty()) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(province);
+        }
+        return sb.length() > 0 ? sb.toString() : "Chưa xác định";
     }
 }

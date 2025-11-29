@@ -8,8 +8,10 @@ import capstone_project.dtos.response.notification.NotificationResponse;
 import capstone_project.dtos.response.notification.NotificationStatsResponse;
 import capstone_project.entity.NotificationEntity;
 import capstone_project.entity.auth.UserEntity;
+import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.repository.NotificationRepository;
 import capstone_project.repository.repositories.auth.UserRepository;
+import capstone_project.repository.repositories.user.DriverRepository;
 import capstone_project.service.services.notification.NotificationService;
 import capstone_project.service.services.email.EmailNotificationService;
 import capstone_project.service.services.fcm.FCMService;
@@ -55,6 +57,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final SimpMessagingTemplate messagingTemplate;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final DriverRepository driverRepository;
     private final ObjectMapper objectMapper;
     private final EmailNotificationService emailNotificationService;
     private final FCMService fcmService;
@@ -391,14 +394,21 @@ public class NotificationServiceImpl implements NotificationService {
     
     /**
      * Send email notification async (customer only)
-     * TODO: Implement email service integration
+     * Updates email_sent and email_sent_at fields after successful send
      */
     @Async
-    private void sendEmailNotificationAsync(NotificationEntity notification, UserEntity user) {
+    @Transactional
+    protected void sendEmailNotificationAsync(NotificationEntity notification, UserEntity user) {
         try {
             log.info("📧 Sending email notification to customer: {}", user.getEmail());
             emailNotificationService.sendNotificationEmail(notification, user);
-            log.info("✅ Email notification sent successfully to: {}", user.getEmail());
+            
+            // Update notification with email sent status
+            notification.setEmailSent(true);
+            notification.setEmailSentAt(java.time.LocalDateTime.now());
+            notificationRepository.save(notification);
+            
+            log.info("✅ Email notification sent successfully to: {} and status updated", user.getEmail());
         } catch (Exception e) {
             log.error("❌ Failed to send email notification to {}: {}", user.getEmail(), e.getMessage(), e);
             // Don't throw exception to avoid breaking main notification flow
@@ -492,22 +502,58 @@ public class NotificationServiceImpl implements NotificationService {
     
     /**
      * Send notification via WebSocket using NotificationWebSocketService
-     * Uses shared vehicle-tracking-browser endpoint with /topic/user/{userId}/notifications topic
+     * Uses shared vehicle-tracking-browser endpoint with proper topic routing:
+     * - Customer/Staff: /topic/user/{userId}/notifications
+     * - Driver: /topic/driver/{driverId}/notifications
      */
     public void sendWebSocketNotification(String userId, NotificationResponse notification) {
         try {
-            // Send lightweight signal since frontend refetches data anyway
-            // Optimized: ~30 bytes vs 500+ bytes payload
-            notificationWebSocketService.sendNotificationUpdateSignal(
-                UUID.fromString(userId),
-                "NEW"
-            );
-            
-            log.info("📡 WebSocket notification signal sent to user: {} (type: {})", 
-                    userId, notification.getNotificationType());
+            // Use driver-specific topic for driver notifications
+            if ("DRIVER".equalsIgnoreCase(notification.getRecipientRole())) {
+                // For drivers, use driver ID (not user ID) to match mobile app subscription
+                // Mobile subscribes to /topic/driver/{DRIVER_ID}/notifications
+                String driverId = getDriverIdFromUserId(userId);
+                notificationWebSocketService.sendDriverNotificationUpdateSignal(
+                    UUID.fromString(driverId),
+                    "NEW"
+                );
+                
+                log.info("📡 WebSocket notification sent to driver topic: {} (type: {})", 
+                        driverId, notification.getNotificationType());
+            } else {
+                // For customers and staff, use user-specific topic
+                notificationWebSocketService.sendNotificationUpdateSignal(
+                    UUID.fromString(userId),
+                    "NEW"
+                );
+                
+                log.info("📡 WebSocket notification sent to user topic: {} (type: {})", 
+                        userId, notification.getNotificationType());
+            }
                     
         } catch (Exception e) {
-            log.error("❌ Failed to send WebSocket notification signal to user: {}", userId, e);
+            log.error("❌ Failed to send WebSocket notification: userId={}, role={}", 
+                    userId, notification.getRecipientRole(), e);
+        }
+    }
+    
+    /**
+     * Get driver ID from user ID for driver notifications
+     * This maps the user ID to the corresponding driver entity ID
+     */
+    private String getDriverIdFromUserId(String userId) {
+        try {
+            // Find driver entity by user ID
+            DriverEntity driver = driverRepository.findByUserId(UUID.fromString(userId))
+                .orElseThrow(() -> new RuntimeException("Driver not found for user ID: " + userId));
+            
+            log.debug("🔗 Mapped user ID {} to driver ID {}", userId, driver.getId());
+            return driver.getId().toString();
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to map user ID to driver ID: {}", userId, e);
+            // Fallback to user ID if driver mapping fails
+            return userId;
         }
     }
 }

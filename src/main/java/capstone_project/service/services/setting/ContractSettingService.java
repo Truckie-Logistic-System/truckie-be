@@ -17,4 +17,6 @@ public interface ContractSettingService {
     ContractSettingResponse updateContractSetting(UUID id, UpdateContractSettingRequest contractSettingRequest);
 
     void deleteContractSetting(UUID id);
+    
+    ContractSettingResponse getLatestContractSetting();
 }

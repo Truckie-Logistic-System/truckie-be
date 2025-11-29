@@ -41,6 +41,7 @@ import capstone_project.service.services.order.transaction.payOS.PayOSTransactio
 import capstone_project.service.services.notification.NotificationService;
 import capstone_project.service.services.notification.NotificationBuilder;
 import capstone_project.service.services.pricing.InsuranceCalculationService;
+import capstone_project.service.services.setting.ContractSettingService;
 import capstone_project.dtos.request.notification.CreateNotificationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -85,6 +86,8 @@ public class OrderServiceImpl implements OrderService {
     private final NotificationService notificationService; // For notification creation
     private final capstone_project.service.mapper.issue.IssueMapper issueMapper;
     private final InsuranceCalculationService insuranceCalculationService; // For insurance fee calculation
+    private final capstone_project.repository.entityServices.auth.UserEntityService userEntityService; // For staff notifications
+    private final ContractSettingService contractSettingService; // For deposit rate calculation
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -196,6 +199,45 @@ public class OrderServiceImpl implements OrderService {
                 
                 notificationService.createNotification(notificationRequest);
                 log.info("✅ Created ORDER_CREATED notification for order: {}", saveOrder.getOrderCode());
+                
+                // STAFF_ORDER_CREATED - Notify all staff about new order
+                try {
+                    String customerName = sender.getRepresentativeName() != null ? 
+                        sender.getRepresentativeName() : sender.getUser().getUsername();
+                    String customerPhone = sender.getRepresentativePhone() != null ? 
+                        sender.getRepresentativePhone() : "N/A";
+                    int packageCount = orderDetails.size();
+                    
+                    // Calculate total weight
+                    double totalWeight = orderDetails.stream()
+                        .filter(detail -> detail.getWeightBaseUnit() != null)
+                        .mapToDouble(detail -> detail.getWeightBaseUnit().doubleValue())
+                        .sum();
+                    String weightUnit = orderDetails.stream()
+                        .filter(detail -> detail.getUnit() != null && !detail.getUnit().isEmpty())
+                        .map(OrderDetailEntity::getUnit)
+                        .findFirst()
+                        .orElse("kg");
+                    
+                    var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+                    for (var staff : staffUsers) {
+                        CreateNotificationRequest staffNotification = NotificationBuilder.buildStaffOrderCreated(
+                            staff.getId(),
+                            saveOrder.getOrderCode(),
+                            customerName,
+                            customerPhone,
+                            packageCount,
+                            totalWeight,
+                            weightUnit,
+                            saveOrder.getId()
+                        );
+                        notificationService.createNotification(staffNotification);
+                    }
+                    log.info("✅ Created STAFF_ORDER_CREATED notifications for {} staff users", staffUsers.size());
+                } catch (Exception staffEx) {
+                    log.error("❌ Failed to create STAFF_ORDER_CREATED notifications: {}", staffEx.getMessage());
+                }
+                
             } catch (Exception e) {
                 log.error("❌ Failed to create ORDER_CREATED notification: {}", e.getMessage());
                 // Don't fail the order creation if notification fails
@@ -250,6 +292,46 @@ public class OrderServiceImpl implements OrderService {
         } catch (Exception e) {
             log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
             // Don't throw - WebSocket failure shouldn't break business logic
+        }
+
+        // Create notification for staff when customer agrees to vehicle proposal (PENDING → PROCESSING)
+        if (previousStatus == OrderStatusEnum.PENDING && newStatus == OrderStatusEnum.PROCESSING) {
+            try {
+                // Extract customer info for notification
+                String customerName = order.getSender().getRepresentativeName() != null ? 
+                    order.getSender().getRepresentativeName() : order.getSender().getUser().getUsername();
+                String customerPhone = order.getSender().getRepresentativePhone() != null ? 
+                    order.getSender().getRepresentativePhone() : "N/A";
+                int packageCount = order.getOrderDetailEntities() != null ? order.getOrderDetailEntities().size() : 0;
+                
+                // Create staff notification
+                CreateNotificationRequest staffNotificationRequest = NotificationBuilder.buildStaffOrderProcessing(
+                    null, // Broadcast to all staff
+                    order.getOrderCode(),
+                    customerName,
+                    customerPhone,
+                    packageCount,
+                    order.getId()
+                );
+                
+                notificationService.createNotification(staffNotificationRequest);
+                log.info("✅ Created STAFF_ORDER_PROCESSING notification for order: {}", order.getOrderCode());
+                
+                // Create customer notification
+                CreateNotificationRequest customerNotificationRequest = NotificationBuilder.buildOrderProcessing(
+                    order.getSender().getUser().getId(),
+                    order.getOrderCode(),
+                    packageCount,
+                    order.getId()
+                );
+                
+                notificationService.createNotification(customerNotificationRequest);
+                log.info("✅ Created ORDER_PROCESSING notification for customer in order: {}", order.getOrderCode());
+                
+            } catch (Exception e) {
+                log.error("❌ Failed to create notifications for order processing: {}", e.getMessage());
+                // Don't throw - notification failure shouldn't break business logic
+            }
         }
 
         return orderMapper.toCreateOrderResponse(order);
@@ -698,6 +780,70 @@ public class OrderServiceImpl implements OrderService {
         
         // Update order status
         changeAStatusOrder(orderEntity.getId(), OrderStatusEnum.CONTRACT_SIGNED);
+
+        // Create notifications for contract signing
+        try {
+            String contractCode = contractEntity.getContractName() != null ? contractEntity.getContractName() : "HĐ-" + orderEntity.getOrderCode();
+            
+            // Calculate deposit amount using contract settings (same logic as ContractServiceImpl)
+            double baseValue = (contractEntity.getAdjustedValue() != null && contractEntity.getAdjustedValue().doubleValue() > 0) ? 
+                contractEntity.getAdjustedValue().doubleValue() : 
+                (contractEntity.getTotalValue() != null ? contractEntity.getTotalValue().doubleValue() : 0.0);
+            
+            double depositAmount = 0.0;
+            try {
+                var contractSetting = contractSettingService.getLatestContractSetting();
+                if (contractSetting != null && contractSetting.depositPercent() != null) {
+                    depositAmount = baseValue * contractSetting.depositPercent().doubleValue() / 100.0;
+                    log.info("🔍 Using contract setting deposit rate: {}% for base value: {}", 
+                        contractSetting.depositPercent(), baseValue);
+                } else {
+                    log.warn("Contract setting deposit percent is null, using 30% fallback");
+                    depositAmount = baseValue * 0.1;
+                }
+            } catch (Exception e) {
+                log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+                depositAmount = baseValue * 0.1;
+            }
+            
+            log.info("🔍 Final deposit calculation: baseValue={}, depositRate={}, depositAmount={}", 
+                baseValue, depositAmount / baseValue * 100, depositAmount);
+            
+            // Notification 1: Customer - CONTRACT_SIGNED (Email: NO)
+            CreateNotificationRequest customerNotification = NotificationBuilder.buildContractSigned(
+                orderEntity.getSender().getUser().getId(),
+                orderEntity.getOrderCode(),
+                contractCode,
+                depositAmount,
+                contractEntity.getDepositPaymentDeadline(),
+                orderEntity.getId(),
+                contractEntity.getId()
+            );
+            notificationService.createNotification(customerNotification);
+            log.info("✅ Created CONTRACT_SIGNED notification for customer in order: {}", orderEntity.getOrderCode());
+            
+            // Notification 2: All Staff - STAFF_CONTRACT_SIGNED
+            String customerName = orderEntity.getSender().getRepresentativeName() != null ?
+                orderEntity.getSender().getRepresentativeName() : orderEntity.getSender().getUser().getUsername();
+            
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            for (var staff : staffUsers) {
+                CreateNotificationRequest staffNotification = NotificationBuilder.buildStaffContractSigned(
+                    staff.getId(),
+                    orderEntity.getOrderCode(),
+                    contractCode,
+                    customerName,
+                    orderEntity.getId(),
+                    contractEntity.getId()
+                );
+                notificationService.createNotification(staffNotification);
+            }
+            log.info("✅ Created STAFF_CONTRACT_SIGNED notifications for {} staff users", staffUsers.size());
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to create contract signing notifications: {}", e.getMessage());
+            // Don't throw - notification failure shouldn't break contract signing
+        }
 
         return true;
     }

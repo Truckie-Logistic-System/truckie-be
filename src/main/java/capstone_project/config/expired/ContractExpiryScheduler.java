@@ -1,10 +1,13 @@
 package capstone_project.config.expired;
 
 import capstone_project.common.enums.ContractStatusEnum;
+import capstone_project.common.enums.OrderDetailStatusEnum;
 import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.entity.order.contract.ContractEntity;
+import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
+import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,7 @@ import java.util.List;
 public class ContractExpiryScheduler {
     private final ContractEntityService contractEntityService;
     private final OrderEntityService orderEntityService;
+    private final OrderDetailEntityService orderDetailEntityService;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
 
     /**
@@ -184,6 +188,20 @@ public class ContractExpiryScheduler {
                 OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(currentStatus);
                 order.setStatus(OrderStatusEnum.CANCELLED.name());
                 orderEntityService.save(order);
+                
+                // Cancel all order details
+                try {
+                    List<OrderDetailEntity> orderDetails = order.getOrderDetailEntities();
+                    if (orderDetails != null && !orderDetails.isEmpty()) {
+                        for (OrderDetailEntity orderDetail : orderDetails) {
+                            orderDetail.setStatus(OrderDetailStatusEnum.CANCELLED.name());
+                        }
+                        orderDetailEntityService.saveAllOrderDetailEntities(orderDetails);
+                        log.info("✅ Cancelled {} order details for order {}", orderDetails.size(), order.getOrderCode());
+                    }
+                } catch (Exception e) {
+                    log.error("❌ Failed to cancel order details for order {}: {}", order.getId(), e.getMessage());
+                }
 
                 // Send WebSocket notification to customer
                 try {

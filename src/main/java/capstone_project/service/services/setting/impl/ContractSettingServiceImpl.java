@@ -99,6 +99,19 @@ public class ContractSettingServiceImpl implements ContractSettingService {
     }
 
     @Override
+    public ContractSettingResponse getLatestContractSetting() {
+        List<ContractSettingEntity> allSettings = contractSettingEntityService.findAll();
+        if (allSettings.isEmpty()) {
+            return null;
+        }
+        
+        // Return the first setting (assuming there's only one active setting)
+        // Or you could return the one with the most recent creation date
+        ContractSettingEntity latestSetting = allSettings.get(0);
+        return contractSettingMapper.toContractSettingResponse(latestSetting);
+    }
+
+    @Override
     public void deleteContractSetting(UUID id) {
 
     }

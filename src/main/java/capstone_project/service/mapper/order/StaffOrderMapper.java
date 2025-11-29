@@ -272,7 +272,8 @@ public class StaffOrderMapper {
                             vehicleEntity.getManufacturer(),
                             vehicleEntity.getModel(),
                             vehicleEntity.getLicensePlateNumber(),
-                            vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null
+                            vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null,
+                            vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getDescription() : null
                     );
                 } else {
                     log.warn("Vehicle entity not found for ID: {}", vehicleId);

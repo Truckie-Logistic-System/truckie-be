@@ -50,6 +50,34 @@ public class NotificationWebSocketService {
     }
 
     /**
+     * Send lightweight notification update signal to driver
+     * Uses driver-specific topic to match mobile app subscription
+     * @param driverId Driver ID (not user ID)
+     * @param action Action type (NEW, READ, READ_ALL)
+     */
+    public void sendDriverNotificationUpdateSignal(UUID driverId, String action) {
+        try {
+            // Create lightweight signal payload (~30 bytes vs 500+ bytes)
+            Map<String, Object> signal = new HashMap<>();
+            signal.put("type", "NOTIFICATION_UPDATE");
+            signal.put("action", action);
+            signal.put("timestamp", Instant.now().toString());
+            
+            // Send to specific driver topic (matches mobile app subscription)
+            messagingTemplate.convertAndSend(
+                "/topic/driver/" + driverId + "/notifications",
+                signal
+            );
+            
+            log.info("✅ [NotificationWebSocket] Sent notification signal to driver {}: {}", 
+                    driverId, action);
+                    
+        } catch (Exception e) {
+            log.error("❌ [NotificationWebSocket] Failed to send notification signal to driver: {}", driverId, e);
+        }
+    }
+
+    /**
      * Send detailed notification to specific user (kept for mobile push notifications)
      * @param userId User ID
      * @param notificationType Type of notification

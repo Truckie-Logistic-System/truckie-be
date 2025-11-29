@@ -39,6 +39,7 @@ import capstone_project.service.mapper.order.ContractMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
+import capstone_project.service.services.setting.ContractSettingService;
 import capstone_project.service.services.user.DistanceService;
 import capstone_project.service.services.map.VietMapDistanceService;
 import capstone_project.service.services.pricing.UnifiedPricingService;
@@ -78,6 +79,8 @@ public class ContractServiceImpl implements ContractService {
     private final OrderStatusWebSocketService orderStatusWebSocketService;
     private final UnifiedPricingService unifiedPricingService;
     private final InsuranceCalculationService insuranceCalculationService;
+    private final ContractSettingService contractSettingService;
+    private final capstone_project.repository.entityServices.auth.UserEntityService userEntityService; // For staff notifications
     
     private capstone_project.service.services.pdf.PdfGenerationService pdfGenerationService;
 
@@ -105,8 +108,10 @@ public class ContractServiceImpl implements ContractService {
             OrderStatusWebSocketService orderStatusWebSocketService,
             UnifiedPricingService unifiedPricingService,
             InsuranceCalculationService insuranceCalculationService,
+            ContractSettingService contractSettingService,
             ContractMapper contractMapper,
-            UserEntityServiceImpl userEntityServiceImpl
+            UserEntityServiceImpl userEntityServiceImpl,
+            capstone_project.repository.entityServices.auth.UserEntityService userEntityService
     ) {
         this.contractEntityService = contractEntityService;
         this.contractRuleEntityService = contractRuleEntityService;
@@ -125,8 +130,10 @@ public class ContractServiceImpl implements ContractService {
         this.orderStatusWebSocketService = orderStatusWebSocketService;
         this.unifiedPricingService = unifiedPricingService;
         this.insuranceCalculationService = insuranceCalculationService;
+        this.contractSettingService = contractSettingService;
         this.contractMapper = contractMapper;
         this.userEntityServiceImpl = userEntityServiceImpl;
+        this.userEntityService = userEntityService;
     }
 
     @Autowired
@@ -160,6 +167,17 @@ public class ContractServiceImpl implements ContractService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
         return contractMapper.toContractResponse(contractEntity);
+    }
+
+    /**
+     * Get effective contract value - prioritize adjustedValue if > 0, otherwise use totalValue
+     * This ensures notifications show the correct payment amounts
+     */
+    private double getEffectiveContractValue(ContractEntity contract) {
+        if (contract.getAdjustedValue() != null && contract.getAdjustedValue().doubleValue() > 0) {
+            return contract.getAdjustedValue().doubleValue();
+        }
+        return contract.getTotalValue() != null ? contract.getTotalValue().doubleValue() : 0.0;
     }
 
     @Override
@@ -206,10 +224,28 @@ public class ContractServiceImpl implements ContractService {
         
         // Create notification for contract ready
         try {
-            // ContractEntity doesn't have code/depositValue, using contractName and totalValue
+            // Get order details for package information
+            List<OrderDetailEntity> orderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(order.getId());
+            
+            // Calculate deposit amount using contract settings
+            double totalAmount = getEffectiveContractValue(savedContract);
+            double depositAmount = 0.0;
+            
+            try {
+                var contractSetting = contractSettingService.getLatestContractSetting();
+                if (contractSetting != null && contractSetting.depositPercent() != null) {
+                    // Use effective contract value (adjustedValue prioritized over totalValue)
+                    double baseValue = getEffectiveContractValue(savedContract);
+                    depositAmount = baseValue * contractSetting.depositPercent().doubleValue() / 100.0;
+                }
+            } catch (Exception e) {
+                log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+                // Fallback to 30% if contract setting fails
+                double baseValue = getEffectiveContractValue(savedContract);
+                depositAmount = baseValue * 0.1;
+            }
+            
             String contractCode = savedContract.getContractName() != null ? savedContract.getContractName() : "HĐ-" + order.getOrderCode();
-            double depositAmount = 0.0; // Will be set by contract rules later
-            double totalAmount = savedContract.getTotalValue() != null ? savedContract.getTotalValue().doubleValue() : 0.0;
             
             CreateNotificationRequest notificationRequest = NotificationBuilder.buildContractReady(
                 order.getSender().getUser().getId(),
@@ -219,12 +255,13 @@ public class ContractServiceImpl implements ContractService {
                 totalAmount,
                 savedContract.getSigningDeadline(),
                 savedContract.getDepositPaymentDeadline(),
+                orderDetails,
                 order.getId(),
                 savedContract.getId()
             );
             
             notificationService.createNotification(notificationRequest);
-            log.info("✅ Created CONTRACT_READY notification for order: {}", order.getOrderCode());
+            log.info("✅ Created CONTRACT_READY notification for order: {} with deposit: {}", order.getOrderCode(), depositAmount);
         } catch (Exception e) {
             log.error("❌ Failed to create CONTRACT_READY notification: {}", e.getMessage());
         }
@@ -336,6 +373,47 @@ public class ContractServiceImpl implements ContractService {
         
         ContractEntity updatedContract = contractEntityService.save(savedContract);
 
+        // Create notifications when customer agrees to vehicle proposal via /contracts/both endpoint
+        try {
+            // Get order details for package information
+            List<OrderDetailEntity> orderDetails = order.getOrderDetailEntities() != null ? 
+                order.getOrderDetailEntities() : new ArrayList<>();
+            
+            // Notification 1: Customer - ORDER_PROCESSING (Email: NO) with full package details
+            CreateNotificationRequest customerNotification = NotificationBuilder.buildOrderProcessing(
+                order.getSender().getUser().getId(),
+                order.getOrderCode(),
+                orderDetails,
+                order.getId()
+            );
+            notificationService.createNotification(customerNotification);
+            log.info("✅ Created ORDER_PROCESSING notification for customer in order: {}", order.getOrderCode());
+            
+            // Notification 2: All Staff - STAFF_ORDER_PROCESSING with full package details
+            String customerName = order.getSender().getRepresentativeName() != null ?
+                order.getSender().getRepresentativeName() : order.getSender().getUser().getUsername();
+            String customerPhone = order.getSender().getRepresentativePhone() != null ?
+                order.getSender().getRepresentativePhone() : "N/A";
+            
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            for (var staff : staffUsers) {
+                CreateNotificationRequest staffNotification = NotificationBuilder.buildStaffOrderProcessing(
+                    staff.getId(),
+                    order.getOrderCode(),
+                    customerName,
+                    customerPhone,
+                    orderDetails,
+                    order.getId()
+                );
+                notificationService.createNotification(staffNotification);
+            }
+            log.info("✅ Created STAFF_ORDER_PROCESSING notifications for {} staff users", staffUsers.size());
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to create contract notifications: {}", e.getMessage());
+            // Don't throw - notification failure shouldn't break contract creation
+        }
+
         return contractMapper.toContractResponse(updatedContract);
     }
 
@@ -386,6 +464,34 @@ public class ContractServiceImpl implements ContractService {
         setContractDeadlines(contractEntity, order);
 
         ContractEntity savedContract = contractEntityService.save(contractEntity);
+
+        // Create CONTRACT_READY notification for customer with email
+        try {
+            String contractCode = savedContract.getContractName() != null ? savedContract.getContractName() : "HĐ-" + order.getOrderCode();
+            double depositAmount = 0.0; // Will be set by contract rules later
+            double totalAmount = getEffectiveContractValue(savedContract);
+            
+            log.info("🔍 Creating CONTRACT_READY notification for order: {} with contract: {}", 
+                order.getOrderCode(), contractCode);
+            
+            CreateNotificationRequest notificationRequest = NotificationBuilder.buildContractReady(
+                order.getSender().getUser().getId(),
+                order.getOrderCode(),
+                contractCode,
+                depositAmount,
+                totalAmount,
+                savedContract.getSigningDeadline(),
+                savedContract.getDepositPaymentDeadline(),
+                order.getId(),
+                savedContract.getId()
+            );
+            
+            notificationService.createNotification(notificationRequest);
+            log.info("✅ Created CONTRACT_READY notification for order: {}", order.getOrderCode());
+        } catch (Exception e) {
+            log.error("❌ Failed to create CONTRACT_READY notification: {}", e.getMessage());
+            // Don't throw - notification failure shouldn't break contract creation
+        }
 
         List<ContractRuleAssignResponse> assignments = assignVehiclesWithAvailability(orderUuid);
 
@@ -1199,6 +1305,14 @@ public class ContractServiceImpl implements ContractService {
             contract.setExpirationDate(request.expirationDate());
             contract.setAdjustedValue(request.adjustedValue());
             contract.setDescription(request.description());
+            
+            // Calculate total price for the contract
+            PriceCalculationResponse totalPriceResponse = calculateTotalPrice(contract, distanceKm, vehicleCountMap);
+            BigDecimal grandTotal = totalPriceResponse.getGrandTotal();
+            contract.setTotalValue(grandTotal);
+            
+            // Set contract deadlines properly
+            setContractDeadlines(contract, order);
 
             // Set staff user ID from current authenticated user
             UUID staffUserId = userContextUtils.getCurrentUserId();
@@ -1223,6 +1337,55 @@ public class ContractServiceImpl implements ContractService {
                 );
             } catch (Exception e) {
                 log.error("Failed to send WebSocket notification: {}", e.getMessage());
+            }
+
+            // Create CONTRACT_READY notification for customer when staff generates contract PDF
+            try {
+                // Get order details for package information
+                List<OrderDetailEntity> orderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(order.getId());
+                
+                String contractCode = updated.getContractName() != null ? updated.getContractName() : "HĐ-" + order.getOrderCode();
+                
+                // Get totalAmount from effective contract value (prioritizes adjustedValue over totalValue)
+                double totalAmount = getEffectiveContractValue(updated);
+                double depositAmount = 0.0;
+                
+                // Calculate deposit amount using contract settings
+                try {
+                    var contractSetting = contractSettingService.getLatestContractSetting();
+                    if (contractSetting != null && contractSetting.depositPercent() != null) {
+                        depositAmount = totalAmount * contractSetting.depositPercent().doubleValue() / 100.0;
+                    } else {
+                        // Fallback to 30% if no contract setting found
+                        depositAmount = totalAmount * 0.1;
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+                    // Fallback to 30% if contract setting fails
+                    depositAmount = totalAmount * 0.1;
+                }
+                
+                log.info("📋 Contract notification - totalAmount: {}, depositAmount: {}, signingDeadline: {}, fullPaymentDeadline: {}",
+                    totalAmount, depositAmount, updated.getSigningDeadline(), updated.getFullPaymentDeadline());
+                
+                CreateNotificationRequest notificationRequest = NotificationBuilder.buildContractReady(
+                    order.getSender().getUser().getId(),
+                    order.getOrderCode(),
+                    contractCode,
+                    depositAmount,
+                    totalAmount,
+                    updated.getSigningDeadline(),  // Use contract's signingDeadline (24h from now)
+                    updated.getDepositPaymentDeadline(),  // Will be set after signing
+                    orderDetails,
+                    order.getId(),
+                    updated.getId()
+                );
+                
+                notificationService.createNotification(notificationRequest);
+                log.info("✅ Created CONTRACT_READY notification for customer when staff generated PDF: {} with deposit: {}", order.getOrderCode(), depositAmount);
+            } catch (Exception e) {
+                log.error("❌ Failed to create CONTRACT_READY notification for PDF generation: {}", e.getMessage());
+                // Don't throw - notification failure shouldn't break PDF generation
             }
 
             log.info("[ContractService] PDF generated and saved successfully for contract: {}", request.contractId());

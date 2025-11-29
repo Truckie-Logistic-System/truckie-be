@@ -315,6 +315,23 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
                                 ? vehicleAssignment.getDriver1().getUser().getPhoneNumber() : "";
                             String vehiclePlate = vehicleAssignment.getVehicleEntity() != null 
                                 ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "";
+                            
+                            // Get category description
+                            String categoryDescription = "Hàng hóa";
+                            if (order.getCategory() != null && order.getCategory().getDescription() != null) {
+                                categoryDescription = order.getCategory().getDescription();
+                            } else if (order.getCategory() != null && order.getCategory().getCategoryName() != null) {
+                                categoryDescription = order.getCategory().getCategoryName().name();
+                            }
+                            
+                            // Get vehicle type description
+                            String vehicleTypeDescription = "N/A";
+                            if (vehicleAssignment.getVehicleEntity() != null && 
+                                vehicleAssignment.getVehicleEntity().getVehicleTypeEntity() != null) {
+                                vehicleTypeDescription = vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() != null 
+                                    ? vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() 
+                                    : vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getVehicleTypeName();
+                            }
                                 
                             notificationService.createNotification(NotificationBuilder.buildPickingUpStarted(
                                 order.getSender().getUser().getId(),
@@ -322,7 +339,9 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
                                 driverName,
                                 driverPhone,
                                 vehiclePlate,
-                                totalPackageCount,
+                                allDetails,
+                                categoryDescription,
+                                vehicleTypeDescription,
                                 order.getId(),
                                 vehicleAssignment.getId()
                             ));
@@ -338,14 +357,33 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
                                 ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "";
                             String deliveryLocation = order.getDeliveryAddress() != null 
                                 ? order.getDeliveryAddress().getStreet() : "điểm giao hàng";
+                            
+                            // Get category description
+                            String categoryDescription = "Hàng hóa";
+                            if (order.getCategory() != null && order.getCategory().getDescription() != null) {
+                                categoryDescription = order.getCategory().getDescription();
+                            } else if (order.getCategory() != null && order.getCategory().getCategoryName() != null) {
+                                categoryDescription = order.getCategory().getCategoryName().name();
+                            }
+                            
+                            // Get vehicle type description
+                            String vehicleTypeDescription = "N/A";
+                            if (vehicleAssignment.getVehicleEntity() != null && 
+                                vehicleAssignment.getVehicleEntity().getVehicleTypeEntity() != null) {
+                                vehicleTypeDescription = vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() != null 
+                                    ? vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() 
+                                    : vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getVehicleTypeName();
+                            }
                                 
                             notificationService.createNotification(NotificationBuilder.buildDeliveryStarted(
                                 order.getSender().getUser().getId(),
                                 order.getOrderCode(),
                                 driverName,
                                 vehiclePlate,
-                                totalPackageCount,
+                                allDetails,
+                                categoryDescription,
                                 deliveryLocation,
+                                vehicleTypeDescription,
                                 order.getId(),
                                 vehicleAssignment.getId()
                             ));
@@ -361,14 +399,33 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
                                 ? vehicleAssignment.getDriver1().getUser().getPhoneNumber() : "";
                             String deliveryLocation = order.getDeliveryAddress() != null 
                                 ? order.getDeliveryAddress().getStreet() : "điểm giao hàng";
+                            
+                            // Get category description
+                            String categoryDescription = "Hàng hóa";
+                            if (order.getCategory() != null && order.getCategory().getDescription() != null) {
+                                categoryDescription = order.getCategory().getDescription();
+                            } else if (order.getCategory() != null && order.getCategory().getCategoryName() != null) {
+                                categoryDescription = order.getCategory().getCategoryName().name();
+                            }
+                            
+                            // Get vehicle type description
+                            String vehicleTypeDescription = "N/A";
+                            if (vehicleAssignment.getVehicleEntity() != null && 
+                                vehicleAssignment.getVehicleEntity().getVehicleTypeEntity() != null) {
+                                vehicleTypeDescription = vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() != null 
+                                    ? vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() 
+                                    : vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getVehicleTypeName();
+                            }
                                 
                             notificationService.createNotification(NotificationBuilder.buildDeliveryInProgress(
                                 order.getSender().getUser().getId(),
                                 order.getOrderCode(),
                                 driverName,
                                 driverPhone,
-                                totalPackageCount,
+                                allDetails,
+                                categoryDescription,
                                 deliveryLocation,
+                                vehicleTypeDescription,
                                 order.getId(),
                                 vehicleAssignment.getId()
                             ));

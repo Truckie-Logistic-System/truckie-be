@@ -158,6 +158,7 @@ public class SecurityConfigurer {
                     "/api/v1/transactions/stripe/webhook/**",
                     "/api/v1/transactions/pay-os/webhook",
                     "/api/v1/transactions/pay-os/webhook/**",
+                    "/api/payos-transaction/webhook", // Fix: Add actual PayOS webhook path
                     "/api/v1/transactions/pay-os/callback",
                     "/api/v1/transactions/pay-os/callback/**",
                     "/api/v1/transactions/pay-os/cancel",

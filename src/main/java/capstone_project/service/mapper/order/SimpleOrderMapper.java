@@ -168,6 +168,7 @@ public class SimpleOrderMapper {
                 response.sender().getRepresentativePhone(),
                 response.sender().getCompanyName(),
                 response.category().categoryName().name(),
+                response.category().description(), // Add category description
                 simpleOrderDetails,
                 vehicleAssignments  // Add aggregated vehicle assignments
         );
@@ -194,7 +195,8 @@ public class SimpleOrderMapper {
                         vehicleEntity.getManufacturer(),
                         vehicleEntity.getModel(),
                         vehicleEntity.getLicensePlateNumber(),
-                        vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null
+                        vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null,
+                        vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getDescription() : null
                 );
             }
         } catch (Exception ignored) {

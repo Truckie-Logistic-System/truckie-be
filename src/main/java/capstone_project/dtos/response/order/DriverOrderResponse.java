@@ -21,6 +21,7 @@ public record DriverOrderResponse(
         String senderPhone,
         String senderCompanyName,
         String categoryName,
+        String categoryDescription, // Category description from backend
         List<SimpleOrderDetailResponse> orderDetails,
         List<SimpleVehicleAssignmentResponse> vehicleAssignments
 ) {}

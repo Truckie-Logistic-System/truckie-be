@@ -347,7 +347,12 @@
                 
                 <!-- Order Info Table -->
                 <div th:if="${notification.relatedOrderId}" class="info-card">
-                    <div class="info-card-title">Thông tin đơn hàng</div>
+                    <div class="info-card-title">
+                        Thông tin đơn hàng
+                        <span th:if="${metadata['categoryDescription'] != null}" style="font-size: 12px; font-weight: normal; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; margin-left: 8px;">
+                            (<span th:text="${metadata['categoryDescription']}"></span>)
+                        </span>
+                    </div>
                     
                     <!-- Order Summary Table -->
                     <table class="package-table" style="margin-bottom: 20px;">
@@ -367,8 +372,8 @@
                             </tr>
                             <!-- Fallback: Display summary row if no packages array -->
                             <tr th:if="${metadata['packages'] == null}">
-                                <td th:text="${metadata['orderCode'] ?: 'Không có'}">ORD-001</td>
-                                <td th:text="${metadata['packageDescription'] ?: '-'}">Hàng điện tử</td>
+                                <td th:text="${metadata['trackingCode'] ?: 'Tổng quan'}">Tổng quan</td>
+                                <td th:text="${metadata['categoryDescription'] ?: (metadata['packageDescription'] ?: 'Chi tiết kiện hàng')}">Hàng điện tử</td>
                                 <td th:text="${metadata['totalWeight'] ?: '-'}">4.00 kg</td>
                             </tr>
                         </tbody>
@@ -377,6 +382,41 @@
                     <!-- Total summary -->
                     <div th:if="${metadata['packages'] != null and metadata['packages'].size() > 1}" style="margin-top: 10px; text-align: right; font-size: 13px; color: #64748b;">
                         <span>Tổng: <strong th:text="${metadata['packageCount']}">2</strong> kiện - <strong th:text="${metadata['totalWeight']}">10.00 kg</strong></span>
+                    </div>
+                    
+                    <!-- Contract Information (for CONTRACT_READY notifications) -->
+                    <div th:if="${metadata['contractCode'] != null}" style="margin-top: 20px; padding: 15px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+                        <div style="font-size: 14px; font-weight: 600; color: #0369a1; margin-bottom: 10px;">📋 Thông tin hợp đồng</div>
+                        <table style="width: 100%; font-size: 13px;">
+                            <tr>
+                                <td style="padding: 5px 0; color: #64748b; width: 40%;">Mã hợp đồng:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #1e293b;" th:text="${metadata['contractCode']}">HĐ-ORD-001</td>
+                            </tr>
+                            <tr th:if="${metadata['depositAmount'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Tiền cọc cần thanh toán:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #dc2626;" th:text="${metadata['depositAmount']}">3,000,000 VNĐ</td>
+                            </tr>
+                            <tr th:if="${metadata['totalAmount'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Tổng giá trị hợp đồng:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #1e293b;" th:text="${metadata['totalAmount']}">10,000,000 VNĐ</td>
+                            </tr>
+                            <tr th:if="${metadata['signDeadline'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Hạn ký hợp đồng:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #dc2626;" th:text="${metadata['signDeadline']}">28/11/2025 14:30</td>
+                            </tr>
+                            <tr th:if="${metadata['signDeadlineInfo'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Lưu ý:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #dc2626;" th:text="${metadata['signDeadlineInfo']}">24 giờ để ký hợp đồng kể từ khi tạo</td>
+                            </tr>
+                            <tr th:if="${metadata['depositDeadline'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Hạn thanh toán cọc:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #dc2626;" th:text="${metadata['depositDeadline']}">29/11/2025 14:30</td>
+                            </tr>
+                            <tr th:if="${metadata['depositDeadlineInfo'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Lưu ý:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #dc2626;" th:text="${metadata['depositDeadlineInfo']}">24 giờ để thanh toán cọc từ khi ký hợp đồng</td>
+                            </tr>
+                        </table>
                     </div>
                     
                     <!-- Additional Info -->

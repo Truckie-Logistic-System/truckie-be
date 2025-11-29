@@ -22,7 +22,18 @@ import java.util.UUID;
  */
 public class NotificationBuilder {
     
+    private static final java.time.ZoneId VIETNAM_ZONE = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    
+    /**
+     * Convert LocalDateTime to Vietnam timezone for display
+     */
+    private static String formatWithVietnamTimezone(LocalDateTime dateTime) {
+        if (dateTime == null) return "";
+        return dateTime.atZone(java.time.ZoneId.systemDefault())
+                .withZoneSameInstant(VIETNAM_ZONE)
+                .format(DATE_FORMATTER);
+    }
     
     /**
      * Tạo package metadata với thông tin chi tiết cho email
@@ -35,12 +46,15 @@ public class NotificationBuilder {
             packageInfo.put("description", od.getDescription());
             if (od.getWeightBaseUnit() != null) {
                 packageInfo.put("weightBaseUnit", od.getWeightBaseUnit().doubleValue());
-                packageInfo.put("weight", String.format("%.1f %s", od.getWeightBaseUnit(), od.getUnit() != null ? od.getUnit() : "kg"));
+                packageInfo.put("unit", od.getUnit() != null ? od.getUnit() : "Kiện");
+                packageInfo.put("weight", String.format("%.2f %s", 
+                    od.getWeightBaseUnit().doubleValue(), 
+                    od.getUnit() != null ? od.getUnit() : "Kiện"));
             } else {
                 packageInfo.put("weight", "N/A");
                 packageInfo.put("weightBaseUnit", 0.0);
+                packageInfo.put("unit", "Kiện");
             }
-            packageInfo.put("unit", od.getUnit() != null ? od.getUnit() : "kg");
             packages.add(packageInfo);
         }
         return packages;
@@ -54,7 +68,7 @@ public class NotificationBuilder {
         for (int i = 0; i < orderDetails.size(); i++) {
             OrderDetailEntity od = orderDetails.get(i);
             String weight = od.getWeightBaseUnit() != null ? 
-                String.format("%.1f %s", od.getWeightBaseUnit(), od.getUnit() != null ? od.getUnit() : "kg") : "N/A";
+                String.format("%.2f %s", od.getWeightBaseUnit(), od.getUnit() != null ? od.getUnit() : "Kiện") : "N/A";
             sb.append(String.format("• %s - %s (%s)", 
                 od.getTrackingCode(), 
                 od.getDescription(), 
@@ -82,7 +96,7 @@ public class NotificationBuilder {
         metadata.put("orderCode", orderCode);
         metadata.put("packageCount", orderDetails.size());
         
-        // Calculate total weight
+        // Calculate total weight with proper units
         double totalWeight = orderDetails.stream()
             .filter(detail -> detail.getWeightBaseUnit() != null)
             .mapToDouble(detail -> detail.getWeightBaseUnit().doubleValue())
@@ -92,7 +106,7 @@ public class NotificationBuilder {
             .filter(detail -> detail.getUnit() != null && !detail.getUnit().isEmpty())
             .map(OrderDetailEntity::getUnit)
             .findFirst()
-            .orElse("kg");
+            .orElse("Kiện");
         
         metadata.put("totalWeight", String.format("%.2f %s", totalWeight, weightUnit));
         
@@ -145,6 +159,147 @@ public class NotificationBuilder {
     }
     
     /**
+     * ORDER_PROCESSING - Đơn hàng đang được xử lý (cho Customer)
+     * Sent when customer agrees to vehicle proposal and order moves to PROCESSING
+     */
+    public static CreateNotificationRequest buildOrderProcessing(
+        UUID userId,
+        String orderCode,
+        int packageCount,
+        UUID orderId
+    ) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("orderCode", orderCode);
+        metadata.put("packageCount", packageCount);
+        
+        return CreateNotificationRequest.builder()
+            .userId(userId)
+            .recipientRole("CUSTOMER")
+            .title(String.format("Đơn hàng %s đang được xử lý", orderCode))
+            .description("Cảm ơn bạn đã đồng ý với đề xuất xe hàng. Đơn hàng của bạn đang được xử lý và chúng tôi sẽ sớm gửi hợp đồng vận chuyển. Vui lòng chờ thông báo tiếp theo.")
+            .notificationType(NotificationTypeEnum.ORDER_PROCESSING)
+            .relatedOrderId(orderId)
+            .metadata(metadata)
+            .build();
+    }
+    
+    /**
+     * CONTRACT_READY - Hợp đồng đã sẵn sàng để ký
+     * Version with full package details and proper deadline calculations
+     */
+    public static CreateNotificationRequest buildContractReady(
+        UUID userId,
+        String orderCode,
+        String contractCode,
+        double depositAmount,
+        double totalAmount,
+        LocalDateTime signDeadline,
+        LocalDateTime depositDeadline,
+        List<OrderDetailEntity> orderDetails,
+        UUID orderId,
+        UUID contractId
+    ) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("contractCode", contractCode);
+        metadata.put("depositAmount", String.format("%,.0f VNĐ", depositAmount));
+        metadata.put("totalAmount", String.format("%,.0f VNĐ", totalAmount));
+        
+        // Format deadlines with Vietnam timezone
+        if (signDeadline != null) {
+            metadata.put("signDeadline", formatWithVietnamTimezone(signDeadline));
+            metadata.put("signDeadlineInfo", "24 giờ để ký hợp đồng kể từ khi tạo");
+        }
+        if (depositDeadline != null) {
+            metadata.put("depositDeadline", formatWithVietnamTimezone(depositDeadline));
+            metadata.put("depositDeadlineInfo", "24 giờ để thanh toán cọc từ khi ký hợp đồng");
+        } else {
+            // depositDeadline will be set after signing, show info message
+            metadata.put("depositDeadlineInfo", "24 giờ để thanh toán cọc từ khi ký hợp đồng");
+        }
+        
+        // Add complete package information
+        metadata.put("packageCount", orderDetails.size());
+        
+        // Calculate total weight
+        double totalWeight = orderDetails.stream()
+            .filter(detail -> detail.getWeightBaseUnit() != null)
+            .mapToDouble(detail -> detail.getWeightBaseUnit().doubleValue())
+            .sum();
+        
+        String weightUnit = orderDetails.stream()
+            .filter(detail -> detail.getUnit() != null && !detail.getUnit().isEmpty())
+            .map(OrderDetailEntity::getUnit)
+            .findFirst()
+            .orElse("kg");
+        
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, weightUnit));
+        
+        // Add packages as separate items in metadata for frontend display
+        List<Map<String, Object>> packages = createPackageMetadata(orderDetails);
+        metadata.put("packages", packages);
+        
+        String description = String.format(
+            "Hợp đồng vận chuyển cho đơn hàng %s đã được tạo. Vui lòng ký hợp đồng trước %s và thanh toán tiền cọc %,.0f VNĐ.%n⚠️ Lưu ý: Đơn hàng sẽ tự động hủy nếu quá thời hạn.",
+            orderCode,
+            signDeadline != null ? formatWithVietnamTimezone(signDeadline) : "hạn chót",
+            depositAmount
+        );
+        
+        return CreateNotificationRequest.builder()
+            .userId(userId)
+            .recipientRole("CUSTOMER")
+            .title(String.format("Hợp đồng %s sẵn sàng ký", contractCode))
+            .description(description)
+            .notificationType(NotificationTypeEnum.CONTRACT_READY)
+            .relatedOrderId(orderId)
+            .relatedContractId(contractId)
+            .metadata(metadata)
+            .build();
+    }
+    
+    /**
+     * ORDER_PROCESSING - Đơn hàng đang được xử lý (cho Customer)
+     * Version with full package details
+     */
+    public static CreateNotificationRequest buildOrderProcessing(
+        UUID userId,
+        String orderCode,
+        List<OrderDetailEntity> orderDetails,
+        UUID orderId
+    ) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("packageCount", orderDetails.size());
+        
+        // Calculate total weight
+        double totalWeight = orderDetails.stream()
+            .filter(detail -> detail.getWeightBaseUnit() != null)
+            .mapToDouble(detail -> detail.getWeightBaseUnit().doubleValue())
+            .sum();
+        
+        String weightUnit = orderDetails.stream()
+            .filter(detail -> detail.getUnit() != null && !detail.getUnit().isEmpty())
+            .map(OrderDetailEntity::getUnit)
+            .findFirst()
+            .orElse("kg");
+        
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, weightUnit));
+        
+        // Add packages as separate items in metadata for frontend display
+        List<Map<String, Object>> packages = createPackageMetadata(orderDetails);
+        metadata.put("packages", packages);
+        
+        return CreateNotificationRequest.builder()
+            .userId(userId)
+            .recipientRole("CUSTOMER")
+            .title(String.format("Đơn hàng %s đang được xử lý", orderCode))
+            .description("Cảm ơn bạn đã đồng ý với đề xuất xe hàng. Đơn hàng của bạn đang được xử lý và chúng tôi sẽ sớm gửi hợp đồng vận chuyển. Vui lòng chờ thông báo tiếp theo.")
+            .notificationType(NotificationTypeEnum.ORDER_PROCESSING)
+            .relatedOrderId(orderId)
+            .metadata(metadata)
+            .build();
+    }
+    
+    /**
      * CONTRACT_READY - Hợp đồng đã sẵn sàng để ký
      */
     public static CreateNotificationRequest buildContractReady(
@@ -190,7 +345,85 @@ public class NotificationBuilder {
     }
     
     /**
+     * CONTRACT_SIGNED - Hợp đồng đã được ký thành công (cho Customer - Email: NO)
+     */
+    public static CreateNotificationRequest buildContractSigned(
+        UUID userId,
+        String orderCode,
+        String contractCode,
+        double depositAmount,
+        LocalDateTime depositDeadline,
+        UUID orderId,
+        UUID contractId
+    ) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("contractCode", contractCode);
+        metadata.put("orderCode", orderCode);
+        metadata.put("depositAmount", String.format("%,.0f VNĐ", depositAmount));
+        if (depositDeadline != null) {
+            metadata.put("depositDeadline", depositDeadline.format(DATE_FORMATTER));
+        }
+        
+        String description = String.format(
+            "Bạn đã ký hợp đồng vận chuyển cho đơn hàng %s thành công. Vui lòng thanh toán tiền cọc %,.0f VNĐ trước %s để tiếp tục quy trình vận chuyển.",
+            orderCode,
+            depositAmount,
+            depositDeadline != null ? depositDeadline.format(DATE_FORMATTER) : "hạn thanh toán"
+        );
+        
+        return CreateNotificationRequest.builder()
+            .userId(userId)
+            .recipientRole("CUSTOMER")
+            .title(String.format("Đã ký hợp đồng %s thành công", contractCode))
+            .description(description)
+            .notificationType(NotificationTypeEnum.CONTRACT_SIGNED)
+            .relatedOrderId(orderId)
+            .relatedContractId(contractId)
+            .metadata(metadata)
+            .build();
+    }
+    
+    /**
+     * PAYMENT_DEPOSIT_SUCCESS - Thanh toán cọc thành công (cho Customer - Email: NO)
+     */
+    public static CreateNotificationRequest buildPaymentDepositSuccess(
+        UUID userId,
+        String orderCode,
+        String contractCode,
+        double depositAmount,
+        double totalAmount,
+        UUID orderId,
+        UUID contractId
+    ) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("contractCode", contractCode);
+        metadata.put("orderCode", orderCode);
+        metadata.put("depositAmount", String.format("%,.0f VNĐ", depositAmount));
+        metadata.put("totalAmount", String.format("%,.0f VNĐ", totalAmount));
+        metadata.put("remainingAmount", String.format("%,.0f VNĐ", totalAmount - depositAmount));
+        
+        String description = String.format(
+            "Bạn đã thanh toán cọc %,.0f VNĐ cho đơn hàng %s thành công. Đơn hàng của bạn đang được lên lịch vận chuyển. Số tiền còn lại: %,.0f VNĐ.",
+            depositAmount,
+            orderCode,
+            totalAmount - depositAmount
+        );
+        
+        return CreateNotificationRequest.builder()
+            .userId(userId)
+            .recipientRole("CUSTOMER")
+            .title(String.format("Thanh toán cọc thành công - Đơn %s", orderCode))
+            .description(description)
+            .notificationType(NotificationTypeEnum.PAYMENT_DEPOSIT_SUCCESS)
+            .relatedOrderId(orderId)
+            .relatedContractId(contractId)
+            .metadata(metadata)
+            .build();
+    }
+    
+    /**
      * DRIVER_ASSIGNED - Đã phân công tài xế
+     * Updated to include package details with categoryDescription
      */
     public static CreateNotificationRequest buildDriverAssigned(
         UUID userId,
@@ -202,6 +435,8 @@ public class NotificationBuilder {
         double remainingAmount,
         LocalDateTime paymentDeadline,
         LocalDateTime estimatedPickupDate,
+        List<capstone_project.entity.order.order.OrderDetailEntity> orderDetails,
+        String categoryDescription,
         UUID orderId,
         UUID vehicleAssignmentId
     ) {
@@ -212,6 +447,7 @@ public class NotificationBuilder {
         metadata.put("vehiclePlate", vehiclePlate);
         metadata.put("vehicleType", vehicleType);
         metadata.put("remainingAmount", String.format("%,.0f VNĐ", remainingAmount));
+        metadata.put("categoryDescription", categoryDescription != null ? categoryDescription : "Hàng hóa");
         if (paymentDeadline != null) {
             metadata.put("paymentDeadline", paymentDeadline.format(DATE_FORMATTER));
         }
@@ -219,19 +455,55 @@ public class NotificationBuilder {
             metadata.put("estimatedPickupDate", estimatedPickupDate.format(DATE_FORMATTER));
         }
         
-        String description = String.format(
-            "Tài xế %s (%s) đã được phân công vận chuyển đơn hàng của bạn. Vui lòng thanh toán số tiền còn lại %,.0f VNĐ trước %s.",
+        // Add package details and categoryDescription to metadata
+        if (orderDetails != null && !orderDetails.isEmpty()) {
+            metadata.put("packageCount", orderDetails.size());
+            
+            // Add categoryDescription for email display
+            if (categoryDescription != null) {
+                metadata.put("categoryDescription", categoryDescription);
+            }
+            
+            // Calculate total weight with proper units
+            double totalWeight = orderDetails.stream()
+                .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+                .sum();
+            // Get unit from first detail (assuming all details have same unit for total)
+            String totalUnit = orderDetails.get(0).getUnit() != null ? orderDetails.get(0).getUnit() : "Kiện";
+            metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+            
+            // Build package details list with proper metadata structure
+            List<Map<String, Object>> packages = new ArrayList<>();
+            for (capstone_project.entity.order.order.OrderDetailEntity detail : orderDetails) {
+                Map<String, Object> packageInfo = new HashMap<>();
+                packageInfo.put("trackingCode", detail.getTrackingCode());
+                packageInfo.put("description", detail.getDescription() != null ? detail.getDescription() : categoryDescription);
+                packageInfo.put("weightBaseUnit", detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0);
+                packageInfo.put("unit", detail.getUnit() != null ? detail.getUnit() : "Kiện");
+                packageInfo.put("weight", String.format("%.2f %s", 
+                    detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0,
+                    detail.getUnit() != null ? detail.getUnit() : "Kiện"));
+                packages.add(packageInfo);
+            }
+            metadata.put("packageCount", packages.size());
+            metadata.put("packages", packages);
+        }
+        
+        // Build description without detailed package list
+        StringBuilder descriptionBuilder = new StringBuilder();
+        descriptionBuilder.append(String.format(
+            "Tài xế %s (%s) đã được phân công vận chuyển đơn hàng của bạn. Vui lòng thanh toán số tiền còn lại %,.0f VNĐ trước %s.%n",
             driverName,
             vehiclePlate,
             remainingAmount,
             paymentDeadline != null ? paymentDeadline.format(DATE_FORMATTER) : "hạn thanh toán"
-        );
+        ));
         
         return CreateNotificationRequest.builder()
             .userId(userId)
             .recipientRole("CUSTOMER")
             .title(String.format("Đã phân công tài xế cho đơn hàng %s", orderCode))
-            .description(description)
+            .description(descriptionBuilder.toString())
             .notificationType(NotificationTypeEnum.DRIVER_ASSIGNED)
             .relatedOrderId(orderId)
             .relatedVehicleAssignmentId(vehicleAssignmentId)
@@ -305,49 +577,70 @@ public class NotificationBuilder {
     
     /**
      * NEW_ORDER_ASSIGNED - Đơn hàng mới được phân công (cho Driver)
+     * Updated to show vehicle assignment tracking code, detailed package information, and category description
      */
     public static CreateNotificationRequest buildNewOrderAssigned(
         UUID userId,
         String orderCode,
-        int packageCount,
-        double totalWeight,
-        String weightUnit,
-        String packageDescription,
+        String vehicleAssignmentTrackingCode,
+        List<capstone_project.entity.order.order.OrderDetailEntity> orderDetails,
         String vehicleType,
         LocalDateTime pickupDate,
         String pickupLocation,
         String deliveryLocation,
+        String categoryDescription,
         UUID orderId,
         UUID vehicleAssignmentId
     ) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("orderCode", orderCode);
-        metadata.put("packageCount", packageCount);
-        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, weightUnit != null ? weightUnit : "kg"));
-        if (packageDescription != null && !packageDescription.trim().isEmpty()) {
-            metadata.put("packageDescription", packageDescription);
+        metadata.put("vehicleAssignmentTrackingCode", vehicleAssignmentTrackingCode);
+        metadata.put("packageCount", orderDetails.size());
+        metadata.put("categoryDescription", categoryDescription != null ? categoryDescription : "Hàng hóa");
+        
+        // Calculate total weight
+        double totalWeight = orderDetails.stream()
+            .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+            .sum();
+        metadata.put("totalWeight", String.format("%.2f kg", totalWeight));
+        
+        // Build package details list for email template
+        List<Map<String, Object>> packages = new ArrayList<>();
+        for (capstone_project.entity.order.order.OrderDetailEntity detail : orderDetails) {
+            Map<String, Object> packageInfo = new HashMap<>();
+            packageInfo.put("trackingCode", detail.getTrackingCode());
+            packageInfo.put("description", detail.getDescription() != null ? detail.getDescription() : categoryDescription);
+            packageInfo.put("weightBaseUnit", detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0);
+            packageInfo.put("unit", detail.getUnit() != null ? detail.getUnit() : "Kiện");
+            packageInfo.put("weight", String.format("%.2f %s", 
+                detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0,
+                detail.getUnit() != null ? detail.getUnit() : "Kiện"));
+            packages.add(packageInfo);
         }
-        metadata.put("vehicleType", vehicleType);
-        if (pickupDate != null) {
-            metadata.put("pickupDate", pickupDate.format(DATE_FORMATTER));
-        }
+        metadata.put("packageCount", packages.size());
+        metadata.put("packages", packages);
         metadata.put("pickupLocation", pickupLocation);
         metadata.put("deliveryLocation", deliveryLocation);
         
-        String description = String.format(
-            "Bạn được phân công vận chuyển đơn hàng %s với %d kiện hàng. Ngày lấy hàng dự kiến: %s.%n📍 Lấy: %s%n📍 Giao: %s",
-            orderCode,
-            packageCount,
+        // Build description without detailed package list
+        StringBuilder descriptionBuilder = new StringBuilder();
+        descriptionBuilder.append(String.format(
+            "Bạn được phân công vận chuyển đơn hàng %s (Mã vận chuyển: %s) với %d kiện hàng.%n",
+            orderCode, vehicleAssignmentTrackingCode, orderDetails.size()
+        ));
+        
+        descriptionBuilder.append(String.format(
+            "%n📅 Ngày lấy hàng: %s%n📍 Lấy: %s%n📍 Giao: %s",
             pickupDate != null ? pickupDate.format(DATE_FORMATTER) : "Chưa xác định",
             pickupLocation,
             deliveryLocation
-        );
+        ));
         
         return CreateNotificationRequest.builder()
             .userId(userId)
             .recipientRole("DRIVER")
             .title(String.format("Đơn hàng mới %s - %s", orderCode, vehicleType))
-            .description(description)
+            .description(descriptionBuilder.toString())
             .notificationType(NotificationTypeEnum.NEW_ORDER_ASSIGNED)
             .relatedOrderId(orderId)
             .relatedVehicleAssignmentId(vehicleAssignmentId)
@@ -366,7 +659,9 @@ public class NotificationBuilder {
         String driverName,
         String driverPhone,
         String vehiclePlate,
-        int packageCount,
+        List<capstone_project.entity.order.order.OrderDetailEntity> orderDetails,
+        String categoryDescription,
+        String vehicleTypeDescription,
         UUID orderId,
         UUID vehicleAssignmentId
     ) {
@@ -375,13 +670,41 @@ public class NotificationBuilder {
         metadata.put("driverName", driverName);
         metadata.put("driverPhone", driverPhone);
         metadata.put("vehiclePlate", vehiclePlate);
-        metadata.put("packageCount", packageCount);
+        metadata.put("categoryDescription", categoryDescription != null ? categoryDescription : "Hàng hóa");
+        metadata.put("vehicleType", vehicleTypeDescription != null ? vehicleTypeDescription : "N/A");
+        
+        // Add detailed package information
+        if (orderDetails != null && !orderDetails.isEmpty()) {
+            metadata.put("packageCount", orderDetails.size());
+            
+            // Calculate total weight with proper units
+            double totalWeight = orderDetails.stream()
+                .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+                .sum();
+            String totalUnit = orderDetails.get(0).getUnit() != null ? orderDetails.get(0).getUnit() : "Kiện";
+            metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+            
+            // Build package details list
+            List<Map<String, Object>> packages = new ArrayList<>();
+            for (capstone_project.entity.order.order.OrderDetailEntity detail : orderDetails) {
+                Map<String, Object> packageInfo = new HashMap<>();
+                packageInfo.put("trackingCode", detail.getTrackingCode());
+                packageInfo.put("description", detail.getDescription() != null ? detail.getDescription() : categoryDescription);
+                packageInfo.put("weightBaseUnit", detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0);
+                packageInfo.put("unit", detail.getUnit() != null ? detail.getUnit() : "Kiện");
+                packageInfo.put("weight", String.format("%.2f %s", 
+                    detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0,
+                    detail.getUnit() != null ? detail.getUnit() : "Kiện"));
+                packages.add(packageInfo);
+            }
+            metadata.put("packages", packages);
+        }
         
         String description = String.format(
             "Tài xế %s (%s) đang trên đường đến lấy %d kiện hàng của bạn. Vui lòng vào trang đơn hàng để theo dõi vị trí thời gian thực.",
             driverName,
             vehiclePlate,
-            packageCount
+            orderDetails != null ? orderDetails.size() : 0
         );
         
         return CreateNotificationRequest.builder()
@@ -404,8 +727,10 @@ public class NotificationBuilder {
         String orderCode,
         String driverName,
         String vehiclePlate,
-        int packageCount,
+        List<capstone_project.entity.order.order.OrderDetailEntity> orderDetails,
+        String categoryDescription,
         String deliveryLocation,
+        String vehicleTypeDescription,
         UUID orderId,
         UUID vehicleAssignmentId
     ) {
@@ -413,13 +738,41 @@ public class NotificationBuilder {
         metadata.put("orderCode", orderCode);
         metadata.put("driverName", driverName);
         metadata.put("vehiclePlate", vehiclePlate);
-        metadata.put("packageCount", packageCount);
+        metadata.put("categoryDescription", categoryDescription != null ? categoryDescription : "Hàng hóa");
         metadata.put("deliveryLocation", deliveryLocation);
+        metadata.put("vehicleType", vehicleTypeDescription != null ? vehicleTypeDescription : "N/A");
+        
+        // Add detailed package information
+        if (orderDetails != null && !orderDetails.isEmpty()) {
+            metadata.put("packageCount", orderDetails.size());
+            
+            // Calculate total weight with proper units
+            double totalWeight = orderDetails.stream()
+                .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+                .sum();
+            String totalUnit = orderDetails.get(0).getUnit() != null ? orderDetails.get(0).getUnit() : "Kiện";
+            metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+            
+            // Build package details list
+            List<Map<String, Object>> packages = new ArrayList<>();
+            for (capstone_project.entity.order.order.OrderDetailEntity detail : orderDetails) {
+                Map<String, Object> packageInfo = new HashMap<>();
+                packageInfo.put("trackingCode", detail.getTrackingCode());
+                packageInfo.put("description", detail.getDescription() != null ? detail.getDescription() : categoryDescription);
+                packageInfo.put("weightBaseUnit", detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0);
+                packageInfo.put("unit", detail.getUnit() != null ? detail.getUnit() : "Kiện");
+                packageInfo.put("weight", String.format("%.2f %s", 
+                    detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0,
+                    detail.getUnit() != null ? detail.getUnit() : "Kiện"));
+                packages.add(packageInfo);
+            }
+            metadata.put("packages", packages);
+        }
         
         String description = String.format(
             "Tài xế %s đang vận chuyển %d kiện hàng của bạn đến %s. Bạn có thể theo dõi vị trí thời gian thực trên trang đơn hàng.",
             driverName,
-            packageCount,
+            orderDetails != null ? orderDetails.size() : 0,
             deliveryLocation
         );
         
@@ -443,8 +796,10 @@ public class NotificationBuilder {
         String orderCode,
         String driverName,
         String driverPhone,
-        int packageCount,
+        List<capstone_project.entity.order.order.OrderDetailEntity> orderDetails,
+        String categoryDescription,
         String deliveryLocation,
+        String vehicleTypeDescription,
         UUID orderId,
         UUID vehicleAssignmentId
     ) {
@@ -452,13 +807,41 @@ public class NotificationBuilder {
         metadata.put("orderCode", orderCode);
         metadata.put("driverName", driverName);
         metadata.put("driverPhone", driverPhone);
-        metadata.put("packageCount", packageCount);
+        metadata.put("categoryDescription", categoryDescription != null ? categoryDescription : "Hàng hóa");
         metadata.put("deliveryLocation", deliveryLocation);
+        metadata.put("vehicleType", vehicleTypeDescription != null ? vehicleTypeDescription : "N/A");
+        
+        // Add detailed package information
+        if (orderDetails != null && !orderDetails.isEmpty()) {
+            metadata.put("packageCount", orderDetails.size());
+            
+            // Calculate total weight with proper units
+            double totalWeight = orderDetails.stream()
+                .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+                .sum();
+            String totalUnit = orderDetails.get(0).getUnit() != null ? orderDetails.get(0).getUnit() : "Kiện";
+            metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+            
+            // Build package details list
+            List<Map<String, Object>> packages = new ArrayList<>();
+            for (capstone_project.entity.order.order.OrderDetailEntity detail : orderDetails) {
+                Map<String, Object> packageInfo = new HashMap<>();
+                packageInfo.put("trackingCode", detail.getTrackingCode());
+                packageInfo.put("description", detail.getDescription() != null ? detail.getDescription() : categoryDescription);
+                packageInfo.put("weightBaseUnit", detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0);
+                packageInfo.put("unit", detail.getUnit() != null ? detail.getUnit() : "Kiện");
+                packageInfo.put("weight", String.format("%.2f %s", 
+                    detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0,
+                    detail.getUnit() != null ? detail.getUnit() : "Kiện"));
+                packages.add(packageInfo);
+            }
+            metadata.put("packages", packages);
+        }
         
         String description = String.format(
             "Tài xế %s sắp đến điểm giao hàng với %d kiện hàng. Vui lòng chuẩn bị nhận hàng.",
             driverName,
-            packageCount
+            orderDetails != null ? orderDetails.size() : 0
         );
         
         return CreateNotificationRequest.builder()
@@ -548,8 +931,7 @@ public class NotificationBuilder {
     public static CreateNotificationRequest buildReturnStarted(
         UUID userId,
         String orderCode,
-        int returnCount,
-        int totalPackageCount,
+        List<OrderDetailEntity> returnPackages,
         double returnShippingFee,
         LocalDateTime paymentDeadline,
         UUID orderId,
@@ -558,25 +940,38 @@ public class NotificationBuilder {
     ) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("orderCode", orderCode);
-        metadata.put("returnCount", returnCount);
-        metadata.put("totalPackageCount", totalPackageCount);
+        metadata.put("returnCount", returnPackages.size());
         metadata.put("returnShippingFee", String.format("%,.0f VNĐ", returnShippingFee));
         if (paymentDeadline != null) {
             metadata.put("paymentDeadline", paymentDeadline.format(DATE_FORMATTER));
         }
         
+        // Add detailed package information for returned packages
+        if (returnPackages != null && !returnPackages.isEmpty()) {
+            // Calculate total weight with proper units
+            double totalWeight = returnPackages.stream()
+                .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+                .sum();
+            String totalUnit = returnPackages.get(0).getUnit() != null ? returnPackages.get(0).getUnit() : "Kiện";
+            metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+            
+            // Build package details list
+            List<Map<String, Object>> packages = createPackageMetadata(returnPackages);
+            metadata.put("packages", packages);
+        }
+        
         String title;
         String description;
         
-        if (returnCount == totalPackageCount) {
+        if (returnPackages.size() == 1) {
             title = String.format("Đơn hàng %s cần thanh toán cước trả", orderCode);
         } else {
-            title = String.format("%d kiện đơn %s cần thanh toán cước trả", returnCount, orderCode);
+            title = String.format("%d kiện đơn %s cần thanh toán cước trả", returnPackages.size(), orderCode);
         }
         
         description = String.format(
             "%d kiện hàng cần được trả lại. Vui lòng thanh toán cước trả hàng %,.0f VNĐ trước %s để tài xế tiến hành trả hàng.%n⚠️ Hàng sẽ bị hủy nếu quá hạn thanh toán.",
-            returnCount,
+            returnPackages.size(),
             returnShippingFee,
             paymentDeadline != null ? paymentDeadline.format(DATE_FORMATTER) : "hạn thanh toán"
         );
@@ -813,6 +1208,59 @@ public class NotificationBuilder {
         metadata.put("customerName", customerName);
         metadata.put("customerPhone", customerPhone);
         metadata.put("packageCount", packageCount);
+        
+        String description = String.format(
+            "Khách hàng %s đã đồng ý với đề xuất xe hàng. Vui lòng tạo hợp đồng cho đơn %s.",
+            customerName,
+            orderCode
+        );
+        
+        return CreateNotificationRequest.builder()
+            .userId(staffUserId)
+            .recipientRole("STAFF")
+            .title(String.format("Cần tạo hợp đồng - Đơn %s", orderCode))
+            .description(description)
+            .notificationType(NotificationTypeEnum.STAFF_ORDER_PROCESSING)
+            .relatedOrderId(orderId)
+            .metadata(metadata)
+            .build();
+    }
+    
+    /**
+     * STAFF_ORDER_PROCESSING - Đơn hàng cần tạo hợp đồng (cho Staff)
+     * Version with full package details
+     */
+    public static CreateNotificationRequest buildStaffOrderProcessing(
+        UUID staffUserId,
+        String orderCode,
+        String customerName,
+        String customerPhone,
+        List<OrderDetailEntity> orderDetails,
+        UUID orderId
+    ) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("orderCode", orderCode);
+        metadata.put("customerName", customerName);
+        metadata.put("customerPhone", customerPhone);
+        metadata.put("packageCount", orderDetails.size());
+        
+        // Calculate total weight
+        double totalWeight = orderDetails.stream()
+            .filter(detail -> detail.getWeightBaseUnit() != null)
+            .mapToDouble(detail -> detail.getWeightBaseUnit().doubleValue())
+            .sum();
+        
+        String weightUnit = orderDetails.stream()
+            .filter(detail -> detail.getUnit() != null && !detail.getUnit().isEmpty())
+            .map(OrderDetailEntity::getUnit)
+            .findFirst()
+            .orElse("kg");
+        
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, weightUnit));
+        
+        // Add packages as separate items in metadata for frontend display
+        List<Map<String, Object>> packages = createPackageMetadata(orderDetails);
+        metadata.put("packages", packages);
         
         String description = String.format(
             "Khách hàng %s đã đồng ý với đề xuất xe hàng. Vui lòng tạo hợp đồng cho đơn %s.",
