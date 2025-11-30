@@ -28,6 +28,5 @@ public class ExpiredOtpJob implements Job {
 
         emailProtocolService.removeOtpIfExpired(email, otp);
 
-        log.info("OTP for email {} has expired and been removed.", email);
     }
 }

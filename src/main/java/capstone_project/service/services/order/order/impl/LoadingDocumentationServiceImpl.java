@@ -47,8 +47,6 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
             MultipartFile sealImage,
             LoadingDocumentationRequest request) throws IOException {
 
-        log.info("Documenting loading for vehicle assignment ID: {}", request.vehicleAssignmentId());
-
         // Validate vehicle assignment exists
         VehicleAssignmentEntity vehicleAssignment = vehicleAssignmentEntityService.findEntityById(request.vehicleAssignmentId())
                 .orElseThrow(() -> new NotFoundException(
@@ -90,7 +88,6 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
 
     @Override
     public LoadingDocumentationResponse getLoadingDocumentation(UUID vehicleAssignmentId) {
-        log.info("Getting loading documentation for vehicle assignment ID: {}", vehicleAssignmentId);
 
         // Validate vehicle assignment exists
         vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId)
@@ -124,8 +121,7 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
                     vehicleAssignment.getId(),
                     OrderDetailStatusEnum.ON_DELIVERED
             );
-            log.info("Auto-updated OrderDetail status: PICKING_UP → ON_DELIVERED for assignment: {}", 
-                    vehicleAssignment.getId());
+            
             // Order status will be auto-synced by OrderDetailStatusService
         } catch (Exception e) {
             log.error("Failed to update OrderDetail status after loading documentation: {}", e.getMessage());

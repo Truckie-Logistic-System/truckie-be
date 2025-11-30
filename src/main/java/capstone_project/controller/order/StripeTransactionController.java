@@ -32,8 +32,6 @@ public class StripeTransactionController {
             data.put("clientSecret", intent.getClientSecret());
             data.put("paymentIntentId", intent.getId());
 
-            log.info("Stripe PaymentIntent created successfully for contract {} - ID: {}", contractId, intent.getId());
-
             return ResponseEntity.ok(ApiResponse.ok(data));
         } catch (StripeException e) {
             throw new RuntimeException(e);
@@ -48,8 +46,6 @@ public class StripeTransactionController {
             Map<String, String> data = new HashMap<>();
             data.put("clientSecret", intent.getClientSecret());
             data.put("paymentIntentId", intent.getId());
-
-            log.info("Stripe PaymentIntent created successfully for contract {} - ID: {}", contractId, intent.getId());
 
             return ResponseEntity.ok(ApiResponse.ok(data));
         } catch (StripeException e) {

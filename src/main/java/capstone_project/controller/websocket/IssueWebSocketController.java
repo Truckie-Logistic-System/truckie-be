@@ -26,12 +26,10 @@ public class IssueWebSocketController {
      */
     @MessageMapping("/issue/created")
     public void broadcastNewIssue(@Payload GetBasicIssueResponse issue) {
-        log.info("📢 Broadcasting new issue: {} - {}", issue.id(), issue.description());
-        
+
         // Broadcast to all staff clients listening to /topic/issues/new
         messagingTemplate.convertAndSend("/topic/issues/new", issue);
-        
-        log.info("✅ Issue broadcast completed");
+
     }
 
     /**
@@ -39,11 +37,8 @@ public class IssueWebSocketController {
      * Server broadcasts to: /topic/issues/status-change
      */
     public void broadcastIssueStatusChange(GetBasicIssueResponse issue) {
-        log.info("📢 Broadcasting issue status change: {} - status: {}", 
-                 issue.id(), issue.status());
-        
+
         messagingTemplate.convertAndSend("/topic/issues/status-change", issue);
-        
-        log.info("✅ Issue status change broadcast completed");
+
     }
 }

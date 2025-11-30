@@ -5,6 +5,7 @@ import capstone_project.common.enums.SealEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.seal.SealRequest;
+import capstone_project.dtos.request.notification.CreateNotificationRequest;
 import capstone_project.dtos.response.order.seal.GetSealResponse;
 import capstone_project.entity.order.order.SealEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -12,7 +13,9 @@ import capstone_project.repository.entityServices.order.order.SealEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.mapper.order.SealMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
+import capstone_project.service.services.notification.NotificationService;
 import capstone_project.service.services.order.seal.SealService;
+import capstone_project.service.services.notification.NotificationBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +38,8 @@ public class SealServiceImpl implements SealService {
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final SealMapper sealMapper;
     private final CloudinaryService cloudinaryService;
+    private final capstone_project.repository.entityServices.order.order.OrderDetailEntityService orderDetailEntityService;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
@@ -61,16 +66,14 @@ public class SealServiceImpl implements SealService {
         }
 
         // Tìm seal chính xác theo seal code và vehicle assignment
-        log.info("Finding seal with code: '{}' for vehicle assignment: {}", sealRequest.sealCode(), sealRequest.vehicleAssignmentId());
-        
+
         // Tìm tất cả seal của vehicle assignment này
         List<SealEntity> allSeals = sealEntityService.findAllByVehicleAssignment(vehicleAssignment);
-        log.info("Found {} seals for vehicle assignment", allSeals.size());
-        
+
         // Tìm seal có code khớp với request và status ACTIVE
         SealEntity matchingSeal = null;
         for (SealEntity seal : allSeals) {
-            log.info("Checking seal: code='{}', status='{}'", seal.getSealCode(), seal.getStatus());
+            
             if (seal.getSealCode().equals(sealRequest.sealCode()) && 
                 SealEnum.ACTIVE.name().equals(seal.getStatus())) {
                 matchingSeal = seal;
@@ -94,9 +97,6 @@ public class SealServiceImpl implements SealService {
                     "' cho vehicle assignment với ID: " + sealRequest.vehicleAssignmentId(),
                     ErrorEnum.NOT_FOUND.getErrorCode());
         }
-        
-        log.info("✅ Found matching seal: ID={}, Code='{}', Status={}", 
-                matchingSeal.getId(), matchingSeal.getSealCode(), matchingSeal.getStatus());
 
         // Upload hình ảnh và lấy URL
         String imageUrl = null;
@@ -124,7 +124,63 @@ public class SealServiceImpl implements SealService {
         matchingSeal.setSealAttachedImage(imageUrl);
 
         SealEntity savedSeal = sealEntityService.save(matchingSeal);
-        log.info("Đã cập nhật trạng thái seal ID {} từ ACTIVE sang IN_USE", savedSeal.getId());
+
+        // 📧 Create database notification for customer about initial seal attachment
+        try {
+            var orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
+            if (orderDetails != null && !orderDetails.isEmpty()) {
+                var order = orderDetails.get(0).getOrderEntity();
+                var customer = order.getSender();
+                
+                // Build package list for email
+                List<String> packageList = orderDetails.stream()
+                    .map(od -> String.format("%s (%s)", od.getTrackingCode(), od.getDescription()))
+                    .collect(java.util.stream.Collectors.toList());
+                
+                if (customer != null) {
+                    CreateNotificationRequest sealNotification = NotificationBuilder.buildSealAssigned(
+                        customer.getId(),
+                        order.getOrderCode(),
+                        savedSeal.getSealCode(),
+                        savedSeal.getDescription(),
+                        vehicleAssignment.getTrackingCode(),
+                        orderDetails,
+                        order.getId(),
+                        vehicleAssignment.getId()
+                    );
+                    
+                    // Add package list to metadata
+                    Map<String, Object> metadata = new java.util.HashMap<>();
+                    metadata.put("orderCode", order.getOrderCode());
+                    metadata.put("sealCode", savedSeal.getSealCode());
+                    metadata.put("sealDescription", savedSeal.getDescription());
+                    metadata.put("vehicleTrackingCode", vehicleAssignment.getTrackingCode());
+                    metadata.put("packageList", packageList);
+                    
+                    // Update notification with package list metadata
+                    sealNotification = CreateNotificationRequest.builder()
+                        .userId(sealNotification.getUserId())
+                        .recipientRole(sealNotification.getRecipientRole())
+                        .title(sealNotification.getTitle())
+                        .description(String.format(
+                            "Seal %s đã được gán cho chuyến xe %s. Các kiện hàng sau đang được giao đến điểm giao hàng: %s. Mã seal này sẽ được sử dụng để đảm bảo an toàn cho hàng hóa của bạn.",
+                            savedSeal.getSealCode(),
+                            vehicleAssignment.getTrackingCode(),
+                            String.join(", ", packageList)
+                        ))
+                        .notificationType(sealNotification.getNotificationType())
+                        .relatedOrderId(sealNotification.getRelatedOrderId())
+                        .relatedVehicleAssignmentId(sealNotification.getRelatedVehicleAssignmentId())
+                        .metadata(metadata)
+                        .build();
+                    
+                    notificationService.createNotification(sealNotification);
+                    log.info("📧 Customer initial seal attachment notification created with package list and email sent");
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create customer initial seal attachment notification: {}", e.getMessage(), e);
+        }
 
         // Return SealResponse directly
         return sealMapper.toGetSealResponse(savedSeal);
@@ -203,16 +259,13 @@ public class SealServiceImpl implements SealService {
                 vehicleAssignment, SealEnum.IN_USE.name());
 
         if (inUseSeal == null) {
-            log.info("Không tìm thấy seal nào đang IN_USE cho vehicleAssignment: {}", vehicleAssignment.getId());
+            
             return 0;
         }
 
         // Cập nhật seal sang trạng thái USED
         inUseSeal.setStatus(SealEnum.REMOVED.name());
         sealEntityService.save(inUseSeal);
-
-        log.info("Đã cập nhật seal có ID {} sang trạng thái USED cho vehicleAssignment: {}",
-                inUseSeal.getId(), vehicleAssignment.getId());
 
         return 1;
     }

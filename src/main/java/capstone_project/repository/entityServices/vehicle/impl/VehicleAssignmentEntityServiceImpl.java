@@ -54,6 +54,11 @@ public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEnti
     }
 
     @Override
+    public List<VehicleAssignmentEntity> findVehicleAssignmentsWithOrderIDOptimized(UUID orderID) {
+        return vehicleAssignmentRepository.findVehicleAssignmentsWithOrderIDOptimized(orderID);
+    }
+
+    @Override
     public Optional<VehicleAssignmentEntity> findVehicleAssignmentByVehicleEntityAndStatus(VehicleEntity vehicle, String status) {
         return vehicleAssignmentRepository.findVehicleAssignmentByVehicleEntityAndStatus(vehicle,status);
     }

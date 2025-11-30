@@ -77,4 +77,9 @@ public class TransactionEntityServiceImpl implements TransactionEntityService {
     public BigDecimal sumPaidAmountByContractId(UUID contractId) {
         return transactionRepository.sumPaidAmountByContractId(contractId);
     }
+    
+    @Override
+    public List<TransactionEntity> findByIssueId(UUID issueId) {
+        return transactionRepository.findByIssueId(issueId);
+    }
 }

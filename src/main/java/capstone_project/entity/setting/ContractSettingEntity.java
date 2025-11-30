@@ -25,8 +25,21 @@ public class ContractSettingEntity extends BaseEntity {
     @Column(name = "expired_deposit_date")
     private Integer expiredDepositDate;
 
-    @Column(name = "insurance_rate")
-    private BigDecimal insuranceRate;
+    // Hạn thanh toán cọc (số giờ) - mặc định 24 giờ
+    @Column(name = "deposit_deadline_hours")
+    private Integer depositDeadlineHours;
+
+    // Hạn ký hợp đồng (số giờ) - mặc định 24 giờ
+    @Column(name = "signing_deadline_hours")
+    private Integer signingDeadlineHours;
+
+    // Tỷ lệ bảo hiểm cho hàng thông thường (0.0008 = 0.08%)
+    @Column(name = "insurance_rate_normal", precision = 6, scale = 5)
+    private BigDecimal insuranceRateNormal;
+
+    // Tỷ lệ bảo hiểm cho hàng dễ vỡ/rủi ro cao (0.0015 = 0.15%)
+    @Column(name = "insurance_rate_fragile", precision = 6, scale = 5)
+    private BigDecimal insuranceRateFragile;
 
     @Column(name = "vat_rate")
     private BigDecimal vatRate;

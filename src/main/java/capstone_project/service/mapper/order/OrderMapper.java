@@ -111,7 +111,12 @@ public interface OrderMapper {
 
     List<GetOrderForGetAllResponse> toGetOrderForGetAllResponses(List<OrderEntity> orderEntities);
 
+    @Mapping(target = "orderDetailEntities", source = "orderDetailEntities")
     GetOrderByJpaResponse toGetOrderByJpaResponse(OrderEntity entity);
+    
+    // Custom mapping for nested OrderDetailEntity to GetOrderDetailByJpaResponse
+    @Mapping(source = "weightTons", target = "weight")
+    GetOrderDetailByJpaResponse toGetOrderDetailByJpaResponse(capstone_project.entity.order.order.OrderDetailEntity orderDetail);
 
     @Mapping(target = "pickupAddress", expression = "java(formatAddress(entity.getPickupAddress()))")
     @Mapping(target = "deliveryAddress", expression = "java(formatAddress(entity.getDeliveryAddress()))")

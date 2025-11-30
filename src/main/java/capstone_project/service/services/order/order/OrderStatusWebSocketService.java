@@ -47,9 +47,7 @@ public class OrderStatusWebSocketService {
             
             String topic = "/topic/orders/" + orderId + "/status";
             messagingTemplate.convertAndSend(topic, message);
-            
-            log.info("📢 [OrderStatusWebSocket] Sent status change notification: {} -> {} for order {}",
-                    previousStatus, newStatus, orderCode);
+
         } catch (Exception e) {
             // Don't throw exception - WebSocket notification failure shouldn't break business logic
             log.error("❌ [OrderStatusWebSocket] Failed to send status change notification for order {}: {}",
@@ -66,6 +64,14 @@ public class OrderStatusWebSocketService {
                 return "Đơn hàng đang chờ xử lý";
             case PROCESSING:
                 return "Đơn hàng đang được xử lý";
+            case CONTRACT_DRAFT:
+                return "Hợp đồng đã được tạo";
+            case CONTRACT_SIGNED:
+                return "Hợp đồng đã được ký";
+            case ON_PLANNING:
+                return "Đơn hàng đang được lên kế hoạch vận chuyển";
+            case ASSIGNED_TO_DRIVER:
+                return "Đơn hàng đã được phân công cho tài xế";
             case FULLY_PAID:
                 return "Đơn hàng đã thanh toán đầy đủ";
             case PICKING_UP:
@@ -83,9 +89,9 @@ public class OrderStatusWebSocketService {
             case SUCCESSFUL:
                 return "Đơn hàng hoàn thành thành công";
             case RETURNING:
-                return "Đang hoàn trả hàng";
+                return "Đang trả hàng";
             case RETURNED:
-                return "Đã hoàn trả hàng";
+                return "Đã trả hàng";
             case CANCELLED:
                 return "Đơn hàng đã bị hủy";
             default:

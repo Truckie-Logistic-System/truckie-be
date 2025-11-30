@@ -1,14 +1,15 @@
 package capstone_project.dtos.request.order;
 
-import capstone_project.common.enums.CategoryEnum;
-import capstone_project.common.enums.enumValidator.EnumValidator;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record CategoryRequest(
 
         @NotBlank(message = "Category name cannot be blank")
-        @EnumValidator(enumClass = CategoryEnum.class, message = "Invalid category name")
+        @Size(max = 100, message = "Category name must not exceed 100 characters")
         String categoryName,
+        
+        @Size(max = 200, message = "Description must not exceed 200 characters")
         String description
 ) {
 }

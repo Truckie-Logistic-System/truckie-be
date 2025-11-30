@@ -51,6 +51,7 @@ public class IssueImageServiceImpl implements IssueImageService {
                 IssueImageEntity imageEntity = IssueImageEntity.builder()
                         .issueEntity(issue)
                         .imageUrl(imageUrl)
+                        .description("Ảnh bổ sung cho issue")
                         .build();
                 urlImages.add(imageUrl);
                 images.add(imageEntity);

@@ -100,7 +100,7 @@ public class EmailProtocolServiceImpl implements EmailProtocolService {
         OTPResponse otpResponse = otpStorage.get(email);
         if (otpResponse != null && otpResponse.getOtp().equals(otp)) {
             otpStorage.remove(email); // Remove the OTP
-            log.info("OTP for email {} has expired and been removed.", email);
+            
         }
     }
 

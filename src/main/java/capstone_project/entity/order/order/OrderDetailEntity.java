@@ -4,7 +4,7 @@ import capstone_project.entity.common.BaseEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.issue.IssueEntity;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
@@ -18,8 +18,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderDetailEntity extends BaseEntity {
-    @Column(name = "weight")
-    private BigDecimal weight;
+    @DecimalMin(value = "0.01", message = "Trọng lượng kiện hàng phải tối thiểu 0.01 tấn")
+    @DecimalMax(value = "10.0", message = "Trọng lượng kiện hàng không được vượt quá 10 tấn")
+    @Column(name = "weight_tons")
+    private BigDecimal weightTons;
 
     @Column(name = "weight_base_unit")
     private BigDecimal weightBaseUnit;
@@ -69,6 +71,11 @@ public class OrderDetailEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "issue_id")
     private IssueEntity issueEntity;
+
+    // Giá trị khai báo của kiện hàng (VNĐ) - dùng để tính phí bảo hiểm
+    @DecimalMin(value = "0", message = "Giá trị khai báo không được âm")
+    @Column(name = "declared_value", precision = 19, scale = 2)
+    private BigDecimal declaredValue;
 
 //    @ElementCollection
 //    @CollectionTable(

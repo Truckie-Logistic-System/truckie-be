@@ -1,5 +1,7 @@
 package capstone_project.controller.vietmap;
 
+import capstone_project.dtos.request.vietmap.VietmapRouteV3Request;
+import capstone_project.dtos.response.vietmap.VietmapRouteV3Response;
 import capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -137,6 +139,66 @@ public class VietMapController {
         } catch (RuntimeException ex) {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                     .body("{\"error\":\"failed to call Vietmap Mobile Styles API\",\"detail\":\"" + ex.getMessage() + "\"}");
+        }
+    }
+
+    /**
+     * Get optimized VietMap style URL for mobile app.
+     * Returns a direct URL to VietMap Vector style (includes API key).
+     * Mobile SDK will handle caching and optimization automatically.
+     * 
+     * @return JSON with styleUrl field
+     */
+    @GetMapping(value = "/mobile-style-url", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> getMobileStyleUrl() {
+        try {
+            String styleUrl = vietmapService.getMobileStyleUrl();
+            // Return as JSON object for consistency
+            String jsonResponse = String.format("{\"styleUrl\":\"%s\"}", styleUrl);
+            return ResponseEntity.ok(jsonResponse);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("{\"error\":\"failed to generate VietMap style URL\",\"detail\":\"" + ex.getMessage() + "\"}");
+        }
+    }
+
+    /**
+     * Calculate route using Vietmap Route API v3 with full parameter support.
+     * Supports vehicle types (car, motorcycle, truck), annotations (congestion data), 
+     * alternative routes, and various optimization parameters.
+     * 
+     * @param request VietmapRouteV3Request containing all route parameters
+     * @return VietmapRouteV3Response with route details, instructions, and optional annotations
+     * 
+     * Example request body:
+     * {
+     *   "points": ["10.755222,106.662633", "10.7559910,106.6633234"],
+     *   "pointsEncoded": true,
+     *   "vehicle": "truck",
+     *   "capacity": 2000,
+     *   "annotations": "congestion,congestion_distance",
+     *   "alternative": false
+     * }
+     */
+    @PostMapping(value = "/route-v3", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<VietmapRouteV3Response> routeV3(@RequestBody VietmapRouteV3Request request) {
+        try {
+            VietmapRouteV3Response response = vietmapService.routeV3(request);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException ex) {
+            // Return 400 Bad Request for invalid parameters
+            VietmapRouteV3Response errorResponse = VietmapRouteV3Response.builder()
+                    .code("INVALID_REQUEST")
+                    .messages(ex.getMessage())
+                    .build();
+            return ResponseEntity.badRequest().body(errorResponse);
+        } catch (RuntimeException ex) {
+            // Return 502 Bad Gateway for external API errors
+            VietmapRouteV3Response errorResponse = VietmapRouteV3Response.builder()
+                    .code("ERROR_UNKNOWN")
+                    .messages("Failed to call Vietmap Route API v3: " + ex.getMessage())
+                    .build();
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(errorResponse);
         }
     }
 }

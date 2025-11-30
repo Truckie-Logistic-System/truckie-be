@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -35,16 +34,14 @@ public class BasingPriceServiceImpl implements BasingPriceService {
 
     @Override
     public List<GetBasingPriceResponse> getBasingPrices() {
-        log.info("Fetching all basing prices");
 
         List<BasingPriceEntity> basingPrices = redisService.getList(BASING_PRICE_ALL_CACHE_KEY, BasingPriceEntity.class);
         if (basingPrices != null && !basingPrices.isEmpty()) {
-            log.info("Returning {} basing prices from cache", basingPrices.size());
+            
             return basingPrices.stream()
                     .map(basingPriceMapper::toGetBasingPriceResponse)
                     .toList();
         }
-
 
         List<BasingPriceEntity> pricingEntities = basingPriceEntityService.findAll();
         if (pricingEntities.isEmpty()) {
@@ -64,7 +61,6 @@ public class BasingPriceServiceImpl implements BasingPriceService {
 
     @Override
     public GetBasingPriceResponse getBasingPriceById(UUID id) {
-        log.info("Fetching a basing price by id {}", id);
 
         if (id == null) {
             log.error("Basing price ID is required");
@@ -77,10 +73,9 @@ public class BasingPriceServiceImpl implements BasingPriceService {
         BasingPriceEntity cachedEntity = redisService.get(cacheKey, BasingPriceEntity.class);
 
         if (cachedEntity != null) {
-            log.info("Returning cached basing price for ID: {}", id);
+            
             return basingPriceMapper.toGetBasingPriceResponse(cachedEntity);
         } else {
-            log.info("No cached basing price found for ID: {}", id);
 
             BasingPriceEntity basingPriceEntity = basingPriceEntityService.findEntityById(id)
                     .orElseThrow(() -> new NotFoundException(
@@ -96,7 +91,7 @@ public class BasingPriceServiceImpl implements BasingPriceService {
 
     @Override
     public BasingPriceResponse createBasingPrice(BasingPriceRequest basingPriceRequest) {
-        log.info("Creating a new basing price");
+        
         if (basingPriceRequest.distanceRuleId() == null || basingPriceRequest.distanceRuleId().isEmpty()) {
             log.error("Distance rule ID is required for creating a basing price");
             throw new BadRequestException(
@@ -135,13 +130,11 @@ public class BasingPriceServiceImpl implements BasingPriceService {
 
         redisService.delete(BASING_PRICE_ALL_CACHE_KEY);
 
-        log.info("Created a new basing price with ID: {}", savedEntity.getId());
         return basingPriceMapper.toBasingPriceResponse(savedEntity);
     }
 
     @Override
     public BasingPriceResponse updateBasingPrice(UUID id, UpdateBasingPriceRequest basingPriceRequest) {
-        log.info("Updating basing price with ID: {}", id);
 
         if (id == null) {
             log.error("Basing price ID is required for updating a basing price");
@@ -164,7 +157,6 @@ public class BasingPriceServiceImpl implements BasingPriceService {
         redisService.delete(BASING_PRICE_ALL_CACHE_KEY);
         redisService.delete(BASING_PRICE_BY_ID_CACHE_KEY_PREFIX + id);
 
-        log.info("Updated basing price with ID: {}", savedEntity.getId());
         return basingPriceMapper.toBasingPriceResponse(savedEntity);
     }
 

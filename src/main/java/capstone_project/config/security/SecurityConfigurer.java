@@ -152,11 +152,13 @@ public class SecurityConfigurer {
                     "/api/loading/**",
                     "/api/v1/address/**",
                     "/api/v1/emails/**",
-                    "/api/v1/notifications/**",
+                    "/api/v1/public/stipulations/**", // Public stipulation endpoint for customers
+                    "/api/public/chat/**", // AI Chatbot public endpoint - no auth required
                     "/api/v1/transactions/stripe/webhook",
                     "/api/v1/transactions/stripe/webhook/**",
                     "/api/v1/transactions/pay-os/webhook",
                     "/api/v1/transactions/pay-os/webhook/**",
+                    "/api/payos-transaction/webhook", // Fix: Add actual PayOS webhook path
                     "/api/v1/transactions/pay-os/callback",
                     "/api/v1/transactions/pay-os/callback/**",
                     "/api/v1/transactions/pay-os/cancel",
@@ -169,7 +171,8 @@ public class SecurityConfigurer {
                     "/actuator/info",
                     "/error",
                     "/chat/**",
-                    "/vehicle-tracking-browser/**" // Adding SockJS endpoint for browser connections
+                    "/vehicle-tracking-browser/**", // Adding SockJS endpoint for browser connections
+                    "/ws/**" // Issue tracking WebSocket endpoint
             ),
             Arrays.stream(SWAGGER_ENDPOINTS)
     ).toArray(String[]::new);
@@ -185,23 +188,49 @@ public class SecurityConfigurer {
         return config.getAuthenticationManager();
     }
 
-    @Bean
-    public JwtRequestFilter jwtRequestFilter() {
-        return new JwtRequestFilter(authUserService);
-    }
+    // JwtRequestFilter is now auto-configured via @Component and constructor injection
+    // No need for explicit @Bean creation
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+        
+        // SECURITY: Configure allowed origins
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:3000",
                 "http://localhost:3001",
                 "http://localhost:5173",
-                "http://localhost:5174"
+                "http://localhost:5174",
+                "https://truckie-fe.vercel.app",
+                "https://www.truckie.com"
         ));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true); // CRITICAL: Allow credentials (cookies)
+        
+        // SECURITY: Only allow necessary HTTP methods
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"
+        ));
+        
+        // SECURITY: Explicitly allow necessary headers
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Origin",
+                "X-Requested-With",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers"
+        ));
+        
+        // SECURITY: Expose necessary response headers
+        configuration.setExposedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Disposition"
+        ));
+        
+        // CRITICAL: Allow credentials (cookies, authorization headers)
+        configuration.setAllowCredentials(true);
+        
+        // Cache preflight requests for 1 hour
         configuration.setMaxAge(3600L);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -210,9 +239,23 @@ public class SecurityConfigurer {
     }
 
     @Bean
-    public SecurityFilterChain configure(HttpSecurity http) throws Exception {
-        http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+    public SecurityFilterChain configure(HttpSecurity http, JwtRequestFilter jwtRequestFilter) throws Exception {
+        http
+                // CORS configuration
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                
+                // CSRF disabled for REST API (using JWT instead)
                 .csrf(AbstractHttpConfigurer::disable)
+                
+                // Security headers
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.deny()) // Prevent clickjacking
+                        .xssProtection(xss -> xss.disable()) // Modern browsers handle this
+                        .contentTypeOptions(contentType -> contentType.disable()) // Let Spring handle
+                        .cacheControl(cache -> cache.disable()) // Allow caching
+                )
+                
+                // Authorization rules
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
 
@@ -287,7 +330,7 @@ public class SecurityConfigurer {
                         // ================= SETTING =================
                         .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(weightUnitSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(stipulationSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(stipulationSettingApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= SEAL =================
                         .requestMatchers(sealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())
@@ -296,7 +339,7 @@ public class SecurityConfigurer {
 
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
-                .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class)
                 // oauth2
                 .oauth2Login(oauth2Login -> oauth2Login
                         .successHandler((request, response, authentication) -> {

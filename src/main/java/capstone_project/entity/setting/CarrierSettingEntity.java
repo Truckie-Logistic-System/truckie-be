@@ -24,6 +24,10 @@ public class CarrierSettingEntity extends BaseEntity {
     @Column(name = "carrier_name", length = 100)
     private String carrierName;
 
+    @Size(max = 100)
+    @Column(name = "representative_name", length = 100)
+    private String representativeName;
+
     @Size(max = 200)
     @Column(name = "carrier_address_line", length = 200)
     private String carrierAddressLine;

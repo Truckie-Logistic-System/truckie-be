@@ -21,5 +21,13 @@ public interface RouteService {
      */
     RoutePointsResponse getRoutePointsByOrder(UUID orderId);
 
+    /**
+     * Get route points by issue ID for return route
+     * This method retrieves carrier, delivery (as pickup), and original pickup (as delivery) points for return journey
+     * @param issueId The ID of the issue (ORDER_REJECTION)
+     * @return Response containing the return route points
+     */
+    RoutePointsResponse getRoutePointsByIssue(UUID issueId);
+
     SuggestRouteResponse suggestRoute(SuggestRouteRequest request);
 }

@@ -62,18 +62,16 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     private final OrderDetailMapper orderDetailMapper;
     private final OrderMapper orderMapper;
 
-
     @Override
     @Transactional
     public GetOrderDetailResponse changeStatusOrderDetailExceptTroubles(UUID orderDetailId, OrderStatusEnum orderDetailStatus) {
-        log.info("Change status order detail except troubles");
+        
         if(orderDetailStatus.name().equals(OrderStatusEnum.IN_TROUBLES.name())){
             throw new BadRequestException(
                     ErrorEnum.INVALID.getMessage() + " Cannot change status to troubles by this method for a order detail ID: " + orderDetailId,
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
-
 
         OrderDetailEntity orderDetailEntity = orderDetailEntityService.findEntityById(orderDetailId)
                 .orElseThrow(() -> new BadRequestException(
@@ -110,16 +108,15 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         if (allSameStatus) {
             // Update status của Order and send WebSocket notification
             orderService.updateOrderStatus(orderEntity.getId(), orderDetailStatus);
-            log.info("Updated order {} status to {} after all order details reached same status", orderEntity.getOrderCode(), orderDetailStatus);
+            
         }
-
 
         return orderDetailMapper.toGetOrderDetailResponse(orderDetailEntity);
     }
 
     @Override
     public GetOrderDetailResponse changeStatusOrderDetailForTroublesByDriver(UUID orderDetailId) {
-        log.info("change status order detail trouble for driver");
+        
         OrderDetailEntity orderDetailEntity = orderDetailEntityService.findEntityById(orderDetailId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderDetailEntity with ID: " + orderDetailId,
@@ -130,19 +127,16 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         orderDetailEntity.setStatus(OrderStatusEnum.IN_TROUBLES.name());
         orderDetailEntityService.save(orderDetailEntity);
 
-
         OrderEntity orderEntity = orderDetailEntity.getOrderEntity();
         // Update status của Order and send WebSocket notification
         orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.IN_TROUBLES);
-        log.info("Updated order {} status to IN_TROUBLES after driver reported issue for order detail {}", orderEntity.getOrderCode(), orderDetailId);
-
 
         return orderDetailMapper.toGetOrderDetailResponse(orderDetailEntity);
     }
 
     @Override
     public CreateOrderResponse createOrderDetailByOrderId(UUID orderId, List<CreateOrderDetailRequest> createOrderDetailRequest) {
-        log.info("Create order detail by order ID: " + orderId);
+        
         OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " orderEntity with ID: " + orderId,
@@ -180,7 +174,6 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
 //        orderEntity.setTotalWeight(orderEntity.getTotalWeight().add(totalWeight));
 
-
         orderEntityService.save(orderEntity);
         orderEntity.setOrderDetailEntities(listOrderDetail);
 
@@ -190,7 +183,6 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
     @Override
     public List<GetOrderDetailsResponseForList> getOrderDetailByOrderIdResponseList(UUID orderId) {
-        log.info("Fetching order details for order ID: {}", orderId);
 
         if(orderEntityService.findEntityById(orderId).isPresent()){
             throw new NotFoundException(
@@ -213,7 +205,6 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
     @Override
     public GetOrderDetailResponse getOrderDetailById(UUID orderDetailId) {
-        log.info("Fetching order detail by ID: {}", orderDetailId);
 
         OrderDetailEntity orderDetailEntity = orderDetailEntityService.findEntityById(orderDetailId)
                 .orElseThrow(() -> new NotFoundException(
@@ -227,10 +218,6 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     @Override
     @Transactional
     public GetOrderDetailResponse updateOrderDetailBasicInPendingOrProcessing(UpdateOrderDetailRequest updateOrderDetailRequest) {
-        log.info("Updating order detail with ID: {}", updateOrderDetailRequest.orderDetailId());
-
-
-
 
         OrderDetailEntity orderDetailEntity = orderDetailEntityService.findEntityById(UUID.fromString(updateOrderDetailRequest.orderDetailId()))
                 .orElseThrow(() -> new NotFoundException(
@@ -247,14 +234,11 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
         OrderEntity orderEntity = orderDetailEntity.getOrderEntity();
 
-
-
         OrderSizeEntity orderSizeEntity = orderSizeEntityService.findEntityById(UUID.fromString(updateOrderDetailRequest.orderSizeId()))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + " OrderSizeEntity with ID: " + updateOrderDetailRequest.orderSizeId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
-
 
 //        if(updateOrderDetailRequest.weight().compareTo(orderDetailEntity.getWeight()) != 0){
 //            BigDecimal totalWeight = orderEntity.getTotalWeight()
@@ -263,13 +247,12 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 //
 //            orderEntity.setTotalWeight(totalWeight);
 //        }
-        orderDetailEntity.setWeight(updateOrderDetailRequest.weight());
+        orderDetailEntity.setWeightTons(updateOrderDetailRequest.weight());
         orderDetailEntity.setDescription(updateOrderDetailRequest.description());
         orderDetailEntity.setOrderSizeEntity(orderSizeEntity);
 
         orderDetailEntityService.save(orderDetailEntity);
         orderEntityService.save(orderEntity);
-
 
         return orderDetailMapper.toGetOrderDetailResponse(orderDetailEntity);
     }
@@ -282,7 +265,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 //    @Override
 //    @Transactional
 //    public List<GetOrderDetailResponse> updateVehicleAssigmentForEachOrderDetails(UUID orderId) {
-//        log.info("Updating vehicle assigment for order ID: {}", orderId);
+//        
 //
 //        //Lấy list assign phan bo tung detail cho moi vehicle rule
 //        List<ContractRuleAssignResponse> assignResponses = contractService.assignVehicles(orderId);
@@ -329,11 +312,9 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 //        return orderDetailMapper.toGetOrderDetailResponseList(orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId));
 //    }
 
-
     @Override
     @Transactional
     public List<GetOrderDetailsResponseForList> updateVehicleAssigmentForEachOrderDetails(UUID orderId) {
-        log.info("Updating vehicle assignment for order ID: {}", orderId);
 
         //Lấy list assign phan bo tung detail cho moi vehicle rule
         List<ContractRuleAssignResponse> assignResponses = contractService.assignVehiclesWithAvailability(orderId);
@@ -401,8 +382,6 @@ public class OrderDetailServiceImpl implements OrderDetailService {
             vehicleAssignmentEntityService.save(vehicleAssignmentEntity);
         }
 
-
-
         // 6. Return kết quả cuối cùng
         return orderDetailMapper.toGetOrderDetailResponseListBasic(
                 orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId)
@@ -449,7 +428,6 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
         return resultResponse;
     }
-
 
     @Override
     public List<GetOrderDetailsResponseForList> getAllOrderDetails() {

@@ -15,6 +15,8 @@ public interface PayOSTransactionService {
     TransactionResponse getTransactionById(UUID transactionId);
 
     List<TransactionResponse> getTransactionsByContractId(UUID contractId);
+    
+    List<TransactionResponse> getTransactionsByIssueId(UUID issueId);
 
     GetTransactionStatusResponse getTransactionStatus(UUID transactionId);
 
@@ -23,5 +25,7 @@ public interface PayOSTransactionService {
     TransactionResponse syncTransaction(UUID transactionId);
 
     TransactionResponse refundTransaction(UUID transactionId, String reason);
+
+    TransactionResponse createReturnShippingTransaction(UUID contractId, java.math.BigDecimal amount, UUID issueId);
 
 }

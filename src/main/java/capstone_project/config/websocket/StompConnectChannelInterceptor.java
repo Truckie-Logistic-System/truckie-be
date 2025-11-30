@@ -27,7 +27,7 @@ public class StompConnectChannelInterceptor implements ChannelInterceptor {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
         if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
-            log.debug("Processing STOMP CONNECT frame");
+            
             // Try to get token from headers
             String authHeader = accessor.getFirstNativeHeader("Authorization");
 
@@ -51,7 +51,7 @@ public class StompConnectChannelInterceptor implements ChannelInterceptor {
                                             username, role, destination);
                                     throw new IllegalArgumentException("Only STAFF role can access issue WebSocket endpoints");
                                 }
-                                log.debug("✅ Staff user {} authenticated for issue WebSocket: {}", username, destination);
+                                
                             }
 
                             // Create a simple Authentication object with the username and role
@@ -61,7 +61,7 @@ public class StompConnectChannelInterceptor implements ChannelInterceptor {
                                     Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + (role != null ? role : "USER")))
                             );
                             accessor.setUser(auth);
-                            log.debug("Set Authentication from STOMP CONNECT Authorization header for user: {} with role: {}", username, role);
+                            
                         }
                     }
                 } catch (IllegalArgumentException e) {
@@ -71,7 +71,7 @@ public class StompConnectChannelInterceptor implements ChannelInterceptor {
                     log.warn("Failed to process Authentication from STOMP header", e);
                 }
             } else {
-                log.debug("No Authorization header in STOMP CONNECT frame");
+                
             }
         }
 

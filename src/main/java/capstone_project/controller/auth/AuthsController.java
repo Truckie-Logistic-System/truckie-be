@@ -1,6 +1,5 @@
 package capstone_project.controller.auth;
 
-
 import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
 import capstone_project.dtos.response.auth.AccessTokenResponse;
@@ -63,24 +62,20 @@ public class AuthsController {
     public ResponseEntity<ApiResponse<AccessTokenResponse>> refreshAccessToken(
             HttpServletRequest request,
             HttpServletResponse response) {
-        log.info("[refreshAccessToken] START - Refresh token endpoint called");
+        
         String refreshToken = registerService.extractRefreshTokenFromCookies(request);
-        log.info("[refreshAccessToken] Extracted refresh token from cookies: {}...", refreshToken.substring(0, Math.min(20, refreshToken.length())));
 
         final var refreshTokenResponse = registerService.refreshAccessToken(refreshToken);
-        log.info("[refreshAccessToken] Got new access token from service");
 
-        // NO NEED to set refresh token cookie again since we're keeping the same token
-        // This prevents cookie sync issues on page reload
-        // The existing refresh token cookie is still valid and will continue to work
-        log.info("[refreshAccessToken] Keeping existing refresh token cookie (no rotation)");
+        // IMPORTANT: Set new refresh token cookie after token rotation
+        // This ensures the client always has the latest valid refresh token
+        registerService.addRefreshTokenCookie(response, refreshTokenResponse.getRefreshToken());
 
         // Return ONLY access token in body
         var accessTokenResponse = AccessTokenResponse.builder()
                 .authToken(refreshTokenResponse.getAccessToken())
                 .build();
-        
-        log.info("[refreshAccessToken] ✅ Returning access token response");
+
         return ResponseEntity.ok(ApiResponse.ok(accessTokenResponse));
     }
 
@@ -125,18 +120,10 @@ public class AuthsController {
     public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshAccessTokenMobile(
             @RequestBody @Valid RefreshTokenRequest refreshTokenRequest) {
         org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(this.getClass());
-        log.info("[refreshAccessTokenMobile] START - Received mobile token refresh request");
-        log.info("[refreshAccessTokenMobile] Refresh token: {}...", refreshTokenRequest.getRefreshToken().substring(0, Math.min(20, refreshTokenRequest.getRefreshToken().length())));
+        
         
         final var refreshTokenResponse = registerService.refreshAccessToken(refreshTokenRequest.getRefreshToken());
-        
-        log.info("[refreshAccessTokenMobile] ✅ Returning new tokens with user info");
-        log.info("[refreshAccessTokenMobile] New access token: {}...", refreshTokenResponse.getAccessToken().substring(0, 20));
-        log.info("[refreshAccessTokenMobile] New refresh token: {}...", refreshTokenResponse.getRefreshToken().substring(0, 20));
-        log.info("[refreshAccessTokenMobile] User info included: username={}, role={}", 
-                refreshTokenResponse.getUser() != null ? refreshTokenResponse.getUser().getUsername() : "null",
-                refreshTokenResponse.getUser() != null && refreshTokenResponse.getUser().getRole() != null ? refreshTokenResponse.getUser().getRole().getRoleName() : "null");
-        
+
         return ResponseEntity.ok(ApiResponse.ok(refreshTokenResponse));
     }
 }

@@ -38,6 +38,12 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.ok(userById));
     }
 
+    @GetMapping("/profile")
+    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUserProfile() {
+        final var currentUser = userService.getCurrentUserProfile();
+        return ResponseEntity.ok(ApiResponse.ok(currentUser));
+    }
+
     @GetMapping("")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getAllUsers() {
         final var userById = userService.getAllUsers();

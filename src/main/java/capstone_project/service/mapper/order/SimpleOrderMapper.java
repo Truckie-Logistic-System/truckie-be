@@ -20,6 +20,11 @@ import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntit
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
 import capstone_project.service.services.order.seal.SealService;
+import capstone_project.service.services.order.order.ContractService;
+import capstone_project.service.services.order.order.OrderDetailStatusService;
+import capstone_project.service.services.issue.IssueService;
+import capstone_project.service.services.issue.IssueImageService;
+import capstone_project.service.services.pricing.PricingUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -60,7 +65,7 @@ public class SimpleOrderMapper {
         try {
             if (contractResponse != null) {
                 BigDecimal contractTotal = contractResponse.totalValue();
-                log.info("Contract total value is {}", contractTotal);
+                
                 if (contractTotal != null && contractTotal.compareTo(BigDecimal.ZERO) > 0) {
                     effectiveTotal = contractTotal;
                 } else {
@@ -109,7 +114,7 @@ public class SimpleOrderMapper {
                 response.pickupAddress().province()
         );
 
-        Map<UUID, SimpleIssueImageResponse> issuesByVehicleAssignment = buildIssuesMap(issueImageResponses);
+        Map<UUID, List<SimpleIssueResponse>> issuesByVehicleAssignment = buildIssuesMap(issueImageResponses);
 
         // Per-request caches to avoid duplicate DB calls inside mapper
         Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache = new HashMap<>();
@@ -130,10 +135,10 @@ public class SimpleOrderMapper {
                             .findFirst()
                             .orElse(null);
                     if (vaResponse != null) {
-                        // Get issue for this vehicle assignment
-                        SimpleIssueImageResponse issue = issuesByVehicleAssignment.get(vaId);
+                        // Get ALL issues for this vehicle assignment
+                        List<SimpleIssueResponse> issues = issuesByVehicleAssignment.getOrDefault(vaId, Collections.emptyList());
                         List<String> photoCompletions = getPhotoCompletionsFor(photoCompletionResponses, vaId);
-                        return toSimpleVehicleAssignmentResponse(vaResponse, issue, photoCompletions, vehicleCache, userCache);
+                        return toSimpleVehicleAssignmentResponse(vaResponse, issues, photoCompletions, vehicleCache, userCache);
                     }
                     return null;
                 })
@@ -162,7 +167,8 @@ public class SimpleOrderMapper {
                 response.sender().getRepresentativeName(),
                 response.sender().getRepresentativePhone(),
                 response.sender().getCompanyName(),
-                response.category().categoryName(),
+                response.category().categoryName().name(),
+                response.category().description(), // Add category description
                 simpleOrderDetails,
                 vehicleAssignments  // Add aggregated vehicle assignments
         );
@@ -170,7 +176,7 @@ public class SimpleOrderMapper {
 
     private SimpleVehicleAssignmentResponse toSimpleVehicleAssignmentResponse(
             capstone_project.dtos.response.vehicle.VehicleAssignmentResponse vaResponse,
-            SimpleIssueImageResponse issue,
+            List<SimpleIssueResponse> issues,
             List<String> photoCompletions,
             Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache,
             Map<UUID, UserEntity> userCache
@@ -189,7 +195,8 @@ public class SimpleOrderMapper {
                         vehicleEntity.getManufacturer(),
                         vehicleEntity.getModel(),
                         vehicleEntity.getLicensePlateNumber(),
-                        vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null
+                        vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null,
+                        vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getDescription() : null
                 );
             }
         } catch (Exception ignored) {
@@ -244,9 +251,9 @@ public class SimpleOrderMapper {
             // Keep seals as empty list
         }
 
-        // Ensure photoCompletions and issue lists are non-null
+        // Ensure photoCompletions and issues lists are non-null
         List<String> safePhotoCompletions = photoCompletions != null ? photoCompletions : Collections.emptyList();
-        List<SimpleIssueImageResponse> issuesList = issue != null ? List.of(issue) : Collections.emptyList();
+        List<SimpleIssueResponse> safeIssues = issues != null ? issues : Collections.emptyList();
 
         // Build vehicleAssignment response
         return new SimpleVehicleAssignmentResponse(
@@ -256,51 +263,10 @@ public class SimpleOrderMapper {
                 secondaryDriver,
                 vaResponse.status(),
                 vaResponse.trackingCode(),
-                issuesList,
+                safeIssues,
                 safePhotoCompletions,
                 seals,
                 journeyHistories
-        );
-    }
-
-    private SimpleOrderDetailResponse toSimpleOrderDetailResponseWithTripInfo_OLD(
-            GetOrderDetailResponse detail,
-            SimpleIssueImageResponse issue,
-            List<String> photoCompletions,
-            Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache,
-            Map<UUID, UserEntity> userCache
-    ) {
-        SimpleOrderSizeResponse orderSize = null;
-        if (detail.orderSizeId() != null) {
-            orderSize = new SimpleOrderSizeResponse(
-                    detail.orderSizeId().id().toString(),
-                    detail.orderSizeId().description(),
-                    detail.orderSizeId().minLength(),
-                    detail.orderSizeId().maxLength(),
-                    detail.orderSizeId().minHeight(),
-                    detail.orderSizeId().maxHeight(),
-                    detail.orderSizeId().minWidth(),
-                    detail.orderSizeId().maxWidth()
-            );
-        }
-
-        // Get the vehicle assignment entity directly using the UUID
-        UUID vehicleAssignmentId = detail.vehicleAssignmentId();
-
-        return new SimpleOrderDetailResponse(
-                detail.trackingCode(), // Using trackingCode as an identifier since there's no id field
-                detail.weightBaseUnit(),
-                detail.unit(),
-                detail.description(),
-                detail.status(),
-                detail.startTime(),
-                detail.estimatedStartTime(),
-                detail.endTime(),
-                detail.estimatedEndTime(),
-                detail.createdAt(),
-                detail.trackingCode(),
-                orderSize,
-                vehicleAssignmentId // Pass UUID directly instead of SimpleVehicleAssignmentResponse
         );
     }
 
@@ -367,27 +333,55 @@ public class SimpleOrderMapper {
             return null;
         }
 
+        var issue = response.issue();
+        
         SimpleStaffResponse staffResponse = null;
-        if (response.issue().staff() != null) {
+        if (issue.staff() != null) {
             staffResponse = new SimpleStaffResponse(
-                    response.issue().staff().getId(),
-                    response.issue().staff().getFullName(),
-                    response.issue().staff().getPhoneNumber()
+                    issue.staff().getId(),
+                    issue.staff().getFullName(),
+                    issue.staff().getPhoneNumber()
             );
         }
 
+        String issueTypeName = issue.issueTypeEntity() != null ? issue.issueTypeEntity().issueTypeName() : null;
+        String issueTypeDescription = issue.issueTypeEntity() != null ? issue.issueTypeEntity().description() : null;
+        var issueCategory = issue.issueCategory();
+        
+        // Issue images
+        List<String> issueImages = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
+
         SimpleIssueResponse simpleIssue = new SimpleIssueResponse(
-                response.issue().id().toString(),
-                response.issue().description(),
-                response.issue().locationLatitude(),
-                response.issue().locationLongitude(),
-                response.issue().status(),
-                response.issue().vehicleAssignmentEntity().id().toString(),
+                issue.id().toString(),
+                issue.description(),
+                issue.locationLatitude(),
+                issue.locationLongitude(),
+                issue.status(),
+                issue.vehicleAssignmentEntity().id().toString(),
                 staffResponse,
-                response.issue().issueTypeEntity().issueTypeName()
+                issueTypeName,
+                issueTypeDescription,
+                issue.reportedAt(),
+                issueCategory,
+                issueImages,
+                // SEAL_REPLACEMENT fields
+                issue.oldSeal(),
+                issue.newSeal(),
+                issue.sealRemovalImage(),
+                issue.newSealAttachedImage(),
+                issue.newSealConfirmedAt(),
+                // ORDER_REJECTION fields
+                issue.paymentDeadline(),
+                issue.calculatedFee(),
+                issue.adjustedFee(),
+                issue.finalFee(),
+                issue.affectedOrderDetails(),
+                issue.returnTransaction(), // Refund
+                null, // Transaction (deprecated)
+                null // Transactions list (legacy method - won't fetch transactions)
         );
 
-        return new SimpleIssueImageResponse(simpleIssue, response.imageUrl());
+        return new SimpleIssueImageResponse(simpleIssue, null); // imageUrl already included in issueImages
     }
 
     private Map<String, List<String>> convertPhotoCompletions(Map<UUID, List<PhotoCompletionResponse>> photoCompletionMap) {
@@ -450,7 +444,8 @@ public class SimpleOrderMapper {
                 transaction.amount(),
                 transaction.currencyCode(),
                 transaction.status(),
-                transaction.paymentDate()
+                transaction.paymentDate(),
+                transaction.transactionType()
         );
     }
 
@@ -470,8 +465,8 @@ public class SimpleOrderMapper {
         return address.toString();
     }
 
-    private Map<UUID, SimpleIssueImageResponse> buildIssuesMap(List<GetIssueImageResponse> issueImageResponses) {
-        Map<UUID, SimpleIssueImageResponse> map = new HashMap<>();
+    private Map<UUID, List<SimpleIssueResponse>> buildIssuesMap(List<GetIssueImageResponse> issueImageResponses) {
+        Map<UUID, List<SimpleIssueResponse>> map = new HashMap<>();
         if (issueImageResponses == null) return map;
 
         for (GetIssueImageResponse resp : issueImageResponses) {
@@ -481,12 +476,24 @@ public class SimpleOrderMapper {
                 var issue = resp.issue();
                 if (issue.vehicleAssignmentEntity() == null || issue.vehicleAssignmentEntity().id() == null) continue;
                 UUID vehicleAssignmentId = UUID.fromString(issue.vehicleAssignmentEntity().id().toString());
-                SimpleIssueImageResponse simple = safeToSimpleIssueImageResponse(resp);
-                if (simple != null) map.put(vehicleAssignmentId, simple);
+                SimpleIssueResponse simple = safeToSimpleIssueResponse(resp);
+                if (simple != null) {
+                    // Add to list instead of replacing
+                    map.computeIfAbsent(vehicleAssignmentId, k -> new ArrayList<>()).add(simple);
+                }
             } catch (Exception ignored) {
                 // ignore invalid UUIDs or mapping errors
             }
         }
+        
+        // Sort issues by reportedAt DESC (newest first) for each vehicle assignment
+        map.values().forEach(issues -> issues.sort((i1, i2) -> {
+            if (i1.reportedAt() == null && i2.reportedAt() == null) return 0;
+            if (i1.reportedAt() == null) return 1;
+            if (i2.reportedAt() == null) return -1;
+            return i2.reportedAt().compareTo(i1.reportedAt());
+        }));
+        
         return map;
     }
 
@@ -502,8 +509,7 @@ public class SimpleOrderMapper {
                 .collect(Collectors.toList());
     }
 
-
-    private SimpleIssueImageResponse safeToSimpleIssueImageResponse(GetIssueImageResponse response) {
+    private SimpleIssueResponse safeToSimpleIssueResponse(GetIssueImageResponse response) {
         if (response == null || response.issue() == null) return null;
 
         var issue = response.issue();
@@ -524,8 +530,16 @@ public class SimpleOrderMapper {
         }
 
         String issueTypeName = issue.issueTypeEntity() != null ? issue.issueTypeEntity().issueTypeName() : null;
+        String issueTypeDescription = issue.issueTypeEntity() != null ? issue.issueTypeEntity().description() : null;
+        var issueCategory = issue.issueCategory();
 
-        SimpleIssueResponse simpleIssue = new SimpleIssueResponse(
+        // Issue images
+        List<String> issueImages = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
+
+        // Note: Transactions will be fetched in service layer to avoid circular dependency
+        // Mappers should not call other services - violation of separation of concerns
+
+        return new SimpleIssueResponse(
                 issue.id() != null ? issue.id().toString() : null,
                 issue.description(),
                 issue.locationLatitude(),
@@ -533,11 +547,27 @@ public class SimpleOrderMapper {
                 issue.status(),
                 vehicleAssignmentIdStr,
                 staffResponse,
-                issueTypeName
+                issueTypeName,
+                issueTypeDescription,
+                issue.reportedAt(),
+                issueCategory,
+                issueImages, // Issue images moved inside
+                // SEAL_REPLACEMENT fields
+                issue.oldSeal(),
+                issue.newSeal(),
+                issue.sealRemovalImage(),
+                issue.newSealAttachedImage(),
+                issue.newSealConfirmedAt(),
+                // ORDER_REJECTION fields
+                issue.paymentDeadline(),
+                issue.calculatedFee(),
+                issue.adjustedFee(),
+                issue.finalFee(),
+                issue.affectedOrderDetails(),
+                issue.returnTransaction(), // Refund
+                null, // Transaction (deprecated)
+                null // Transactions list (will be fetched in service layer)
         );
-
-        List<String> images = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
-        return new SimpleIssueImageResponse(simpleIssue, images);
     }
 
     /**
@@ -578,7 +608,7 @@ public class SimpleOrderMapper {
         }
 
         return segments.stream()
-                .mapToDouble(segment -> segment.distanceMeters() != null ? segment.distanceMeters() : 0.0)
+                .mapToDouble(segment -> segment.distanceKilometers() != null ? segment.distanceKilometers().doubleValue() : 0.0)
                 .sum();
     }
 
@@ -602,18 +632,16 @@ public class SimpleOrderMapper {
         try {
             // Get the latest contract setting
             var contractSetting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc().orElse(null);
-            if (contractSetting == null || contractSetting.getDepositPercent() == null) {
-                // Default to 30% if no setting found
-                return baseAmount.multiply(new BigDecimal("0.30")).setScale(0, RoundingMode.HALF_UP);
-            }
-
-            // Calculate deposit amount: baseAmount * (depositPercent / 100)
-            BigDecimal depositPercent = contractSetting.getDepositPercent();
-            return baseAmount.multiply(depositPercent).divide(new BigDecimal("100"), 0, RoundingMode.HALF_UP);
+            BigDecimal depositPercent = contractSetting != null && contractSetting.getDepositPercent() != null 
+                    ? contractSetting.getDepositPercent() 
+                    : new BigDecimal("30"); // Default to 30%
+            
+            // Use unified pricing for consistent rounding across all systems
+            return PricingUtils.calculateRoundedDeposit(baseAmount, depositPercent);
         } catch (Exception e) {
             log.warn("Error calculating deposit amount: {}", e.getMessage());
-            // Default to 30% on error
-            return baseAmount.multiply(new BigDecimal("0.30")).setScale(0, RoundingMode.HALF_UP);
+            // Default to 30% on error using unified pricing
+            return PricingUtils.calculateRoundedDeposit(baseAmount, new BigDecimal("30"));
         }
     }
 }

@@ -1,5 +1,6 @@
 package capstone_project.service.services.order.order.impl;
 
+import capstone_project.common.enums.CategoryName;
 import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.ContractStatusEnum;
 import capstone_project.common.enums.ErrorEnum;
@@ -11,6 +12,7 @@ import capstone_project.common.utils.UserContextUtils;
 import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
+import capstone_project.dtos.request.order.contract.GenerateContractPdfRequest;
 import capstone_project.dtos.response.order.contract.*;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
@@ -37,10 +39,18 @@ import capstone_project.service.mapper.order.ContractMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
+import capstone_project.service.services.setting.ContractSettingService;
 import capstone_project.service.services.user.DistanceService;
-import jakarta.transaction.Transactional;
-import lombok.AllArgsConstructor;
+import capstone_project.service.services.map.VietMapDistanceService;
+import capstone_project.service.services.pricing.UnifiedPricingService;
+import capstone_project.service.services.pricing.InsuranceCalculationService;
+import capstone_project.service.services.notification.NotificationService;
+import capstone_project.service.services.notification.NotificationBuilder;
+import capstone_project.dtos.request.notification.CreateNotificationRequest;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -50,12 +60,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@AllArgsConstructor
 public class ContractServiceImpl implements ContractService {
 
     private final ContractEntityService contractEntityService;
     private final ContractRuleEntityService contractRuleEntityService;
     private final SizeRuleEntityService sizeRuleEntityService;
+    private final NotificationService notificationService;
     private final CategoryPricingDetailEntityService categoryPricingDetailEntityService;
     private final OrderEntityService orderEntityService;
     private final DistanceRuleEntityService distanceRuleEntityService;
@@ -63,18 +73,78 @@ public class ContractServiceImpl implements ContractService {
     private final OrderDetailEntityService orderDetailEntityService;
     private final VehicleEntityService vehicleEntityService;
     private final DistanceService distanceService;
+    private final VietMapDistanceService vietMapDistanceService;
     private final CloudinaryService cloudinaryService;
     private final UserContextUtils userContextUtils;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
+    private final UnifiedPricingService unifiedPricingService;
+    private final InsuranceCalculationService insuranceCalculationService;
+    private final ContractSettingService contractSettingService;
+    private final capstone_project.repository.entityServices.auth.UserEntityService userEntityService; // For staff notifications
+    
+    private capstone_project.service.services.pdf.PdfGenerationService pdfGenerationService;
 
     private final ContractMapper contractMapper;
 
     private static final double EARTH_RADIUS_KM = 6371.0;
     private final UserEntityServiceImpl userEntityServiceImpl;
 
+    // Manual constructor to break circular dependency
+    public ContractServiceImpl(
+            ContractEntityService contractEntityService,
+            ContractRuleEntityService contractRuleEntityService,
+            SizeRuleEntityService sizeRuleEntityService,
+            NotificationService notificationService,
+            CategoryPricingDetailEntityService categoryPricingDetailEntityService,
+            OrderEntityService orderEntityService,
+            DistanceRuleEntityService distanceRuleEntityService,
+            BasingPriceEntityService basingPriceEntityService,
+            OrderDetailEntityService orderDetailEntityService,
+            VehicleEntityService vehicleEntityService,
+            DistanceService distanceService,
+            VietMapDistanceService vietMapDistanceService,
+            CloudinaryService cloudinaryService,
+            UserContextUtils userContextUtils,
+            OrderStatusWebSocketService orderStatusWebSocketService,
+            UnifiedPricingService unifiedPricingService,
+            InsuranceCalculationService insuranceCalculationService,
+            ContractSettingService contractSettingService,
+            ContractMapper contractMapper,
+            UserEntityServiceImpl userEntityServiceImpl,
+            capstone_project.repository.entityServices.auth.UserEntityService userEntityService
+    ) {
+        this.contractEntityService = contractEntityService;
+        this.contractRuleEntityService = contractRuleEntityService;
+        this.sizeRuleEntityService = sizeRuleEntityService;
+        this.notificationService = notificationService;
+        this.categoryPricingDetailEntityService = categoryPricingDetailEntityService;
+        this.orderEntityService = orderEntityService;
+        this.distanceRuleEntityService = distanceRuleEntityService;
+        this.basingPriceEntityService = basingPriceEntityService;
+        this.orderDetailEntityService = orderDetailEntityService;
+        this.vehicleEntityService = vehicleEntityService;
+        this.distanceService = distanceService;
+        this.vietMapDistanceService = vietMapDistanceService;
+        this.cloudinaryService = cloudinaryService;
+        this.userContextUtils = userContextUtils;
+        this.orderStatusWebSocketService = orderStatusWebSocketService;
+        this.unifiedPricingService = unifiedPricingService;
+        this.insuranceCalculationService = insuranceCalculationService;
+        this.contractSettingService = contractSettingService;
+        this.contractMapper = contractMapper;
+        this.userEntityServiceImpl = userEntityServiceImpl;
+        this.userEntityService = userEntityService;
+    }
+
+    @Autowired
+    @Lazy
+    public void setPdfGenerationService(capstone_project.service.services.pdf.PdfGenerationService pdfGenerationService) {
+        this.pdfGenerationService = pdfGenerationService;
+    }
+
     @Override
     public List<ContractResponse> getAllContracts() {
-        log.info("Getting all contracts");
+        
         List<ContractEntity> contractEntities = contractEntityService.findAll();
         if (contractEntities.isEmpty()) {
             log.warn("No contracts found");
@@ -90,7 +160,7 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public ContractResponse getContractById(UUID id) {
-        log.info("Getting contract by ID: {}", id);
+        
         ContractEntity contractEntity = contractEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(),
@@ -99,10 +169,20 @@ public class ContractServiceImpl implements ContractService {
         return contractMapper.toContractResponse(contractEntity);
     }
 
+    /**
+     * Get effective contract value - prioritize adjustedValue if > 0, otherwise use totalValue
+     * This ensures notifications show the correct payment amounts
+     */
+    private double getEffectiveContractValue(ContractEntity contract) {
+        if (contract.getAdjustedValue() != null && contract.getAdjustedValue().doubleValue() > 0) {
+            return contract.getAdjustedValue().doubleValue();
+        }
+        return contract.getTotalValue() != null ? contract.getTotalValue().doubleValue() : 0.0;
+    }
+
     @Override
     @Transactional
     public ContractResponse createContract(ContractRequest contractRequest) {
-        log.info("Creating new contract");
 
         if (contractRequest == null) {
             log.error("[createContract] Request is null");
@@ -141,15 +221,57 @@ public class ContractServiceImpl implements ContractService {
         contractEntity.setOrderEntity(order);
 
         ContractEntity savedContract = contractEntityService.save(contractEntity);
+        
+        // Create notification for contract ready
+        try {
+            // Get order details for package information
+            List<OrderDetailEntity> orderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(order.getId());
+            
+            // Calculate deposit amount using contract settings
+            double totalAmount = getEffectiveContractValue(savedContract);
+            double depositAmount = 0.0;
+            
+            try {
+                var contractSetting = contractSettingService.getLatestContractSetting();
+                if (contractSetting != null && contractSetting.depositPercent() != null) {
+                    // Use effective contract value (adjustedValue prioritized over totalValue)
+                    double baseValue = getEffectiveContractValue(savedContract);
+                    depositAmount = baseValue * contractSetting.depositPercent().doubleValue() / 100.0;
+                }
+            } catch (Exception e) {
+                log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+                // Fallback to 30% if contract setting fails
+                double baseValue = getEffectiveContractValue(savedContract);
+                depositAmount = baseValue * 0.1;
+            }
+            
+            String contractCode = savedContract.getContractName() != null ? savedContract.getContractName() : "HĐ-" + order.getOrderCode();
+            
+            CreateNotificationRequest notificationRequest = NotificationBuilder.buildContractReady(
+                order.getSender().getUser().getId(),
+                order.getOrderCode(),
+                contractCode,
+                depositAmount,
+                totalAmount,
+                savedContract.getSigningDeadline(),
+                savedContract.getDepositPaymentDeadline(),
+                orderDetails,
+                order.getId(),
+                savedContract.getId()
+            );
+            
+            notificationService.createNotification(notificationRequest);
+            log.info("✅ Created CONTRACT_READY notification for order: {} with deposit: {}", order.getOrderCode(), depositAmount);
+        } catch (Exception e) {
+            log.error("❌ Failed to create CONTRACT_READY notification: {}", e.getMessage());
+        }
 
         return contractMapper.toContractResponse(savedContract);
     }
 
-
     @Override
     @Transactional
     public ContractResponse createBothContractAndContractRule(ContractRequest contractRequest) {
-        log.info("Creating new contract");
 
         if (contractRequest == null) {
             log.error("[createContract] Request is null");
@@ -200,7 +322,6 @@ public class ContractServiceImpl implements ContractService {
         Map<UUID, Integer> vehicleCountMap = assignments.stream()
                 .collect(Collectors.groupingBy(ContractRuleAssignResponse::getSizeRuleId, Collectors.summingInt(a -> 1)));
 
-
         for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
             UUID sizeRuleId = entry.getKey();
             Integer count = entry.getValue();
@@ -226,7 +347,6 @@ public class ContractServiceImpl implements ContractService {
 
 //            List<OrderDetailForPackingResponse> detailIds = assignments.stream()
 
-
             if (!detailResponses.isEmpty()) {
                 List<UUID> detailIds = detailResponses.stream()
                         .map(r -> UUID.fromString(r.id()))
@@ -243,13 +363,56 @@ public class ContractServiceImpl implements ContractService {
 
         PriceCalculationResponse totalPriceResponse = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
 
-        BigDecimal totalPrice = totalPriceResponse.getTotalPrice();
+        // Use grandTotal which includes insurance fee (if applicable)
+        BigDecimal grandTotal = totalPriceResponse.getGrandTotal();
 
         UserEntity currentStaff = userContextUtils.getCurrentUser();
 
-        savedContract.setTotalValue(totalPrice);
+        savedContract.setTotalValue(grandTotal);
         savedContract.setStaff(currentStaff);
+        
         ContractEntity updatedContract = contractEntityService.save(savedContract);
+
+        // Create notifications when customer agrees to vehicle proposal via /contracts/both endpoint
+        try {
+            // Get order details for package information
+            List<OrderDetailEntity> orderDetails = order.getOrderDetailEntities() != null ? 
+                order.getOrderDetailEntities() : new ArrayList<>();
+            
+            // Notification 1: Customer - ORDER_PROCESSING (Email: NO) with full package details
+            CreateNotificationRequest customerNotification = NotificationBuilder.buildOrderProcessing(
+                order.getSender().getUser().getId(),
+                order.getOrderCode(),
+                orderDetails,
+                order.getId()
+            );
+            notificationService.createNotification(customerNotification);
+            log.info("✅ Created ORDER_PROCESSING notification for customer in order: {}", order.getOrderCode());
+            
+            // Notification 2: All Staff - STAFF_ORDER_PROCESSING with full package details
+            String customerName = order.getSender().getRepresentativeName() != null ?
+                order.getSender().getRepresentativeName() : order.getSender().getUser().getUsername();
+            String customerPhone = order.getSender().getRepresentativePhone() != null ?
+                order.getSender().getRepresentativePhone() : "N/A";
+            
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            for (var staff : staffUsers) {
+                CreateNotificationRequest staffNotification = NotificationBuilder.buildStaffOrderProcessing(
+                    staff.getId(),
+                    order.getOrderCode(),
+                    customerName,
+                    customerPhone,
+                    orderDetails,
+                    order.getId()
+                );
+                notificationService.createNotification(staffNotification);
+            }
+            log.info("✅ Created STAFF_ORDER_PROCESSING notifications for {} staff users", staffUsers.size());
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to create contract notifications: {}", e.getMessage());
+            // Don't throw - notification failure shouldn't break contract creation
+        }
 
         return contractMapper.toContractResponse(updatedContract);
     }
@@ -257,7 +420,6 @@ public class ContractServiceImpl implements ContractService {
     @Override
     @Transactional
     public ContractResponse createBothContractAndContractRuleForCus(CreateContractForCusRequest contractRequest) {
-        log.info("Creating new contract");
 
         if (contractRequest == null) {
             log.error("[createContract] Request is null");
@@ -303,11 +465,38 @@ public class ContractServiceImpl implements ContractService {
 
         ContractEntity savedContract = contractEntityService.save(contractEntity);
 
+        // Create CONTRACT_READY notification for customer with email
+        try {
+            String contractCode = savedContract.getContractName() != null ? savedContract.getContractName() : "HĐ-" + order.getOrderCode();
+            double depositAmount = 0.0; // Will be set by contract rules later
+            double totalAmount = getEffectiveContractValue(savedContract);
+            
+            log.info("🔍 Creating CONTRACT_READY notification for order: {} with contract: {}", 
+                order.getOrderCode(), contractCode);
+            
+            CreateNotificationRequest notificationRequest = NotificationBuilder.buildContractReady(
+                order.getSender().getUser().getId(),
+                order.getOrderCode(),
+                contractCode,
+                depositAmount,
+                totalAmount,
+                savedContract.getSigningDeadline(),
+                savedContract.getDepositPaymentDeadline(),
+                order.getId(),
+                savedContract.getId()
+            );
+            
+            notificationService.createNotification(notificationRequest);
+            log.info("✅ Created CONTRACT_READY notification for order: {}", order.getOrderCode());
+        } catch (Exception e) {
+            log.error("❌ Failed to create CONTRACT_READY notification: {}", e.getMessage());
+            // Don't throw - notification failure shouldn't break contract creation
+        }
+
         List<ContractRuleAssignResponse> assignments = assignVehiclesWithAvailability(orderUuid);
 
         Map<UUID, Integer> vehicleCountMap = assignments.stream()
                 .collect(Collectors.groupingBy(ContractRuleAssignResponse::getSizeRuleId, Collectors.summingInt(a -> 1)));
-
 
         for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
             UUID sizeRuleId = entry.getKey();
@@ -334,7 +523,6 @@ public class ContractServiceImpl implements ContractService {
 
 //            List<OrderDetailForPackingResponse> detailIds = assignments.stream()
 
-
             if (!detailResponses.isEmpty()) {
                 List<UUID> detailIds = detailResponses.stream()
                         .map(r -> UUID.fromString(r.id()))
@@ -359,7 +547,7 @@ public class ContractServiceImpl implements ContractService {
                 previousStatus,
                 OrderStatusEnum.PROCESSING
             );
-            log.info("Sent WebSocket notification for order status change to PROCESSING");
+            
         } catch (Exception e) {
             log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
             // Don't throw - WebSocket failure shouldn't break business logic
@@ -367,42 +555,55 @@ public class ContractServiceImpl implements ContractService {
 
         PriceCalculationResponse totalPriceResponse = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
 
-        BigDecimal totalPrice = totalPriceResponse.getTotalPrice();
+        // Use grandTotal which includes insurance fee (if applicable)
+        BigDecimal grandTotal = totalPriceResponse.getGrandTotal();
 
         UserEntity currentStaff = userContextUtils.getCurrentUser();
 
-        savedContract.setTotalValue(totalPrice);
+        savedContract.setTotalValue(grandTotal);
         savedContract.setStaff(currentStaff);
+        
         ContractEntity updatedContract = contractEntityService.save(savedContract);
 
         return contractMapper.toContractResponse(updatedContract);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public BothOptimalAndRealisticAssignVehiclesResponse getBothOptimalAndRealisticAssignVehiclesResponse(UUID orderId) {
+        log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] START for orderId={}", orderId);
+        
         List<ContractRuleAssignResponse> optimal = null;
         List<ContractRuleAssignResponse> realistic = null;
 
-        optimal = assignVehiclesOptimal(orderId);
+        try {
+            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] Calling assignVehiclesOptimal...");
+            optimal = assignVehiclesOptimal(orderId);
+            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] assignVehiclesOptimal completed, result size: {}", 
+                    optimal != null ? optimal.size() : "null");
+        } catch (Exception e) {
+            log.error("[getBothOptimalAndRealisticAssignVehiclesResponse] Optimal assignment failed for orderId={}", orderId, e);
+            throw e; // Re-throw to return proper error response
+        }
 
-        realistic = assignVehiclesWithAvailability(orderId);
-//        try {
-//        } catch (Exception e) {
-//            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Optimal assignment failed for orderId={}, reason={}", orderId, e.getMessage());
-//        }
-//
-//        try {
-//        } catch (Exception e) {
-//            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Realistic assignment failed for orderId={}, reason={}", orderId, e.getMessage());
-//        }
+        try {
+            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] Calling assignVehiclesWithAvailability...");
+            realistic = assignVehiclesWithAvailability(orderId);
+            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] assignVehiclesWithAvailability completed, result size: {}", 
+                    realistic != null ? realistic.size() : "null");
+        } catch (Exception e) {
+            log.error("[getBothOptimalAndRealisticAssignVehiclesResponse] Realistic assignment failed for orderId={}", orderId, e);
+            throw e; // Re-throw to return proper error response
+        }
 
         if (optimal == null && realistic == null) {
+            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Both optimal and realistic are null for orderId={}", orderId);
             return null;
         }
 
+        log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] SUCCESS for orderId={}", orderId);
         return new BothOptimalAndRealisticAssignVehiclesResponse(optimal, realistic);
     }
-
 
     @Override
     public ContractResponse updateContract(UUID id, ContractRequest contractRequest) {
@@ -412,7 +613,6 @@ public class ContractServiceImpl implements ContractService {
     @Override
     @Transactional
     public void deleteContractByOrderId(UUID orderId) {
-        log.info("Deleting contract by order ID: {}", orderId);
 
         if (orderId == null) {
             log.error("[deleteContractByOrderId] Order ID is null");
@@ -436,20 +636,25 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ContractRuleAssignResponse> assignVehiclesWithAvailability(UUID orderId) {
+        log.info("[assignVehiclesWithAvailability] START for orderId={}", orderId);
         List<ContractRuleAssignResponse> optimal = assignVehiclesOptimal(orderId);
 
         OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
 
+        // Null-safe sorting to avoid NPE
         List<SizeRuleEntity> sortedSizeRules = sizeRuleEntityService
                 .findAllByCategoryId(orderEntity.getCategory().getId())
                 .stream()
                 .filter(rule -> CommonStatusEnum.ACTIVE.name().equals(rule.getStatus()))
-                .sorted(Comparator.comparing(SizeRuleEntity::getMaxWeight)
-                        .thenComparing(SizeRuleEntity::getMaxLength)
-                        .thenComparing(SizeRuleEntity::getMaxWidth)
-                        .thenComparing(SizeRuleEntity::getMaxHeight))
+                .filter(rule -> rule.getMaxWeight() != null) // Filter out rules with null maxWeight
+                .sorted(Comparator.comparing(
+                        (SizeRuleEntity r) -> r.getMaxWeight() != null ? r.getMaxWeight() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxLength() != null ? r.getMaxLength() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxWidth() != null ? r.getMaxWidth() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxHeight() != null ? r.getMaxHeight() : BigDecimal.ZERO))
                 .toList();
 
         // map ruleId -> số lượng xe khả dụng
@@ -504,7 +709,6 @@ public class ContractServiceImpl implements ContractService {
         return realisticAssignments;
     }
 
-
     private SizeRuleEntity tryUpgradeUntilAvailable(ContractRuleAssignResponse assignment,
                                                     SizeRuleEntity currentRule,
                                                     List<SizeRuleEntity> sortedRules,
@@ -519,8 +723,7 @@ public class ContractServiceImpl implements ContractService {
             int available = availableVehicles.getOrDefault(nextRule.getId(), 0);
 
             if (used < available) {
-                log.info("[assignVehicles] Upgrade thành công assignment rule={} -> rule={} (used={}/available={})",
-                        currentRule.getId(), nextRule.getId(), used + 1, available);
+                
                 return nextRule;
             }
         }
@@ -529,7 +732,7 @@ public class ContractServiceImpl implements ContractService {
 
 //    public List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId) {
 //        final long t0 = System.nanoTime();
-//        log.info("Assigning vehicles for order ID: {}", orderId);
+//        
 //
 //        List<OrderDetailEntity> details = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
 //        if (details.isEmpty()) {
@@ -592,11 +795,7 @@ public class ContractServiceImpl implements ContractService {
 //                throw new BadRequestException("Order detail missing size: " + detail.getId(), ErrorEnum.INVALID.getErrorCode());
 //            }
 //
-//            log.info("[assignVehicles] Processing detail {}/{}: id={}, weight={}, size={}x{}x{}",
-//                    processed, details.size(), detail.getId(), detail.getWeight(),
-//                    detail.getOrderSizeEntity().getMaxLength(),
-//                    detail.getOrderSizeEntity().getMaxWidth(),
-//                    detail.getOrderSizeEntity().getMaxHeight());
+//            
 //
 //            boolean assigned = false;
 //
@@ -611,8 +810,7 @@ public class ContractServiceImpl implements ContractService {
 //                if (canFit(detail, currentRule, assignment)) {
 //                    assignment.setCurrentLoad(assignment.getCurrentLoad().add(detail.getWeight()));
 //                    assignment.getAssignedDetails().add(toPackingResponse(detail));
-//                    log.info("[assignVehicles] Assigned detail {} -> existing vehicle ruleId={}, newLoad={}",
-//                            detail.getId(), currentRule.getId(), assignment.getCurrentLoad());
+//                    
 //                    assigned = true;
 //                    break;
 //                }
@@ -624,8 +822,7 @@ public class ContractServiceImpl implements ContractService {
 //                    assignment.setsizeRuleName(upgradedRule.getsizeRuleName());
 //                    assignment.setCurrentLoad(calculateTotalWeight(assignment, detail));
 //                    assignment.getAssignedDetails().add(toPackingResponse(detail));
-//                    log.info("[assignVehicles] Upgraded vehicle for detail {} -> ruleId={}, maxWeight={}, newLoad={}",
-//                            detail.getId(), upgradedRule.getId(), upgradedRule.getMaxWeight(), assignment.getCurrentLoad());
+//                    
 //                    assigned = true;
 //                    break;
 //                }
@@ -643,8 +840,7 @@ public class ContractServiceImpl implements ContractService {
 //                                new ArrayList<>(List.of(toPackingResponse(detail)))
 //                        );
 //                        assignments.add(newAssignment);
-//                        log.info("[assignVehicles] Opened new vehicle for detail {} -> ruleId={}, firstLoad={}",
-//                                detail.getId(), rule.getId(), detail.getWeight());
+//                        
 //                        assigned = true;
 //                        break;
 //                    }
@@ -657,17 +853,17 @@ public class ContractServiceImpl implements ContractService {
 //            }
 //        }
 //
-//        log.info("[assignVehicles] Completed. vehiclesUsed={}, detailsProcessed={}", assignments.size(), processed);
+//        
 //        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
-//        log.info("[assignVehicles] Finished in {} ms", elapsedMs);
+//        
 //        return assignments;
 //    }
 
-
     @Override
+    @Transactional(readOnly = true)
     public List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId) {
         final long t0 = System.nanoTime();
-        log.info("[assignVehiclesOptimal] Starting for orderId: {}", orderId);
+        log.info("[assignVehiclesOptimal] START for orderId={}", orderId);
 
         OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode()));
@@ -676,35 +872,67 @@ public class ContractServiceImpl implements ContractService {
         if (details.isEmpty()) {
             throw new NotFoundException("No order details found for this order", ErrorEnum.NOT_FOUND.getErrorCode());
         }
+        log.info("[assignVehiclesOptimal] Found {} order details", details.size());
 
         if (orderEntity.getCategory() == null) {
+            log.error("[assignVehiclesOptimal] Order category is null for orderId={}", orderId);
             throw new BadRequestException("Order category is required", ErrorEnum.INVALID.getErrorCode());
         }
 
+        UUID categoryId = orderEntity.getCategory().getId();
+        String categoryName = orderEntity.getCategory().getCategoryName().name();
+        log.info("[assignVehiclesOptimal] Order category: id={}, name='{}'", categoryId, categoryName);
+
+        // Fetch and filter size rules with null-safe sorting
         List<SizeRuleEntity> sortedsizeRules = sizeRuleEntityService
-                .findAllByCategoryId(orderEntity.getCategory().getId())
+                .findAllByCategoryId(categoryId)
                 .stream()
                 .filter(rule -> CommonStatusEnum.ACTIVE.name().equals(rule.getStatus()))
-                .sorted(Comparator.comparing(SizeRuleEntity::getMaxWeight)
-                        .thenComparing(SizeRuleEntity::getMaxLength)
-                        .thenComparing(SizeRuleEntity::getMaxWidth)
-                        .thenComparing(SizeRuleEntity::getMaxHeight))
+                .filter(rule -> rule.getMaxWeight() != null) // Filter out rules with null maxWeight
+                .sorted(Comparator.comparing(
+                        (SizeRuleEntity r) -> r.getMaxWeight() != null ? r.getMaxWeight() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxLength() != null ? r.getMaxLength() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxWidth() != null ? r.getMaxWidth() : BigDecimal.ZERO)
+                        .thenComparing(r -> r.getMaxHeight() != null ? r.getMaxHeight() : BigDecimal.ZERO))
                 .toList();
 
-        if (sortedsizeRules.isEmpty()) {
-            throw new NotFoundException("No vehicle rules found for this category", ErrorEnum.NOT_FOUND.getErrorCode());
+        log.info("[assignVehiclesOptimal] Found {} ACTIVE size rules for categoryId={}", sortedsizeRules.size(), categoryId);
+        
+        // Log each size rule for debugging
+        for (SizeRuleEntity rule : sortedsizeRules) {
+            log.info("[assignVehiclesOptimal] SizeRule: id={}, name='{}', maxWeight={}, maxLength={}, maxWidth={}, maxHeight={}",
+                    rule.getId(), rule.getSizeRuleName(), rule.getMaxWeight(), 
+                    rule.getMaxLength(), rule.getMaxWidth(), rule.getMaxHeight());
         }
 
-        List<BinPacker.ContainerState> containers = BinPacker.pack(details, sortedsizeRules);
+        if (sortedsizeRules.isEmpty()) {
+            log.error("[assignVehiclesOptimal] No vehicle rules found for category: id={}, name='{}'", categoryId, categoryName);
+            throw new NotFoundException("No vehicle rules found for this category: " + categoryName, ErrorEnum.NOT_FOUND.getErrorCode());
+        }
 
-        List<ContractRuleAssignResponse> responses = BinPacker.toContractResponses(containers, details);
+        // Log order detail sizes for debugging
+        for (OrderDetailEntity detail : details) {
+            OrderSizeEntity size = detail.getOrderSizeEntity();
+            if (size != null) {
+                log.info("[assignVehiclesOptimal] OrderDetail: id={}, weight={}, length={}, width={}, height={}",
+                        detail.getId(), detail.getWeightTons(), size.getMaxLength(), size.getMaxWidth(), size.getMaxHeight());
+            } else {
+                log.warn("[assignVehiclesOptimal] OrderDetail: id={} has NULL OrderSizeEntity!", detail.getId());
+            }
+        }
 
-        log.info("[assignVehiclesOptimal] Completed. vehiclesUsed={}, detailsProcessed={}",
-                responses.size(), details.size());
-        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
-        log.info("[assignVehiclesOptimal] Finished in {} ms", elapsedMs);
-
-        return responses;
+        try {
+            List<BinPacker.ContainerState> containers = BinPacker.pack(details, sortedsizeRules);
+            List<ContractRuleAssignResponse> responses = BinPacker.toContractResponses(containers, details);
+            
+            long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+            log.info("[assignVehiclesOptimal] SUCCESS - {} vehicles assigned in {}ms", responses.size(), elapsedMs);
+            
+            return responses;
+        } catch (Exception e) {
+            log.error("[assignVehiclesOptimal] BinPacker failed for orderId={}", orderId, e);
+            throw e;
+        }
     }
 
     /**
@@ -719,11 +947,10 @@ public class ContractServiceImpl implements ContractService {
         return null;
     }
 
-
     private OrderDetailForPackingResponse toPackingResponse(OrderDetailEntity entity) {
         return new OrderDetailForPackingResponse(
                 entity.getId().toString(),
-                entity.getWeight(),
+                entity.getWeightTons(),
                 entity.getWeightBaseUnit(),
                 entity.getUnit(),
                 entity.getTrackingCode()
@@ -731,7 +958,7 @@ public class ContractServiceImpl implements ContractService {
     }
 
     private BigDecimal calculateTotalWeight(ContractRuleAssignResponse assignment, OrderDetailEntity newDetail) {
-        return assignment.getCurrentLoad().add(newDetail.getWeight());
+        return assignment.getCurrentLoad().add(newDetail.getWeightTons());
     }
 
     private SizeRuleEntity tryUpgrade(OrderDetailEntity detail,
@@ -762,15 +989,8 @@ public class ContractServiceImpl implements ContractService {
             throw new BadRequestException("Contract missing order/category", ErrorEnum.INVALID.getErrorCode());
         }
 
-        List<DistanceRuleEntity> distanceRules = distanceRuleEntityService.findAll()
-                .stream()
-                .sorted(Comparator.comparing(DistanceRuleEntity::getFromKm))
-                .toList();
-
-        if (distanceRules.isEmpty()) {
-            throw new RuntimeException("No distance rules found");
-        }
-
+        log.info("🧮 Using unified pricing for contract calculation");
+        
         BigDecimal total = BigDecimal.ZERO;
         List<PriceCalculationResponse.CalculationStep> steps = new ArrayList<>();
 
@@ -782,121 +1002,102 @@ public class ContractServiceImpl implements ContractService {
                     .orElseThrow(() -> new NotFoundException("Vehicle rule not found: " + sizeRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()));
 
-            BigDecimal ruleTotal = BigDecimal.ZERO;
-            BigDecimal remaining = distanceKm;
+            // Use unified pricing service for consistent calculation
+            UnifiedPricingService.UnifiedPriceResult pricingResult = unifiedPricingService.calculatePrice(
+                    sizeRuleId, 
+                    distanceKm, 
+                    numOfVehicles, 
+                    contract.getOrderEntity().getCategory().getId()
+            );
 
-            for (DistanceRuleEntity distanceRule : distanceRules) {
-                if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
-
-                BigDecimal from = distanceRule.getFromKm();
-                BigDecimal to = distanceRule.getToKm();
-
-                BasingPriceEntity basePriceEntity = basingPriceEntityService
-                        .findBasingPriceEntityBysizeRuleEntityIdAndDistanceRuleEntityId(
-                                sizeRule.getId(), distanceRule.getId())
-                        .orElseThrow(() -> new RuntimeException("No base price found for tier "
-                                + from + "-" + to + " and sizeRule=" + sizeRule.getId()));
-
-                if (from.compareTo(BigDecimal.ZERO) == 0 && to.compareTo(BigDecimal.valueOf(4)) == 0) {
-                    // fixed tier
-                    ruleTotal = ruleTotal.add(basePriceEntity.getBasePrice());
-                    remaining = remaining.subtract(to);
-
-                    steps.add(PriceCalculationResponse.CalculationStep.builder()
-                            .sizeRuleName(sizeRule.getSizeRuleName())
-                            .numOfVehicles(numOfVehicles)
-                            .distanceRange("0-4 km")
-                            .unitPrice(basePriceEntity.getBasePrice())
-                            .appliedKm(BigDecimal.valueOf(4))
-                            .subtotal(basePriceEntity.getBasePrice())
-                            .build());
-
-                } else {
-                    BigDecimal tierDistance = (to == null) ? remaining : remaining.min(to.subtract(from));
-                    BigDecimal add = basePriceEntity.getBasePrice().multiply(tierDistance);
-                    ruleTotal = ruleTotal.add(add);
-                    remaining = remaining.subtract(tierDistance);
-
-                    steps.add(PriceCalculationResponse.CalculationStep.builder()
-                            .sizeRuleName(sizeRule.getSizeRuleName())
-                            .numOfVehicles(numOfVehicles)
-                            .distanceRange(from + "-" + (to == null ? "∞" : to) + " km")
-                            .unitPrice(basePriceEntity.getBasePrice())
-                            .appliedKm(tierDistance)
-                            .subtotal(add)
-                            .build());
-                }
+            if (!pricingResult.isSuccess()) {
+                throw new RuntimeException("Pricing calculation failed: " + pricingResult.getErrorMessage());
             }
 
-            if (numOfVehicles > 0) {
-                ruleTotal = ruleTotal.multiply(BigDecimal.valueOf(numOfVehicles));
+            BigDecimal vehicleTotal = pricingResult.getTotalPrice();
+            total = total.add(vehicleTotal);
+
+            // Build calculation steps for each distance tier
+            for (UnifiedPricingService.TierCalculationResult tierResult : pricingResult.getTierResults()) {
+                steps.add(PriceCalculationResponse.CalculationStep.builder()
+                        .sizeRuleName(sizeRule.getSizeRuleName())
+                        .numOfVehicles(numOfVehicles)
+                        .distanceRange(tierResult.getDistanceRange())
+                        .unitPrice(tierResult.getUnitPrice())
+                        .appliedKm(tierResult.getAppliedKm())
+                        .subtotal(tierResult.getSubtotal().multiply(BigDecimal.valueOf(numOfVehicles)))
+                        .build());
             }
 
-            total = total.add(ruleTotal);
+            log.info("✅ Vehicle {} ({}x): {} VND with {} tiers", 
+                    sizeRule.getSizeRuleName(), numOfVehicles, vehicleTotal, pricingResult.getTierResults().size());
         }
 
-        BigDecimal totalBeforeAdjustment = total;
-        BigDecimal categoryExtraFee = BigDecimal.ZERO;
-        BigDecimal categoryMultiplier = BigDecimal.ONE;
-        BigDecimal promotionDiscount = BigDecimal.ZERO;
-
+        // Get category adjustment values for response DTO (UnifiedPricingService already applied them)
         CategoryPricingDetailEntity adjustment = categoryPricingDetailEntityService.findByCategoryId(contract.getOrderEntity().getCategory().getId());
+        BigDecimal categoryMultiplier = BigDecimal.ONE;
+        BigDecimal categoryExtraFee = BigDecimal.ZERO;
+        
         if (adjustment != null) {
             categoryMultiplier = adjustment.getPriceMultiplier() != null ? adjustment.getPriceMultiplier() : BigDecimal.ONE;
             categoryExtraFee = adjustment.getExtraFee() != null ? adjustment.getExtraFee() : BigDecimal.ZERO;
-
-            BigDecimal adjustedTotal = total.multiply(categoryMultiplier).add(categoryExtraFee);
-
-            steps.add(PriceCalculationResponse.CalculationStep.builder()
-                    .sizeRuleName("Điều chỉnh loại hàng: " + contract.getOrderEntity().getCategory().getCategoryName())
-                    .numOfVehicles(0)
-                    .distanceRange("×" + categoryMultiplier + " + " + categoryExtraFee + " VND")
-                    .unitPrice(categoryMultiplier)
-                    .appliedKm(BigDecimal.ZERO)
-                    .subtotal(adjustedTotal.subtract(total)) // phần chênh lệch
-                    .build());
-
-            total = adjustedTotal;
         }
 
-        if (promotionDiscount.compareTo(BigDecimal.ZERO) > 0) {
-            steps.add(PriceCalculationResponse.CalculationStep.builder()
-                    .sizeRuleName("Khuyến mãi")
-                    .numOfVehicles(0)
-                    .distanceRange("N/A")
-                    .unitPrice(promotionDiscount.negate())
-                    .appliedKm(BigDecimal.ZERO)
-                    .subtotal(promotionDiscount.negate())
-                    .build());
-
-            total = total.subtract(promotionDiscount);
-        }
-
+        BigDecimal promotionDiscount = BigDecimal.ZERO;
 
         if (total.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("Total price must not be negative");
         }
 
-//        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+        // Calculate insurance fee
+        OrderEntity order = contract.getOrderEntity();
+        CategoryName categoryName = order.getCategory().getCategoryName();
+        boolean isFragile = insuranceCalculationService.isFragileCategory(categoryName);
+        boolean hasInsurance = Boolean.TRUE.equals(order.getHasInsurance());
+        
+        BigDecimal totalDeclaredValue = BigDecimal.ZERO;
+        BigDecimal insuranceFee = BigDecimal.ZERO;
+        // Use display rate for response (e.g., 0.15 = 0.15%), calculation uses decimal internally
+        BigDecimal insuranceRateForDisplay = insuranceCalculationService.getInsuranceRateForDisplay(isFragile);
+        BigDecimal vatRate = insuranceCalculationService.getVatRate();
+        
+        if (hasInsurance) {
+            List<OrderDetailEntity> orderDetails = orderDetailEntityService
+                    .findOrderDetailEntitiesByOrderEntityId(order.getId());
+            totalDeclaredValue = insuranceCalculationService.calculateTotalDeclaredValue(orderDetails);
+            insuranceFee = insuranceCalculationService.calculateTotalInsuranceFee(orderDetails, categoryName);
+            log.info("🛡️ Insurance calculated: totalDeclaredValue={}, insuranceFee={}, rate={}%, isFragile={}", 
+                    totalDeclaredValue, insuranceFee, insuranceRateForDisplay, isFragile);
+        }
+        
+        // Grand total = transport fee + insurance fee
+        BigDecimal grandTotal = total.add(insuranceFee);
+
+        log.info("✅ Unified pricing calculation completed: {} VND (category: ×{} + {}, insurance: {})", 
+                grandTotal, categoryMultiplier, categoryExtraFee, insuranceFee);
 
         return PriceCalculationResponse.builder()
                 .totalPrice(total)
-                .totalBeforeAdjustment(totalBeforeAdjustment)
+                .totalBeforeAdjustment(total) // Unified pricing already includes adjustments
                 .categoryExtraFee(categoryExtraFee)
                 .categoryMultiplier(categoryMultiplier)
                 .promotionDiscount(promotionDiscount)
                 .finalTotal(total)
+                .totalDeclaredValue(totalDeclaredValue)
+                .insuranceFee(insuranceFee)
+                .insuranceRate(insuranceRateForDisplay) // Display rate as percentage (0.15 = 0.15%)
+                .vatRate(vatRate)
+                .hasInsurance(hasInsurance)
+                .grandTotal(grandTotal)
                 .steps(steps)
-//                .summary("Tổng giá trị hợp đồng: " + total + " (tính trong " + elapsedMs + " ms)")
                 .build();
     }
-
 
     private boolean canFit(OrderDetailEntity detail, SizeRuleEntity rule) {
         OrderSizeEntity size = detail.getOrderSizeEntity();
         if (size == null) return false;
 
-        return detail.getWeight().compareTo(rule.getMaxWeight()) <= 0
+        return detail.getWeightTons().compareTo(rule.getMaxWeight()) <= 0
                 && size.getMaxLength().compareTo(rule.getMaxLength()) <= 0
                 && size.getMaxWidth().compareTo(rule.getMaxWidth()) <= 0
                 && size.getMaxHeight().compareTo(rule.getMaxHeight()) <= 0;
@@ -906,7 +1107,7 @@ public class ContractServiceImpl implements ContractService {
         OrderSizeEntity size = detail.getOrderSizeEntity();
         if (size == null) return false;
 
-        BigDecimal newLoad = assignment.getCurrentLoad().add(detail.getWeight());
+        BigDecimal newLoad = assignment.getCurrentLoad().add(detail.getWeightTons());
         return newLoad.compareTo(rule.getMaxWeight()) <= 0
                 && size.getMaxLength().compareTo(rule.getMaxLength()) <= 0
                 && size.getMaxWidth().compareTo(rule.getMaxWidth()) <= 0
@@ -914,13 +1115,13 @@ public class ContractServiceImpl implements ContractService {
     }
 
     private boolean canFitAll(List<UUID> detailIds, SizeRuleEntity newRule, OrderDetailEntity newDetail) {
-        BigDecimal totalWeight = newDetail.getWeight();
+        BigDecimal totalWeight = newDetail.getWeightTons();
 
         for (UUID id : detailIds) {
             OrderDetailEntity d = orderDetailEntityService.findEntityById(id)
                     .orElseThrow(() -> new NotFoundException("Order detail not found: " + id, ErrorEnum.NOT_FOUND.getErrorCode()));
 
-            totalWeight = totalWeight.add(d.getWeight());
+            totalWeight = totalWeight.add(d.getWeightTons());
 
             OrderSizeEntity size = d.getOrderSizeEntity();
             if (size == null) {
@@ -931,53 +1132,35 @@ public class ContractServiceImpl implements ContractService {
             if (size.getMaxLength().compareTo(newRule.getMaxLength()) > 0
                     || size.getMaxWidth().compareTo(newRule.getMaxWidth()) > 0
                     || size.getMaxHeight().compareTo(newRule.getMaxHeight()) > 0) {
-                log.info("[canFitAll] Dimension exceed for detailId={} vs ruleId={}", id, newRule.getId());
+                
                 return false;
             }
         }
 
         boolean ok = totalWeight.compareTo(newRule.getMaxWeight()) <= 0;
         if (!ok) {
-            log.info("[canFitAll] Overweight: totalWeight={} > ruleMax={}", totalWeight, newRule.getMaxWeight());
+            
         }
         return ok;
     }
 
     @Override
     public BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to) {
-        double lat1 = from.getLatitude().doubleValue();
-        double lon1 = from.getLongitude().doubleValue();
-        double lat2 = to.getLatitude().doubleValue();
-        double lon2 = to.getLongitude().doubleValue();
-
-        log.info("Pickup coords: lat={}, lon={}", lat1, lon1);
-        log.info("Delivery coords: lat={}, lon={}", lat2, lon2);
-
-        if (lat1 == lat2 && lon1 == lon2) {
-            return BigDecimal.ZERO;
-        }
-
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLon = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        double distanceKm = EARTH_RADIUS_KM * c;
-
-        log.info("Calculated raw distance: {} km", distanceKm);
-        return BigDecimal.valueOf(distanceKm);
+        
+        return vietMapDistanceService.calculateDistance(from, to);
     }
 
+    @Override
+    public BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to, String vehicleType) {
+        
+        return vietMapDistanceService.calculateDistance(from, to, vehicleType);
+    }
 
     // CONTRACT TO CLOUD
 
-
     @Override
     public ContractResponse uploadContractFile(ContractFileUploadRequest req) throws IOException {
-        log.info("Uploading contract file for contractId={}", req.contractId());
-        
+
         // Get original filename and extension
         String originalFilename = req.file().getOriginalFilename();
         String fileExtension = "";
@@ -986,7 +1169,6 @@ public class ContractServiceImpl implements ContractService {
         }
         
         String fileName = "contract_" + UUID.randomUUID() + fileExtension;
-        log.info("Uploading file: {} with extension: {}", fileName, fileExtension);
 
         // upload Cloudinary
         var uploadResult = cloudinaryService.uploadFile(
@@ -1003,11 +1185,11 @@ public class ContractServiceImpl implements ContractService {
             // For PDFs and other raw files, use getRawFileUrl
             String publicId = uploadResult.get("public_id").toString();
             fileUrl = cloudinaryService.getRawFileUrl(publicId);
-            log.info("PDF file uploaded as raw resource. Public ID: {}, URL: {}", publicId, fileUrl);
+            
         } else {
             // For images, use the secure_url from upload result
             fileUrl = uploadResult.get("secure_url").toString();
-            log.info("Image file uploaded. URL: {}", fileUrl);
+            
         }
 
         // load relationships
@@ -1027,7 +1209,6 @@ public class ContractServiceImpl implements ContractService {
         UserEntity staffUser = new UserEntity();
         staffUser.setId(staffUserId);
         ce.setStaff(staffUser);
-        log.info("Set staff user ID for contract: {}", staffUserId);
 
         var updated = contractEntityService.save(ce);
 
@@ -1037,8 +1218,7 @@ public class ContractServiceImpl implements ContractService {
             OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
             order.setStatus(OrderStatusEnum.CONTRACT_DRAFT.name());
             orderEntityService.save(order);
-            log.info("Updated order status to CONTRACT_DRAFT for orderId={}", order.getId());
-            
+
             // Send WebSocket notification for status change
             try {
                 orderStatusWebSocketService.sendOrderStatusChange(
@@ -1047,7 +1227,7 @@ public class ContractServiceImpl implements ContractService {
                     previousStatus,
                     OrderStatusEnum.CONTRACT_DRAFT
                 );
-                log.info("Sent WebSocket notification for order status change to CONTRACT_DRAFT");
+                
             } catch (Exception e) {
                 log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
                 // Don't throw - WebSocket failure shouldn't break business logic
@@ -1059,8 +1239,170 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    @Transactional
+    public ContractResponse generateAndSaveContractPdf(GenerateContractPdfRequest request) {
+        log.info("[ContractService] Generating PDF for contract: {}", request.contractId());
+        
+        // Get contract entity
+        ContractEntity contract = contractEntityService.findEntityById(request.contractId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Contract not found: " + request.contractId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        OrderEntity order = contract.getOrderEntity();
+        if (order == null) {
+            throw new BadRequestException(
+                    "Contract has no associated order",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+
+        try {
+            // Get vehicle assignment data for PDF
+            List<ContractRuleAssignResponse> assignResult = assignVehiclesWithAvailability(order.getId());
+            
+            Map<UUID, Integer> vehicleCountMap = assignResult.stream()
+                    .collect(Collectors.groupingBy(
+                            ContractRuleAssignResponse::getSizeRuleId,
+                            Collectors.summingInt(a -> 1)
+                    ));
+
+            BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
+
+            // Generate PDF using backend PdfGenerationService (handles pagination properly)
+            byte[] pdfBytes = pdfGenerationService.generateContractPdf(
+                    contract,
+                    order,
+                    assignResult,
+                    distanceKm,
+                    vehicleCountMap
+            );
+
+            // Upload to Cloudinary
+            String fileName = "contract_" + request.contractName() + "_" + System.currentTimeMillis() + ".pdf";
+            Map<String, Object> uploadResult = cloudinaryService.uploadFile(
+                    pdfBytes,
+                    fileName,
+                    "CONTRACTS"
+            );
+
+            // Get the correct URL based on resource type
+            String fileUrl;
+            String resourceType = uploadResult.get("resource_type").toString();
+            
+            if ("raw".equals(resourceType)) {
+                String publicId = uploadResult.get("public_id").toString();
+                fileUrl = cloudinaryService.getRawFileUrl(publicId);
+            } else {
+                fileUrl = uploadResult.get("secure_url").toString();
+            }
+
+            // Update contract entity with PDF URL and metadata
+            contract.setAttachFileUrl(fileUrl);
+            contract.setContractName(request.contractName());
+            contract.setEffectiveDate(request.effectiveDate());
+            contract.setExpirationDate(request.expirationDate());
+            contract.setAdjustedValue(request.adjustedValue());
+            contract.setDescription(request.description());
+            
+            // Calculate total price for the contract
+            PriceCalculationResponse totalPriceResponse = calculateTotalPrice(contract, distanceKm, vehicleCountMap);
+            BigDecimal grandTotal = totalPriceResponse.getGrandTotal();
+            contract.setTotalValue(grandTotal);
+            
+            // Set contract deadlines properly
+            setContractDeadlines(contract, order);
+
+            // Set staff user ID from current authenticated user
+            UUID staffUserId = userContextUtils.getCurrentUserId();
+            UserEntity staffUser = new UserEntity();
+            staffUser.setId(staffUserId);
+            contract.setStaff(staffUser);
+
+            ContractEntity updated = contractEntityService.save(contract);
+
+            // Update order status to CONTRACT_DRAFT
+            OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
+            order.setStatus(OrderStatusEnum.CONTRACT_DRAFT.name());
+            orderEntityService.save(order);
+
+            // Send WebSocket notification for status change
+            try {
+                orderStatusWebSocketService.sendOrderStatusChange(
+                        order.getId(),
+                        order.getOrderCode(),
+                        previousStatus,
+                        OrderStatusEnum.CONTRACT_DRAFT
+                );
+            } catch (Exception e) {
+                log.error("Failed to send WebSocket notification: {}", e.getMessage());
+            }
+
+            // Create CONTRACT_READY notification for customer when staff generates contract PDF
+            try {
+                // Get order details for package information
+                List<OrderDetailEntity> orderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(order.getId());
+                
+                String contractCode = updated.getContractName() != null ? updated.getContractName() : "HĐ-" + order.getOrderCode();
+                
+                // Get totalAmount from effective contract value (prioritizes adjustedValue over totalValue)
+                double totalAmount = getEffectiveContractValue(updated);
+                double depositAmount = 0.0;
+                
+                // Calculate deposit amount using contract settings
+                try {
+                    var contractSetting = contractSettingService.getLatestContractSetting();
+                    if (contractSetting != null && contractSetting.depositPercent() != null) {
+                        depositAmount = totalAmount * contractSetting.depositPercent().doubleValue() / 100.0;
+                    } else {
+                        // Fallback to 30% if no contract setting found
+                        depositAmount = totalAmount * 0.1;
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+                    // Fallback to 30% if contract setting fails
+                    depositAmount = totalAmount * 0.1;
+                }
+                
+                log.info("📋 Contract notification - totalAmount: {}, depositAmount: {}, signingDeadline: {}, fullPaymentDeadline: {}",
+                    totalAmount, depositAmount, updated.getSigningDeadline(), updated.getFullPaymentDeadline());
+                
+                CreateNotificationRequest notificationRequest = NotificationBuilder.buildContractReady(
+                    order.getSender().getUser().getId(),
+                    order.getOrderCode(),
+                    contractCode,
+                    depositAmount,
+                    totalAmount,
+                    updated.getSigningDeadline(),  // Use contract's signingDeadline (24h from now)
+                    updated.getDepositPaymentDeadline(),  // Will be set after signing
+                    orderDetails,
+                    order.getId(),
+                    updated.getId()
+                );
+                
+                notificationService.createNotification(notificationRequest);
+                log.info("✅ Created CONTRACT_READY notification for customer when staff generated PDF: {} with deposit: {}", order.getOrderCode(), depositAmount);
+            } catch (Exception e) {
+                log.error("❌ Failed to create CONTRACT_READY notification for PDF generation: {}", e.getMessage());
+                // Don't throw - notification failure shouldn't break PDF generation
+            }
+
+            log.info("[ContractService] PDF generated and saved successfully for contract: {}", request.contractId());
+            return contractMapper.toContractResponse(updated);
+
+        } catch (Exception e) {
+            log.error("[ContractService] Error generating PDF for contract {}: {}", request.contractId(), e.getMessage(), e);
+            throw new BadRequestException(
+                    "Failed to generate contract PDF: " + e.getMessage(),
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+    }
+
+    @Override
     public ContractResponse getContractByOrderId(UUID orderId) {
-        log.info("Getting contract by Order ID: {}", orderId);
+        
         ContractEntity contractEntity = contractEntityService.getContractByOrderId(orderId)
                 .orElseThrow(() -> new NotFoundException(
                         "Contract not found for order ID: " + orderId,
@@ -1072,18 +1414,26 @@ public class ContractServiceImpl implements ContractService {
     /**
      * Set contract deadlines based on order details
      * Reasonable deadlines for Vietnamese logistics:
-     * - Contract signing: 24 hours after contract draft creation
-     * - Deposit payment: 48 hours after contract signing
+     * - Effective date: Now (contract creation time)
+     * - Expiration date: 1 year from effective date
+     * - Contract signing: 24 hours after contract draft creation (staff exports contract)
+     * - Deposit payment: 24 hours after contract signing (set when customer signs)
      * - Full payment: 1 day before pickup time (earliest estimated start time)
      */
     private void setContractDeadlines(ContractEntity contract, OrderEntity order) {
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
         
-        // Signing deadline: 24 hours from contract creation
+        // Effective date: Contract creation time
+        contract.setEffectiveDate(now);
+        
+        // Expiration date: 1 year from effective date
+        contract.setExpirationDate(now.plusYears(1));
+        
+        // Signing deadline: 24 hours from contract creation (when staff exports contract)
         contract.setSigningDeadline(now.plusHours(24));
         
-        // Deposit payment deadline: 48 hours after signing (72 hours from creation)
-        contract.setDepositPaymentDeadline(now.plusHours(72));
+        // Deposit payment deadline: Will be set when customer signs the contract (24h after signing)
+        // Do NOT set here - will be set in signContractAndOrder() method
         
         // Full payment deadline: 1 day before pickup time
         // Get the earliest estimated start time from order details
@@ -1095,10 +1445,5 @@ public class ContractServiceImpl implements ContractService {
         
         // Set deadline to 1 day before pickup time
         contract.setFullPaymentDeadline(earliestPickupTime.minusDays(1));
-        
-        log.info("Set contract deadlines - Signing: {}, Deposit: {}, Full Payment: {} (1 day before pickup)",
-                contract.getSigningDeadline(),
-                contract.getDepositPaymentDeadline(),
-                contract.getFullPaymentDeadline());
     }
 }

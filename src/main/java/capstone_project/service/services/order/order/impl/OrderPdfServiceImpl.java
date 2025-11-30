@@ -8,11 +8,14 @@ import capstone_project.dtos.response.order.contract.FullContractPDFResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.entity.setting.CarrierSettingEntity;
 import capstone_project.entity.setting.ContractSettingEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
+import capstone_project.repository.entityServices.setting.CarrierSettingEntityService;
 import capstone_project.repository.entityServices.setting.ContractSettingEntityService;
 import capstone_project.service.mapper.order.OrderMapper;
+import capstone_project.service.mapper.setting.CarrierSettingMapper;
 import capstone_project.service.mapper.setting.ContractSettingMapper;
 import capstone_project.service.mapper.user.CustomerMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
@@ -42,9 +45,11 @@ public class OrderPdfServiceImpl implements OrderPdfService {
     private final CloudinaryService cloudinaryService;
     private final DistanceService distanceService;
     private final ContractSettingEntityService contractSettingEntityService;
+    private final CarrierSettingEntityService carrierSettingEntityService;
 
     private final CustomerMapper customerMapper;
     private final ContractSettingMapper contractSettingMapper;
+    private final CarrierSettingMapper carrierSettingMapper;
     private final OrderMapper orderMapper;
 
     @Override
@@ -60,19 +65,11 @@ public class OrderPdfServiceImpl implements OrderPdfService {
 
             List<ContractRuleAssignResponse> assignResult = contractService.assignVehiclesWithAvailability(order.getId());
 
-            log.info("Assignments total: {}", assignResult.size());
-            assignResult.forEach(a ->
-                    log.info("Assignment => ruleId={}, ruleName={}, index={}, load={}",
-                            a.getSizeRuleId(), a.getSizeRuleName(), a.getVehicleIndex(), a.getCurrentLoad())
-            );
-
             Map<UUID, Integer> vehicleCountMap = assignResult.stream()
                     .collect(Collectors.groupingBy(
                             ContractRuleAssignResponse::getSizeRuleId,
                             Collectors.summingInt(a -> 1)
                     ));
-
-            log.info("VehicleCountMap: {}", vehicleCountMap);
 
             BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
 
@@ -137,6 +134,10 @@ public class OrderPdfServiceImpl implements OrderPdfService {
 
         Optional<ContractSettingEntity> setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc();
 
+        // Get carrier settings for company info
+        List<CarrierSettingEntity> carrierSettings = carrierSettingEntityService.findAll();
+        CarrierSettingEntity carrierSetting = carrierSettings.isEmpty() ? null : carrierSettings.get(0);
+
         List<ContractRuleAssignResponse> assignResult = contractService.assignVehiclesWithAvailability(order.getId());
 
         Map<UUID, Integer> vehicleCountMap = assignResult.stream()
@@ -154,6 +155,7 @@ public class OrderPdfServiceImpl implements OrderPdfService {
                 .contractId(contractId.toString())
 //                .pdfUrl(contract.getPdfUrl())
                 .message("Full contract PDF data retrieved successfully")
+                .carrierInfo(carrierSetting != null ? carrierSettingMapper.toResponse(carrierSetting) : null)
                 .customerInfo(customerMapper.mapCustomerResponse(customer))
                 .orderInfo(orderMapper.toGetOrderResponse(order))
                 .priceDetails(result)

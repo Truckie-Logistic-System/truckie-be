@@ -19,6 +19,13 @@ public interface VehicleAssignmentEntityService extends BaseEntityService<Vehicl
 
     List<VehicleAssignmentEntity> findVehicleAssignmentsWithOrderID(UUID orderID);
 
+    /**
+     * Optimized method for WebSocket tracking - eagerly loads all required relationships
+     * @param orderID the order ID to find vehicle assignments for
+     * @return list of vehicle assignments with eagerly loaded relationships
+     */
+    List<VehicleAssignmentEntity> findVehicleAssignmentsWithOrderIDOptimized(UUID orderID);
+
     Optional<VehicleAssignmentEntity> findVehicleAssignmentByVehicleEntityAndStatus(VehicleEntity vehicle, String status);
 
     List<VehicleAssignmentEntity> findAssignmentsByVehicleOrderByCreatedAtDesc(VehicleEntity vehicle);

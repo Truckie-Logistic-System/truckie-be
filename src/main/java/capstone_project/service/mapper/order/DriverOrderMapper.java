@@ -1,6 +1,5 @@
 package capstone_project.service.mapper.order;
 
-import capstone_project.dtos.response.issue.SimpleIssueImageResponse;
 import capstone_project.dtos.response.issue.SimpleIssueResponse;
 import capstone_project.dtos.response.issue.SimpleStaffResponse;
 import capstone_project.dtos.response.order.*;
@@ -70,7 +69,7 @@ public class DriverOrderMapper {
                 response.pickupAddress().province()
         );
 
-        Map<UUID, SimpleIssueImageResponse> issuesByVehicleAssignment = buildIssuesMap(issueImageResponses);
+        Map<UUID, List<SimpleIssueResponse>> issuesByVehicleAssignment = buildIssuesMap(issueImageResponses);
 
         // Per-request caches to avoid duplicate DB calls inside mapper
         Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache = new HashMap<>();
@@ -91,10 +90,10 @@ public class DriverOrderMapper {
                             .findFirst()
                             .orElse(null);
                     if (vaResponse != null) {
-                        // Get issue for this vehicle assignment
-                        SimpleIssueImageResponse issue = issuesByVehicleAssignment.get(vaId);
+                        // Get ALL issues for this vehicle assignment
+                        List<SimpleIssueResponse> issues = issuesByVehicleAssignment.getOrDefault(vaId, Collections.emptyList());
                         List<String> photoCompletions = getPhotoCompletionsFor(photoCompletionResponses, vaId);
-                        return toSimpleVehicleAssignmentResponse(vaResponse, issue, photoCompletions, vehicleCache, userCache);
+                        return toSimpleVehicleAssignmentResponse(vaResponse, issues, photoCompletions, vehicleCache, userCache);
                     }
                     return null;
                 })
@@ -122,7 +121,8 @@ public class DriverOrderMapper {
                 response.sender().getRepresentativeName(),
                 response.sender().getRepresentativePhone(),
                 response.sender().getCompanyName(),
-                response.category().categoryName(),
+                response.category().categoryName().name(),
+                response.category().description(), // Add category description
                 simpleOrderDetails,
                 vehicleAssignments  // Add aggregated vehicle assignments
         );
@@ -130,7 +130,7 @@ public class DriverOrderMapper {
 
     private SimpleVehicleAssignmentResponse toSimpleVehicleAssignmentResponse(
             capstone_project.dtos.response.vehicle.VehicleAssignmentResponse vaResponse,
-            SimpleIssueImageResponse issue,
+            List<SimpleIssueResponse> issues,
             List<String> photoCompletions,
             Map<UUID, capstone_project.entity.vehicle.VehicleEntity> vehicleCache,
             Map<UUID, UserEntity> userCache
@@ -149,7 +149,8 @@ public class DriverOrderMapper {
                         vehicleEntity.getManufacturer(),
                         vehicleEntity.getModel(),
                         vehicleEntity.getLicensePlateNumber(),
-                        vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null
+                        vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getVehicleTypeName() : null,
+                        vehicleEntity.getVehicleTypeEntity() != null ? vehicleEntity.getVehicleTypeEntity().getDescription() : null
                 );
             }
         } catch (Exception ignored) {
@@ -201,9 +202,9 @@ public class DriverOrderMapper {
             // Keep seals as empty list
         }
 
-        // Ensure photoCompletions and issue lists are non-null
+        // Ensure photoCompletions and issues lists are non-null
         List<String> safePhotoCompletions = photoCompletions != null ? photoCompletions : Collections.emptyList();
-        List<SimpleIssueImageResponse> issuesList = issue != null ? List.of(issue) : Collections.emptyList();
+        List<SimpleIssueResponse> safeIssues = issues != null ? issues : Collections.emptyList();
 
         // Build vehicleAssignment response
         return new SimpleVehicleAssignmentResponse(
@@ -213,7 +214,7 @@ public class DriverOrderMapper {
                 secondaryDriver,
                 vaResponse.status(),
                 vaResponse.trackingCode(),
-                issuesList,
+                safeIssues,
                 safePhotoCompletions,
                 seals,
                 journeyHistories
@@ -273,34 +274,6 @@ public class DriverOrderMapper {
                 orderSize,
                 detail.vehicleAssignmentId()  // Only store ID reference
         );
-    }
-
-    private SimpleIssueImageResponse toSimpleIssueImageResponse(GetIssueImageResponse response) {
-        if (response == null || response.issue() == null) {
-            return null;
-        }
-
-        SimpleStaffResponse staffResponse = null;
-        if (response.issue().staff() != null) {
-            staffResponse = new SimpleStaffResponse(
-                    response.issue().staff().getId(),
-                    response.issue().staff().getFullName(),
-                    response.issue().staff().getPhoneNumber()
-            );
-        }
-
-        SimpleIssueResponse simpleIssue = new SimpleIssueResponse(
-                response.issue().id().toString(),
-                response.issue().description(),
-                response.issue().locationLatitude(),
-                response.issue().locationLongitude(),
-                response.issue().status(),
-                response.issue().vehicleAssignmentEntity().id().toString(),
-                staffResponse,
-                response.issue().issueTypeEntity().issueTypeName()
-        );
-
-        return new SimpleIssueImageResponse(simpleIssue, response.imageUrl());
     }
 
     private Map<String, List<String>> convertPhotoCompletions(Map<UUID, List<PhotoCompletionResponse>> photoCompletionMap) {
@@ -363,7 +336,8 @@ public class DriverOrderMapper {
                 transaction.amount(),
                 transaction.currencyCode(),
                 transaction.status(),
-                transaction.paymentDate()
+                transaction.paymentDate(),
+                transaction.transactionType()
         );
     }
 
@@ -383,8 +357,8 @@ public class DriverOrderMapper {
         return address.toString();
     }
 
-    private Map<UUID, SimpleIssueImageResponse> buildIssuesMap(List<GetIssueImageResponse> issueImageResponses) {
-        Map<UUID, SimpleIssueImageResponse> map = new HashMap<>();
+    private Map<UUID, List<SimpleIssueResponse>> buildIssuesMap(List<GetIssueImageResponse> issueImageResponses) {
+        Map<UUID, List<SimpleIssueResponse>> map = new HashMap<>();
         if (issueImageResponses == null) return map;
 
         for (GetIssueImageResponse resp : issueImageResponses) {
@@ -394,12 +368,24 @@ public class DriverOrderMapper {
                 var issue = resp.issue();
                 if (issue.vehicleAssignmentEntity() == null || issue.vehicleAssignmentEntity().id() == null) continue;
                 UUID vehicleAssignmentId = UUID.fromString(issue.vehicleAssignmentEntity().id().toString());
-                SimpleIssueImageResponse simple = safeToSimpleIssueImageResponse(resp);
-                if (simple != null) map.put(vehicleAssignmentId, simple);
+                SimpleIssueResponse simple = safeToSimpleIssueResponse(resp);
+                if (simple != null) {
+                    // Add to list instead of replacing
+                    map.computeIfAbsent(vehicleAssignmentId, k -> new ArrayList<>()).add(simple);
+                }
             } catch (Exception ignored) {
                 // ignore invalid UUIDs or mapping errors
             }
         }
+        
+        // Sort issues by reportedAt DESC (newest first) for each vehicle assignment
+        map.values().forEach(issues -> issues.sort((i1, i2) -> {
+            if (i1.reportedAt() == null && i2.reportedAt() == null) return 0;
+            if (i1.reportedAt() == null) return 1;
+            if (i2.reportedAt() == null) return -1;
+            return i2.reportedAt().compareTo(i1.reportedAt());
+        }));
+        
         return map;
     }
 
@@ -416,7 +402,7 @@ public class DriverOrderMapper {
     }
 
 
-    private SimpleIssueImageResponse safeToSimpleIssueImageResponse(GetIssueImageResponse response) {
+    private SimpleIssueResponse safeToSimpleIssueResponse(GetIssueImageResponse response) {
         if (response == null || response.issue() == null) return null;
 
         var issue = response.issue();
@@ -437,8 +423,13 @@ public class DriverOrderMapper {
         }
 
         String issueTypeName = issue.issueTypeEntity() != null ? issue.issueTypeEntity().issueTypeName() : null;
+        String issueTypeDescription = issue.issueTypeEntity() != null ? issue.issueTypeEntity().description() : null;
+        var issueCategory = issue.issueCategory();
 
-        SimpleIssueResponse simpleIssue = new SimpleIssueResponse(
+        // Issue images
+        List<String> issueImages = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
+
+        return new SimpleIssueResponse(
                 issue.id() != null ? issue.id().toString() : null,
                 issue.description(),
                 issue.locationLatitude(),
@@ -446,11 +437,27 @@ public class DriverOrderMapper {
                 issue.status(),
                 vehicleAssignmentIdStr,
                 staffResponse,
-                issueTypeName
+                issueTypeName,
+                issueTypeDescription,
+                issue.reportedAt(),
+                issueCategory,
+                issueImages, // Issue images moved inside
+                // SEAL_REPLACEMENT fields
+                issue.oldSeal(),
+                issue.newSeal(),
+                issue.sealRemovalImage(),
+                issue.newSealAttachedImage(),
+                issue.newSealConfirmedAt(),
+                // ORDER_REJECTION fields
+                issue.paymentDeadline(),
+                issue.calculatedFee(),
+                issue.adjustedFee(),
+                issue.finalFee(),
+                issue.affectedOrderDetails(),
+                issue.returnTransaction(), // Refund
+                null, // Transaction (deprecated)
+                null // Transactions list (driver view - won't fetch transactions)
         );
-
-        List<String> images = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
-        return new SimpleIssueImageResponse(simpleIssue, images);
     }
 
     /**
@@ -464,7 +471,7 @@ public class DriverOrderMapper {
         }
 
         return segments.stream()
-                .mapToDouble(segment -> segment.distanceMeters() != null ? segment.distanceMeters() : 0.0)
+                .mapToDouble(segment -> segment.distanceKilometers() != null ? segment.distanceKilometers().doubleValue() : 0.0)
                 .sum();
     }
 }

@@ -29,9 +29,13 @@ import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.mapper.vehicle.VehicleAssignmentMapper;
 import capstone_project.service.mapper.vehicle.VehicleMapper;
 import capstone_project.service.services.order.order.*;
+import capstone_project.service.services.setting.ContractSettingService;
 import capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService;
 import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
+import capstone_project.service.services.notification.NotificationService;
+import capstone_project.service.services.notification.NotificationBuilder;
+import capstone_project.dtos.request.notification.CreateNotificationRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +62,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final OrderEntityService orderEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
     private final ContractEntityService contractEntityService;
+    private final NotificationService notificationService;
     private final ContractRuleService contractRuleService;
     private final SizeRuleEntityService sizeRuleEntityService;
     private final DriverService driverService;
@@ -71,11 +76,15 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final JourneyHistoryEntityService journeyHistoryEntityService;
     private final VietmapService vietmapService;
     private final SealEntityService sealEntityService;
+    private final ContractSettingService contractSettingService;
 
     private final ObjectMapper objectMapper;
 
     @Value("${prefix.vehicle.assignment.code}")
     private String prefixVehicleAssignmentCode;
+
+    @Value("${vietmap.api.key}")
+    private String mapApiKey;
 
     /**
      * Define custom error codes for vehicle and driver availability
@@ -84,9 +93,20 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private static final long VEHICLE_NOT_AVAILABLE = 30;
     private static final long DRIVER_NOT_AVAILABLE = 31;
 
+    /**
+     * Get effective contract value - prioritize adjustedValue if > 0, otherwise use totalValue
+     * This ensures notifications show the correct payment amounts
+     */
+    private double getEffectiveContractValue(ContractEntity contract) {
+        if (contract.getAdjustedValue() != null && contract.getAdjustedValue().doubleValue() > 0) {
+            return contract.getAdjustedValue().doubleValue();
+        }
+        return contract.getTotalValue() != null ? contract.getTotalValue().doubleValue() : 0.0;
+    }
+
     @Override
     public List<VehicleAssignmentResponse> getAllAssignments() {
-        log.info("Fetching all vehicles");
+        
         return Optional.of(entityService.findAll())
                 .filter(list -> !list.isEmpty())
                 .orElseThrow(() -> new NotFoundException(
@@ -99,7 +119,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     @Override
     public VehicleAssignmentResponse getAssignmentById(UUID id) {
-        log.info("Fetching vehicle assignment by ID: {}", id);
+        
         VehicleAssignmentEntity entity = entityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(
                         "Assignment is not found with ASSIGNMENT ID: " + id,
@@ -110,7 +130,6 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     @Override
     public VehicleAssignmentResponse createAssignment(VehicleAssignmentRequest req) {
-        log.info("Creating new vehicle assignment");
 
         vehicleEntityService.findByVehicleId(UUID.fromString(req.vehicleId())).orElseThrow(() -> new NotFoundException(
                 ErrorEnum.VEHICLE_NOT_FOUND.getMessage(),
@@ -129,13 +148,12 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
         var saved = entityService.save(mapper.toEntity(req));
 
-
         return mapper.toResponse(saved);
     }
 
     @Override
     public VehicleAssignmentResponse updateAssignment(UUID id, UpdateVehicleAssignmentRequest req) {
-        log.info("Updating vehicle assignment with ID: {}", id);
+        
         var existing = entityService.findEntityById(id)
                 .orElseThrow(() ->
                         new NotFoundException(
@@ -149,14 +167,12 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     @Override
     public List<VehicleAssignmentResponse> getAllAssignmentsWithOrder(UUID vehicleType) {
-        log.info("Fetching vehicle assignment by vehicle type ID: {}", vehicleType);
 
         vehicleTypeEntityService.findEntityById(vehicleType)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.VEHICLE_TYPE_NOT_FOUND.getMessage(),
                         ErrorEnum.VEHICLE_TYPE_NOT_FOUND.getErrorCode()
                 ));
-
 
         List<VehicleAssignmentEntity> entity = entityService.findVehicleWithOrder(vehicleType);
         if (entity.isEmpty()) {
@@ -170,7 +186,6 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     @Override
     public List<VehicleAssignmentResponse> getListVehicleAssignmentByOrderID(UUID orderID) {
-        log.info("Fetching vehicle assignment by vehicle type ID: {}", orderID);
 
         orderEntityService.findEntityById(orderID)
                 .orElseThrow(() -> new NotFoundException(
@@ -178,8 +193,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-
-        List<VehicleAssignmentEntity> entity = entityService.findVehicleAssignmentsWithOrderID(orderID);
+        // Use optimized query with JOIN FETCH to prevent LazyInitializationException in WebSocket
+        List<VehicleAssignmentEntity> entity = entityService.findVehicleAssignmentsWithOrderIDOptimized(orderID);
         if (entity.isEmpty()) {
             throw new NotFoundException(ErrorEnum.NO_VEHICLE_AVAILABLE.getMessage(),
                     ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode());
@@ -223,7 +238,6 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     ));
             VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(sizeRule.getVehicleTypeEntity().getVehicleTypeName());
             List<VehicleEntity> getVehiclesByVehicleType = vehicleEntityService.getVehicleEntitiesByVehicleTypeEntityAndStatus(sizeRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name());
-            log.info("Tìm thấy {} xe ACTIVE cho loại {}", getVehiclesByVehicleType.size(), vehicleTypeEnum);
 
             // Lấy tất cả các tài xế hợp lệ cho loại xe này
             List<DriverEntity> allEligibleDrivers = driverEntityService.findByStatus(CommonStatusEnum.ACTIVE.name())
@@ -231,7 +245,6 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     .filter(d -> driverService.isCheckClassDriverLicenseForVehicleType(d, vehicleTypeEnum))
                     .filter(d -> !entityService.existsActiveAssignmentForDriver(d.getId()))
                     .toList();
-            log.info("Tìm thấy {} tài xế ACTIVE hợp lệ cho loại xe {}", allEligibleDrivers.size(), vehicleTypeEnum);
 
             // Giới hạn số lượng xe để tránh quá nhiều gợi ý
             final int MAX_VEHICLES_PER_DETAIL = 5;
@@ -613,7 +626,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      */
     @Override
     public GroupedVehicleAssignmentResponse getGroupedSuggestionsForOrder(UUID orderID) {
-        log.info("Generating grouped vehicle assignment suggestions for order ID: {}", orderID);
+        
         final long startTime = System.nanoTime();
 
         OrderEntity order = orderEntityService.findEntityById(orderID)
@@ -633,8 +646,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
         try {
             optimalAssignments = contractService.assignVehiclesOptimal(orderID);
-            log.info("[getGroupedSuggestionsForOrder] Optimal assignment succeeded for orderId={}, vehicles used={}",
-                    orderID, optimalAssignments.size());
+            
         } catch (Exception e) {
             log.warn("[getGroupedSuggestionsForOrder] Optimal assignment failed for orderId={}, reason={}, fallback to realistic",
                     orderID, e.getMessage());
@@ -642,8 +654,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
         try {
             realisticAssignments = contractService.assignVehiclesWithAvailability(orderID);
-            log.info("[getGroupedSuggestionsForOrder] Realistic assignment succeeded for orderId={}, vehicles used={}",
-                    orderID, realisticAssignments.size());
+            
         } catch (Exception e) {
             log.warn("[getGroupedSuggestionsForOrder] Realistic assignment failed for orderId={}, reason={}",
                     orderID, e.getMessage());
@@ -665,8 +676,6 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 convertAssignmentsToGroups(vehicleAssignments);
 
         long elapsedMs = (System.nanoTime() - startTime) / 1_000_000;
-        log.info("Completed generating suggestions for order {} in {} ms using {} algorithm",
-                orderID, elapsedMs, optimalAssignments != null ? "OPTIMAL" : "REALISTIC");
 
         return new GroupedVehicleAssignmentResponse(groups);
     }
@@ -724,21 +733,15 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     .filter(GroupedVehicleAssignmentResponse.DriverSuggestionResponse::isRecommended)
                     .limit(2)
                     .forEach(d -> usedDriverIds.add(d.id()));
-                
-                log.debug("Group {}: Reserved vehicle {} and {} drivers for next groups", 
-                    groups.size() + 1, topVehicle.id(), 
-                    topVehicle.suggestedDrivers().stream()
-                        .filter(GroupedVehicleAssignmentResponse.DriverSuggestionResponse::isRecommended)
-                        .count());
+
             }
 
             BigDecimal totalWeight = detailIds.stream()
                     .map(id -> orderDetailEntityService.findEntityById(id).orElse(null))
                     .filter(Objects::nonNull)
-                    .map(OrderDetailEntity::getWeight)
+                    .map(OrderDetailEntity::getWeightTons)
                     .filter(Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
-
 
             // Xác định lý do nhóm
             String groupingReason;
@@ -771,8 +774,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      */
     @Override
     public List<VehicleAssignmentResponse> createGroupedAssignments(GroupedAssignmentRequest request) {
-        log.info("Creating grouped vehicle assignments for {} groups", request.groupAssignments().size());
-        
+
         // VALIDATION: Check all groups have required data
         List<String> validationErrors = new ArrayList<>();
         
@@ -924,6 +926,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 }
             }
 
+            // Create notifications for assignment
+            createAssignmentNotifications(savedAssignment, orderDetailIds);
+            
             // Thêm vào danh sách kết quả
             createdAssignments.add(mapper.toResponse(savedAssignment));
         }
@@ -931,6 +936,20 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         // Update status of all affected orders to ASSIGNED_TO_DRIVER
         for (UUID orderId : orderIdsToUpdate) {
             orderService.updateOrderStatus(orderId, OrderStatusEnum.ASSIGNED_TO_DRIVER);
+            
+            // Handle full payment deadline when driver is assigned
+            try {
+                var contract = contractEntityService.getContractByOrderId(orderId).orElse(null);
+                if (contract != null) {
+                    // Set full payment deadline to 24 hours from now when driver is assigned
+                    contract.setFullPaymentDeadline(LocalDateTime.now().plusHours(24));
+                    contractEntityService.save(contract);
+                    log.info("✅ Updated full payment deadline to +24h for order {} when driver assigned", orderId);
+                }
+            } catch (Exception e) {
+                log.error("❌ Failed to update full payment deadline for order {}: {}", orderId, e.getMessage());
+                // Don't throw - deadline update failure shouldn't break assignment process
+            }
         }
 
         return createdAssignments;
@@ -939,17 +958,11 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private void createInitialJourneyForAssignment(VehicleAssignmentEntity assignment, List<UUID> orderDetailIds, RouteInfo routeInfo) {
         // If there's route information from the client, use that to create the journey
         if (routeInfo != null && routeInfo.segments() != null && !routeInfo.segments().isEmpty()) {
-            log.info("Creating journey history with route information for assignment {}", assignment.getId());
-            // Log toll information received from client
-            log.info("Route info toll data: totalTollFee={}, totalTollCount={}, segments={}",
-                routeInfo.totalTollFee(),
-                routeInfo.totalTollCount(),
-                routeInfo.segments().size());
             
+            // Log toll information received from client
+
             // Consolidate route segments to standard 3-segment format while preserving intermediate points
             List<RouteSegmentInfo> consolidatedSegments = consolidateRouteSegments(routeInfo.segments());
-            log.info("Consolidated {} original segments into {} standard segments",
-                    routeInfo.segments().size(), consolidatedSegments.size());
 
             // Create a new RouteInfo with consolidated segments
             RouteInfo consolidatedRouteInfo = new RouteInfo(
@@ -971,7 +984,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             Long totalTollFeeLong = null;
             if (consolidatedRouteInfo.totalTollFee() != null) {
                 totalTollFeeLong = consolidatedRouteInfo.totalTollFee().setScale(0, RoundingMode.HALF_UP).longValue();
-                log.info("Setting journey total toll fee: {}", totalTollFeeLong);
+                
             } else {
                 log.warn("Total toll fee is missing in the route info for assignment {}", assignment.getId());
                 // Calculate total from segments as fallback
@@ -989,7 +1002,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 
                 if (hasSegmentTolls) {
                     totalTollFeeLong = calculatedTotal.setScale(0, RoundingMode.HALF_UP).longValue();
-                    log.info("Calculated total toll fee from segments: {}", totalTollFeeLong);
+                    
                 }
             }
             journeyHistory.setTotalTollFee(totalTollFeeLong);
@@ -1004,7 +1017,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                         totalTollCount += segmentInfo.tollDetails().size();
                     }
                 }
-                log.info("Calculated total toll count from segments: {}", totalTollCount);
+                
             }
             journeyHistory.setTotalTollCount(totalTollCount);
 
@@ -1023,16 +1036,16 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 segment.setEndLatitude(segmentInfo.endLatitude());
                 segment.setEndLongitude(segmentInfo.endLongitude());
 
-                // Convert BigDecimal -> Integer (rounding)
-                segment.setDistanceMeters(segmentInfo.distanceMeters() != null
-                        ? segmentInfo.distanceMeters().setScale(0, RoundingMode.HALF_UP).intValue()
+                // Set distance kilometers as BigDecimal (with 2 decimal places)
+                segment.setDistanceKilometers(segmentInfo.distanceKilometers() != null
+                        ? segmentInfo.distanceKilometers().setScale(2, RoundingMode.HALF_UP)
                         : null);
 
                 // Convert BigDecimal -> Long (rounding)
                 Long segmentTollFee = null;
                 if (segmentInfo.estimatedTollFee() != null) {
                     segmentTollFee = segmentInfo.estimatedTollFee().setScale(0, RoundingMode.HALF_UP).longValue();
-                    log.info("Setting segment [{}] toll fee: {}", segmentInfo.segmentOrder(), segmentTollFee);
+                    
                 } else {
                     log.warn("Segment [{}] is missing toll fee information", segmentInfo.segmentOrder());
                 }
@@ -1053,8 +1066,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 if (segmentInfo.tollDetails() != null && !segmentInfo.tollDetails().isEmpty()) {
                     try {
                         segment.setTollDetailsJson(objectMapper.writeValueAsString(segmentInfo.tollDetails()));
-                        log.info("Stored toll details JSON for segment [{}] with {} toll points",
-                            segmentInfo.segmentOrder(), segmentInfo.tollDetails().size());
+                        
                     } catch (Exception e) {
                         log.warn("Failed to serialize toll details for segment {}: {}",
                             segmentInfo.segmentOrder(), e.getMessage());
@@ -1069,10 +1081,6 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
             // Save journey history with all segments
             journeyHistory = journeyHistoryEntityService.save(journeyHistory);
-
-            log.info("Created journey history {} with {} segments for assignment {}, totalTollFee={}, totalTollCount={}",
-                    journeyHistory.getId(), segments.size(), assignment.getId(),
-                    journeyHistory.getTotalTollFee(), journeyHistory.getTotalTollCount());
 
             return;
         }
@@ -1445,8 +1453,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             int logLimit = Math.min(sortedCandidates.size(), 5);
             for (int i = 0; i < logLimit; i++) {
                 DriverEntity driver = sortedCandidates.get(i);
-                log.debug("Driver score {} for {}: {}", i+1, driver.getUser().getFullName(),
-                        driverScoreMap.getOrDefault(driver, -1));
+                
             }
         }
 
@@ -1564,7 +1571,6 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      * @param sealDescription Mô tả seal
      */
     private void createSealForAssignment(VehicleAssignmentEntity assignment, String sealCode, String sealDescription) {
-        log.info("Creating seal for vehicle assignment {}: sealCode={}", assignment.getId(), sealCode);
 
         // FIXED: Seal code không cần unique toàn hệ thống
         // Chỉ cần unique trong cùng 1 vehicle assignment
@@ -1586,8 +1592,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 .build();
 
         SealEntity savedSeal = sealEntityService.save(seals);
-        log.info("Created order seal with ID: {} and code: {}, linked to vehicle assignment: {}",
-                savedSeal.getId(), savedSeal.getSealCode(), assignment.getId());
+        
     }
 
     /**
@@ -1601,8 +1606,6 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         if (originalSegments == null || originalSegments.isEmpty()) {
             return originalSegments;
         }
-
-        log.info("Consolidating {} route segments into standard 3-segment format", originalSegments.size());
 
         // Sort segments by point names to ensure proper sequence (Carrier→Pickup→Delivery→Carrier)
         List<RouteSegmentInfo> sortedSegments = new ArrayList<>(originalSegments);
@@ -1637,9 +1640,6 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             return Integer.compare(s1EndPos, s2EndPos);
         });
 
-        log.info("Sorted segments: {}", sortedSegments.stream()
-            .map(s -> s.startPointName() + "->" + s.endPointName())
-            .toList());
 
         // Identify key segments by their point names
         String carrierPointName = "Carrier";
@@ -1704,7 +1704,6 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             carrierPointName
         ));
 
-        log.info("Successfully consolidated segments into {} standard segments", consolidatedSegments.size());
         return consolidatedSegments;
     }
 
@@ -1741,8 +1740,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             RouteSegmentInfo segment = segments.get(i);
 
             // Add distance
-            if (segment.distanceMeters() != null) {
-                totalDistance = totalDistance.add(segment.distanceMeters());
+            if (segment.distanceKilometers() != null) {
+                totalDistance = totalDistance.add(segment.distanceKilometers());
             }
 
             // Add toll fee
@@ -1837,5 +1836,111 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         }
 
         return result;
+    }
+    
+    /**
+     * Create notifications for both customer and driver when assignment is created
+     */
+    private void createAssignmentNotifications(VehicleAssignmentEntity assignment, List<UUID> orderDetailIds) {
+        try {
+            // Get first order detail to find the order and customer
+            if (orderDetailIds.isEmpty()) {
+                log.warn("No order details in assignment {}", assignment.getId());
+                return;
+            }
+            
+            OrderDetailEntity firstOrderDetail = orderDetailEntityService.findEntityById(orderDetailIds.get(0))
+                .orElse(null);
+            if (firstOrderDetail == null || firstOrderDetail.getOrderEntity() == null) {
+                log.warn("Cannot find order for assignment {}", assignment.getId());
+                return;
+            }
+            
+            OrderEntity order = firstOrderDetail.getOrderEntity();
+            ContractEntity contract = contractEntityService.getContractByOrderId(order.getId()).orElse(null);
+            DriverEntity driver = assignment.getDriver1();
+            VehicleEntity vehicle = assignment.getVehicleEntity();
+            
+            if (driver == null || vehicle == null) {
+                log.warn("Missing driver or vehicle in assignment {}", assignment.getId());
+                return;
+            }
+            
+            // Notification 1: To Customer - DRIVER_ASSIGNED
+            try {
+                double totalContractValue = getEffectiveContractValue(contract);
+                double depositAmount = 0.0;
+                
+                // Calculate deposit amount using contract settings
+                try {
+                    var contractSetting = contractSettingService.getLatestContractSetting();
+                    if (contractSetting != null && contractSetting.depositPercent() != null) {
+                        depositAmount = totalContractValue * contractSetting.depositPercent().doubleValue() / 100.0;
+                    } else {
+                        // Fallback to 30% if contract setting not available
+                        depositAmount = totalContractValue * 0.1;
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+                    depositAmount = totalContractValue * 0.1;
+                }
+                
+                // Calculate remaining amount = total - deposit
+                double remainingAmount = totalContractValue - depositAmount;
+                
+                // Payment deadline: now + 1 day
+                LocalDateTime paymentDeadline = LocalDateTime.now().plusDays(1);
+                
+                // Get order details for this assignment
+                List<OrderDetailEntity> assignmentOrderDetails = orderDetailEntityService
+                    .findByVehicleAssignmentId(assignment.getId());
+                if (assignmentOrderDetails == null || assignmentOrderDetails.isEmpty()) {
+                    assignmentOrderDetails = order.getOrderDetailEntities();
+                }
+                
+                // Get category description
+                String categoryDescription = "Hàng hóa";
+                if (order.getCategory() != null && order.getCategory().getDescription() != null) {
+                    categoryDescription = order.getCategory().getDescription();
+                } else if (order.getCategory() != null && order.getCategory().getCategoryName() != null) {
+                    categoryDescription = order.getCategory().getCategoryName().name();
+                }
+                
+                // Get vehicle type name
+                String vehiclePlate = vehicle.getLicensePlateNumber() != null ? vehicle.getLicensePlateNumber() : "N/A";
+                String vehicleTypeName = (vehicle.getVehicleTypeEntity() != null && vehicle.getVehicleTypeEntity().getVehicleTypeName() != null) 
+                    ? vehicle.getVehicleTypeEntity().getVehicleTypeName() : "Truck";
+                
+                CreateNotificationRequest customerNotif = NotificationBuilder.buildDriverAssigned(
+                    order.getSender().getUser().getId(),
+                    order.getOrderCode(),
+                    driver.getUser().getFullName(),
+                    driver.getUser().getPhoneNumber(),
+                    vehiclePlate,
+                    vehicleTypeName,
+                    remainingAmount,
+                    paymentDeadline,
+                    (assignmentOrderDetails != null && !assignmentOrderDetails.isEmpty() && assignmentOrderDetails.get(0).getEstimatedStartTime() != null)
+                        ? assignmentOrderDetails.get(0).getEstimatedStartTime() : null,
+                    assignmentOrderDetails,
+                    categoryDescription,
+                    order.getId(),
+                    assignment.getId()
+                );
+                
+                notificationService.createNotification(customerNotif);
+                log.info("✅ Created DRIVER_ASSIGNED notification for order: {} (Total: {}, Deposit: {}, Remaining: {})", 
+                    order.getOrderCode(), totalContractValue, depositAmount, remainingAmount);
+            } catch (Exception e) {
+                log.error("❌ Failed to create DRIVER_ASSIGNED notification: {}", e.getMessage(), e);
+            }
+            
+            // Driver notification moved to payment success handler in PayOSTransactionServiceImpl
+            // NEW_ORDER_ASSIGNED will be created after customer pays full amount
+            log.info("📝 Driver notification will be created after full payment for order: {}", order.getOrderCode());
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to create assignment notifications: {}", e.getMessage());
+        }
     }
 }

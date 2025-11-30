@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -22,6 +23,7 @@ import java.util.UUID;
 public class PayOSTransactionController {
 
     private final PayOSTransactionService payOSTransactionService;
+    private final capstone_project.service.services.issue.IssueService issueService;
 
     @PostMapping("/{contractId}")
     public ResponseEntity<ApiResponse<TransactionResponse>> createTransaction(@PathVariable UUID contractId) {
@@ -33,6 +35,26 @@ public class PayOSTransactionController {
     public ResponseEntity<ApiResponse<TransactionResponse>> createDepositTransaction(@PathVariable UUID contractId) {
         final var result = payOSTransactionService.createDepositTransaction(contractId);
         return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @PostMapping("/{contractId}/return-shipping")
+    public ResponseEntity<ApiResponse<TransactionResponse>> createReturnShippingTransaction(
+            @PathVariable UUID contractId,
+            @RequestParam BigDecimal amount,
+            @RequestParam(required = false) UUID issueId
+    ) {
+        
+        final var result = payOSTransactionService.createReturnShippingTransaction(contractId, amount, issueId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+    
+    @PostMapping("/issue/{issueId}/return-payment")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.order.transaction.TransactionResponse>> createReturnPaymentFromIssue(
+            @PathVariable UUID issueId
+    ) {
+        
+        final var result = issueService.createReturnPaymentTransaction(issueId);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Đã tạo giao dịch thanh toán trả hàng"));
     }
 
     @GetMapping("/{transactionId}")
@@ -54,7 +76,7 @@ public class PayOSTransactionController {
     }
 
     @PostMapping("/webhook")
-//    @PreAuthorize("permitAll()")
+    @PreAuthorize("permitAll()")
     public ResponseEntity<Void> handleWebhook(@RequestBody String rawCallbackPayload) {
         payOSTransactionService.handleWebhook(rawCallbackPayload);
         return ResponseEntity.ok().build();
@@ -75,13 +97,13 @@ public class PayOSTransactionController {
 
     @GetMapping("/callback")
     public ResponseEntity<String> callback(@RequestParam Map<String, String> params) {
-        log.info("Return callback received: {}", params);
+        
         return ResponseEntity.ok("Payment return callback received");
     }
 
     @GetMapping("/cancel")
     public ResponseEntity<String> cancel(@RequestParam Map<String, String> params) {
-        log.info("Cancel callback received: {}", params);
+        
         return ResponseEntity.ok("Payment cancel callback received");
     }
 }

@@ -11,6 +11,7 @@ import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "transaction", schema = "public", catalog = "capstone-project")
@@ -44,8 +45,15 @@ public class TransactionEntity extends BaseEntity {
     @Column(name = "payment_date")
     private LocalDateTime paymentDate;
 
+    @Size(max = 20)
+    @Column(name = "transaction_type", length = 20)
+    private String transactionType; // DEPOSIT, FULL_PAYMENT, RETURN_SHIPPING
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contract_id")
     private ContractEntity contractEntity;
+
+    @Column(name = "issue_id")
+    private UUID issueId; // For RETURN_SHIPPING transactions
 
 }

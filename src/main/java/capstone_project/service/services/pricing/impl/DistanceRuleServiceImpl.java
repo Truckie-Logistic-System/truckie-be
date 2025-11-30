@@ -34,11 +34,10 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
 
     @Override
     public List<DistanceRuleResponse> getAllDistanceRules() {
-        log.info("[getAllDistanceRules] Fetching distance rules");
 
         List<DistanceRuleEntity> cachedDistanceRules = redisService.getList(DISTANCE_RULE_ALL_CACHE_KEY, DistanceRuleEntity.class);
         if (cachedDistanceRules != null && !cachedDistanceRules.isEmpty()) {
-            log.info("[getAllDistanceRules] Returning {} rules from cache", cachedDistanceRules.size());
+            
             return cachedDistanceRules.stream()
                     .map(distanceRuleMapper::toDistanceRuleResponse)
                     .toList();
@@ -60,10 +59,9 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
                 .toList();
     }
 
-
     @Override
     public DistanceRuleResponse getDistanceRuleById(UUID id) {
-        log.info("Fetching pricing tier by ID: {}", id);
+        
         if (id == null) {
             log.error("Pricing tier ID is required");
             throw new BadRequestException("Pricing tier ID is required", ErrorEnum.REQUIRED.getErrorCode());
@@ -73,7 +71,7 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
         DistanceRuleEntity cachedEntity = redisService.get(cacheKey, DistanceRuleEntity.class);
 
         if (cachedEntity != null) {
-            log.info("Returning cached pricing tier for ID: {}", id);
+            
             return distanceRuleMapper.toDistanceRuleResponse(cachedEntity);
         } else {
             DistanceRuleEntity entity = distanceRuleEntityService.findEntityById(id)
@@ -90,7 +88,6 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
 
     @Override
     public DistanceRuleResponse createDistanceRule(DistanceRuleRequest distanceRuleRequest) {
-        log.info("Creating new pricing tier");
 
         DistanceRuleEnum ruleEnum;
         try {
@@ -113,7 +110,6 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
 
     @Override
     public DistanceRuleResponse updateDistanceRule(UUID id, UpdateDistanceRuleRequest distanceRuleRequest) {
-        log.info("Updating pricing tier by ID: {}", id);
 
         if (id == null) {
             log.error("Pricing tier ID is required for updating a pricing tier");

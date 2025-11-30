@@ -15,6 +15,9 @@ public class IssueImageEntity extends BaseEntity {
     @Column(name = "image_url", length = Integer.MAX_VALUE)
     private String imageUrl;
 
+    @Column(name = "description", length = 500)
+    private String description;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "issue_id")
     private IssueEntity issueEntity;

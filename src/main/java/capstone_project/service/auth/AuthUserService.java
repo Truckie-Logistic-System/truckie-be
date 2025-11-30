@@ -44,6 +44,12 @@ public class AuthUserService implements UserDetailsService {
     }
 
     private Collection<? extends GrantedAuthority> getAuthorities(UserEntity user) {
-        return List.of(new SimpleGrantedAuthority(user.getRole().getRoleName()));
+        // Spring Security expects authorities with ROLE_ prefix for hasRole() checks
+        // But we use hasAuthority() so we add ROLE_ prefix for consistency
+        String roleName = user.getRole().getRoleName();
+        return List.of(
+            new SimpleGrantedAuthority("ROLE_" + roleName),  // For hasRole() checks
+            new SimpleGrantedAuthority(roleName)              // For hasAuthority() checks
+        );
     }
 }

@@ -26,12 +26,11 @@ public class ContractSettingServiceImpl implements ContractSettingService {
 
     @Override
     public List<ContractSettingResponse> getAllContractSettingEntities() {
-        log.info("getAllContractSettingEntities");
 
         List<ContractSettingEntity> contractSettingEntities = contractSettingEntityService.findAll();
 
         if (contractSettingEntities.isEmpty()) {
-            log.info("No contract settings found");
+            
             throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
@@ -42,10 +41,9 @@ public class ContractSettingServiceImpl implements ContractSettingService {
 
     @Override
     public ContractSettingResponse getContractSettingById(UUID id) {
-        log.info("getContractSettingById: {}", id);
 
         if (id == null) {
-            log.info("getContractSettingById: id is null");
+            
             throw new NotFoundException(
                     ErrorEnum.INVALID.getMessage(),
                     ErrorEnum.INVALID.getErrorCode());
@@ -53,7 +51,7 @@ public class ContractSettingServiceImpl implements ContractSettingService {
 
         ContractSettingEntity contractSettingEntity = contractSettingEntityService.findEntityById(id)
                 .orElseThrow(() -> {
-                    log.info("Contract setting not found with id: {}", id);
+                    
                     return new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
                 });
 
@@ -62,10 +60,9 @@ public class ContractSettingServiceImpl implements ContractSettingService {
 
     @Override
     public ContractSettingResponse createContractSetting(ContractSettingRequest contractSettingRequest) {
-        log.info("createContractSetting: {}", contractSettingRequest);
 
         if (contractSettingRequest == null) {
-            log.info("createContractSetting: contractSettingRequest is null");
+            
             throw new NotFoundException(
                     ErrorEnum.INVALID.getMessage(),
                     ErrorEnum.INVALID.getErrorCode());
@@ -80,10 +77,9 @@ public class ContractSettingServiceImpl implements ContractSettingService {
 
     @Override
     public ContractSettingResponse updateContractSetting(UUID id, UpdateContractSettingRequest contractSettingRequest) {
-        log.info("updateContractSetting: id = {}, request = {}", id, contractSettingRequest);
 
         if (id == null || contractSettingRequest == null) {
-            log.info("updateContractSetting: id or contractSettingRequest is null");
+            
             throw new NotFoundException(
                     ErrorEnum.INVALID.getMessage(),
                     ErrorEnum.INVALID.getErrorCode());
@@ -100,6 +96,19 @@ public class ContractSettingServiceImpl implements ContractSettingService {
         ContractSettingEntity updatedEntity = contractSettingEntityService.save(existingEntity);
 
         return contractSettingMapper.toContractSettingResponse(updatedEntity);
+    }
+
+    @Override
+    public ContractSettingResponse getLatestContractSetting() {
+        List<ContractSettingEntity> allSettings = contractSettingEntityService.findAll();
+        if (allSettings.isEmpty()) {
+            return null;
+        }
+        
+        // Return the first setting (assuming there's only one active setting)
+        // Or you could return the one with the most recent creation date
+        ContractSettingEntity latestSetting = allSettings.get(0);
+        return contractSettingMapper.toContractSettingResponse(latestSetting);
     }
 
     @Override

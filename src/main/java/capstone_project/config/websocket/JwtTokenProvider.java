@@ -28,7 +28,7 @@ public class JwtTokenProvider {
             // Validate token with extracted username
             return JWTUtil.validateToken(token, username);
         } catch (Exception e) {
-            log.warn("JWT token validation failed: {}", e.getMessage());
+//            log.warn("JWT token validation failed: {}", e.getMessage());
             return false;
         }
     }

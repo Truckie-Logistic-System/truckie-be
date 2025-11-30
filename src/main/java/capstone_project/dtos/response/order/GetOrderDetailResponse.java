@@ -23,7 +23,8 @@ public record GetOrderDetailResponse  (
         String trackingCode,
         String orderId,
         GetOrderSizeResponse orderSizeId,
-        UUID vehicleAssignmentId  // Changed from full object to ID reference
+        UUID vehicleAssignmentId,  // Changed from full object to ID reference
+        BigDecimal declaredValue   // Giá trị khai báo của kiện hàng
 )
 {
 }

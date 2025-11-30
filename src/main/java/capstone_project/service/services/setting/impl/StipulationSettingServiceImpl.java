@@ -8,11 +8,12 @@ import capstone_project.entity.setting.StipulationSettingEntity;
 import capstone_project.repository.entityServices.setting.StipulationSettingEntityService;
 import capstone_project.service.mapper.setting.StipulationSettingMapper;
 import capstone_project.service.services.setting.StipulationSettingService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -25,11 +26,10 @@ public class StipulationSettingServiceImpl implements StipulationSettingService 
 
     @Override
     public StipulationSettingResponse getAllStipulationSettings() {
-        log.info("StipulationSettingServiceImpl.getAllStipulationSettings()");
 
         StipulationSettingEntity entity = stipulationSettingEntityService.findTopByOrderByIdAsc()
                 .orElseThrow(() -> {
-                    log.info("No stipulation settings found");
+                    
                     return new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
                 });
 
@@ -38,10 +38,9 @@ public class StipulationSettingServiceImpl implements StipulationSettingService 
 
     @Override
     public StipulationSettingResponse getStipulationSettingById(UUID id) {
-        log.info("StipulationSettingServiceImpl.getStipulationSettingById: {}", id);
 
         if (id == null) {
-            log.info("getStipulationSettingById: id is null");
+            
             throw new NotFoundException(
                     ErrorEnum.INVALID.getMessage(),
                     ErrorEnum.INVALID.getErrorCode());
@@ -49,7 +48,7 @@ public class StipulationSettingServiceImpl implements StipulationSettingService 
 
         StipulationSettingEntity entity = stipulationSettingEntityService.findEntityById(id)
                 .orElseThrow(() -> {
-                    log.info("Stipulation setting not found with id: {}", id);
+                    
                     return new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
                 });
 
@@ -57,8 +56,8 @@ public class StipulationSettingServiceImpl implements StipulationSettingService 
     }
 
     @Override
+    @Transactional
     public StipulationSettingResponse createOrUpdateStipulationSettings(StipulationSettingRequest request) {
-        log.info("StipulationSettingServiceImpl.saveOrUpdateStipulationSettings: {}", request);
 
         if (request == null) {
             throw new NotFoundException(
@@ -66,31 +65,23 @@ public class StipulationSettingServiceImpl implements StipulationSettingService 
                     ErrorEnum.INVALID.getErrorCode());
         }
 
-        StipulationSettingEntity entity = stipulationSettingEntityService
-                .findTopByOrderByIdAsc()
-                .orElse(null);
+        Optional<StipulationSettingEntity> oldOpt =
+                stipulationSettingEntityService.findTopByOrderByIdAsc();
 
-        if (entity == null) {
-            entity = stipulationSettingMapper.mapRequestToEntity(request);
-        } else {
-            if (entity.getContents() == null) {
-                entity.setContents(new HashMap<>());
-            }
-            if (request.contents() != null) {
-                entity.getContents().putAll(request.contents());
-            }
-        }
+        StipulationSettingEntity newEntity = stipulationSettingMapper.mapRequestToEntity(request);
 
-        StipulationSettingEntity savedEntity = stipulationSettingEntityService.save(entity);
-        return stipulationSettingMapper.toStipulationSettingResponse(savedEntity);
+        StipulationSettingEntity saved = stipulationSettingEntityService.save(newEntity);
+
+        oldOpt.ifPresent(old -> stipulationSettingEntityService.deleteById(old.getId()));
+
+        return stipulationSettingMapper.toStipulationSettingResponse(saved);
     }
 
     @Override
     public void deleteStipulationSetting(UUID id) {
-        log.info("StipulationSettingServiceImpl.deleteStipulationSetting: {}", id);
 
         if (id == null) {
-            log.info("deleteStipulationSetting: id is null");
+            
             throw new NotFoundException(
                     ErrorEnum.INVALID.getMessage(),
                     ErrorEnum.INVALID.getErrorCode());

@@ -5,6 +5,8 @@ import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.order.order.SealEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.order.order.JourneyHistoryEntity;
+import capstone_project.entity.order.transaction.TransactionEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -43,8 +45,11 @@ public class    IssueEntity extends BaseEntity {
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 
-    @Size(max = 20)
-    @Column(name = "trip_status_at_report", length = 20)
+    // ✅ CRITICAL: Changed from VARCHAR(20) to VARCHAR(500) to support JSON format
+    // Format: {"orderDetailId1":"STATUS1","orderDetailId2":"STATUS2"}
+    // This is needed for combined issue reports where different packages have different statuses
+    @Size(max = 500)
+    @Column(name = "trip_status_at_report", length = 500)
     private String tripStatusAtReport;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -62,25 +67,61 @@ public class    IssueEntity extends BaseEntity {
     // Seal replacement fields
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "old_seal_id")
-    private SealEntity oldSeal; // Seal bị gỡ
+    private SealEntity oldSeal;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "new_seal_id")
-    private SealEntity newSeal; // Seal thay thế
+    private SealEntity newSeal;
 
     @Size(max = 500)
     @Column(name = "seal_removal_image", length = 500)
-    private String sealRemovalImage; // Ảnh seal cũ bị gỡ
+    private String sealRemovalImage;
 
     @Size(max = 500)
     @Column(name = "new_seal_attached_image", length = 500)
-    private String newSealAttachedImage; // Ảnh seal mới được gắn
+    private String newSealAttachedImage;
 
     @Column(name = "new_seal_confirmed_at")
-    private LocalDateTime newSealConfirmedAt; // Thời gian driver xác nhận gắn seal mới
+    private LocalDateTime newSealConfirmedAt;
 
-    // Order details affected by this issue (e.g., damaged goods)
     @OneToMany(mappedBy = "issueEntity", fetch = FetchType.LAZY)
     private List<OrderDetailEntity> orderDetails;
+
+    @OneToMany(mappedBy = "issueEntity", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private List<IssueImageEntity> issueImages;
+
+    // ===== ORDER_REJECTION specific fields =====
+    
+    @Column(name = "return_shipping_fee", precision = 19, scale = 2)
+    private BigDecimal returnShippingFee; 
+    
+    @Column(name = "adjusted_return_fee", precision = 19, scale = 2)
+    private BigDecimal adjustedReturnFee; 
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "return_journey_id")
+    private JourneyHistoryEntity returnJourney; 
+    
+    @Column(name = "payment_deadline")
+    private LocalDateTime paymentDeadline;
+    
+    // Refund relationship for ORDER_REJECTION return payment
+    @OneToOne(mappedBy = "issueEntity", fetch = FetchType.LAZY)
+    private capstone_project.entity.order.order.RefundEntity refund;
+    
+    // Transactions for ORDER_REJECTION return payment (can have multiple: PENDING, FAILED, PAID)
+    // Note: TransactionEntity uses issueId field, not @ManyToOne, so this is a helper method relationship
+    @Transient
+    private List<TransactionEntity> returnTransactions;
+    
+    // ===== REROUTE specific fields =====
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "affected_segment_id")
+    private capstone_project.entity.order.order.JourneySegmentEntity affectedSegment; // Segment gặp sự cố
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "rerouted_journey_id")
+    private JourneyHistoryEntity reroutedJourney; // Journey mới sau khi tái định tuyến
 
 }

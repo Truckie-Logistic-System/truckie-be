@@ -32,14 +32,12 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
     private static final String DEVICE_TYPE_BY_ID_CACHE_KEY_PREFIX = "device-type:";
     private static final String DEVICE_TYPE_BY_NAME_CACHE_KEY_PREFIX = "device-type:name:";
 
-
     @Override
     public List<DeviceTypeResponse> getAllDeviceTypes() {
-        log.info("getAllDeviceTypes()");
 
         List<DeviceTypeEntity> cachedDeviceTypes = redisService.getList(DEVICE_TYPE_ALL_CACHE_KEY, DeviceTypeEntity.class);
         if (cachedDeviceTypes != null && !cachedDeviceTypes.isEmpty()) {
-            log.info("Returning {} device types from cache", cachedDeviceTypes.size());
+            
             return cachedDeviceTypes.stream()
                     .map(deviceTypeMapper::toDeviceTypeResponse)
                     .toList();
@@ -63,7 +61,6 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
 
     @Override
     public List<DeviceTypeResponse> getListDeviceTypesByNameLike(String name) {
-        log.info("getListDeviceTypesByNameLike() - name: {}", name);
 
         if (name == null || name.isBlank()) {
             log.warn("Device type name is null or blank");
@@ -77,7 +74,7 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
         List<DeviceTypeEntity> cachedDeviceTypes = redisService.getList(cacheKey, DeviceTypeEntity.class);
 
         if (cachedDeviceTypes != null && !cachedDeviceTypes.isEmpty()) {
-            log.info("Returning {} device types from cache for name like: {}", cachedDeviceTypes.size(), name);
+            
             return cachedDeviceTypes.stream()
                     .map(deviceTypeMapper::toDeviceTypeResponse)
                     .toList();
@@ -102,7 +99,6 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
 
     @Override
     public DeviceTypeResponse getDeviceTypeById(UUID id) {
-        log.info("getDeviceTypeById() - id: {}", id);
 
         if (id == null) {
             log.warn("Device type ID is null");
@@ -115,7 +111,7 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
         String cacheKey = DEVICE_TYPE_BY_ID_CACHE_KEY_PREFIX + id;
         DeviceTypeEntity cachedEntity = redisService.get(cacheKey, DeviceTypeEntity.class);
         if (cachedEntity != null) {
-            log.info("Returning cached device type for ID: {}", id);
+            
             return deviceTypeMapper.toDeviceTypeResponse(cachedEntity);
         }
 
@@ -135,7 +131,6 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
 
     @Override
     public DeviceTypeResponse createDeviceType(DeviceTypeRequest request) {
-        log.info("createDeviceType() - request: {}", request);
 
         checkValidationForCreate(request);
 
@@ -151,7 +146,6 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
 
     @Override
     public DeviceTypeResponse updateDeviceType(UUID id, UpdateDeviceTypeRequest request) {
-        log.info("updateDeviceType() - id: {}", id);
 
         checkValidationForUpdate(id, request);
 

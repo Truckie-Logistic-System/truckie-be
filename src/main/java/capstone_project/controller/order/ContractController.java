@@ -3,6 +3,7 @@ package capstone_project.controller.order;
 import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
+import capstone_project.dtos.request.order.contract.GenerateContractPdfRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.contract.BothOptimalAndRealisticAssignVehiclesResponse;
 import capstone_project.dtos.response.order.contract.ContractResponse;
@@ -89,13 +90,31 @@ public class ContractController {
 
     @GetMapping("{orderId}/get-both-optimal-and-realistic-assign-vehicles")
     public ResponseEntity<ApiResponse<BothOptimalAndRealisticAssignVehiclesResponse>> getBothOptimalAndRealisticAssignVehiclesResponse(@PathVariable UUID orderId) {
+        // DEBUG: Bypass logging config
+        System.out.println("🚨 DEBUG: ContractController.getBothOptimalAndRealisticAssignVehiclesResponse() CALLED with orderId: " + orderId);
+        System.out.println("🚨 DEBUG: Thread: " + Thread.currentThread().getName());
+        System.out.println("🚨 DEBUG: Timestamp: " + java.time.LocalDateTime.now());
+        
         final var result = contractService.getBothOptimalAndRealisticAssignVehiclesResponse(orderId);
+        
+        System.out.println("🚨 DEBUG: ContractController completed successfully");
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @PostMapping(path = "/upload-contract", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<ContractResponse>>  uploadFile(ContractFileUploadRequest contractFileUploadRequest) throws IOException {
         final var result = contractService.uploadContractFile(contractFileUploadRequest);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Generate contract PDF on server-side and upload to Cloudinary
+     * This endpoint handles PDF generation with proper pagination (no content truncation)
+     * Frontend should call this instead of generating PDF locally
+     */
+    @PostMapping("/generate-and-save-pdf")
+    public ResponseEntity<ApiResponse<ContractResponse>> generateAndSavePdf(@RequestBody @Valid GenerateContractPdfRequest request) {
+        final var result = contractService.generateAndSaveContractPdf(request);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 

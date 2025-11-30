@@ -12,11 +12,10 @@ import capstone_project.service.services.user.PenaltyHistoryService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -76,7 +75,7 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
 
     @Override
     public List<PenaltyHistoryResponse> getByDriverId(UUID driverId) {
-        log.info("Getting penalty histories for driver ID: {}", driverId);
+        
         List<PenaltyHistoryEntity> penalties = entityService.findByDriverId(driverId);
         return penalties.stream()
                 .map(mapper::toPenaltyHistoryResponse)

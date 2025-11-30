@@ -14,6 +14,7 @@ public record TransactionResponse(
         Long gatewayOrderCode,
         String status,
         LocalDateTime paymentDate,
+        String transactionType, // DEPOSIT, FULL_PAYMENT, RETURN_SHIPPING
 
         String contractId
 ) {

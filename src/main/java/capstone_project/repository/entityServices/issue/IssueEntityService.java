@@ -12,6 +12,9 @@ import java.util.UUID;
 
 public interface IssueEntityService extends BaseEntityService<IssueEntity, UUID> {
     IssueEntity findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignmentId);
+    
+    // Find ALL issues for a vehicle assignment
+    List<IssueEntity> findAllByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignmentEntity);
 
     List<IssueEntity> findByStaff(UserEntity staffId);
 
@@ -22,4 +25,10 @@ public interface IssueEntityService extends BaseEntityService<IssueEntity, UUID>
     List<IssueEntity> findAllSortedByReportedAtDesc();
 
     Optional<IssueEntity> findByIdWithDetails(UUID id);
+    
+    /**
+     * Find all ORDER_REJECTION issues that are IN_PROGRESS
+     * Optimized query for ReturnPaymentTimeoutScheduler
+     */
+    List<IssueEntity> findInProgressOrderRejections();
 }

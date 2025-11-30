@@ -26,4 +26,6 @@ public interface UserService {
 
     List<UserResponse> getUserByRoleRoleName(final String roleName);
 
+    UserResponse getCurrentUserProfile();
+
 }

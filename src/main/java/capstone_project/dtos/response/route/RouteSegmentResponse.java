@@ -8,6 +8,10 @@ public record RouteSegmentResponse(
         int segmentOrder,
         String startName,
         String endName,
+        BigDecimal startLat,                   // start point latitude
+        BigDecimal startLng,                   // start point longitude
+        BigDecimal endLat,                     // end point latitude
+        BigDecimal endLng,                     // end point longitude
         List<List<BigDecimal>> path,          // list of [lng, lat]
         List<TollResponse> tolls,
         double distance,                       // in kilometers

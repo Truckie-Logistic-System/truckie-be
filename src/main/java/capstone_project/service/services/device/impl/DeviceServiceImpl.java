@@ -34,7 +34,7 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public List<DeviceResponse> getAllDevices() {
-        log.info("getAllDevices()");
+        
         List<DeviceEntity> deviceEntities = deviceEntityService.findAll();
 
         if (deviceEntities.isEmpty()) {
@@ -52,7 +52,6 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public DeviceResponse getDeviceById(UUID id) {
-        log.info("getDeviceById() - id: {}", id);
 
         if (id == null) {
             log.warn("ID is null");
@@ -76,7 +75,7 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public DeviceResponse getDeviceByDeviceCode(String deviceCode) {
-        log.info("getDeviceByDeviceCode() - deviceCode: {}", deviceCode);
+        
         if (deviceCode == null || deviceCode.isBlank()) {
             log.warn("Device code is null or blank");
             throw new BadRequestException(
@@ -99,7 +98,6 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public DeviceResponse createDevice(DeviceRequest request) {
-        log.info("createDevice() - request: {}", request);
 
         checkValidationForCreate(request);
 
@@ -112,7 +110,6 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public DeviceResponse updateDevice(UUID id, UpdateDeviceRequest request) {
-        log.info("updateDevice() - id: {}, request: {}", id, request);
 
         checkValidationForUpdate(request, id);
 
@@ -174,7 +171,6 @@ public class DeviceServiceImpl implements DeviceService {
                     });
         }
     }
-
 
     private void checkValidationForCreate(DeviceRequest request) {
         if (request == null) {

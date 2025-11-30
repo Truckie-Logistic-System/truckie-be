@@ -20,6 +20,7 @@ import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.entity.issue.IssueEntity;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
@@ -37,6 +38,11 @@ import capstone_project.service.services.order.order.OrderStatusWebSocketService
 import capstone_project.service.services.order.order.PhotoCompletionService;
 import capstone_project.service.services.order.seal.SealService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
+import capstone_project.service.services.notification.NotificationService;
+import capstone_project.service.services.notification.NotificationBuilder;
+import capstone_project.service.services.pricing.InsuranceCalculationService;
+import capstone_project.service.services.setting.ContractSettingService;
+import capstone_project.dtos.request.notification.CreateNotificationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -74,6 +80,14 @@ public class OrderServiceImpl implements OrderService {
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
     private final SealService sealService; // Thêm SealService
+    private final capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService vehicleAssignmentEntityService;
+    private final capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService;
+    private final capstone_project.repository.entityServices.issue.IssueImageEntityService issueImageEntityService;
+    private final NotificationService notificationService; // For notification creation
+    private final capstone_project.service.mapper.issue.IssueMapper issueMapper;
+    private final InsuranceCalculationService insuranceCalculationService; // For insurance fee calculation
+    private final capstone_project.repository.entityServices.auth.UserEntityService userEntityService; // For staff notifications
+    private final ContractSettingService contractSettingService; // For deposit rate calculation
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -90,7 +104,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public CreateOrderResponse createOrder(CreateOrderRequest orderRequest, List<CreateOrderDetailRequest> listCreateOrderDetailRequests) {
-        log.info("[Create Order and OrderDetails] Bat Dau Chien");
+        
         if (orderRequest == null || listCreateOrderDetailRequests == null || listCreateOrderDetailRequests.isEmpty()) {
             log.error("Order or Order detail is null");
             throw new BadRequestException(ErrorEnum.NOT_FOUND.getMessage(),
@@ -128,8 +142,10 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "category not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-
         try {
+            // Xác định có mua bảo hiểm hay không (mặc định: false)
+            Boolean hasInsurance = orderRequest.hasInsurance() != null ? orderRequest.hasInsurance() : false;
+            
             //Save order
             OrderEntity newOrder = OrderEntity.builder()
                     .notes(orderRequest.notes())
@@ -145,11 +161,88 @@ public class OrderServiceImpl implements OrderService {
                     .sender(sender)
                     .deliveryAddress(deliveryAddress)
                     .pickupAddress(pickupAddress)
+                    .hasInsurance(hasInsurance)
+                    .totalInsuranceFee(BigDecimal.ZERO)
+                    .totalDeclaredValue(BigDecimal.ZERO)
                     .build();
             OrderEntity saveOrder = orderEntityService.save(newOrder);
 
-
             saveOrder.setOrderDetailEntities(batchCreateOrderDetails(listCreateOrderDetailRequests, saveOrder, orderRequest.estimateStartTime()));
+            
+            // Tính phí bảo hiểm nếu có mua bảo hiểm
+            CategoryName categoryName = category.getCategoryName();
+            insuranceCalculationService.updateOrderInsurance(saveOrder, categoryName);
+            saveOrder = orderEntityService.save(saveOrder);
+            
+            // Create ORDER_CREATED notification for customer with full package details
+            try {
+                List<OrderDetailEntity> orderDetails = saveOrder.getOrderDetailEntities() != null ? 
+                    new ArrayList<>(saveOrder.getOrderDetailEntities()) : new ArrayList<>();
+                
+                log.info("🔍 Creating ORDER_CREATED notification with {} packages", orderDetails.size());
+                
+                // Debug: Log all order details
+                orderDetails.forEach(detail -> 
+                    log.info("🔍 Package: {} - {} - {} {}", 
+                        detail.getTrackingCode(), 
+                        detail.getDescription(),
+                        detail.getWeightBaseUnit(),
+                        detail.getUnit())
+                );
+                
+                CreateNotificationRequest notificationRequest = NotificationBuilder.buildOrderCreated(
+                    sender.getUser().getId(),
+                    saveOrder.getOrderCode(),
+                    orderDetails,
+                    saveOrder.getId()
+                );
+                
+                notificationService.createNotification(notificationRequest);
+                log.info("✅ Created ORDER_CREATED notification for order: {}", saveOrder.getOrderCode());
+                
+                // STAFF_ORDER_CREATED - Notify all staff about new order
+                try {
+                    String customerName = sender.getRepresentativeName() != null ? 
+                        sender.getRepresentativeName() : sender.getUser().getUsername();
+                    String customerPhone = sender.getRepresentativePhone() != null ? 
+                        sender.getRepresentativePhone() : "N/A";
+                    int packageCount = orderDetails.size();
+                    
+                    // Calculate total weight
+                    double totalWeight = orderDetails.stream()
+                        .filter(detail -> detail.getWeightBaseUnit() != null)
+                        .mapToDouble(detail -> detail.getWeightBaseUnit().doubleValue())
+                        .sum();
+                    String weightUnit = orderDetails.stream()
+                        .filter(detail -> detail.getUnit() != null && !detail.getUnit().isEmpty())
+                        .map(OrderDetailEntity::getUnit)
+                        .findFirst()
+                        .orElse("kg");
+                    
+                    var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+                    for (var staff : staffUsers) {
+                        CreateNotificationRequest staffNotification = NotificationBuilder.buildStaffOrderCreated(
+                            staff.getId(),
+                            saveOrder.getOrderCode(),
+                            customerName,
+                            customerPhone,
+                            packageCount,
+                            totalWeight,
+                            weightUnit,
+                            saveOrder.getId()
+                        );
+                        notificationService.createNotification(staffNotification);
+                    }
+                    log.info("✅ Created STAFF_ORDER_CREATED notifications for {} staff users", staffUsers.size());
+                } catch (Exception staffEx) {
+                    log.error("❌ Failed to create STAFF_ORDER_CREATED notifications: {}", staffEx.getMessage());
+                }
+                
+            } catch (Exception e) {
+                log.error("❌ Failed to create ORDER_CREATED notification: {}", e.getMessage());
+                // Don't fail the order creation if notification fails
+            }
+            
             return orderMapper.toCreateOrderResponse(saveOrder);
 
         } catch (Exception e) {
@@ -199,6 +292,46 @@ public class OrderServiceImpl implements OrderService {
         } catch (Exception e) {
             log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
             // Don't throw - WebSocket failure shouldn't break business logic
+        }
+
+        // Create notification for staff when customer agrees to vehicle proposal (PENDING → PROCESSING)
+        if (previousStatus == OrderStatusEnum.PENDING && newStatus == OrderStatusEnum.PROCESSING) {
+            try {
+                // Extract customer info for notification
+                String customerName = order.getSender().getRepresentativeName() != null ? 
+                    order.getSender().getRepresentativeName() : order.getSender().getUser().getUsername();
+                String customerPhone = order.getSender().getRepresentativePhone() != null ? 
+                    order.getSender().getRepresentativePhone() : "N/A";
+                int packageCount = order.getOrderDetailEntities() != null ? order.getOrderDetailEntities().size() : 0;
+                
+                // Create staff notification
+                CreateNotificationRequest staffNotificationRequest = NotificationBuilder.buildStaffOrderProcessing(
+                    null, // Broadcast to all staff
+                    order.getOrderCode(),
+                    customerName,
+                    customerPhone,
+                    packageCount,
+                    order.getId()
+                );
+                
+                notificationService.createNotification(staffNotificationRequest);
+                log.info("✅ Created STAFF_ORDER_PROCESSING notification for order: {}", order.getOrderCode());
+                
+                // Create customer notification
+                CreateNotificationRequest customerNotificationRequest = NotificationBuilder.buildOrderProcessing(
+                    order.getSender().getUser().getId(),
+                    order.getOrderCode(),
+                    packageCount,
+                    order.getId()
+                );
+                
+                notificationService.createNotification(customerNotificationRequest);
+                log.info("✅ Created ORDER_PROCESSING notification for customer in order: {}", order.getOrderCode());
+                
+            } catch (Exception e) {
+                log.error("❌ Failed to create notifications for order processing: {}", e.getMessage());
+                // Don't throw - notification failure shouldn't break business logic
+            }
         }
 
         return orderMapper.toCreateOrderResponse(order);
@@ -257,7 +390,6 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.toCreateOrderResponse(order);
     }
 
-
     @Override
     public boolean isValidTransition(OrderStatusEnum current, OrderStatusEnum next) {
         switch (current) {
@@ -299,7 +431,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<CreateOrderResponse> getCreateOrderRequestsBySenderId(UUID senderId) {
-        log.info("getCreateOrderRequestsBySenderId: start");
+        
         if (senderId == null) {
             log.error("Sender id is null");
             throw new NotFoundException(
@@ -313,7 +445,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<CreateOrderResponse> getCreateOrderRequestsByDeliveryAddressId(UUID deliveryAddressId) {
-        log.info("getCreateOrderRequestsByDeliveryAddressId: start");
+        
         if (deliveryAddressId == null) {
             log.error("deliveryAddressId is null");
             throw new NotFoundException(
@@ -332,14 +464,12 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public CreateOrderResponse updateOrderBasicInPendingOrProcessing(UpdateOrderRequest updateOrderRequest) {
-        log.info("Updating order with ID: {}", updateOrderRequest.orderId());
 
         OrderEntity order = orderEntityService.findEntityById(UUID.fromString(updateOrderRequest.orderId()))
                 .orElseThrow(() -> new BadRequestException(
                         ErrorEnum.NOT_FOUND.getMessage() + " Order with ID: " + updateOrderRequest.orderId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
-
 
         if (!(order.getStatus().equals(OrderStatusEnum.PENDING.name()) || order.getStatus().equals(OrderStatusEnum.PROCESSING.name()))) {
             throw new NotFoundException(
@@ -362,7 +492,6 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "pickupAddress not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
-
         order.setNotes(updateOrderRequest.notes());
         order.setReceiverName(updateOrderRequest.receiverName());
         order.setReceiverPhone(updateOrderRequest.receiverPhone());
@@ -373,16 +502,13 @@ public class OrderServiceImpl implements OrderService {
 
         orderEntityService.save(order);
 
-
         return orderMapper.toCreateOrderResponse(order);
     }
-
 
     @Override
     public List<OrderDetailEntity> batchCreateOrderDetails(
             List<CreateOrderDetailRequest> requests,
             OrderEntity savedOrder, LocalDateTime estimateStartTime) {
-
 
         // Build all order details in memory first
         List<OrderDetailEntity> orderDetails = requests.stream()
@@ -395,7 +521,7 @@ public class OrderServiceImpl implements OrderService {
 //                        throw new BadRequestException(ErrorEnum.INVALID_REQUEST.getMessage() + "orderSize's max weight have to be more than detail's weight", ErrorEnum.NOT_FOUND.getErrorCode());
 //                    }
                     return OrderDetailEntity.builder()
-                            .weight(request.weight())  // Trọng lượng gốc người dùng nhập
+                            .weightTons(request.weight())  // Trọng lượng gốc người dùng nhập (tấn)
                             .unit(request.unit())
                             .weightBaseUnit(convertToTon(request.weight(), request.unit()))  // Convert về tấn
                             .description(request.description())
@@ -404,6 +530,7 @@ public class OrderServiceImpl implements OrderService {
                             .estimatedStartTime(estimateStartTime)
                             .orderEntity(savedOrder)
                             .orderSizeEntity(orderSizeEntity)
+                            .declaredValue(request.declaredValue() != null ? request.declaredValue() : BigDecimal.ZERO)
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -417,7 +544,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<CreateOrderResponse> getOrdersForCusByUserId(UUID userId) {
-        log.info("getOrdersForCusByUserId: start");
+        
         CustomerEntity customer = customerEntityService.findByUserId(userId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage() + ", Customer not found with user id: " + userId,
@@ -440,7 +567,6 @@ public class OrderServiceImpl implements OrderService {
     public List<UnitEnum> responseListUnitEnum() {
         return Arrays.asList(UnitEnum.values());
     }
-
 
     private boolean checkTotalWeight(BigDecimal totalWeight, List<CreateOrderDetailRequest> listCreateOrderDetailRequests) {
         BigDecimal totalWeightTest = BigDecimal.ZERO;
@@ -511,7 +637,7 @@ public class OrderServiceImpl implements OrderService {
     public SimpleOrderForCustomerResponse getSimplifiedOrderForCustomerByOrderId(UUID orderId) {
         GetOrderResponse getOrderResponse = getOrderById(orderId);
 
-        Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment = new HashMap<>();
+        Map<UUID, List<GetIssueImageResponse>> issuesByVehicleAssignment = new HashMap<>();
         Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment = new HashMap<>();
 
         // defensive: handle null orderDetails and avoid duplicate calls per vehicleAssignmentId
@@ -532,24 +658,46 @@ public class OrderServiceImpl implements OrderService {
             transactionResponses = payOSTransactionService.getTransactionsByContractId(contractEntity.get().getId());
         }
 
-        List<GetIssueImageResponse> issueImageResponsesList = new ArrayList<>(issuesByVehicleAssignment.values());
+        // Flatten List<List<GetIssueImageResponse>> to List<GetIssueImageResponse>
+        List<GetIssueImageResponse> issueImageResponsesList = issuesByVehicleAssignment.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
-        return simpleOrderMapper.toSimpleOrderForCustomerResponse(
+        SimpleOrderForCustomerResponse response = simpleOrderMapper.toSimpleOrderForCustomerResponse(
                 getOrderResponse,
                 issueImageResponsesList,
                 photosByVehicleAssignment,
                 contractResponse,
                 transactionResponses
         );
+        
+        // Enrich ORDER_REJECTION issues with transactions (post-processing to avoid circular dependency)
+        enrichIssuesWithTransactions(response);
+        
+        return response;
     }
-
 
     @Override
     public OrderForStaffResponse getOrderForStaffByOrderId(UUID orderId) {
-        log.info("Getting order for staff with ID: {}", orderId);
 
         // Get the basic order information
         GetOrderResponse orderResponse = getOrderById(orderId);
+
+        // Get issues and photos for vehicle assignments
+        Map<UUID, List<GetIssueImageResponse>> issuesByVehicleAssignment = new HashMap<>();
+        Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment = new HashMap<>();
+
+        List<GetOrderDetailResponse> details = Optional.ofNullable(orderResponse)
+                .map(GetOrderResponse::orderDetails)
+                .orElse(Collections.emptyList());
+
+        // Reuse the helper method to process vehicle assignments
+        processVehicleAssignments(details, issuesByVehicleAssignment, photosByVehicleAssignment);
+
+        // Flatten issues list
+        List<GetIssueImageResponse> issueImageResponsesList = issuesByVehicleAssignment.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
         // Get contract information if available
         ContractResponse contractResponse = null;
@@ -574,7 +722,7 @@ public class OrderServiceImpl implements OrderService {
     public OrderForDriverResponse getOrderForDriverByOrderId(UUID orderId) {
         GetOrderResponse getOrderResponse = getOrderById(orderId);
 
-        Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment = new HashMap<>();
+        Map<UUID, List<GetIssueImageResponse>> issuesByVehicleAssignment = new HashMap<>();
         Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment = new HashMap<>();
 
         // defensive: handle null orderDetails and avoid duplicate calls per vehicleAssignmentId
@@ -595,7 +743,10 @@ public class OrderServiceImpl implements OrderService {
             transactionResponses = payOSTransactionService.getTransactionsByContractId(contractEntity.get().getId());
         }
 
-        List<GetIssueImageResponse> issueImageResponsesList = new ArrayList<>(issuesByVehicleAssignment.values());
+        // Flatten List<List<GetIssueImageResponse>> to List<GetIssueImageResponse>
+        List<GetIssueImageResponse> issueImageResponsesList = issuesByVehicleAssignment.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
         return driverOrderMapper.toOrderForDriverResponse(
                 getOrderResponse,
@@ -614,8 +765,85 @@ public class OrderServiceImpl implements OrderService {
 
         OrderEntity orderEntity = contractEntity.getOrderEntity();
 
+        // Update contract status to SIGNED
         contractEntity.setStatus(ContractStatusEnum.CONTRACT_SIGNED.name());
+        
+        // Set deposit payment deadline: 24 hours after signing
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        contractEntity.setDepositPaymentDeadline(now.plusHours(24));
+        
+        // Save contract with updated deadline
+        contractEntityService.save(contractEntity);
+        
+        log.info("✅ Contract {} signed successfully. Deposit payment deadline set to: {}", 
+                contractId, contractEntity.getDepositPaymentDeadline());
+        
+        // Update order status
         changeAStatusOrder(orderEntity.getId(), OrderStatusEnum.CONTRACT_SIGNED);
+
+        // Create notifications for contract signing
+        try {
+            String contractCode = contractEntity.getContractName() != null ? contractEntity.getContractName() : "HĐ-" + orderEntity.getOrderCode();
+            
+            // Calculate deposit amount using contract settings (same logic as ContractServiceImpl)
+            double baseValue = (contractEntity.getAdjustedValue() != null && contractEntity.getAdjustedValue().doubleValue() > 0) ? 
+                contractEntity.getAdjustedValue().doubleValue() : 
+                (contractEntity.getTotalValue() != null ? contractEntity.getTotalValue().doubleValue() : 0.0);
+            
+            double depositAmount = 0.0;
+            try {
+                var contractSetting = contractSettingService.getLatestContractSetting();
+                if (contractSetting != null && contractSetting.depositPercent() != null) {
+                    depositAmount = baseValue * contractSetting.depositPercent().doubleValue() / 100.0;
+                    log.info("🔍 Using contract setting deposit rate: {}% for base value: {}", 
+                        contractSetting.depositPercent(), baseValue);
+                } else {
+                    log.warn("Contract setting deposit percent is null, using 30% fallback");
+                    depositAmount = baseValue * 0.1;
+                }
+            } catch (Exception e) {
+                log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+                depositAmount = baseValue * 0.1;
+            }
+            
+            log.info("🔍 Final deposit calculation: baseValue={}, depositRate={}, depositAmount={}", 
+                baseValue, depositAmount / baseValue * 100, depositAmount);
+            
+            // Notification 1: Customer - CONTRACT_SIGNED (Email: NO)
+            CreateNotificationRequest customerNotification = NotificationBuilder.buildContractSigned(
+                orderEntity.getSender().getUser().getId(),
+                orderEntity.getOrderCode(),
+                contractCode,
+                depositAmount,
+                contractEntity.getDepositPaymentDeadline(),
+                orderEntity.getId(),
+                contractEntity.getId()
+            );
+            notificationService.createNotification(customerNotification);
+            log.info("✅ Created CONTRACT_SIGNED notification for customer in order: {}", orderEntity.getOrderCode());
+            
+            // Notification 2: All Staff - STAFF_CONTRACT_SIGNED
+            String customerName = orderEntity.getSender().getRepresentativeName() != null ?
+                orderEntity.getSender().getRepresentativeName() : orderEntity.getSender().getUser().getUsername();
+            
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            for (var staff : staffUsers) {
+                CreateNotificationRequest staffNotification = NotificationBuilder.buildStaffContractSigned(
+                    staff.getId(),
+                    orderEntity.getOrderCode(),
+                    contractCode,
+                    customerName,
+                    orderEntity.getId(),
+                    contractEntity.getId()
+                );
+                notificationService.createNotification(staffNotification);
+            }
+            log.info("✅ Created STAFF_CONTRACT_SIGNED notifications for {} staff users", staffUsers.size());
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to create contract signing notifications: {}", e.getMessage());
+            // Don't throw - notification failure shouldn't break contract signing
+        }
 
         return true;
     }
@@ -660,8 +888,7 @@ public class OrderServiceImpl implements OrderService {
                         // Cập nhật trạng thái các seal từ IN_USE -> USED
                         int updatedSeals = sealService.updateSealsToUsed(vehicleAssignment);
                         if (updatedSeals > 0) {
-                            log.info("Đã cập nhật {} seal thành USED cho VehicleAssignment {} khi Order {} chuyển sang trạng thái {}",
-                                    updatedSeals, vehicleAssignment.getId(), orderId, newStatus);
+                            
                         }
                     }
                 }
@@ -689,14 +916,13 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<GetOrderForDriverResponse> getOrderForDriverByCurrentDrive() {
-        log.info("Getting order for current driver");
 
         UUID driverId = userContextUtils.getCurrentDriverId();
 
         List<OrderEntity> ordersByDriverId = orderEntityService.findOrdersByDriverId(driverId);
 
         if (ordersByDriverId.isEmpty()) {
-            log.info("No orders found for driver with ID: {}", driverId);
+            
             throw new BadRequestException(
                     ErrorEnum.NOT_FOUND.getMessage() + " Cannot found orders from " + driverId,
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -710,10 +936,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public GetOrderByJpaResponse getSimplifiedOrderForCustomerV2ByOrderId(UUID orderId) {
-        log.info("Getting order for order with ID: {}", orderId);
 
         if (orderId == null) {
-            log.info("No orders found for order with ID: {}", orderId);
+            
             throw new BadRequestException(
                     ErrorEnum.NOT_FOUND.getMessage(),
                     ErrorEnum.NOT_FOUND.getErrorCode()
@@ -730,7 +955,6 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public CreateOrderResponse updateToOngoingDelivered(UUID orderId) {
-            
 
         // Validate order ID
         if (orderId == null) {
@@ -759,15 +983,13 @@ public class OrderServiceImpl implements OrderService {
 
         // If already ONGOING_DELIVERED, just return current order
         if (OrderStatusEnum.ONGOING_DELIVERED.name().equals(order.getStatus())) {
-            log.info("Order {} already in ONGOING_DELIVERED status, returning current state", orderId);
+            
             return orderMapper.toCreateOrderResponse(order);
         }
 
         // Update status to ONGOING_DELIVERED
         order.setStatus(OrderStatusEnum.ONGOING_DELIVERED.name());
         OrderEntity updatedOrder = orderEntityService.save(order);
-
-        log.info("Successfully updated order {} to ONGOING_DELIVERED", orderId);
 
         // Send WebSocket notification
 //        orderStatusWebSocketService.sendOrderStatusUpdate(
@@ -782,7 +1004,6 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public CreateOrderResponse updateToDelivered(UUID orderId) {
-        log.info("Updating order {} to DELIVERED status", orderId);
 
         // Validate order ID
         if (orderId == null) {
@@ -812,8 +1033,6 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(OrderStatusEnum.DELIVERED.name());
         OrderEntity updatedOrder = orderEntityService.save(order);
 
-        log.info("Successfully updated order {} to DELIVERED", orderId);
-
         // Send WebSocket notification
 //        orderStatusWebSocketService.sendOrderStatusUpdate(
 //                orderId,
@@ -827,7 +1046,6 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public CreateOrderResponse updateToSuccessful(UUID orderId) {
-        log.info("Updating order {} to SUCCESSFUL status", orderId);
 
         // Validate order ID
         if (orderId == null) {
@@ -857,8 +1075,6 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
         OrderEntity updatedOrder = orderEntityService.save(order);
 
-        log.info("Successfully updated order {} to SUCCESSFUL", orderId);
-
         // Send WebSocket notification
 //        orderStatusWebSocketService.sendOrderStatusUpdate(
 //                orderId,
@@ -872,7 +1088,6 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public boolean cancelOrder(UUID orderId) {
-        log.info("Cancelling order {}", orderId);
 
         // Validate order ID
         if (orderId == null) {
@@ -918,13 +1133,11 @@ public class OrderServiceImpl implements OrderService {
                 ContractEntity contract = contractOpt.get();
                 contract.setStatus(ContractStatusEnum.CANCELLED.name());
                 contractEntityService.save(contract);
-                log.info("Contract {} for order {} marked as CANCELLED", contract.getId(), orderId);
+                
             }
         } catch (Exception e) {
             log.warn("Failed to update contract status for cancelled order {}: {}", orderId, e.getMessage());
         }
-
-        log.info("Successfully cancelled order {}", orderId);
 
         // Send WebSocket notification
         try {
@@ -942,12 +1155,78 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
+     * Enrich ORDER_REJECTION issues with transactions after mapper creates the response
+     * This is done as post-processing to avoid circular dependency between services
+     */
+    private void enrichIssuesWithTransactions(SimpleOrderForCustomerResponse response) {
+        if (response == null || response.order() == null || response.order().vehicleAssignments() == null) {
+            return;
+        }
+        
+        for (var vehicleAssignment : response.order().vehicleAssignments()) {
+            if (vehicleAssignment.issues() == null) continue;
+            
+            for (var issue : vehicleAssignment.issues()) {
+                // Only enrich ORDER_REJECTION issues
+                if (issue.issueCategory() == capstone_project.common.enums.IssueCategoryEnum.ORDER_REJECTION && 
+                    issue.id() != null) {
+                    try {
+                        // Fetch transactions for this issue
+                        List<TransactionResponse> transactions = payOSTransactionService.getTransactionsByIssueId(
+                            UUID.fromString(issue.id())
+                        );
+                        
+                        // Create new enriched issue with transactions
+                        var enrichedIssue = new capstone_project.dtos.response.issue.SimpleIssueResponse(
+                            issue.id(),
+                            issue.description(),
+                            issue.locationLatitude(),
+                            issue.locationLongitude(),
+                            issue.status(),
+                            issue.vehicleAssignmentId(),
+                            issue.staff(),
+                            issue.issueTypeName(),
+                            issue.issueTypeDescription(),
+                            issue.reportedAt(),
+                            issue.issueCategory(),
+                            issue.issueImages(),
+                            issue.oldSeal(),
+                            issue.newSeal(),
+                            issue.sealRemovalImage(),
+                            issue.newSealAttachedImage(),
+                            issue.newSealConfirmedAt(),
+                            issue.paymentDeadline(),
+                            issue.calculatedFee(),
+                            issue.adjustedFee(),
+                            issue.finalFee(),
+                            issue.affectedOrderDetails(),
+                            issue.refund(),
+                            issue.transaction(),
+                            transactions // Add transactions
+                        );
+                        
+                        // Replace the issue in the list with enriched version
+                        // Note: This requires the issues list to be mutable
+                        int index = vehicleAssignment.issues().indexOf(issue);
+                        if (index >= 0 && vehicleAssignment.issues() instanceof java.util.ArrayList) {
+                            ((java.util.ArrayList<capstone_project.dtos.response.issue.SimpleIssueResponse>) vehicleAssignment.issues())
+                                .set(index, enrichedIssue);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to enrich issue {} with transactions: {}", issue.id(), e.getMessage());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Helper method to process vehicle assignments for order details
      * Extracts issue images and photo completions for each vehicle assignment
      */
     private void processVehicleAssignments(
             List<GetOrderDetailResponse> details,
-            Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment,
+            Map<UUID, List<GetIssueImageResponse>> issuesByVehicleAssignment,
             Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment
     ) {
         // defensive: handle null orderDetails and avoid duplicate calls per vehicleAssignmentId
@@ -960,12 +1239,49 @@ public class OrderServiceImpl implements OrderService {
             if (!processed.add(va)) continue; // skip duplicates
 
             try {
-                GetIssueImageResponse issueImageResponse = issueImageService.getByVehicleAssignment(va);
-                if (issueImageResponse != null) {
-                    issuesByVehicleAssignment.put(va, issueImageResponse);
+                // Get ALL issues for this vehicle assignment
+                List<GetIssueImageResponse> issuesList = new ArrayList<>();
+                
+                var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(va);
+                if (vehicleAssignment.isPresent()) {
+                    // Query ALL issues (no status filter - get OPEN, IN_PROGRESS, RESOLVED, etc.)
+                    List<IssueEntity> allIssues = issueEntityService.findAllByVehicleAssignmentEntity(vehicleAssignment.get());
+                    
+                    for (IssueEntity issue : allIssues)  {
+                        try {
+                            // Convert issue entity to response
+                            var basicIssue = issueMapper.toIssueBasicResponse(issue);
+                            
+                            // Fetch issue images for this issue
+                            List<String> imageUrls = new ArrayList<>();
+                            try {
+                                var issueImages = issueImageEntityService.findByIssueEntity_Id(issue.getId());
+                                if (issueImages != null && !issueImages.isEmpty()) {
+                                    imageUrls = issueImages.stream()
+                                            .map(capstone_project.entity.issue.IssueImageEntity::getImageUrl)
+                                            .filter(Objects::nonNull)
+                                            .collect(Collectors.toList());
+                                }
+                            } catch (Exception imgEx) {
+                                log.warn("Failed to fetch images for issue {}: {}", issue.getId(), imgEx.getMessage());
+                            }
+                            
+                            issuesList.add(new GetIssueImageResponse(
+                                    basicIssue,
+                                    imageUrls
+                            ));
+                        } catch (Exception e2) {
+                            log.warn("Failed to map issue {} for vehicleAssignment {}: {}", 
+                                    issue.getId(), va, e2.getMessage());
+                        }
+                    }
+                    
+                    if (!issuesList.isEmpty()) {
+                        issuesByVehicleAssignment.put(va, issuesList);
+                    }
                 }
             } catch (Exception e) {
-                log.warn("Failed to fetch issue images for vehicleAssignment {}: {}", va, e.getMessage());
+                log.warn("Failed to fetch issues for vehicleAssignment {}: {}", va, e.getMessage());
             }
 
             try {

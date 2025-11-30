@@ -25,7 +25,9 @@ public class ContractSettingEntityServiceImpl implements ContractSettingEntitySe
                     // update
                     existing.setDepositPercent(newSetting.getDepositPercent());
                     existing.setExpiredDepositDate(newSetting.getExpiredDepositDate());
-                    existing.setInsuranceRate(newSetting.getInsuranceRate());
+                    existing.setInsuranceRateNormal(newSetting.getInsuranceRateNormal());
+                    existing.setInsuranceRateFragile(newSetting.getInsuranceRateFragile());
+                    existing.setVatRate(newSetting.getVatRate());
                     return contractSettingRepository.save(existing);
                 })
                 .orElseGet(() -> contractSettingRepository.save(newSetting));

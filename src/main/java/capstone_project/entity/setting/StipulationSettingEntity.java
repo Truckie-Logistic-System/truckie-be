@@ -8,10 +8,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
-import java.util.Map;
 
 @Entity
 @Table(name = "stipulation_settings", schema = "public", catalog = "capstone-project")
@@ -21,8 +17,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class StipulationSettingEntity extends BaseEntity {
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "contents", columnDefinition = "jsonb")
-    private Map<String, String> contents;
+    @Column(name = "content", columnDefinition = "TEXT")
+    private String content;
 
 }

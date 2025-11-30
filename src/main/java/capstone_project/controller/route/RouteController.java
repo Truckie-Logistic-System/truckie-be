@@ -37,4 +37,10 @@ public class RouteController {
         SuggestRouteResponse response = routeService.suggestRoute(request);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/issues/{issueId}/points")
+    public ResponseEntity<RoutePointsResponse> getRoutePointsByIssue(@PathVariable UUID issueId) {
+        RoutePointsResponse response = routeService.getRoutePointsByIssue(issueId);
+        return ResponseEntity.ok(response);
+    }
 }

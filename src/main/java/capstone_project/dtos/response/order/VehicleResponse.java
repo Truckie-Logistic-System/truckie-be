@@ -10,5 +10,6 @@ public record VehicleResponse(
     String manufacturer,
     String model,
     String licensePlateNumber,
-    String vehicleType
+    String vehicleType,
+    String vehicleTypeDescription // Vehicle type description from backend
 ) {}

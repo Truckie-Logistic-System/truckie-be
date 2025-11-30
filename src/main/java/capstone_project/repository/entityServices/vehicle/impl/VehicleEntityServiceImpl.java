@@ -78,7 +78,7 @@ public class VehicleEntityServiceImpl implements VehicleEntityService {
     public boolean updateLocationDirectly(UUID id, BigDecimal latitude, BigDecimal longitude) {
         LocalDateTime now = LocalDateTime.now();
         int updatedRows = vehicleRepository.updateLocationDirectly(id, latitude, longitude, now);
-        log.debug("Direct location update for vehicle {}: affected {} rows", id, updatedRows);
+        
         return updatedRows > 0;
     }
 
@@ -91,9 +91,9 @@ public class VehicleEntityServiceImpl implements VehicleEntityService {
                 id, latitude, longitude, now, minLastUpdated);
 
         if (updatedRows == 0) {
-            log.debug("Location update for vehicle {} was rate limited or unchanged", id);
+            
         } else {
-            log.debug("Rate-limited location update for vehicle {} succeeded", id);
+            
         }
 
         return updatedRows > 0;
@@ -138,8 +138,6 @@ public class VehicleEntityServiceImpl implements VehicleEntityService {
             totalUpdated += updated;
         }
 
-        log.debug("Batch update processed {} vehicles, actually updated {}",
-                updates.size(), totalUpdated);
         return totalUpdated;
     }
 }

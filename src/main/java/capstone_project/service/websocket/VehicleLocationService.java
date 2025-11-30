@@ -72,8 +72,6 @@ public class VehicleLocationService {
         // Find all orders associated with this vehicle and broadcast to order topics
         broadcastToOrderTopics(message);
 
-        log.debug("Broadcast vehicle location: vehicleId={}, lat={}, lng={}, speed={}km/h",
-                message.getVehicleId(), message.getLatitude(), message.getLongitude(), message.getSpeed());
     }
     
     /**
@@ -124,18 +122,13 @@ public class VehicleLocationService {
             // Find all active vehicle assignments for this vehicle with eagerly fetched drivers
             List<VehicleAssignmentEntity> assignments = vehicleAssignmentRepository
                     .findByVehicleEntityIdWithDrivers(message.getVehicleId());
-            
-            log.debug("=== [broadcastToOrderTopics] Found {} assignments for vehicle {}", 
-                    assignments.size(), message.getVehicleId());
 
             // Track which orders we've already broadcast to (to avoid duplicates)
             java.util.Set<UUID> broadcastedOrders = new java.util.HashSet<>();
 
             // For each assignment, find active order details
             for (VehicleAssignmentEntity assignment : assignments) {
-                log.debug("=== [broadcastToOrderTopics] Processing assignment: {}, status: {}", 
-                        assignment.getId(), assignment.getStatus());
-                
+
                 // Check Order status (not OrderDetail status) for real-time tracking
                 // Include all statuses from PICKING_UP onwards as defined in frontend OrderStatusEnum
                 List<OrderDetailEntity> activeOrderDetails = orderDetailRepository
@@ -143,33 +136,24 @@ public class VehicleLocationService {
                                 assignment.getId(),
                                 List.of("PICKING_UP", "ON_DELIVERED", "ONGOING_DELIVERED", 
                                        "DELIVERED", "IN_TROUBLES", "RESOLVED", "COMPENSATION",
-                                       "SUCCESSFUL", "RETURNING", "RETURNED"));
-                
-                log.debug("=== [broadcastToOrderTopics] Found {} active order details for assignment {}", 
-                        activeOrderDetails.size(), assignment.getId());
+                                       "RETURNING", "RETURNED"));
 
                 // Group order details by order ID to avoid duplicate broadcasts
                 for (OrderDetailEntity orderDetail : activeOrderDetails) {
                     String orderStatus = orderDetail.getOrderEntity() != null ? 
                             orderDetail.getOrderEntity().getStatus() : "NULL";
-                    log.debug("=== [broadcastToOrderTopics] Processing order detail: {}, orderDetailStatus: {}, ORDER STATUS: {}", 
-                            orderDetail.getId(), orderDetail.getStatus(), orderStatus);
-                    
+
                     if (orderDetail.getOrderEntity() != null && orderDetail.getOrderEntity().getId() != null) {
                         UUID orderId = orderDetail.getOrderEntity().getId();
                         
                         // Skip if we've already broadcast to this order
                         if (broadcastedOrders.contains(orderId)) {
-                            log.debug("=== [broadcastToOrderTopics] Skipping duplicate broadcast to order {} (already sent)", 
-                                    orderId);
+                            
                             continue;
                         }
                         
                         String orderTopic = TOPIC_ORDER_VEHICLES_PREFIX + orderId + "/vehicles";
-                        
-                        log.debug("=== [broadcastToOrderTopics] Broadcasting to order {} topic: {}", 
-                                orderId, orderTopic);
-                        
+
                         // Get enhanced message with assignment details using eager-fetched vehicle
                         VehicleEntity vehicle = vehicleEntityService.findByVehicleIdWithVehicleType(message.getVehicleId()).orElse(null);
                         String orderDetailStatus = orderDetail.getStatus() != null ? orderDetail.getStatus() : "UNKNOWN";
@@ -183,31 +167,16 @@ public class VehicleLocationService {
                             enhancedMessage.setVelocityLat(message.getVelocityLat());
                             enhancedMessage.setVelocityLng(message.getVelocityLng());
                             
-                            // DEBUG: Log the complete message being sent
-                            log.info("=== [broadcastToOrderTopics] Enhanced message details:");
-                            log.info("    - vehicleId: {}", enhancedMessage.getVehicleId());
-                            log.info("    - latitude: {}", enhancedMessage.getLatitude());
-                            log.info("    - longitude: {}", enhancedMessage.getLongitude());
-                            log.info("    - licensePlateNumber: {}", enhancedMessage.getLicensePlateNumber());
-                            log.info("    - manufacturer: {}", enhancedMessage.getManufacturer());
-                            log.info("    - vehicleTypeName: {}", enhancedMessage.getVehicleTypeName());
-                            log.info("    - vehicleAssignmentId: {}", enhancedMessage.getVehicleAssignmentId());
-                            log.info("    - trackingCode: {}", enhancedMessage.getTrackingCode());
-                            log.info("    - orderDetailStatus: {}", enhancedMessage.getOrderDetailStatus());
-                            log.info("    - driver1Name: {}", enhancedMessage.getDriver1Name());
-                            log.info("    - driver1Phone: {}", enhancedMessage.getDriver1Phone());
-                            log.info("    - driver2Name: {}", enhancedMessage.getDriver2Name());
-                            log.info("    - driver2Phone: {}", enhancedMessage.getDriver2Phone());
-                            log.info("    - lastUpdated: {}", enhancedMessage.getLastUpdated());
-                            log.info("    - bearing: {}", enhancedMessage.getBearing());
-                            log.info("    - speed: {}", enhancedMessage.getSpeed());
-                            log.info("    - velocityLat: {}", enhancedMessage.getVelocityLat());
-                            log.info("    - velocityLng: {}", enhancedMessage.getVelocityLng());
-                            
+                            // DEBUG: Log speed values to identify discrepancy
+                            log.info("=== [WEBSOCKET SPEED DEBUG] Vehicle {} ({}) - Speed from mobile: {} km/h, Speed being sent: {} km/h", 
+                                    message.getVehicleId(), 
+                                    message.getLicensePlateNumber(),
+                                    message.getSpeed() != null ? message.getSpeed().doubleValue() + "" : "NULL",
+                                    enhancedMessage.getSpeed() != null ? enhancedMessage.getSpeed().doubleValue() + "" : "NULL");
+
                             messagingTemplate.convertAndSend(orderTopic, enhancedMessage);
                             broadcastedOrders.add(orderId); // Mark as broadcast
-                            log.info("=== [broadcastToOrderTopics] SUCCESSFULLY broadcast vehicle {} location to order {} topic: {}", 
-                                    message.getVehicleId(), orderId, orderTopic);
+                            
                         } else {
                             log.warn("=== [broadcastToOrderTopics] Enhanced message is NULL for vehicle {}", 
                                     message.getVehicleId());
@@ -218,9 +187,7 @@ public class VehicleLocationService {
                     }
                 }
             }
-            
-            log.debug("=== [broadcastToOrderTopics] Broadcast complete. Sent to {} unique orders", 
-                    broadcastedOrders.size());
+
         } catch (Exception e) {
             log.error("Error broadcasting to order topics for vehicle {}: {}", 
                     message.getVehicleId(), e.getMessage(), e);
@@ -409,7 +376,7 @@ public class VehicleLocationService {
             if (assignment.vehicleId() != null) {
                 // Skip if we've already processed this vehicle
                 if (processedVehicles.contains(assignment.vehicleId())) {
-                    log.debug("Skipping duplicate vehicle {} for order {}", assignment.vehicleId(), orderId);
+                    
                     continue;
                 }
                 
@@ -475,7 +442,6 @@ public class VehicleLocationService {
             }
         }
 
-        log.debug("Returning {} unique vehicle locations for order {}", vehicleLocations.size(), orderId);
         return vehicleLocations;
     }
 
@@ -495,8 +461,6 @@ public class VehicleLocationService {
         String topic = TOPIC_ORDER_VEHICLES_PREFIX + orderId + "/vehicles";
         messagingTemplate.convertAndSend(topic, vehicleLocations);
 
-        log.debug("Sent enhanced locations of {} vehicles for order {} to topic {}", 
-                vehicleLocations.size(), orderId, topic);
     }
 
     /**
@@ -523,8 +487,6 @@ public class VehicleLocationService {
             String topic = TOPIC_ORDER_VEHICLES_PREFIX + orderId + "/vehicles";
             messagingTemplate.convertAndSend(topic, vehicleLocations);
 
-            log.debug("Sent enhanced locations of {} vehicles for order code {} to topic {}", 
-                    vehicleLocations.size(), orderCode, topic);
         } else {
             log.warn("No order found with order code: {}", orderCode);
         }

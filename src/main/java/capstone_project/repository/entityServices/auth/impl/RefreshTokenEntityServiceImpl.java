@@ -5,7 +5,9 @@ import capstone_project.repository.repositories.auth.RefreshTokenRepository;
 import capstone_project.repository.entityServices.auth.RefreshTokenEntityService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +24,12 @@ public class RefreshTokenEntityServiceImpl implements RefreshTokenEntityService 
     }
 
     @Override
+    public Optional<RefreshTokenEntity> findByTokenAndRevokedFalse(String token) {
+        return refreshTokenRepository.findByTokenAndRevokedFalse(token);
+    }
+
+    @Override
+    @Deprecated
     public Optional<RefreshTokenEntity> findByToken(String token) {
         return refreshTokenRepository.findByToken(token);
     }
@@ -29,6 +37,18 @@ public class RefreshTokenEntityServiceImpl implements RefreshTokenEntityService 
     @Override
     public void saveAll(List<RefreshTokenEntity> tokens) {
         refreshTokenRepository.saveAll(tokens);
+    }
+
+    @Override
+    @Transactional
+    public void deleteExpiredTokens(LocalDateTime now) {
+        refreshTokenRepository.deleteExpiredTokens(now);
+    }
+
+    @Override
+    @Transactional
+    public void deleteOldRevokedTokens(LocalDateTime cutoffDate) {
+        refreshTokenRepository.deleteOldRevokedTokens(cutoffDate);
     }
 
     @Override

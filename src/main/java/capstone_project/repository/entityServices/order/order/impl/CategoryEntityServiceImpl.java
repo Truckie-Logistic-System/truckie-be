@@ -1,5 +1,6 @@
 package capstone_project.repository.entityServices.order.order.impl;
 
+import capstone_project.common.enums.CategoryName;
 import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.repository.repositories.order.order.CategoryRepository;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
@@ -33,12 +34,12 @@ public class CategoryEntityServiceImpl implements CategoryEntityService {
     }
 
     @Override
-    public Optional<CategoryEntity> findByCategoryName(String categoryName) {
+    public Optional<CategoryEntity> findByCategoryName(CategoryName categoryName) {
         return categoryRepository.findByCategoryName(categoryName);
     }
-
+    
     @Override
-    public List<CategoryEntity> findByCategoryNameLikeIgnoreCase(String categoryName) {
-        return categoryRepository.findByCategoryNameLikeIgnoreCase(categoryName);
+    public void delete(CategoryEntity entity) {
+        categoryRepository.delete(entity);
     }
 }

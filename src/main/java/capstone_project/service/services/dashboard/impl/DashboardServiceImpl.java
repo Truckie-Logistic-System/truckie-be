@@ -20,7 +20,6 @@ import java.util.*;
 import static capstone_project.common.enums.ErrorEnum.NOT_FOUND;
 import static capstone_project.common.enums.ErrorEnum.NULL;
 
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -36,40 +35,35 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public int countAllOrder() {
-        log.info("In DashboardServiceImpl.countAllOrder()");
 
         return orderEntityService.countAllOrderEntities();
     }
 
     @Override
     public int countOrderEntitiesBySenderId(UUID senderId) {
-        log.info("In DashboardServiceImpl.countOrderEntitiesBySenderId()");
 
         return orderEntityService.countOrderEntitiesBySenderId(senderId);
     }
 
     @Override
     public int countOrderEntitiesBySenderCompanyNameContainingIgnoreCase(String senderCompanyName) {
-        log.info("In DashboardServiceImpl.countOrderEntitiesBySenderCompanyName()");
 
         return orderEntityService.countOrderEntitiesByReceiverNameContainingIgnoreCase(senderCompanyName);
     }
 
     @Override
     public int countOrderEntitiesByReceiverNameContainingIgnoreCase(String receiverName) {
-        log.info("In DashboardServiceImpl.countOrderEntitiesByReceiverName()");
 
         return orderEntityService.countOrderEntitiesByReceiverNameContainingIgnoreCase(receiverName);
     }
 
     @Override
     public List<MonthlyOrderCount> countTotalOrderByMonthOverYear(int year) {
-        log.info("In DashboardServiceImpl.countTotalOrderByMonthOverYear()");
 
         List<Object[]> results = orderEntityService.countTotalOrderByMonthOverYear(year);
 
         if (results.isEmpty()) {
-            log.info("[countTotalOrderByMonthOverYear] No orders found for year {}", year);
+            
             throw new BadRequestException(NULL.getMessage(), NULL.getErrorCode());
         }
 
@@ -85,11 +79,10 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public Map<String, Long> countAllByOrderStatus() {
-        log.info("In DashboardServiceImpl.countAllByBookingStatus()");
 
         List<Object[]> results = orderEntityService.countAllByOrderStatus();
         if (results.isEmpty()) {
-            log.info("[countAllByBookingStatus] numOfBookings: 0");
+            
             throw new BadRequestException(NOT_FOUND.getMessage(),
                     NOT_FOUND.getErrorCode());
         }
@@ -108,11 +101,10 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public Map<String, Long> countByOrderStatus(String status) {
-        log.info("In DashboardServiceImpl.countByBookingStatus()");
 
         List<Object[]> results = orderEntityService.countByOrderStatus(status);
         if (results.isEmpty()) {
-            log.info("[countByBookingStatus] numOfBookings: 0");
+            
             throw new BadRequestException(NOT_FOUND.getMessage(),
                     NOT_FOUND.getErrorCode());
         }
@@ -131,11 +123,10 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public Map<String, Long> countOrderByWeek(int amount) {
-        log.info("In DashboardServiceImpl.countOrderByWeek()");
 
         List<Object[]> results = orderEntityService.countOrderByWeek(amount);
         if (results.isEmpty()) {
-            log.info("[countOrderByWeek] numOfBookings: 0");
+            
             throw new BadRequestException(NOT_FOUND.getMessage(),
                     NOT_FOUND.getErrorCode());
         }
@@ -156,11 +147,10 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public Map<String, Long> countOrderByYear(int amount) {
-        log.info("In DashboardServiceImpl.countOrderByWeek()");
 
         List<Object[]> results = orderEntityService.countOrderByYear(amount);
         if (results.isEmpty()) {
-            log.info("[countOrderByWeek] numOfBookings: 0");
+            
             throw new BadRequestException(NOT_FOUND.getMessage(),
                     NOT_FOUND.getErrorCode());
         }
@@ -182,7 +172,6 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public Map<String, Long> countAllByUserStatus() {
-        log.info("In DashboardServiceImpl.countAllByUserStatus()");
 
         List<Object[]> results = userEntityService.countAllByUserStatus();
         if (results.isEmpty()) {
@@ -205,7 +194,6 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public Map<String, Long> countUsersByRole() {
-        log.info("In DashboardServiceImpl.countUsersByRole()");
 
         List<Object[]> results = userEntityService.countUsersByRole();
         if (results.isEmpty()) {
@@ -228,19 +216,17 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public Integer countAllUsers() {
-        log.info("In DashboardServiceImpl.countAllUsers()");
 
         return userEntityService.countAllUsers();
     }
 
     @Override
     public List<MonthlyNewCustomerCountResponse> newCustomerByMonthOverYear(int year) {
-        log.info("In DashboardServiceImpl.newUserByMonthOverYear()");
 
         List<Object[]> results = customerEntityService.newCustomerByMonthOverYear(year);
 
         if (results.isEmpty()) {
-            log.info("[newUserByMonthOverYear] No users found for year {}", year);
+            
             throw new BadRequestException(NULL.getMessage(), NULL.getErrorCode());
         }
 
@@ -256,12 +242,11 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<CustomerGrowthRateByYearResponse> getCustomerGrowthRateByYear(int year) {
-        log.info("In DashboardServiceImpl.getUserGrowthRateByYear()");
 
         List<Object[]> results = customerEntityService.getUserGrowthRateByYear(year);
 
         if (results.isEmpty()) {
-            log.info("[getUserGrowthRateByYear] No users found for year {}", year);
+            
             throw new BadRequestException(NULL.getMessage(), NULL.getErrorCode());
         }
 
@@ -280,7 +265,6 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<TopSenderResponse> topSenderByMonthAndYear(Integer month, Integer year, int amount) {
-        log.info("In DashboardServiceImpl.topSenderByMonthAndYear()");
 
         if (amount <= 0) {
             log.error("[topSenderByMonthAndYear] Invalid amount: {}", amount);
@@ -310,7 +294,6 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<TopDriverResponse> topDriverByMonthAndYear(Integer month, Integer year, int amount) {
-        log.info("In DashboardServiceImpl.topDriverByMonthAndYear()");
 
         if (amount <= 0) {
             log.error("[topDriverByMonthAndYear] Invalid amount: {}", amount);
@@ -340,7 +323,6 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public OnTImeVSLateDeliveriesResponse getOnTimeVsLateDeliveriesWithPercentage(Integer month, Integer year) {
-        log.info("In DashboardServiceImpl.getOnTimeVsLateDeliveriesWithPercentage()");
 
         List<Object[]> result = orderDetailEntityService.getOnTimeVsLateDeliveriesWithPercentage(month, year);
 
@@ -361,7 +343,6 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<OnTimeDeliveriesDriverResponse> topOnTimeDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount) {
-        log.info("In DashboardServiceImpl.topOnTimeDeliveriesByDriversWithPercentage()");
 
         List<Object[]> results = orderDetailEntityService.topOnTimeDeliveriesByDriversWithPercentage(month, year, amount);
 
@@ -386,7 +367,6 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<LateDeliveriesDriverResponse> topLateDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount) {
-        log.info("In DashboardServiceImpl.topLateDeliveriesByDriversWithPercentage()");
 
         List<Object[]> results = orderDetailEntityService.topLateDeliveriesByDriversWithPercentage(month, year, amount);
 
@@ -411,19 +391,17 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public BigDecimal getTotalRevenueInYear() {
-        log.info("In DashboardServiceImpl.getTotalRevenueInYear()");
 
         return transactionEntityService.getTotalRevenueInYear();
     }
 
     @Override
     public Map<Integer, Long> getTotalRevenueCompareYear() {
-        log.info("In DashboardServiceImpl.getTotalRevenueCompareYear()");
 
         List<Object[]> results = transactionEntityService.getTotalRevenueCompareYear();
 
         if (results.isEmpty()) {
-            log.info("[getTotalRevenueCompareYear] No revenue data found for the current and previous year");
+            
             throw new BadRequestException(NULL.getMessage(), NULL.getErrorCode());
         }
 
@@ -439,12 +417,11 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public Map<Integer, Long> getTotalRevenueByMonth() {
-        log.info("In DashboardServiceImpl.getTotalRevenueByMonth()");
 
         List<Object[]> results = transactionEntityService.getTotalRevenueByMonth();
 
         if (results.isEmpty()) {
-            log.info("[getTotalRevenueByMonth] No revenue data found for the current year");
+            
             throw new BadRequestException(NULL.getMessage(), NULL.getErrorCode());
         }
 
@@ -460,12 +437,11 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public Map<Integer, Long> getTotalRevenueByLast4Weeks() {
-        log.info("In DashboardServiceImpl.getTotalRevenueByLast4Weeks()");
 
         List<Object[]> results = transactionEntityService.getTotalRevenueByLast4Weeks();
 
         if (results.isEmpty()) {
-            log.info("[getTotalRevenueByLast4Weeks] No revenue data found for the last 4 weeks");
+            
             throw new BadRequestException(NULL.getMessage(), NULL.getErrorCode());
         }
 
@@ -482,7 +458,6 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<TopPayCustomerResponse> getTopCustomersByRevenue(int amount) {
-        log.info("In DashboardServiceImpl.getTopCustomersByRevenue()");
 
         if (amount <= 0) {
             log.error("[getTopCustomersByRevenue] Invalid amount: {}", amount);

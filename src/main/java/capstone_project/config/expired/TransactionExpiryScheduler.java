@@ -28,7 +28,7 @@ public class TransactionExpiryScheduler {
         for (TransactionEntity tx : expiredTransactions) {
             tx.setStatus(TransactionEnum.EXPIRED.name());
             transactionEntityService.save(tx);
-            log.info("Transaction {} expired -> CANCELLED", tx.getId());
+            
         }
     }
 }

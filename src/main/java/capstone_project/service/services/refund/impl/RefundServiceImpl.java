@@ -16,6 +16,7 @@ import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.refund.RefundEntityService;
+import capstone_project.service.mapper.issue.IssueMapper;
 import capstone_project.service.mapper.refund.RefundMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.refund.RefundService;
@@ -40,13 +41,17 @@ public class RefundServiceImpl implements RefundService {
     private final OrderEntityService orderEntityService;
     private final CloudinaryService cloudinaryService;
     private final RefundMapper refundMapper;
+    private final IssueMapper issueMapper;
     private final IssueWebSocketService issueWebSocketService;
+    private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
     private final UserContextUtils userContextUtils;
+    
+    // ✅ NEW: OrderDetailStatusService for centralized Order status aggregation
+    private final capstone_project.service.services.order.order.OrderDetailStatusService orderDetailStatusService;
 
     @Override
     @Transactional
     public GetRefundResponse processRefund(ProcessRefundRequest request, MultipartFile bankTransferImage) {
-        log.info("Processing refund for issue: {}", request.issueId());
 
         // Validate issue exists and is OPEN or IN_PROGRESS
         IssueEntity issue = issueEntityService.findEntityById(request.issueId())
@@ -64,12 +69,12 @@ public class RefundServiceImpl implements RefundService {
         String bankTransferImageUrl = null;
         if (bankTransferImage != null && !bankTransferImage.isEmpty()) {
             try {
-                log.info("📤 Uploading refund proof image to Cloudinary...");
+                
                 var uploadResult = cloudinaryService.uploadFile(bankTransferImage.getBytes(), 
                         "refund_" + System.currentTimeMillis(), 
                         "refund_proofs");
                 bankTransferImageUrl = uploadResult.get("secure_url").toString();
-                log.info("✅ Refund proof image uploaded: {}", bankTransferImageUrl);
+                
             } catch (IOException e) {
                 log.error("❌ Error uploading refund image to Cloudinary: {}", e.getMessage());
                 throw new RuntimeException("Failed to upload refund image", e);
@@ -94,56 +99,81 @@ public class RefundServiceImpl implements RefundService {
 
         // Save refund
         RefundEntity savedRefund = refundEntityService.save(refund);
-        log.info("✅ Refund saved with ID: {}", savedRefund.getId());
 
         // Update order details in this vehicle assignment
         if (issue.getVehicleAssignmentEntity() != null) {
-            var allOrderDetails = orderDetailEntityService.findAll().stream()
-                    .filter(od -> od.getVehicleAssignmentEntity() != null && 
-                                  od.getVehicleAssignmentEntity().getId()
-                                    .equals(issue.getVehicleAssignmentEntity().getId()))
-                    .toList();
+            var allOrderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(
+                    issue.getVehicleAssignmentEntity());
+            
+            java.util.Set<java.util.UUID> affectedOrderIds = new java.util.HashSet<>();
+            UUID vehicleAssignmentId = issue.getVehicleAssignmentEntity() != null ? 
+                    issue.getVehicleAssignmentEntity().getId() : null;
             
             for (OrderDetailEntity od : allOrderDetails) {
+                String oldStatus = od.getStatus();
+                var order = od.getOrderEntity();
+                
                 // Kiện bị hư (linked to issue) → COMPENSATION
                 if (od.getIssueEntity() != null && od.getIssueEntity().getId().equals(issue.getId())) {
                     od.setStatus(OrderDetailStatusEnum.COMPENSATION.name());
                     orderDetailEntityService.save(od);
-                    log.info("✅ Order detail {} status updated to COMPENSATION", od.getId());
+                    affectedOrderIds.add(order.getId());
+                    
+                    // Send WebSocket notification
+                    try {
+                        orderDetailStatusWebSocketService.sendOrderDetailStatusChange(
+                            od.getId(),
+                            od.getTrackingCode(),
+                            order.getId(),
+                            order.getOrderCode(),
+                            vehicleAssignmentId,
+                            oldStatus,
+                            OrderDetailStatusEnum.COMPENSATION
+                        );
+                    } catch (Exception e) {
+                        log.error("❌ Failed to send WebSocket for {}: {}", od.getTrackingCode(), e.getMessage());
+                    }
+
                 }
-                // Kiện còn lại (không bị hư) → DELIVERED
-                else if (OrderDetailStatusEnum.IN_TROUBLES.name().equals(od.getStatus()) == false &&
-                         OrderDetailStatusEnum.COMPENSATION.name().equals(od.getStatus()) == false) {
+                // Kiện còn lại (không bị hư và đang IN_TROUBLES) → DELIVERED
+                // This shouldn't happen in normal flow, but handle it for safety
+                else if (OrderDetailStatusEnum.IN_TROUBLES.name().equals(oldStatus)) {
                     od.setStatus(OrderDetailStatusEnum.DELIVERED.name());
                     orderDetailEntityService.save(od);
-                    log.info("✅ Order detail {} status updated to DELIVERED", od.getId());
+                    affectedOrderIds.add(order.getId());
+                    
+                    // Send WebSocket notification
+                    try {
+                        orderDetailStatusWebSocketService.sendOrderDetailStatusChange(
+                            od.getId(),
+                            od.getTrackingCode(),
+                            order.getId(),
+                            order.getOrderCode(),
+                            vehicleAssignmentId,
+                            oldStatus,
+                            OrderDetailStatusEnum.DELIVERED
+                        );
+                    } catch (Exception e) {
+                        log.error("❌ Failed to send WebSocket for {}: {}", od.getTrackingCode(), e.getMessage());
+                    }
+
                 }
             }
-            log.info("✅ Updated order details: damaged → COMPENSATION, others → DELIVERED");
-            
-            // Check if ALL order details in the affected orders are COMPENSATION
-            // If so, update order status to COMPENSATION
-            var affectedOrderIds = allOrderDetails.stream()
-                    .map(od -> od.getOrderEntity().getId())
-                    .distinct()
-                    .toList();
-            
+
+            // ✅ CRITICAL FIX: Use OrderDetailStatusService to auto-update Order status
+            // This ensures correct priority logic (COMPENSATION > IN_TROUBLES > CANCELLED > RETURNING/RETURNED > DELIVERED)
+            // NEVER manually calculate Order status - delegate to the centralized service
             for (java.util.UUID orderId : affectedOrderIds) {
-                var orderDetailsInOrder = orderDetailEntityService.findAll().stream()
-                        .filter(od -> od.getOrderEntity() != null && 
-                                      od.getOrderEntity().getId().equals(orderId))
-                        .toList();
+                // Trigger auto-update using centralized service
+                // This will apply correct priority logic:
+                // - COMPENSATION (highest priority if ANY package compensated)
+                // - IN_TROUBLES (if ANY package has active issue)
+                // - CANCELLED (if ALL packages cancelled)
+                // - RETURNING/RETURNED (if ALL packages in return flow)
+                // - DELIVERED (only if ALL packages delivered)
+                orderDetailStatusService.triggerOrderStatusUpdate(orderId);
                 
-                boolean allCompensated = orderDetailsInOrder.stream()
-                        .allMatch(od -> OrderDetailStatusEnum.COMPENSATION.name().equals(od.getStatus()));
-                
-                if (allCompensated) {
-                    var order = orderEntityService.findEntityById(orderId)
-                            .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND));
-                    order.setStatus(OrderStatusEnum.COMPENSATION.name());
-                    orderEntityService.save(order);
-                    log.info("✅ Order {} status updated to COMPENSATION (all order details compensated)", orderId);
-                }
+                log.info("✅ Order status auto-updated after refund processing for Order: {}", orderId);
             }
         }
 
@@ -151,12 +181,11 @@ public class RefundServiceImpl implements RefundService {
         issue.setStatus(IssueEnum.RESOLVED.name());
         issue.setResolvedAt(LocalDateTime.now());
         issue.setStaff(staff);
-        issueEntityService.save(issue);
+        IssueEntity updatedIssue = issueEntityService.save(issue);
 
-        // Send WebSocket notification to driver
-        // issueWebSocketService.sendIssueUpdate(issue.getId(), "REFUND_PROCESSED"); // TODO: Implement this method
+        // NOTE: Driver already continued trip after reporting damage
+        // No notification needed as driver doesn't need to wait
 
-        log.info("Refund processed successfully for issue: {}", request.issueId());
         return refundMapper.toRefundResponse(refund);
     }
 

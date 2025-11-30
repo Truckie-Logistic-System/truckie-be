@@ -25,6 +25,7 @@ import capstone_project.service.mapper.user.CustomerMapper;
 import capstone_project.service.mapper.user.UserMapper;
 import capstone_project.service.mapper.vehicle.VehicleAssignmentMapper;
 import capstone_project.service.services.billOfLanding.BillOfLandingService;
+import capstone_project.service.services.setting.ContractSettingService;
 import com.itextpdf.io.font.PdfEncodings;
 import com.itextpdf.kernel.colors.ColorConstants;
 import com.itextpdf.kernel.font.PdfFont;
@@ -73,6 +74,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
     private final ContractEntityService contractEntityService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final OrderDetailRepository orderDetailRepository;
+    private final ContractSettingService contractSettingService;
 
     private final CustomerMapper customerMapper;
     private final OrderMapper orderMapper;
@@ -85,7 +87,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
 
     @Override
     public BillOfLandingResponse getBillOfLandingById(UUID contractId) {
-        log.info("getBillOfLandingById");
 
         ContractEntity contractEntity = contractEntityService.findEntityById(contractId)
                 .orElseThrow(() -> new NotFoundException(
@@ -105,7 +106,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                         .orElse(Collections.emptyList());
 
         List<VehicleAssignmentEntity> vehicleAssignments = orderEntity.getOrderDetailEntities().stream()
-                .peek(orderDetail -> log.info("OrderDetail: {}", orderDetail))
                 .map(OrderDetailEntity::getVehicleAssignmentEntity)
                 .filter(Objects::nonNull)
                 .toList();
@@ -229,7 +229,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 document.add(barcodeImage);
                 document.add(new Paragraph("").setMarginBottom(6));
             } catch (Exception ex) {
-                log.debug("Could not render barcode for main waybill: {}", ex.getMessage());
+                
             }
 
             UserEntity staff = new UserEntity();
@@ -239,7 +239,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 ContractEntity contract = contractEntityService.getContractByOrderId(order.getId()).orElse(null);
                 if (contract != null && contract.getStaff() != null) staff = contract.getStaff();
             } catch (Exception ex) {
-                log.debug("No contract found for order {}: {}", order.getId(), ex.getMessage());
+                
             }
 
             addPartiesInformation(document, order.getSender(), order.getReceiverName(), order.getReceiverPhone(), staff);
@@ -322,7 +322,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 document.add(barcodeImage);
                 document.add(new Paragraph("").setMarginBottom(6));
             } catch (Exception ex) {
-                log.debug("Could not render barcode for manifest: {}", ex.getMessage());
+                
             }
 
             // References: main waybill and order info
@@ -348,7 +348,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 ContractEntity contract = contractEntityService.getContractByOrderId(order.getId()).orElse(null);
                 if (contract != null && contract.getStaff() != null) staff = contract.getStaff();
             } catch (Exception ex) {
-                log.debug("No contract found for order {}: {}", order.getId(), ex.getMessage());
+                
             }
 
             // Vehicle and driver info block
@@ -892,10 +892,26 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             }
         }
 
-        // Calculate deposit: assume standard deposit rate (e.g., 30% of freight charge)
-        // If no contract settings available, use 30% as default
-        BigDecimal depositRate = new BigDecimal("0.30"); // 30% default
-        BigDecimal depositAmount = freightCharge.multiply(depositRate);
+        // Calculate deposit using contract settings with fallback
+        BigDecimal depositAmount;
+        try {
+            var contractSetting = contractSettingService.getLatestContractSetting();
+            BigDecimal depositPercent;
+            if (contractSetting != null && contractSetting.depositPercent() != null) {
+                depositPercent = contractSetting.depositPercent();
+                log.info("🔍 Using contract setting deposit rate: {}% for freight charge: {}", 
+                    depositPercent, freightCharge);
+            } else {
+                log.warn("Contract setting deposit percent is null, using 30% fallback");
+                depositPercent = new BigDecimal("10");
+            }
+            // Convert percentage to decimal (e.g., 10% -> 0.10)
+            depositAmount = freightCharge.multiply(depositPercent.divide(new BigDecimal("100")));
+        } catch (Exception e) {
+            log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+            // Fallback to 10% if contract setting fails
+            depositAmount = freightCharge.multiply(new BigDecimal("0.10"));
+        }
 
         // Get actual paid amount from transactions
         BigDecimal totalPaid = BigDecimal.ZERO;
@@ -1212,7 +1228,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 document.add(barcodeImage);
                 document.add(new Paragraph("").setMarginBottom(6));
             } catch (Exception ex) {
-                log.debug("Could not render barcode for dispatch order: {}", ex.getMessage());
+                
             }
 
             // References: main waybill and order info
@@ -1241,7 +1257,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 ContractEntity contract = contractEntityService.getContractByOrderId(order.getId()).orElse(null);
                 if (contract != null && contract.getStaff() != null) staff = contract.getStaff();
             } catch (Exception ex) {
-                log.debug("No contract found for order {}: {}", order.getId(), ex.getMessage());
+                
             }
 
             Paragraph staffInCharge = new Paragraph("Người phụ trách / Staff in charge: " + staff.getFullName() + " (" + staff.getPhoneNumber() + ")")

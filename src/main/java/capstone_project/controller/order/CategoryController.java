@@ -59,4 +59,11 @@ public class CategoryController {
         final var result = categoryService.updateCategory(id, categoryRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<String>> deleteCategory(@PathVariable("id") UUID id) {
+        categoryService.deleteCategory(id);
+        return ResponseEntity.ok(ApiResponse.ok("Category deleted successfully"));
+    }
 }

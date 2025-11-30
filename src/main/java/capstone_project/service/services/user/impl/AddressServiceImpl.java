@@ -43,13 +43,12 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     public List<AddressResponse> getAllAddresses() {
-        log.info("Fetching all addresses");
 
         // Check cache first for AddressResponse DTOs
         try {
             List<AddressResponse> cachedAddresses = redisService.getList(ALL_ADDRESSES_CACHE_KEY, AddressResponse.class);
             if (cachedAddresses != null && !cachedAddresses.isEmpty()) {
-                log.info("Retrieved {} addresses from cache", cachedAddresses.size());
+                
                 return cachedAddresses;
             }
         } catch (Exception e) {
@@ -76,7 +75,7 @@ public class AddressServiceImpl implements AddressService {
         try {
             redisService.save(ALL_ADDRESSES_CACHE_KEY, addressResponses);
             redisService.expire(ALL_ADDRESSES_CACHE_KEY, 1, TimeUnit.HOURS);
-            log.info("Cached {} address responses", addressResponses.size());
+            
         } catch (Exception e) {
             log.warn("Error caching addresses, continuing without cache", e);
         }
@@ -86,7 +85,6 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     public List<AddressResponse> getAddressesByCustomerId(UUID customerId) {
-        log.info("Fetching addresses for customer ID: {}", customerId);
 
         List<AddressEntity> entities = addressEntityService.getAddressesByCustomerId(customerId);
 
@@ -105,14 +103,13 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     public AddressResponse calculateLatLong(String address) {
-        log.info("Calculating lat/long for address: {}", address);
 
         // Check cache for geocoding result
         String geocodingCacheKey = GEOCODING_CACHE_KEY_PREFIX + address.hashCode();
         try {
             AddressResponse cachedResult = redisService.get(geocodingCacheKey, AddressResponse.class);
             if (cachedResult != null) {
-                log.info("Retrieved geocoding result from cache for address: {}", address);
+                
                 return cachedResult;
             }
         } catch (Exception e) {
@@ -124,8 +121,7 @@ public class AddressServiceImpl implements AddressService {
         AddressResponse response;
         if (geocodingResult.isPresent()) {
             response = AddressUtil.buildResponseFromGeocoding(geocodingResult.get());
-            log.info("Successfully resolved coordinates - Lat: {}, Long: {}",
-                    response.latitude(), response.longitude());
+            
         } else {
             log.warn("Could not resolve coordinates via API, using fallback for address: {}", address);
             response = AddressUtil.buildFallbackResponse(address);
@@ -152,13 +148,13 @@ public class AddressServiceImpl implements AddressService {
             if (request.latitude() != null && request.longitude() != null) {
                 lat = request.latitude();
                 lng = request.longitude();
-                log.info("Using latitude/longitude provided in request");
+                
             } else {
                 String fullAddress = AddressUtil.buildFullAddress(request);
                 AddressResponse locationData = enhancedCalculateLatLong(fullAddress);
                 lat = locationData.latitude();
                 lng = locationData.longitude();
-                log.info("Calculated latitude/longitude via geocoding");
+                
             }
 
             AddressEntity addressEntity = addressMapper.mapRequestToAddressEntity(request);
@@ -202,7 +198,6 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     public AddressResponse updateAddress(UUID id, AddressRequest request) {
-        log.info("Updating address with ID: {}", id);
 
         // 1. Find the existing address
         AddressEntity existing = addressEntityService.findEntityById(id)
@@ -226,14 +221,14 @@ public class AddressServiceImpl implements AddressService {
         if (request.latitude() != null && request.longitude() != null) {
             lat = request.latitude();
             lng = request.longitude();
-            log.info("Using latitude/longitude provided in request for update");
+            
         } else {
             // 4. Calculate new coordinates for the updated address or use provided ones
             String fullAddress = AddressUtil.buildFullAddress(request);
             AddressResponse locationData = enhancedCalculateLatLong(fullAddress);
             lat = locationData.latitude();
             lng = locationData.longitude();
-            log.info("Calculated latitude/longitude via geocoding for update");
+            
         }
 
         AddressUtil.setCoordinatesOnEntity(existing, lat, lng);
@@ -264,14 +259,13 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     public AddressResponse getAddressById(UUID id) {
-        log.info("Fetching address with ID: {}", id);
 
         // Check cache first
         String cacheKey = ADDRESS_CACHE_KEY_PREFIX + id;
         try {
             AddressResponse cachedAddress = redisService.get(cacheKey, AddressResponse.class);
             if (cachedAddress != null) {
-                log.info("Retrieved address from cache for ID: {}", id);
+                
                 return cachedAddress;
             }
         } catch (Exception e) {
@@ -287,7 +281,7 @@ public class AddressServiceImpl implements AddressService {
                     try {
                         redisService.save(cacheKey, response);
                         redisService.expire(cacheKey, 30, TimeUnit.MINUTES);
-                        log.info("Cached address for ID: {}", id);
+                        
                     } catch (Exception e) {
                         log.warn("Error caching address for ID: {}", id, e);
                     }
@@ -342,7 +336,7 @@ public class AddressServiceImpl implements AddressService {
     private void invalidateAddressCaches() {
         try {
             redisService.delete(ALL_ADDRESSES_CACHE_KEY);
-            log.debug("Invalidated all addresses cache");
+            
         } catch (Exception e) {
             log.warn("Error invalidating addresses cache", e);
         }
@@ -353,7 +347,7 @@ public class AddressServiceImpl implements AddressService {
             try {
                 String customerCacheKey = CUSTOMER_ADDRESSES_CACHE_KEY_PREFIX + customerId;
                 redisService.delete(customerCacheKey);
-                log.debug("Invalidated customer addresses cache for customer: {}", customerId);
+                
             } catch (Exception e) {
                 log.warn("Error invalidating customer addresses cache", e);
             }
@@ -363,7 +357,6 @@ public class AddressServiceImpl implements AddressService {
     @Override
     public List<AddressResponse> getMyDeliveryAddress() {
         UUID customerId = userContextUtils.getCurrentCustomerId();
-        log.info("Fetching delivery addresses for current customer: {}", customerId);
 
         List<AddressEntity> entities = addressEntityService.getAddressesByCustomerId(customerId);
 
@@ -385,15 +378,13 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     public AddressResponse enhancedCalculateLatLong(String address) {
-        log.info("Calculating lat/long for address: {}", address);
-        
+
         // Use VietMap geocoding service for enhanced address resolution
         Optional<GeocodingResponse> geocodingResult = geocodingService.geocodeAddress(address);
         
         if (geocodingResult.isPresent()) {
             AddressResponse response = AddressUtil.buildResponseFromGeocoding(geocodingResult.get());
-            log.info("Successfully resolved coordinates via VietMap - Lat: {}, Long: {}", 
-                    response.latitude(), response.longitude());
+            
             return response;
         } else {
             log.warn("Could not resolve coordinates via VietMap, using fallback for address: {}", address);

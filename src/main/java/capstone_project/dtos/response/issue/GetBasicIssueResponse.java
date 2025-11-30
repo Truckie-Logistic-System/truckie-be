@@ -2,7 +2,11 @@ package capstone_project.dtos.response.issue;
 
 import capstone_project.common.enums.IssueCategoryEnum;
 import capstone_project.dtos.response.order.seal.GetSealResponse;
+import capstone_project.dtos.response.user.CustomerResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
+import capstone_project.dtos.response.refund.GetRefundResponse;
+import capstone_project.dtos.response.order.JourneySegmentResponse;
+import capstone_project.dtos.response.order.JourneyHistoryResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.issue.IssueTypeEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -38,6 +42,22 @@ public record GetBasicIssueResponse (
         List<String> issueImages, // URLs of damage images
         
         // Order detail information (for damage issues)
-        OrderDetailForIssueResponse orderDetail
+        OrderDetailForIssueResponse orderDetail,
+        
+        // Sender/Customer information (for damage and order rejection issues)
+        CustomerResponse sender,
+        
+        // ORDER_REJECTION specific fields
+        LocalDateTime paymentDeadline,
+        BigDecimal calculatedFee,
+        BigDecimal adjustedFee,
+        BigDecimal finalFee,
+        List<OrderDetailForIssueResponse> affectedOrderDetails, // Multiple order details can be rejected
+        GetRefundResponse returnTransaction, // The refund/transaction for return payment (deprecated)
+        List<capstone_project.dtos.response.order.transaction.TransactionResponse> transactions, // All payment transactions
+        
+        // REROUTE specific fields
+        JourneySegmentResponse affectedSegment, // The segment where issue occurred
+        JourneyHistoryResponse reroutedJourney // The new journey created after rerouting
 ) {
 }

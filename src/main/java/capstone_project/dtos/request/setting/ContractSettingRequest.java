@@ -15,8 +15,14 @@ public record ContractSettingRequest(
         @Min(value = 0L, message = "Expired deposit date must be positive")
         Integer expiredDepositDate,
 
-        @NotNull(message = "Insurance rate must not be null")
+        @NotNull(message = "Insurance rate for normal goods must not be null")
         @Min(value = 0L, message = "Insurance rate must be positive")
-        BigDecimal insuranceRate
+        BigDecimal insuranceRateNormal,
+
+        @NotNull(message = "Insurance rate for fragile goods must not be null")
+        @Min(value = 0L, message = "Insurance rate must be positive")
+        BigDecimal insuranceRateFragile,
+
+        BigDecimal vatRate
 ) {
 }

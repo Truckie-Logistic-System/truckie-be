@@ -34,7 +34,7 @@ public class CustomerSuggestionServiceImpl implements CustomerSuggestionService 
     @Override
     @Transactional(readOnly = true)
     public List<ReceiverSuggestionResponse> getRecentReceivers(int limit) {
-        log.info("Getting recent receivers with limit: {}", limit);
+        
         UUID currentCustomerId = userContextUtils.getCurrentCustomerId();
         if (currentCustomerId == null) {
             log.error("Current customer ID is null");
@@ -46,7 +46,6 @@ public class CustomerSuggestionServiceImpl implements CustomerSuggestionService 
 
         // Get recent orders for the current customer
         List<OrderEntity> recentOrders = orderEntityService.findRecentOrdersByCustomerId(currentCustomerId, limit);
-        log.info("Found {} recent orders for customer ID: {}", recentOrders.size(), currentCustomerId);
 
         // Map to receiver suggestions and filter duplicates based on name and phone
         return recentOrders.stream()
@@ -67,7 +66,7 @@ public class CustomerSuggestionServiceImpl implements CustomerSuggestionService 
     @Override
     @Transactional(readOnly = true)
     public ReceiverDetailResponse getReceiverDetails(UUID orderId) {
-        log.info("Getting receiver details for order ID: {}", orderId);
+        
         // Find order by ID
         OrderEntity order = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new NotFoundException(
@@ -101,8 +100,6 @@ public class CustomerSuggestionServiceImpl implements CustomerSuggestionService 
                     ErrorEnum.USER_PERMISSION_DENIED.getErrorCode()
             );
         }
-
-        log.info("Access authorized for customer ID: {} to order ID: {}", currentCustomerId, orderId);
 
         // Map to DTO
         return receiverDetailMapper.toDto(order);

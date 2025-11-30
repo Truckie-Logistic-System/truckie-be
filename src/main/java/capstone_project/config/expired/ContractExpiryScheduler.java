@@ -1,10 +1,13 @@
 package capstone_project.config.expired;
 
 import capstone_project.common.enums.ContractStatusEnum;
+import capstone_project.common.enums.OrderDetailStatusEnum;
 import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.entity.order.contract.ContractEntity;
+import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
+import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import lombok.RequiredArgsConstructor;
@@ -21,8 +24,8 @@ import java.util.List;
  * 
  * Checks for:
  * 1. Expired signing deadline - Contracts in CONTRACT_DRAFT status that haven't been signed within 24 hours
- * 2. Expired deposit payment deadline - Contracts in CONTRACT_SIGNED status without deposit payment within 48 hours
- * 3. Expired full payment deadline - Contracts in DEPOSITED status without full payment before pickup time
+ * 2. Expired deposit payment deadline - Contracts in CONTRACT_SIGNED status without deposit payment within 24 hours after signing
+ * 3. Expired full payment deadline - Contracts in DEPOSITED status without full payment before 1 day prior to pickup time
  * 
  * When deadlines are missed, the order and contract are automatically cancelled
  */
@@ -32,20 +35,20 @@ import java.util.List;
 public class ContractExpiryScheduler {
     private final ContractEntityService contractEntityService;
     private final OrderEntityService orderEntityService;
+    private final OrderDetailEntityService orderDetailEntityService;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
 
     /**
      * Check for expired contracts every 10 minutes
      * Reasonable deadlines:
      * - Contract signing: 24 hours after contract draft creation
-     * - Deposit payment: 48 hours after contract signing
-     * - Full payment: Before pickup time (estimate start time)
+     * - Deposit payment: 24 hours after contract signing
+     * - Full payment: 1 day before pickup time (earliest estimated start time)
      */
     @Scheduled(fixedRate = 600000) // Runs every 10 minutes
     @Transactional
     public void checkExpiredContracts() {
-        log.info("Starting contract expiry check at {}", LocalDateTime.now());
-        
+
         LocalDateTime now = LocalDateTime.now();
         
         // Check expired signing deadlines
@@ -56,8 +59,7 @@ public class ContractExpiryScheduler {
         
         // Check expired full payment deadlines
         checkExpiredFullPaymentDeadlines(now);
-        
-        log.info("Completed contract expiry check at {}", LocalDateTime.now());
+
     }
 
     /**
@@ -73,11 +75,9 @@ public class ContractExpiryScheduler {
                     );
 
             if (expiredContracts.isEmpty()) {
-                log.debug("No contracts with expired signing deadlines found");
+                
                 return;
             }
-
-            log.info("Found {} contract(s) with expired signing deadline", expiredContracts.size());
 
             for (ContractEntity contract : expiredContracts) {
                 try {
@@ -98,7 +98,7 @@ public class ContractExpiryScheduler {
 
     /**
      * Check for contracts in CONTRACT_SIGNED status with expired deposit payment deadline
-     * Deadline: 48 hours after contract signing
+     * Deadline: 24 hours after contract signing
      */
     private void checkExpiredDepositPaymentDeadlines(LocalDateTime now) {
         try {
@@ -109,17 +109,15 @@ public class ContractExpiryScheduler {
                     );
 
             if (expiredContracts.isEmpty()) {
-                log.debug("No contracts with expired deposit payment deadlines found");
+                
                 return;
             }
-
-            log.info("Found {} contract(s) with expired deposit payment deadline", expiredContracts.size());
 
             for (ContractEntity contract : expiredContracts) {
                 try {
                     cancelOrderAndContract(
                             contract, 
-                            "Hợp đồng hết hạn thanh toán cọc - đã quá 48 giờ kể từ khi ký hợp đồng",
+                            "Hợp đồng hết hạn thanh toán cọc - đã quá 24 giờ kể từ khi ký hợp đồng",
                             "deposit payment deadline"
                     );
                 } catch (Exception e) {
@@ -145,11 +143,9 @@ public class ContractExpiryScheduler {
                     );
 
             if (expiredContracts.isEmpty()) {
-                log.debug("No contracts with expired full payment deadlines found");
+                
                 return;
             }
-
-            log.info("Found {} contract(s) with expired full payment deadline", expiredContracts.size());
 
             for (ContractEntity contract : expiredContracts) {
                 try {
@@ -175,7 +171,6 @@ public class ContractExpiryScheduler {
         // Update contract status to EXPIRED
         contract.setStatus(ContractStatusEnum.EXPIRED.name());
         contractEntityService.save(contract);
-        log.info("Contract {} marked as EXPIRED due to {}", contract.getId(), deadlineType);
 
         // Get and cancel the associated order
         OrderEntity order = contract.getOrderEntity();
@@ -194,8 +189,19 @@ public class ContractExpiryScheduler {
                 order.setStatus(OrderStatusEnum.CANCELLED.name());
                 orderEntityService.save(order);
                 
-                log.info("Order {} automatically cancelled due to {} for contract {}", 
-                        order.getId(), deadlineType, contract.getId());
+                // Cancel all order details
+                try {
+                    List<OrderDetailEntity> orderDetails = order.getOrderDetailEntities();
+                    if (orderDetails != null && !orderDetails.isEmpty()) {
+                        for (OrderDetailEntity orderDetail : orderDetails) {
+                            orderDetail.setStatus(OrderDetailStatusEnum.CANCELLED.name());
+                        }
+                        orderDetailEntityService.saveAllOrderDetailEntities(orderDetails);
+                        log.info("✅ Cancelled {} order details for order {}", orderDetails.size(), order.getOrderCode());
+                    }
+                } catch (Exception e) {
+                    log.error("❌ Failed to cancel order details for order {}: {}", order.getId(), e.getMessage());
+                }
 
                 // Send WebSocket notification to customer
                 try {

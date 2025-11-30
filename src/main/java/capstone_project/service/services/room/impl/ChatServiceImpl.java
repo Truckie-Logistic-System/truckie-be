@@ -46,8 +46,6 @@ public class ChatServiceImpl implements ChatService {
             throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage()+"Không tìm thấy ID phòng hoặc nội dung tin nhắn chat",ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
-
-
         // Reference tới subcollection messages của room tương ứng
         CollectionReference messagesRef = firestore.collection(FirebaseCollectionEnum.Rooms.name())
                 .document(messageRequest.roomId())
@@ -188,7 +186,6 @@ public class ChatServiceImpl implements ChatService {
         Map<String, Object> uploadResult = cloudinaryService.uploadFile(fileBytes, fileName, "chat_images");
 
         String imageUrl = (String) uploadResult.get("secure_url");
-        log.info("Uploaded image URL: {}", imageUrl);
 
         return imageUrl;
     }

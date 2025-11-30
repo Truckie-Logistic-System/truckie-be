@@ -2,6 +2,8 @@ package capstone_project.service.services.user;
 
 import capstone_project.dtos.request.user.PenaltyHistoryRequest;
 import capstone_project.dtos.response.user.PenaltyHistoryResponse;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.util.UUID;
 
 import java.util.List;

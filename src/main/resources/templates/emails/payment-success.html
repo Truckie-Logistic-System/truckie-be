@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xác nhận thanh toán thành công</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #52c41a;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #1890ff;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 24px;
+            color: #262626;
+            margin: 0;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .success-box {
+            background-color: #f6ffed;
+            border: 1px solid #b7eb8f;
+            border-left: 5px solid #52c41a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .success-icon {
+            font-size: 48px;
+            color: #52c41a;
+            margin-bottom: 15px;
+        }
+        .payment-info {
+            background-color: #e6f7ff;
+            border: 1px solid #91d5ff;
+            border-left: 5px solid #1890ff;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .amount {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1890ff;
+        }
+        .footer {
+            text-align: center;
+            border-top: 1px solid #e0e0e0;
+            padding-top: 20px;
+            margin-top: 30px;
+            font-size: 12px;
+            color: #666;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #1890ff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .btn:hover {
+            background-color: #40a9ff;
+        }
+        .btn-success {
+            background-color: #52c41a;
+        }
+        .btn-success:hover {
+            background-color: #73d13d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🚚 Truckie</div>
+            <h1 class="title">💰 Xác nhận thanh toán thành công</h1>
+        </div>
+        
+        <div class="content">
+            <div class="success-box">
+                <div class="success-icon">✅</div>
+                <h2>Thanh toán thành công!</h2>
+                <p>Chúng tôi đã nhận được thanh toán của Quý khách</p>
+            </div>
+            
+            <p>Kính gửi Quý khách,</p>
+            <p>Chúng tôi xin xác nhận đã nhận được thanh toán thành công cho đơn hàng của Quý khách. Thông tin chi tiết như sau:</p>
+            
+            <div class="payment-info">
+                <h3>💳 Thông tin thanh toán</h3>
+                <p><strong>Mã đơn hàng:</strong> <span th:text="${orderCode}">ORD-001</span></p>
+                <p><strong>Số tiền:</strong> <span class="amount" th:text="${amount}">500.000 VNĐ</span></p>
+                <p><strong>Phương thức:</strong> <span th:text="${paymentMethod}">Chuyển khoản</span></p>
+                <p><strong>Thời gian:</strong> <span th:text="${#temporals.format(#temporals.createNow(), 'HH:mm dd/MM/yyyy')}">10:30 24/11/2025</span></p>
+            </div>
+            
+            <p>Đơn hàng của Quý khách sẽ được tiếp tục xử lý theo quy trình. Quý khách có thể theo dõi tình trạng đơn hàng trong thời gian thực tế.</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a th:href="${frontendUrl + '/orders/' + orderCode}" class="btn">
+                    Theo dõi đơn hàng
+                </a>
+                <a th:href="${frontendUrl + '/invoices/' + orderCode}" class="btn btn-success">
+                    Xem hóa đơn
+                </a>
+            </div>
+            
+            <p>Cảm ơn Quý khách đã tin tưởng và sử dụng dịch vụ của Truckie!</p>
+            
+            <p>Nếu có bất kỳ câu hỏi nào, xin vui lòng liên hệ với chúng tôi qua:</p>
+            <ul>
+                <li>📞 Hotline: 1900-1234</li>
+                <li>📧 Email: support@truckie.vn</li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025 Truckie - Hệ thống quản lý vận chuyển thông minh</p>
+            <p>Email này được gửi tự động, vui lòng không trả lời.</p>
+        </div>
+    </div>
+</body>
+</html>

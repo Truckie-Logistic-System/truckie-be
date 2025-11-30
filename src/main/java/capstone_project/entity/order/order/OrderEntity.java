@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -71,6 +72,22 @@ public class OrderEntity extends BaseEntity {
     @OneToMany(mappedBy = "orderEntity", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
+    @Builder.Default
     private List<OrderDetailEntity> orderDetailEntities = new ArrayList<>();
+
+    // Khách hàng có mua bảo hiểm hay không
+    @Column(name = "has_insurance")
+    @Builder.Default
+    private Boolean hasInsurance = false;
+
+    // Tổng phí bảo hiểm của đơn hàng (đã bao gồm VAT)
+    @Column(name = "total_insurance_fee", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal totalInsuranceFee = BigDecimal.ZERO;
+
+    // Tổng giá trị khai báo của tất cả kiện hàng
+    @Column(name = "total_declared_value", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal totalDeclaredValue = BigDecimal.ZERO;
 
 }

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thông báo từ Truckie</title>
+    <style>
+        /* Reset & Base */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.7;
+            color: #2d3748;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        /* Container */
+        .email-wrapper {
+            max-width: 100%;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .container {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            padding: 40px 30px;
+            text-align: center;
+        }
+        .logo {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .logo-table {
+            border-collapse: collapse;
+            margin: 0 auto;
+            display: inline-table;
+        }
+        .logo-table td {
+            vertical-align: middle;
+            padding: 0;
+            line-height: 1;
+        }
+        .logo-icon-cell {
+            width: 50px;
+            text-align: center;
+            font-size: 32px;
+            padding-right: 8px;
+            line-height: 1;
+            vertical-align: middle;
+        }
+        .logo-text-cell {
+            font-size: 32px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -1px;
+            line-height: 1;
+            vertical-align: middle;
+        }
+        .title {
+            font-size: 22px;
+            color: #ffffff;
+            font-weight: 600;
+            margin: 0;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* Content */
+        .content {
+            padding: 40px 35px;
+        }
+        .greeting {
+            font-size: 16px;
+            color: #4a5568;
+            margin-bottom: 25px;
+        }
+        .greeting strong {
+            color: #1e40af;
+        }
+        
+        /* Notification Box - Dynamic Styles */
+        .notification-box {
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .notification-box::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+        }
+        
+        /* Type-specific styles */
+        .type-info { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); }
+        .type-info::before { background: #0284c7; }
+        
+        .type-success { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); }
+        .type-success::before { background: #16a34a; }
+        
+        .type-warning { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
+        .type-warning::before { background: #d97706; }
+        
+        .type-danger { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); }
+        .type-danger::before { background: #dc2626; }
+        
+        .type-seal { background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); }
+        .type-seal::before { background: #4f46e5; }
+        
+        /* Badge */
+        .type-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 15px;
+        }
+        .badge-info { background: #0284c7; color: white; }
+        .badge-success { background: #16a34a; color: white; }
+        .badge-warning { background: #d97706; color: white; }
+        .badge-danger { background: #dc2626; color: white; }
+        .badge-seal { background: #4f46e5; color: white; }
+        
+        /* Description */
+        .description {
+            font-size: 15px;
+            color: #374151;
+            white-space: pre-line;
+            line-height: 1.8;
+        }
+        
+        /* Info Cards */
+        .info-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .info-card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        .info-item:last-child { border-bottom: none; }
+        .info-label { color: #64748b; font-size: 14px; }
+        .info-value { color: #1e293b; font-weight: 600; font-size: 14px; }
+        
+        /* Package Table */
+        .package-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 13px;
+        }
+        .package-table th {
+            background: #1e40af;
+            color: white;
+            padding: 12px 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .package-table td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #374151;
+        }
+        .package-table tr:last-child td {
+            border-bottom: none;
+        }
+        .package-table tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        
+        /* Action Button */
+        .action-section {
+            text-align: center;
+            margin: 35px 0;
+        }
+        .btn-primary {
+            display: inline-block;
+            padding: 16px 40px;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 15px;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);
+        }
+        .btn-warning {
+            background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+            box-shadow: 0 4px 14px rgba(217, 119, 6, 0.4);
+        }
+        
+        /* Contact Section */
+        .contact-section {
+            background: #f1f5f9;
+            border-radius: 10px;
+            padding: 25px;
+            margin-top: 30px;
+        }
+        .contact-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 15px;
+        }
+        .contact-list {
+            list-style: none;
+        }
+        .contact-item {
+            font-size: 14px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+        .contact-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .contact-table td {
+            padding: 8px 0;
+            vertical-align: middle;
+        }
+        .contact-icon-cell {
+            width: 30px;
+            text-align: center;
+            font-size: 18px;
+        }
+        .contact-text-cell {
+            font-size: 14px;
+        }
+        
+        /* Footer */
+        .footer {
+            background: #1e293b;
+            padding: 30px;
+            text-align: center;
+        }
+        .footer-text {
+            color: #94a3b8;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .footer-brand {
+            color: #60a5fa;
+            font-weight: 600;
+        }
+        .footer-divider {
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            margin: 15px auto;
+            border-radius: 2px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            body { padding: 20px 10px; }
+            .content { padding: 25px 20px; }
+            .header { padding: 30px 20px; }
+            .title { font-size: 18px; }
+            .btn-primary { padding: 14px 30px; font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-wrapper">
+        <div class="container">
+            <!-- Header -->
+            <div class="header">
+                <div class="logo">
+                    <table class="logo-table">
+                        <tr>
+                            <td class="logo-icon-cell">🚚</td>
+                            <td class="logo-text-cell">Truckie</td>
+                        </tr>
+                    </table>
+                </div>
+                <h1 class="title" th:text="${notification.title}">Thông báo từ Truckie</h1>
+            </div>
+            
+            <!-- Content -->
+            <div class="content">
+                <p class="greeting">
+                    Kính gửi <strong th:text="${user.fullName ?: 'Quý khách'}">Quý khách</strong>,
+                </p>
+                
+                <!-- Dynamic Notification Box based on type -->
+                <div class="notification-box"
+                     th:classappend="${notification.notificationType.name() == 'PACKAGE_DAMAGED' || notification.notificationType.name() == 'ORDER_REJECTED_BY_RECEIVER'} ? 'type-danger' : 
+                                    (${notification.notificationType.name().contains('SEAL')} ? 'type-seal' : 
+                                    (${notification.notificationType.name().contains('PAYMENT') || notification.notificationType.name().contains('CONTRACT')} ? 'type-warning' : 
+                                    (${notification.notificationType.name().contains('COMPLETED') || notification.notificationType.name().contains('SUCCESS')} ? 'type-success' : 'type-info')))">
+                    
+                    <span class="type-badge"
+                          th:classappend="${notification.notificationType.name() == 'PACKAGE_DAMAGED' || notification.notificationType.name() == 'ORDER_REJECTED_BY_RECEIVER'} ? 'badge-danger' : 
+                                         (${notification.notificationType.name().contains('SEAL')} ? 'badge-seal' : 
+                                         (${notification.notificationType.name().contains('PAYMENT') || notification.notificationType.name().contains('CONTRACT')} ? 'badge-warning' : 
+                                         (${notification.notificationType.name().contains('COMPLETED') || notification.notificationType.name().contains('SUCCESS')} ? 'badge-success' : 'badge-info')))"
+                          th:text="${vietnameseType}">
+                        Thông báo
+                    </span>
+                    
+                    <p class="description" th:utext="${#strings.replace(#strings.replace(notification.description, '&#10;', '&lt;br/&gt;'), '&#13;', '')}">
+                        Nội dung thông báo sẽ hiển thị ở đây
+                    </p>
+                </div>
+                
+                <!-- Order Info Table -->
+                <div th:if="${notification.relatedOrderId}" class="info-card">
+                    <div class="info-card-title">
+                        Thông tin đơn hàng
+                        <span th:if="${metadata['categoryDescription'] != null}" style="font-size: 12px; font-weight: normal; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; margin-left: 8px;">
+                            (<span th:text="${metadata['categoryDescription']}"></span>)
+                        </span>
+                    </div>
+                    
+                    <!-- Order Summary Table -->
+                    <table class="package-table" style="margin-bottom: 20px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 30%;">Mã theo dõi</th>
+                                <th style="width: 40%;">Mô tả</th>
+                                <th style="width: 30%;">Khối lượng</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Display individual packages if available -->
+                            <tr th:if="${metadata['packages'] != null}" th:each="pkg : ${metadata['packages']}">
+                                <td th:text="${pkg['trackingCode'] ?: '-'}">ORD-001-001</td>
+                                <td th:text="${pkg['description'] ?: '-'}">Hàng điện tử</td>
+                                <td th:text="${pkg['weight'] ?: '-'}">4.00 kg</td>
+                            </tr>
+                            <!-- Fallback: Display summary row if no packages array -->
+                            <tr th:if="${metadata['packages'] == null}">
+                                <td th:text="${metadata['trackingCode'] ?: 'Tổng quan'}">Tổng quan</td>
+                                <td th:text="${metadata['categoryDescription'] ?: (metadata['packageDescription'] ?: 'Chi tiết kiện hàng')}">Hàng điện tử</td>
+                                <td th:text="${metadata['totalWeight'] ?: '-'}">4.00 kg</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <!-- Total summary -->
+                    <div th:if="${metadata['packages'] != null and metadata['packages'].size() > 1}" style="margin-top: 10px; text-align: right; font-size: 13px; color: #64748b;">
+                        <span>Tổng: <strong th:text="${metadata['packageCount']}">2</strong> kiện - <strong th:text="${metadata['totalWeight']}">10.00 kg</strong></span>
+                    </div>
+                    
+                    <!-- Contract Information (for CONTRACT_READY notifications) -->
+                    <div th:if="${metadata['contractCode'] != null}" style="margin-top: 20px; padding: 15px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+                        <div style="font-size: 14px; font-weight: 600; color: #0369a1; margin-bottom: 10px;">📋 Thông tin hợp đồng</div>
+                        <table style="width: 100%; font-size: 13px;">
+                            <tr>
+                                <td style="padding: 5px 0; color: #64748b; width: 40%;">Mã hợp đồng:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #1e293b;" th:text="${metadata['contractCode']}">HĐ-ORD-001</td>
+                            </tr>
+                            <tr th:if="${metadata['depositAmount'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Tiền cọc cần thanh toán:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #dc2626;" th:text="${metadata['depositAmount']}">3,000,000 VNĐ</td>
+                            </tr>
+                            <tr th:if="${metadata['totalAmount'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Tổng giá trị hợp đồng:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #1e293b;" th:text="${metadata['totalAmount']}">10,000,000 VNĐ</td>
+                            </tr>
+                            <tr th:if="${metadata['signDeadline'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Hạn ký hợp đồng:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #dc2626;" th:text="${metadata['signDeadline']}">28/11/2025 14:30</td>
+                            </tr>
+                            <tr th:if="${metadata['signDeadlineInfo'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Lưu ý:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #dc2626;" th:text="${metadata['signDeadlineInfo']}">24 giờ để ký hợp đồng kể từ khi tạo</td>
+                            </tr>
+                            <tr th:if="${metadata['depositDeadline'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Hạn thanh toán cọc:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #dc2626;" th:text="${metadata['depositDeadline']}">29/11/2025 14:30</td>
+                            </tr>
+                            <tr th:if="${metadata['depositDeadlineInfo'] != null}">
+                                <td style="padding: 5px 0; color: #64748b;">Lưu ý:</td>
+                                <td style="padding: 5px 0; font-weight: 600; color: #dc2626;" th:text="${metadata['depositDeadlineInfo']}">24 giờ để thanh toán cọc từ khi ký hợp đồng</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <!-- Additional Info -->
+                    <div th:if="${metadata['issueCode'] != null or metadata['sealCode'] != null or metadata['vehicleTrackingCode'] != null}" style="margin-top: 15px;">
+                        <table class="package-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 33.33%;">Mã sự cố</th>
+                                    <th style="width: 33.33%;">Mã seal</th>
+                                    <th style="width: 33.33%;">Mã chuyến xe</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td th:if="${metadata['issueCode']}" th:text="${metadata['issueCode']}">ISS-001</td>
+                                    <td th:unless="${metadata['issueCode']}">-</td>
+                                    <td th:if="${metadata['sealCode']}" th:text="${metadata['sealCode']}">SEAL-001</td>
+                                    <td th:unless="${metadata['sealCode']}">-</td>
+                                    <td th:if="${metadata['vehicleTrackingCode']}" th:text="${metadata['vehicleTrackingCode']}">VA-001</td>
+                                    <td th:unless="${metadata['vehicleTrackingCode']}">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Action Button -->
+                <div class="action-section">
+                    <a th:href="${frontendUrl + '/orders/' + notification.relatedOrderId}" 
+                       class="btn-primary"
+                       th:classappend="${notification.notificationType.name() == 'ORDER_REJECTED_BY_RECEIVER'} ? 'btn-danger' : 
+                                      (${notification.notificationType.name() == 'PACKAGE_DAMAGED'} ? 'btn-warning' : '')">
+                        <span th:if="${notification.notificationType.name() == 'ORDER_REJECTED_BY_RECEIVER'}">Thanh toán cước trả hàng ngay</span>
+                        <span th:if="${notification.notificationType.name() == 'PACKAGE_DAMAGED'}">Liên hệ yêu cầu bồi thường</span>
+                        <span th:unless="${notification.notificationType.name() == 'ORDER_REJECTED_BY_RECEIVER' || notification.notificationType.name() == 'PACKAGE_DAMAGED'}">Xem chi tiết đơn hàng</span>
+                    </a>
+                </div>
+                
+                <!-- Contact Section -->
+                <div class="contact-section">
+                    <div class="contact-title">Cần hỗ trợ? Liên hệ với chúng tôi:</div>
+                    <table class="contact-table">
+                        <tr>
+                            <td class="contact-icon-cell">📞</td>
+                            <td class="contact-text-cell">Hotline: <strong>1900-1234</strong> (8:00 - 22:00)</td>
+                        </tr>
+                        <tr>
+                            <td class="contact-icon-cell">📧</td>
+                            <td class="contact-text-cell">Email: <strong>support@truckie.vn</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="contact-icon-cell">💬</td>
+                            <td class="contact-text-cell">Chat trực tuyến trên website</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="footer">
+                <div class="footer-divider"></div>
+                <p class="footer-text">
+                    © 2025 <span class="footer-brand">Truckie</span> - Hệ thống quản lý vận chuyển thông minh
+                </p>
+                <p class="footer-text">
+                    Email này được gửi tự động. Vui lòng không trả lời trực tiếp.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -10,5 +10,6 @@ public record SimpleTransactionResponse(
     BigDecimal amount,
     String currencyCode,
     String status,
-    LocalDateTime paymentDate
+    LocalDateTime paymentDate,
+    String transactionType // DEPOSIT, FULL_PAYMENT, RETURN_SHIPPING
 ) {}
