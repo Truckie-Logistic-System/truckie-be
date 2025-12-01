@@ -196,4 +196,22 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
     List<VehicleAssignmentEntity> findAssignmentsForDriverSince(
             @Param("driverId") UUID driverId,
             @Param("cutoffDate") LocalDateTime cutoffDate);
+
+    /**
+     * Find all vehicle assignments by driver (primary or secondary), ordered by creation date desc
+     */
+    @Query("SELECT va FROM VehicleAssignmentEntity va " +
+           "LEFT JOIN FETCH va.vehicleEntity v " +
+           "LEFT JOIN FETCH va.driver1 d1 " +
+           "LEFT JOIN FETCH d1.user u1 " +
+           "WHERE va.driver1.id = :driverId OR va.driver2.id = :driverId " +
+           "ORDER BY va.createdAt DESC NULLS LAST")
+    List<VehicleAssignmentEntity> findByPrimaryDriverIdOrSecondaryDriverIdOrderByCreatedAtDesc(
+            @Param("driverId") UUID primaryDriverId,
+            @Param("driverId") UUID secondaryDriverId);
+
+    /**
+     * Find active vehicle assignments for driver1, ordered by creation date desc
+     */
+    List<VehicleAssignmentEntity> findByDriver1IdAndStatusOrderByCreatedAtDesc(UUID driverId, String status);
 }

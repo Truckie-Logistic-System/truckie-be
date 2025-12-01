@@ -22,7 +22,9 @@ import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
+import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.entity.issue.IssueEntity;
+import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
@@ -56,6 +58,66 @@ public class StaffOrderMapper {
     // PhotoCompletionService may not exist in every project; if not present remove this field and helper below
     private final PhotoCompletionService photoCompletionService;
     private final ContractSettingEntityService contractSettingEntityService;
+    private final OrderDetailEntityService orderDetailEntityService;
+
+    /**
+     * Translate status to Vietnamese
+     */
+    private String translateStatusToVietnamese(String status, String type) {
+        if (status == null) return "Không xác định";
+        
+        switch (type.toUpperCase()) {
+            case "ORDER":
+                return switch (status.toUpperCase()) {
+                    case "PENDING" -> "Chờ xử lý";
+                    case "PROCESSING" -> "Đang xử lý";
+                    case "CANCELLED" -> "Đã hủy";
+                    case "CONTRACT_DRAFT" -> "Hợp đồng nháp";
+                    case "CONTRACT_SIGNED" -> "Đã ký hợp đồng";
+                    case "ON_PLANNING" -> "Đang lên kế hoạch";
+                    case "ASSIGNED_TO_DRIVER" -> "Đã phân công tài xế";
+                    case "FULLY_PAID" -> "Đã thanh toán đủ";
+                    case "PICKING_UP" -> "Đang lấy hàng";
+                    case "ON_DELIVERED" -> "Đang giao hàng";
+                    case "ONGOING_DELIVERED" -> "Đang trong quá trình giao";
+                    case "IN_TROUBLES" -> "Gặp sự cố";
+                    case "COMPENSATION" -> "Bồi thường";
+                    case "DELIVERED" -> "Đã giao hàng";
+                    case "SUCCESSFUL" -> "Hoàn thành thành công";
+                    case "RETURNING" -> "Đang trả hàng";
+                    case "RETURNED" -> "Đã trả hàng";
+                    default -> status;
+                };
+            case "VEHICLE_ASSIGNMENT":
+                return switch (status.toUpperCase()) {
+                    case "PENDING" -> "Chờ xử lý";
+                    case "ASSIGNED" -> "Đã phân công";
+                    case "IN_PROGRESS" -> "Đang thực hiện";
+                    case "COMPLETED" -> "Đã hoàn thành";
+                    case "CANCELLED" -> "Đã hủy";
+                    default -> status;
+                };
+            case "ORDER_DETAIL":
+                return switch (status.toUpperCase()) {
+                    case "PENDING" -> "Chờ xử lý";
+                    case "ON_PLANNING" -> "Đang lên kế hoạch";
+                    case "ASSIGNED_TO_DRIVER" -> "Đã phân công tài xế";
+                    case "PICKING_UP" -> "Đang lấy hàng";
+                    case "ON_DELIVERED" -> "Đang giao hàng";
+                    case "ONGOING_DELIVERED" -> "Đang trong quá trình giao";
+                    case "DELIVERED" -> "Đã giao hàng";
+                    case "SUCCESSFUL" -> "Hoàn thành thành công";
+                    case "IN_TROUBLES" -> "Gặp sự cố";
+                    case "COMPENSATION" -> "Bồi thường";
+                    case "RETURNING" -> "Đang trả hàng";
+                    case "RETURNED" -> "Đã trả hàng";
+                    case "CANCELLED" -> "Đã hủy";
+                    default -> status;
+                };
+            default:
+                return status;
+        }
+    }
 
     public OrderForStaffResponse toStaffOrderForStaffResponse(
             GetOrderResponse orderResponse,
@@ -159,6 +221,10 @@ public class StaffOrderMapper {
                 response.sender().getRepresentativePhone(),
                 response.sender().getCompanyName(),
                 response.category().categoryName().name(),
+                response.category().description(), // Add category description
+                response.hasInsurance(),
+                response.totalInsuranceFee(),
+                response.totalDeclaredValue(),
                 staffOrderDetails,
                 vehicleAssignments  // Add aggregated vehicle assignments
         );
@@ -194,6 +260,169 @@ public class StaffOrderMapper {
                 orderSize,
                 detail.vehicleAssignmentId()  // Only store ID reference
         );
+    }
+
+    /**
+     * Build StaffVehicleAssignmentFullResponse from entity for standalone vehicle assignment detail page
+     * Includes order info and order details
+     */
+    public StaffVehicleAssignmentFullResponse toStaffVehicleAssignmentFullResponse(
+            VehicleAssignmentEntity entity,
+            VehicleAssignmentResponse basicResponse) {
+        UUID vehicleAssignmentId = entity.getId();
+        
+        // Get issues and photo completions
+        List<SimpleIssueResponse> issues = getIssues(vehicleAssignmentId);
+        List<String> photoCompletions = getPhotoCompletionsByVehicleAssignmentId(vehicleAssignmentId);
+        
+        // Build base response
+        StaffVehicleAssignmentResponse baseResponse = toStaffVehicleAssignmentResponse(basicResponse, issues, photoCompletions);
+        
+        // Get order details for this vehicle assignment
+        List<StaffOrderDetailResponse> orderDetails = getOrderDetailsByVehicleAssignmentId(vehicleAssignmentId);
+        
+        // Get order info from the first order detail (all order details belong to the same order)
+        SimpleOrderInfo orderInfo = getOrderInfoByVehicleAssignmentId(vehicleAssignmentId);
+        
+        // Translate vehicle assignment status to Vietnamese
+        String translatedVehicleAssignmentStatus = translateStatusToVietnamese(baseResponse.status(), "VEHICLE_ASSIGNMENT");
+        
+        // Translate order status to Vietnamese
+        SimpleOrderInfo translatedOrderInfo = orderInfo != null ? 
+                new SimpleOrderInfo(
+                        orderInfo.id(),
+                        orderInfo.orderCode(),
+                        translateStatusToVietnamese(orderInfo.status(), "ORDER"),
+                        orderInfo.createdAt(),
+                        orderInfo.receiverName(),
+                        orderInfo.receiverPhone(),
+                        orderInfo.deliveryAddress(),
+                        orderInfo.pickupAddress(),
+                        orderInfo.senderName(),
+                        orderInfo.companyName()
+                ) : null;
+        
+        // Translate order detail statuses to Vietnamese
+        List<StaffOrderDetailResponse> translatedOrderDetails = orderDetails.stream()
+                .map(detail -> new StaffOrderDetailResponse(
+                        detail.trackingCode(),
+                        detail.weightBaseUnit(),
+                        detail.unit(),
+                        detail.description(),
+                        translateStatusToVietnamese(detail.status(), "ORDER_DETAIL"),
+                        detail.startTime(),
+                        detail.estimatedStartTime(),
+                        detail.endTime(),
+                        detail.estimatedEndTime(),
+                        detail.createdAt(),
+                        detail.trackingCode(),
+                        detail.orderSize(),
+                        detail.vehicleAssignmentId()
+                ))
+                .collect(Collectors.toList());
+        
+        return new StaffVehicleAssignmentFullResponse(
+                baseResponse.id(),
+                baseResponse.vehicle(),
+                baseResponse.primaryDriver(),
+                baseResponse.secondaryDriver(),
+                translatedVehicleAssignmentStatus,
+                baseResponse.trackingCode(),
+                entity.getDescription(),
+                baseResponse.penalties(),
+                baseResponse.fuelConsumption(),
+                baseResponse.seals(),
+                baseResponse.journeyHistories(),
+                baseResponse.photoCompletions(),
+                baseResponse.issues(),
+                translatedOrderDetails,
+                translatedOrderInfo
+        );
+    }
+    
+    private List<StaffOrderDetailResponse> getOrderDetailsByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        if (vehicleAssignmentId == null) return Collections.emptyList();
+        
+        try {
+            List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentId(vehicleAssignmentId);
+            if (orderDetails == null || orderDetails.isEmpty()) return Collections.emptyList();
+            
+            return orderDetails.stream()
+                    .map(detail -> new StaffOrderDetailResponse(
+                            detail.getTrackingCode(),
+                            detail.getWeightBaseUnit(),
+                            detail.getUnit(),
+                            detail.getDescription(),
+                            detail.getStatus(),
+                            detail.getStartTime(),
+                            detail.getEstimatedStartTime(),
+                            detail.getEndTime(),
+                            detail.getEstimatedEndTime(),
+                            detail.getCreatedAt(),
+                            detail.getTrackingCode(),
+                            detail.getOrderSizeEntity() != null ? new SimpleOrderSizeResponse(
+                                    detail.getOrderSizeEntity().getId().toString(),
+                                    detail.getOrderSizeEntity().getDescription(),
+                                    detail.getOrderSizeEntity().getMinLength(),
+                                    detail.getOrderSizeEntity().getMaxLength(),
+                                    detail.getOrderSizeEntity().getMinHeight(),
+                                    detail.getOrderSizeEntity().getMaxHeight(),
+                                    detail.getOrderSizeEntity().getMinWidth(),
+                                    detail.getOrderSizeEntity().getMaxWidth()
+                            ) : null,
+                            vehicleAssignmentId
+                    ))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Could not fetch order details for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+    
+    private SimpleOrderInfo getOrderInfoByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        if (vehicleAssignmentId == null) return null;
+        
+        try {
+            List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentId(vehicleAssignmentId);
+            if (orderDetails == null || orderDetails.isEmpty()) return null;
+            
+            // Get order from first order detail
+            var firstOrderDetail = orderDetails.get(0);
+            var order = firstOrderDetail.getOrderEntity();
+            
+            if (order == null) return null;
+            
+            String deliveryAddress = combineAddress(
+                    order.getDeliveryAddress() != null ? order.getDeliveryAddress().getStreet() : null,
+                    order.getDeliveryAddress() != null ? order.getDeliveryAddress().getWard() : null,
+                    order.getDeliveryAddress() != null ? order.getDeliveryAddress().getProvince() : null
+            );
+            
+            String pickupAddress = combineAddress(
+                    order.getPickupAddress() != null ? order.getPickupAddress().getStreet() : null,
+                    order.getPickupAddress() != null ? order.getPickupAddress().getWard() : null,
+                    order.getPickupAddress() != null ? order.getPickupAddress().getProvince() : null
+            );
+            
+            String senderName = order.getSender() != null ? order.getSender().getRepresentativeName() : null;
+            String companyName = order.getSender() != null ? order.getSender().getCompanyName() : null;
+            
+            return new SimpleOrderInfo(
+                    order.getId(),
+                    order.getOrderCode(),
+                    order.getStatus(),
+                    order.getCreatedAt(),
+                    order.getReceiverName(),
+                    order.getReceiverPhone(),
+                    deliveryAddress,
+                    pickupAddress,
+                    senderName,
+                    companyName
+            );
+        } catch (Exception e) {
+            log.warn("Could not fetch order info for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
+            return null;
+        }
     }
 
     private StaffVehicleAssignmentResponse toStaffVehicleAssignmentResponse(
@@ -452,7 +681,7 @@ public class StaffOrderMapper {
         return new SimpleTransactionResponse(
                 transaction.id(),
                 transaction.paymentProvider(),
-                transaction.orderCode(),
+                transaction.gatewayOrderCode() != null ? transaction.gatewayOrderCode().toString() : null,
                 transaction.amount(),
                 transaction.currencyCode(),
                 transaction.status(),

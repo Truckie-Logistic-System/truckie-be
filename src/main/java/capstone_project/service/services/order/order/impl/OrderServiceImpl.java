@@ -43,6 +43,7 @@ import capstone_project.service.services.notification.NotificationBuilder;
 import capstone_project.service.services.pricing.InsuranceCalculationService;
 import capstone_project.service.services.setting.ContractSettingService;
 import capstone_project.dtos.request.notification.CreateNotificationRequest;
+import capstone_project.config.order.OrderCancellationConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -88,6 +89,7 @@ public class OrderServiceImpl implements OrderService {
     private final InsuranceCalculationService insuranceCalculationService; // For insurance fee calculation
     private final capstone_project.repository.entityServices.auth.UserEntityService userEntityService; // For staff notifications
     private final ContractSettingService contractSettingService; // For deposit rate calculation
+    private final OrderCancellationConfig orderCancellationConfig; // For cancellation reasons
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -1152,6 +1154,122 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return true;
+    }
+
+    @Override
+    @Transactional
+    public boolean staffCancelOrder(UUID orderId, String cancellationReason) {
+        log.info("🚫 Staff cancelling order {} with reason: {}", orderId, cancellationReason);
+
+        // Validate order ID
+        if (orderId == null) {
+            throw new BadRequestException(
+                    "Order ID cannot be null",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Validate cancellation reason
+        if (cancellationReason == null || cancellationReason.trim().isEmpty()) {
+            throw new BadRequestException(
+                    "Cancellation reason cannot be empty",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Find order
+        OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Check if order status is PROCESSING (only PROCESSING orders can be cancelled by staff)
+        if (!OrderStatusEnum.PROCESSING.name().equals(order.getStatus())) {
+            throw new BadRequestException(
+                    String.format("Cannot cancel order. Current status is %s. Only PROCESSING orders can be cancelled by staff",
+                            order.getStatus()),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Store previous status for WebSocket notification
+        OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
+
+        // Update order status to CANCELLED and set cancellation reason
+        order.setStatus(OrderStatusEnum.CANCELLED.name());
+        order.setCancellationReason(cancellationReason.trim());
+        orderEntityService.save(order);
+
+        // Update all order details status to CANCELLED
+        List<OrderDetailEntity> orderDetails = order.getOrderDetailEntities();
+        if (orderDetails != null && !orderDetails.isEmpty()) {
+            for (OrderDetailEntity orderDetail : orderDetails) {
+                orderDetail.setStatus(OrderDetailStatusEnum.CANCELLED.name());
+            }
+            orderDetails.forEach(orderDetailEntityService::save);
+            log.info("✅ Updated {} order details to CANCELLED for order {}", orderDetails.size(), orderId);
+        }
+
+        // If there's a contract, update its status to CANCELLED
+        try {
+            Optional<ContractEntity> contractOpt = contractEntityService.getContractByOrderId(orderId);
+            if (contractOpt.isPresent()) {
+                ContractEntity contract = contractOpt.get();
+                contract.setStatus(ContractStatusEnum.CANCELLED.name());
+                contractEntityService.save(contract);
+                log.info("✅ Updated contract status to CANCELLED for order {}", orderId);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to update contract status for cancelled order {}: {}", orderId, e.getMessage());
+        }
+
+        // Send WebSocket notification
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                    orderId,
+                    order.getOrderCode(),
+                    previousStatus,
+                    OrderStatusEnum.CANCELLED
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for cancelled order {}: {}", orderId, e.getMessage());
+        }
+
+        // Send notification and email to customer
+        try {
+            if (order.getSender() != null && order.getSender().getUser() != null) {
+                UUID customerId = order.getSender().getUser().getId();
+                int totalPackageCount = orderDetails != null ? orderDetails.size() : 0;
+                List<UUID> orderDetailIds = orderDetails != null 
+                        ? orderDetails.stream().map(OrderDetailEntity::getId).toList() 
+                        : List.of();
+
+                // Create notification for customer (with email)
+                CreateNotificationRequest customerNotification = NotificationBuilder.buildOrderCancelledMultiTrip(
+                        customerId,
+                        order.getOrderCode(),
+                        totalPackageCount,
+                        totalPackageCount,
+                        cancellationReason,
+                        orderId,
+                        orderDetailIds,
+                        true // All packages cancelled
+                );
+                notificationService.createNotification(customerNotification);
+                log.info("✅ Sent cancellation notification to customer for order {}", order.getOrderCode());
+            }
+        } catch (Exception e) {
+            log.error("Failed to send notification for cancelled order {}: {}", orderId, e.getMessage());
+        }
+
+        log.info("✅ Successfully cancelled order {} by staff with reason: {}", order.getOrderCode(), cancellationReason);
+        return true;
+    }
+
+    @Override
+    public List<String> getStaffCancellationReasons() {
+        return orderCancellationConfig.getStaffReasons();
     }
 
     /**

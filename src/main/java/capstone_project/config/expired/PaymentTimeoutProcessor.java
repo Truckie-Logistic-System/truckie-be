@@ -2,11 +2,14 @@ package capstone_project.config.expired;
 
 import capstone_project.common.enums.IssueEnum;
 import capstone_project.common.enums.OrderDetailStatusEnum;
+import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.enums.TransactionEnum;
 import capstone_project.entity.issue.IssueEntity;
+import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
+import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.order.transaction.TransactionEntityService;
 import capstone_project.service.services.order.order.OrderDetailStatusService;
 import capstone_project.service.services.order.order.OrderDetailStatusWebSocketService;
@@ -32,6 +35,7 @@ public class PaymentTimeoutProcessor {
     private final IssueEntityService issueEntityService;
     private final TransactionEntityService transactionEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
+    private final OrderEntityService orderEntityService;
     private final IssueWebSocketService issueWebSocketService;
     private final OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
     private final JourneyHistoryEntityService journeyHistoryEntityService;
@@ -133,6 +137,9 @@ public class PaymentTimeoutProcessor {
                 try {
                     UUID orderId = issue.getOrderDetails().get(0).getOrderEntity().getId();
                     orderDetailStatusService.triggerOrderStatusUpdate(orderId);
+                    
+                    // Set cancellation reason for return payment timeout
+                    setOrderCancellationReason(orderId, "Quá hạn thanh toán cước trả hàng - không thanh toán trong thời gian quy định");
                 } catch (Exception e) {
                     log.error("❌ [PaymentTimeoutProcessor] Failed to update Order status: {}", e.getMessage(), e);
                 }
@@ -269,6 +276,29 @@ public class PaymentTimeoutProcessor {
             
         } catch (Exception e) {
             log.error("❌ Failed to send timeout notification to customer: {}", e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Set cancellation reason for an order
+     * Only sets reason if order is in CANCELLED status
+     */
+    private void setOrderCancellationReason(UUID orderId, String reason) {
+        try {
+            OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+            
+            // Only set cancellation reason if order is cancelled
+            if (OrderStatusEnum.CANCELLED.name().equals(order.getStatus())) {
+                order.setCancellationReason(reason);
+                orderEntityService.save(order);
+                log.info("✅ Set cancellation reason for order {}: {}", orderId, reason);
+            } else {
+                log.warn("⚠️ Order {} is not in CANCELLED status (current: {}), cannot set cancellation reason", 
+                    orderId, order.getStatus());
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to set cancellation reason for order {}: {}", orderId, e.getMessage(), e);
         }
     }
 }

@@ -25,9 +25,11 @@ import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntit
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
+import capstone_project.service.mapper.order.StaffOrderMapper;
 import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.mapper.vehicle.VehicleAssignmentMapper;
 import capstone_project.service.mapper.vehicle.VehicleMapper;
+import capstone_project.dtos.response.order.StaffVehicleAssignmentFullResponse;
 import capstone_project.service.services.order.order.*;
 import capstone_project.service.services.setting.ContractSettingService;
 import capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService;
@@ -69,6 +71,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final VehicleAssignmentMapper mapper;
     private final VehicleMapper vehicleMapper;
     private final DriverMapper driverMapper;
+    private final StaffOrderMapper staffOrderMapper;
     private final PenaltyHistoryRepository penaltyHistoryRepository;
     private final ContractService contractService;
     private final OrderService orderService;
@@ -126,6 +129,19 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
         return mapper.toResponse(entity);
+    }
+
+    @Override
+    public StaffVehicleAssignmentFullResponse getFullAssignmentById(UUID id) {
+        VehicleAssignmentEntity entity = entityService.findEntityById(id)
+                .orElseThrow(() -> new NotFoundException(
+                        "Assignment is not found with ASSIGNMENT ID: " + id,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        // Use StaffOrderMapper to build full response with order info and order details
+        VehicleAssignmentResponse basicResponse = mapper.toResponse(entity);
+        return staffOrderMapper.toStaffVehicleAssignmentFullResponse(entity, basicResponse);
     }
 
     @Override

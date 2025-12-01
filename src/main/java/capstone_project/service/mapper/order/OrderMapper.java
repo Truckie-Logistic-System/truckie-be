@@ -23,6 +23,9 @@ public interface OrderMapper {
     List<CreateOrderResponse> toCreateOrderResponses(List<OrderEntity> orderEntities);
 
     @Mapping(source = "orderDetailEntities", target = "orderDetails")
+    @Mapping(source = "hasInsurance", target = "hasInsurance")
+    @Mapping(source = "totalInsuranceFee", target = "totalInsuranceFee")
+    @Mapping(source = "totalDeclaredValue", target = "totalDeclaredValue")
     @Mapping(target = "vehicleAssignments", expression = "java(extractUniqueVehicleAssignments(entity))")
     GetOrderResponse toGetOrderResponse(OrderEntity entity);
 

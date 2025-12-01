@@ -16,10 +16,13 @@ import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
+import capstone_project.entity.order.order.SealEntity;
+import capstone_project.common.enums.CategoryName;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.repositories.order.order.OrderDetailRepository;
 import capstone_project.repository.repositories.order.order.OrderRepository;
+import capstone_project.repository.repositories.order.order.SealRepository;
 import capstone_project.service.mapper.order.OrderMapper;
 import capstone_project.service.mapper.user.CustomerMapper;
 import capstone_project.service.mapper.user.UserMapper;
@@ -75,6 +78,7 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final OrderDetailRepository orderDetailRepository;
     private final ContractSettingService contractSettingService;
+    private final SealRepository sealRepository;
 
     private final CustomerMapper customerMapper;
     private final OrderMapper orderMapper;
@@ -249,6 +253,9 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
 
             // Cargo (all order details) - use paged implementation to avoid mid-row splits
             addCargoInformationPaged(document, orderDetails);
+
+            // Add cargo type section with auto-tick based on order category
+            addCargoTypeSection(document, order);
 
             // Transport info - list all vehicle assignments
             addTransportInformation(document, vehicleAssignments, order);
@@ -743,21 +750,41 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             }
         }
 
-        // Add cargo condition and special instructions once (after all chunks)
-        Paragraph cargoConditionTitle = new Paragraph("Tình trạng hàng hóa / Cargo condition:")
+        document.add(new Paragraph("").setMarginBottom(10));
+    }
+
+    /**
+     * Add cargo type section with checkboxes for NORMAL and FRAGILE
+     * Auto-tick based on order category
+     */
+    private void addCargoTypeSection(Document document, OrderEntity order) {
+        // Determine category from order
+        CategoryName categoryName = CategoryName.NORMAL; // Default
+        if (order != null && order.getCategory() != null && order.getCategory().getCategoryName() != null) {
+            categoryName = order.getCategory().getCategoryName();
+        }
+        
+        boolean isNormal = categoryName == CategoryName.NORMAL;
+        boolean isFragile = categoryName == CategoryName.FRAGILE;
+        
+        // Unicode checkboxes: ☑ (checked) and ☐ (unchecked)
+        String normalCheckbox = isNormal ? "☑" : "☐";
+        String fragileCheckbox = isFragile ? "☑" : "☐";
+        
+        Paragraph cargoTypeTitle = new Paragraph("Loại hàng hóa / Cargo type:")
                 .setBold()
                 .setMarginTop(5)
                 .setFontSize(TABLE_CELL_FONT_SIZE)
                 .setKeepTogether(true);
-        document.add(cargoConditionTitle);
+        document.add(cargoTypeTitle);
 
-        Table conditionTable = new Table(UnitValue.createPercentArray(1)).useAllAvailableWidth();
-        conditionTable.setKeepTogether(true);
-        Cell conditionCell = new Cell();
-        conditionCell.setHeight(40);
-        conditionCell.add(new Paragraph("□ Nguyên vẹn / Intact   □ Dễ vỡ / Fragile   □ Cần giữ lạnh / Temperature controlled   □ Khác / Other: _____________").setFontSize(TABLE_CELL_FONT_SIZE));
-        conditionTable.addCell(conditionCell);
-        document.add(conditionTable);
+        Table typeTable = new Table(UnitValue.createPercentArray(1)).useAllAvailableWidth();
+        typeTable.setKeepTogether(true);
+        Cell typeCell = new Cell();
+        typeCell.setHeight(30);
+        typeCell.add(new Paragraph(normalCheckbox + " Hàng thông thường / Normal goods   " + fragileCheckbox + " Hàng dễ vỡ / Fragile goods").setFontSize(TABLE_CELL_FONT_SIZE));
+        typeTable.addCell(typeCell);
+        document.add(typeTable);
 
         Paragraph specialInstructionsTitle = new Paragraph("Chỉ dẫn đặc biệt / Special instructions:")
                 .setBold()
@@ -775,6 +802,94 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         document.add(instructionsTable);
 
         document.add(new Paragraph("").setMarginBottom(10));
+    }
+
+    /**
+     * Add seal information section for dispatch order
+     * Shows seal log format for easy driver filling and customer reading
+     */
+    private void addSealInformation(Document document, VehicleAssignmentEntity assignment) {
+        // Get all seals for this vehicle assignment
+        List<SealEntity> seals = sealRepository.findByVehicleAssignment(assignment);
+        
+        Paragraph sectionTitle = new Paragraph("THÔNG TIN SEAL / SEAL INFORMATION")
+                .setBold()
+                .setFontSize(SECTION_TITLE_FONT_SIZE)
+                .setMarginBottom(5)
+                .setKeepTogether(true);
+        document.add(sectionTitle);
+        
+        // Create table for seal log: STT, Mã seal, Hành động, Ghi chú
+        Table sealTable = new Table(UnitValue.createPercentArray(new float[]{8, 25, 25, 42})).useAllAvailableWidth();
+        sealTable.setKeepTogether(true);
+        sealTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
+        
+        // Header row
+        Cell noHeaderCell = new Cell().add(new Paragraph("STT").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+        Cell sealCodeHeaderCell = new Cell().add(new Paragraph("Mã seal / Seal code").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+        Cell actionHeaderCell = new Cell().add(new Paragraph("Hành động / Action").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+        Cell remarksHeaderCell = new Cell().add(new Paragraph("Ghi chú / Remarks").setBold().setFontSize(TABLE_HEADER_FONT_SIZE));
+        
+        // Style header cells
+        noHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        sealCodeHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        actionHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        remarksHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
+        
+        sealTable.addCell(noHeaderCell);
+        sealTable.addCell(sealCodeHeaderCell);
+        sealTable.addCell(actionHeaderCell);
+        sealTable.addCell(remarksHeaderCell);
+        
+        if (seals == null || seals.isEmpty()) {
+            // Add empty rows for manual filling
+            for (int i = 1; i <= 5; i++) {
+                sealTable.addCell(new Cell().add(new Paragraph(String.valueOf(i)).setFontSize(TABLE_CELL_FONT_SIZE)));
+                sealTable.addCell(new Cell().add(new Paragraph("").setFontSize(TABLE_CELL_FONT_SIZE)));
+                sealTable.addCell(new Cell().add(new Paragraph("☐ Gắn / Attach    ☐ Gỡ / Remove").setFontSize(TABLE_CELL_FONT_SIZE)));
+                sealTable.addCell(new Cell().add(new Paragraph("").setFontSize(TABLE_CELL_FONT_SIZE)));
+            }
+        } else {
+            // Add existing seals with current status as reference
+            for (int i = 0; i < seals.size(); i++) {
+                SealEntity seal = seals.get(i);
+                String sealCode = seal.getSealCode() != null ? seal.getSealCode() : "N/A";
+                String status = seal.getStatus() != null ? seal.getStatus() : "";
+                
+                sealTable.addCell(new Cell().add(new Paragraph(String.valueOf(i + 1)).setFontSize(TABLE_CELL_FONT_SIZE)));
+                sealTable.addCell(new Cell().add(new Paragraph(sealCode).setFontSize(TABLE_CELL_FONT_SIZE)));
+                
+                // Show current status as reference but leave checkboxes for driver to mark actual action
+                String statusText = "";
+                switch (status.toUpperCase()) {
+                    case "IN_USE":
+                        statusText = "(Đang sử dụng) ☐ Gắn / Attach    ☐ Gỡ / Remove";
+                        break;
+                    case "REMOVED":
+                    case "REPLACED":
+                    case "DAMAGED":
+                    case "EXPIRED":
+                        statusText = "(Đã gỡ) ☐ Gắn / Attach    ☐ Gỡ / Remove";
+                        break;
+                    case "ACTIVE":
+                    default:
+                        statusText = "☐ Gắn / Attach    ☐ Gỡ / Remove";
+                        break;
+                }
+                sealTable.addCell(new Cell().add(new Paragraph(statusText).setFontSize(TABLE_CELL_FONT_SIZE)));
+                sealTable.addCell(new Cell().add(new Paragraph("").setFontSize(TABLE_CELL_FONT_SIZE)));
+            }
+        }
+        
+        document.add(sealTable);
+        
+        // Add instructions
+        Paragraph instructions = new Paragraph("Hướng dẫn: Tài xế đánh dấu ☐ vào hành động tương ứng (Gắn seal khi bắt đầu chuyến, Gỡ seal khi kết thúc hoặc thay thế). Ghi rõ lý do trong cột Ghi chú.")
+                .setFontSize(TABLE_CELL_FONT_SIZE - 1)
+                .setItalic()
+                .setMarginTop(3)
+                .setMarginBottom(8);
+        document.add(instructions);
     }
 
     private void addTransportInformation(Document document, List<VehicleAssignmentEntity> vehicleAssignments, OrderEntity order) {
@@ -822,8 +937,8 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
 
                 // Vehicle type
                 String vehicleType = "N/A";
-                if (vehicle != null && vehicle.getVehicleTypeEntity() != null && vehicle.getVehicleTypeEntity().getVehicleTypeName() != null) {
-                    vehicleType = vehicle.getVehicleTypeEntity().getVehicleTypeName();
+                if (vehicle != null && vehicle.getVehicleTypeEntity() != null && vehicle.getVehicleTypeEntity().getDescription() != null) {
+                    vehicleType = vehicle.getVehicleTypeEntity().getDescription();
                 }
                 transportTable.addCell(new Cell().add(new Paragraph(vehicleType).setFontSize(TABLE_CELL_FONT_SIZE)));
 
@@ -1303,8 +1418,8 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             // Vehicle type
             VehicleEntity vehicle = assignment.getVehicleEntity();
             String vehicleType = "N/A";
-            if (vehicle != null && vehicle.getVehicleTypeEntity() != null && vehicle.getVehicleTypeEntity().getVehicleTypeName() != null) {
-                vehicleType = vehicle.getVehicleTypeEntity().getVehicleTypeName();
+            if (vehicle != null && vehicle.getVehicleTypeEntity() != null && vehicle.getVehicleTypeEntity().getDescription() != null) {
+                vehicleType = vehicle.getVehicleTypeEntity().getDescription();
             }
             vehicleTable.addCell(new Cell().add(new Paragraph(vehicleType).setFontSize(TABLE_CELL_FONT_SIZE)));
 
@@ -1335,8 +1450,14 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             document.add(vehicleTable);
             document.add(new Paragraph("").setMarginBottom(8));
 
+            // Add seal information for this vehicle assignment
+            addSealInformation(document, assignment);
+
             // Cargo details: only detailsForTrip
             addCargoInformationPaged(document, detailsForTrip);
+
+            // Add cargo type section with auto-tick based on order category
+            addCargoTypeSection(document, order);
 
             // Signatures
             addSignatureBlocks(document);

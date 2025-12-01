@@ -332,7 +332,7 @@ public class DriverOrderMapper {
         return new SimpleTransactionResponse(
                 transaction.id(),
                 transaction.paymentProvider(),
-                transaction.orderCode(),
+                transaction.gatewayOrderCode() != null ? transaction.gatewayOrderCode().toString() : null,
                 transaction.amount(),
                 transaction.currencyCode(),
                 transaction.status(),

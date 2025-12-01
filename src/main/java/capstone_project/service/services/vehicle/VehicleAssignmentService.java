@@ -1,9 +1,9 @@
 package capstone_project.service.services.vehicle;
 
-
 import capstone_project.dtos.request.vehicle.GroupedAssignmentRequest;
 import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
+import capstone_project.dtos.response.order.StaffVehicleAssignmentFullResponse;
 import capstone_project.dtos.response.vehicle.GroupedVehicleAssignmentResponse;
 import capstone_project.dtos.response.vehicle.SampleVehicleAssignmentResponse;
 import capstone_project.dtos.response.vehicle.SimplifiedVehicleAssignmentResponse;
@@ -15,6 +15,14 @@ import java.util.UUID;
 public interface VehicleAssignmentService {
     List<VehicleAssignmentResponse> getAllAssignments();
     VehicleAssignmentResponse getAssignmentById(UUID id);
+
+    /**
+     * Get full vehicle assignment details for staff view
+     * Includes: vehicle, drivers, penalties, fuel consumption, seals, journey histories, photo completions, issues, order details, order info
+     * @param id Vehicle assignment ID
+     * @return Full vehicle assignment response with all related data
+     */
+    StaffVehicleAssignmentFullResponse getFullAssignmentById(UUID id);
     VehicleAssignmentResponse createAssignment(VehicleAssignmentRequest req);
     VehicleAssignmentResponse updateAssignment(UUID id, UpdateVehicleAssignmentRequest req);
     List<VehicleAssignmentResponse> getAllAssignmentsWithOrder(UUID vehicleType);

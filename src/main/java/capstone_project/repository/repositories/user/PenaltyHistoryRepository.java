@@ -16,4 +16,7 @@ public interface PenaltyHistoryRepository
 
     @Query("SELECT ph FROM PenaltyHistoryEntity ph WHERE ph.issueBy.id = :driverId")
     List<PenaltyHistoryEntity> findByDriverId(@Param("driverId") UUID driverId);
+
+    @Query("SELECT COUNT(ph) FROM PenaltyHistoryEntity ph WHERE ph.issueBy.id = :driverId")
+    long countByDriverId(@Param("driverId") UUID driverId);
 }

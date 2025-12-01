@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 public record SimpleTransactionResponse(
     String id,
     String paymentProvider,
-    String orderCode,
+    String gatewayOrderCode,
     BigDecimal amount,
     String currencyCode,
     String status,

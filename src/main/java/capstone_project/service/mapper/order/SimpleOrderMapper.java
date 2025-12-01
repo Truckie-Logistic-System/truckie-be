@@ -169,6 +169,9 @@ public class SimpleOrderMapper {
                 response.sender().getCompanyName(),
                 response.category().categoryName().name(),
                 response.category().description(), // Add category description
+                response.hasInsurance(),
+                response.totalInsuranceFee(),
+                response.totalDeclaredValue(),
                 simpleOrderDetails,
                 vehicleAssignments  // Add aggregated vehicle assignments
         );
@@ -440,7 +443,7 @@ public class SimpleOrderMapper {
         return new SimpleTransactionResponse(
                 transaction.id(),
                 transaction.paymentProvider(),
-                transaction.orderCode(),
+                transaction.gatewayOrderCode() != null ? transaction.gatewayOrderCode().toString() : null,
                 transaction.amount(),
                 transaction.currencyCode(),
                 transaction.status(),

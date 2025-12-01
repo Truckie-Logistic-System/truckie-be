@@ -5,6 +5,7 @@ import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.enums.UnitEnum;
 import capstone_project.dtos.request.order.CreateOrderAndDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
+import capstone_project.dtos.request.order.StaffCancelOrderRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.*;
 import capstone_project.service.services.order.order.OrderDetailStatusService;
@@ -224,6 +225,36 @@ public class OrderController {
     @PutMapping("/{orderId}/cancel")
     public ResponseEntity<ApiResponse<Boolean>> cancelOrder(@PathVariable UUID orderId) {
         final var result = orderService.cancelOrder(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Staff cancel an order with a specific reason
+     * Only allowed for orders with status PROCESSING
+     * Sends notification and email to customer
+     * 
+     * @param orderId the order ID to cancel
+     * @param request the cancellation request with reason
+     * @return Success response
+     */
+    @PutMapping("/{orderId}/staff-cancel")
+    @PreAuthorize("hasRole('STAFF') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Boolean>> staffCancelOrder(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody StaffCancelOrderRequest request) {
+        final var result = orderService.staffCancelOrder(orderId, request.getCancellationReason());
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Get list of cancellation reasons for staff
+     * 
+     * @return List of cancellation reasons
+     */
+    @GetMapping("/cancellation-reasons/staff")
+    @PreAuthorize("hasRole('STAFF') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<String>>> getStaffCancellationReasons() {
+        final var result = orderService.getStaffCancellationReasons();
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }

@@ -97,4 +97,22 @@ public interface OrderService {
      * @return success status
      */
     boolean cancelOrder(UUID orderId);
+
+    /**
+     * Cancel an order by staff with a specific reason
+     * Only allowed for orders with status PROCESSING
+     * Sends notification and email to customer
+     * 
+     * @param orderId the order ID to cancel
+     * @param cancellationReason the reason for cancellation
+     * @return success status
+     */
+    boolean staffCancelOrder(UUID orderId, String cancellationReason);
+
+    /**
+     * Get list of cancellation reasons for staff
+     * 
+     * @return list of cancellation reasons
+     */
+    List<String> getStaffCancellationReasons();
 }

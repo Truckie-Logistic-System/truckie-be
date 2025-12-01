@@ -113,11 +113,9 @@ public class SecurityConfigurer {
     @Value("${driver.api.base-path}")
     private String driverApiBasePath;
 
-    @Value("${room.api.base-path}")
-    private String roomApiBasePath;
 
-    @Value("${chat.api.base-path}")
-    private String chatApiBasePath;
+    @Value("${user-chat.api.base-path}")
+    private String userChatApiBasePath;
 
     @Value("${seal.api.base-path}")
     private String sealApiBasePath;
@@ -170,7 +168,6 @@ public class SecurityConfigurer {
                     "/actuator/health",
                     "/actuator/info",
                     "/error",
-                    "/chat/**",
                     "/vehicle-tracking-browser/**", // Adding SockJS endpoint for browser connections
                     "/ws/**" // Issue tracking WebSocket endpoint
             ),
@@ -324,10 +321,14 @@ public class SecurityConfigurer {
                         .requestMatchers(managerApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(roleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
-                        // ================= ROOM & CHAT =================
-                        .requestMatchers(roomApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
-                        .requestMatchers(chatApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
-                        // ================= SETTING =================
+                        // ================= USER CHAT =================
+                        // Guest chat endpoints - allow public access
+                        .requestMatchers(userChatApiBasePath + "/guest/**").permitAll()
+                        // Guest message sending - allow public access
+                        .requestMatchers(userChatApiBasePath + "/conversations/*/messages").permitAll()
+                        .requestMatchers(userChatApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+
+                        // ================= NOTIFICATION =================
                         .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(weightUnitSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(stipulationSettingApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
