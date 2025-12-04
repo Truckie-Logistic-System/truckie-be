@@ -51,7 +51,8 @@ public interface OrderMapper {
             var vehicleType = vehicle.getVehicleTypeEntity() != null
                 ? new VehicleAssignmentResponse.VehicleTypeInfo(
                     vehicle.getVehicleTypeEntity().getId(),
-                    vehicle.getVehicleTypeEntity().getVehicleTypeName()
+                    vehicle.getVehicleTypeEntity().getVehicleTypeName(),
+                    vehicle.getVehicleTypeEntity().getDescription()
                 )
                 : null;
                 

@@ -35,6 +35,7 @@ public interface IssueMapper {
     @Mapping(target = "finalFee", expression = "java(calculateFinalFee(issue))")
     @Mapping(target = "affectedSegment", expression = "java(mapAffectedSegment(issue))")
     @Mapping(source = "reroutedJourney", target = "reroutedJourney")
+    @Mapping(target = "damageCompensation", expression = "java(mapDamageCompensation(issue))")
     GetBasicIssueResponse toIssueBasicResponse(IssueEntity issue);
 
     List<GetBasicIssueResponse> toIssueBasicResponses(List<IssueEntity> issues);
@@ -193,6 +194,72 @@ public interface IssueMapper {
             issue.getId(), // issueId
             staffInfo,
             refund.getCreatedAt()
+        );
+    }
+    
+    // Map DAMAGE compensation details
+    default capstone_project.dtos.response.issue.DamageCompensationResponse mapDamageCompensation(IssueEntity issue) {
+        // Only map for DAMAGE issues that have compensation data
+        if (issue.getIssueTypeEntity() == null || 
+            !capstone_project.common.enums.IssueCategoryEnum.DAMAGE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            return null;
+        }
+        
+        // Get hasInsurance from Order
+        Boolean hasInsurance = false;
+        if (issue.getOrderDetails() != null && !issue.getOrderDetails().isEmpty()) {
+            var orderDetail = issue.getOrderDetails().get(0);
+            if (orderDetail.getOrderEntity() != null) {
+                hasInsurance = orderDetail.getOrderEntity().getHasInsurance();
+            }
+        }
+        
+        // Determine case and labels
+        String caseLabel = null;
+        String caseDescription = null;
+        Boolean appliesLegalLimit = null;
+        
+        if (issue.getDamageCompensationCase() != null) {
+            try {
+                var compensationCase = capstone_project.common.enums.DamageCompensationCaseEnum.valueOf(issue.getDamageCompensationCase());
+                caseLabel = compensationCase.getLabel();
+                caseDescription = compensationCase.getDescription();
+                appliesLegalLimit = compensationCase.appliesLegalLimit();
+            } catch (IllegalArgumentException e) {
+                // Invalid case enum, ignore
+            }
+        }
+        
+        // Get status label
+        String statusLabel = null;
+        if (issue.getDamageCompensationStatus() != null) {
+            try {
+                var status = capstone_project.common.enums.DamageCompensationStatusEnum.valueOf(issue.getDamageCompensationStatus());
+                statusLabel = status.getLabel();
+            } catch (IllegalArgumentException e) {
+                // Invalid status enum, ignore
+            }
+        }
+        
+        return new capstone_project.dtos.response.issue.DamageCompensationResponse(
+            issue.getDamageAssessmentPercent(),
+            hasInsurance,
+            issue.getDamageHasDocuments(),
+            issue.getDamageDeclaredValue(),
+            issue.getDamageEstimatedMarketValue(),
+            issue.getDamageFreightFee(),
+            issue.getDamageLegalLimit(),
+            issue.getDamageEstimatedLoss(),
+            issue.getDamagePolicyCompensation(),
+            issue.getDamageFinalCompensation(),
+            issue.getDamageCompensationCase(),
+            caseLabel,
+            caseDescription,
+            appliesLegalLimit,
+            issue.getDamageAdjustReason(),
+            issue.getDamageHandlerNote(),
+            issue.getDamageCompensationStatus(),
+            statusLabel
         );
     }
 

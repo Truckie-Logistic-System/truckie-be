@@ -93,6 +93,10 @@ public class IssueServiceImpl implements IssueService {
     
     // ✅ Notification Service for persistent notifications
     private final capstone_project.service.services.notification.NotificationService notificationService;
+    
+    // ✅ OFF_ROUTE_RUNAWAY dependencies
+    private final capstone_project.repository.entityServices.offroute.OffRouteEventEntityService offRouteEventEntityService;
+    private final capstone_project.service.services.refund.RefundService refundService;
 
     @Override
     public GetBasicIssueResponse getBasicIssue(UUID issueId) {
@@ -120,7 +124,8 @@ public class IssueServiceImpl implements IssueService {
             var vehicleType = vehicle.getVehicleTypeEntity() != null
                 ? new capstone_project.dtos.response.vehicle.VehicleAssignmentResponse.VehicleTypeInfo(
                     vehicle.getVehicleTypeEntity().getId(),
-                    vehicle.getVehicleTypeEntity().getVehicleTypeName()
+                    vehicle.getVehicleTypeEntity().getVehicleTypeName(),
+                    vehicle.getVehicleTypeEntity().getDescription()
                 )
                 : null;
                 
@@ -3031,6 +3036,265 @@ if (order.getDeliveryAddress() != null) {
         }
     }
 
+    // ===== OFF_ROUTE_RUNAWAY implementation =====
+    
+    @Override
+    public capstone_project.dtos.response.issue.OffRouteRunawayDetailResponse getOffRouteRunawayDetail(UUID issueId) {
+        // Get issue with details
+        IssueEntity issue = issueEntityService.findByIdWithDetails(issueId)
+                .orElseThrow(() -> new NotFoundException("Issue not found: " + issueId, ErrorEnum.NOT_FOUND.getErrorCode()));
+        
+        // Validate issue category
+        if (issue.getIssueTypeEntity() == null || 
+            !IssueCategoryEnum.OFF_ROUTE_RUNAWAY.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new BadRequestException("Issue is not an OFF_ROUTE_RUNAWAY type", ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+        
+        VehicleAssignmentEntity assignment = issue.getVehicleAssignmentEntity();
+        if (assignment == null) {
+            throw new NotFoundException("Vehicle assignment not found for issue", ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+        
+        // Get off-route event info
+        capstone_project.dtos.response.issue.OffRouteRunawayDetailResponse.OffRouteEventInfo eventInfo = null;
+        Optional<capstone_project.entity.offroute.OffRouteEventEntity> eventOpt = offRouteEventEntityService.findByIssueId(issueId);
+        if (eventOpt.isPresent()) {
+            capstone_project.entity.offroute.OffRouteEventEntity event = eventOpt.get();
+            eventInfo = capstone_project.dtos.response.issue.OffRouteRunawayDetailResponse.OffRouteEventInfo.builder()
+                    .eventId(event.getId())
+                    .detectedAt(event.getOffRouteStartTime())
+                    .offRouteDurationMinutes(event.getOffRouteDurationMinutes())
+                    .distanceFromRouteMeters(event.getDistanceFromRouteMeters() != null ? java.math.BigDecimal.valueOf(event.getDistanceFromRouteMeters()) : null)
+                    .warningStatus(event.getWarningStatus() != null ? event.getWarningStatus().name() : null)
+                    .canContactDriver(event.getCanContactDriver())
+                    .contactNotes(event.getContactNotes())
+                    .contactedAt(event.getContactedAt())
+                    .build();
+        }
+        
+        // Get all packages in the trip
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(assignment);
+        java.math.BigDecimal totalDeclaredValue = java.math.BigDecimal.ZERO;
+        List<capstone_project.dtos.response.issue.OffRouteRunawayDetailResponse.PackageInfo> packages = new java.util.ArrayList<>();
+        
+        for (OrderDetailEntity od : orderDetails) {
+            packages.add(capstone_project.dtos.response.issue.OffRouteRunawayDetailResponse.PackageInfo.builder()
+                    .orderDetailId(od.getId())
+                    .trackingCode(od.getTrackingCode())
+                    .description(od.getDescription())
+                    .weightBaseUnit(od.getWeightBaseUnit())
+                    .unit(od.getUnit())
+                    .declaredValue(od.getDeclaredValue())
+                    .status(od.getStatus())
+                    .build());
+            
+            if (od.getDeclaredValue() != null) {
+                totalDeclaredValue = totalDeclaredValue.add(od.getDeclaredValue());
+            }
+        }
+        
+        // Get sender info
+        capstone_project.dtos.response.user.CustomerResponse senderResponse = null;
+        if (!orderDetails.isEmpty() && orderDetails.get(0).getOrderEntity() != null 
+            && orderDetails.get(0).getOrderEntity().getSender() != null) {
+            capstone_project.entity.user.customer.CustomerEntity sender = orderDetails.get(0).getOrderEntity().getSender();
+            senderResponse = capstone_project.dtos.response.user.CustomerResponse.builder()
+                    .id(sender.getId().toString())
+                    .companyName(sender.getCompanyName())
+                    .representativeName(sender.getRepresentativeName())
+                    .representativePhone(sender.getRepresentativePhone())
+                    .businessAddress(sender.getBusinessAddress())
+                    .build();
+        }
+        
+        // Get refund if exists
+        capstone_project.dtos.response.refund.GetRefundResponse refundResponse = null;
+        try {
+            refundResponse = refundService.getRefundByIssueId(issueId);
+        } catch (Exception e) {
+            // No refund yet - that's fine
+            log.debug("No refund found for issue {}: {}", issueId, e.getMessage());
+        }
+        
+        return capstone_project.dtos.response.issue.OffRouteRunawayDetailResponse.builder()
+                .issueId(issue.getId())
+                .description(issue.getDescription())
+                .status(issue.getStatus())
+                .reportedAt(issue.getReportedAt())
+                .resolvedAt(issue.getResolvedAt())
+                .locationLatitude(issue.getLocationLatitude())
+                .locationLongitude(issue.getLocationLongitude())
+                .offRouteEventInfo(eventInfo)
+                .vehicleAssignment(vehicleAssignmentMapper.toResponse(assignment))
+                .sender(senderResponse)
+                .packages(packages)
+                .totalDeclaredValue(totalDeclaredValue)
+                .refund(refundResponse)
+                .build();
+    }
+
+    // ===== DAMAGE compensation flow methods =====
+    
+    @Override
+    @Transactional
+    public GetBasicIssueResponse updateDamageCompensation(capstone_project.dtos.request.issue.UpdateDamageCompensationRequest request) {
+        log.info("📊 Updating DAMAGE compensation for issue: {}", request.issueId());
+        
+        // 1. Find and validate issue
+        IssueEntity issue = issueEntityService.findByIdWithDetails(request.issueId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Issue not found: " + request.issueId(),
+                        ErrorEnum.ISSUE_NOT_FOUND.getErrorCode()
+                ));
+        
+        // Validate issue is DAMAGE type
+        if (issue.getIssueTypeEntity() == null || 
+            !IssueCategoryEnum.DAMAGE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new BadRequestException(
+                    "Issue is not a DAMAGE type issue",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+        
+        // 2. Get Order and Contract info
+        List<OrderDetailEntity> orderDetails = issue.getOrderDetails();
+        if (orderDetails == null || orderDetails.isEmpty()) {
+            throw new BadRequestException(
+                    "No order details found for this issue",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+        
+        OrderEntity order = orderDetails.get(0).getOrderEntity();
+        if (order == null) {
+            throw new BadRequestException(
+                    "No order found for this issue",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+        
+        // Get hasInsurance from Order
+        boolean hasInsurance = Boolean.TRUE.equals(order.getHasInsurance());
+        boolean hasDocuments = Boolean.TRUE.equals(request.damageHasDocuments());
+        
+        // 3. Get freight fee from Contract (adjustedValue or totalValue)
+        java.math.BigDecimal freightFee = java.math.BigDecimal.ZERO;
+        try {
+            var contractOpt = contractEntityService.getContractByOrderId(order.getId());
+            if (contractOpt.isPresent()) {
+                var contract = contractOpt.get(); // Get the contract
+                if (contract.getAdjustedValue() != null && contract.getAdjustedValue().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                    freightFee = contract.getAdjustedValue();
+                    log.info("📦 Using adjustedValue as freight fee: {}", freightFee);
+                } else if (contract.getTotalValue() != null) {
+                    freightFee = contract.getTotalValue();
+                    log.info("📦 Using totalValue as freight fee: {}", freightFee);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ Could not get contract for freight fee calculation: {}", e.getMessage());
+        }
+        
+        // 4. Determine compensation case
+        capstone_project.common.enums.DamageCompensationCaseEnum compensationCase = 
+            capstone_project.common.enums.DamageCompensationCaseEnum.determineCase(hasInsurance, hasDocuments);
+        
+        // 5. Calculate compensation based on policy
+        java.math.BigDecimal damagePercent = request.damageAssessmentPercent();
+        java.math.BigDecimal legalLimit = freightFee.multiply(java.math.BigDecimal.TEN); // 10 × cước phí
+        
+        // Determine base value for calculation
+        java.math.BigDecimal baseValue;
+        if (hasDocuments && request.damageDeclaredValue() != null) {
+            baseValue = request.damageDeclaredValue();
+        } else if (request.damageEstimatedMarketValue() != null) {
+            baseValue = request.damageEstimatedMarketValue();
+        } else {
+            // Fallback to order's total declared value
+            baseValue = order.getTotalDeclaredValue() != null ? order.getTotalDeclaredValue() : java.math.BigDecimal.ZERO;
+        }
+        
+        // Calculate estimated loss = baseValue × (damagePercent / 100)
+        java.math.BigDecimal estimatedLoss = baseValue.multiply(damagePercent)
+                .divide(java.math.BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+        
+        // Calculate policy compensation based on case
+        java.math.BigDecimal policyCompensation;
+        if (compensationCase == capstone_project.common.enums.DamageCompensationCaseEnum.CASE1_HAS_INS_HAS_DOC) {
+            // Case 1: Full compensation without limit
+            policyCompensation = estimatedLoss;
+        } else {
+            // Case 2, 3, 4: Apply legal limit
+            policyCompensation = estimatedLoss.min(legalLimit);
+        }
+        
+        // Determine final compensation
+        java.math.BigDecimal finalCompensation;
+        if (request.damageFinalCompensation() != null) {
+            finalCompensation = request.damageFinalCompensation();
+            // Validate: final should not exceed policy for non-Case1
+            if (compensationCase != capstone_project.common.enums.DamageCompensationCaseEnum.CASE1_HAS_INS_HAS_DOC
+                && finalCompensation.compareTo(legalLimit) > 0) {
+                log.warn("⚠️ Final compensation {} exceeds legal limit {}", finalCompensation, legalLimit);
+            }
+        } else {
+            finalCompensation = policyCompensation;
+        }
+        
+        // 6. Update issue entity
+        issue.setDamageAssessmentPercent(damagePercent);
+        issue.setDamageHasDocuments(hasDocuments);
+        issue.setDamageDeclaredValue(request.damageDeclaredValue());
+        issue.setDamageEstimatedMarketValue(request.damageEstimatedMarketValue());
+        issue.setDamageFreightFee(freightFee);
+        issue.setDamageLegalLimit(legalLimit);
+        issue.setDamageEstimatedLoss(estimatedLoss);
+        issue.setDamagePolicyCompensation(policyCompensation);
+        issue.setDamageFinalCompensation(finalCompensation);
+        issue.setDamageCompensationCase(compensationCase.name());
+        issue.setDamageAdjustReason(request.damageAdjustReason());
+        issue.setDamageHandlerNote(request.damageHandlerNote());
+        
+        // Set status
+        String newStatus = request.damageCompensationStatus();
+        if (newStatus != null) {
+            issue.setDamageCompensationStatus(newStatus);
+        } else if (issue.getDamageCompensationStatus() == null) {
+            issue.setDamageCompensationStatus(
+                capstone_project.common.enums.DamageCompensationStatusEnum.PROPOSED.name()
+            );
+        }
+        
+        // Save
+        IssueEntity saved = issueEntityService.save(issue);
+        
+        log.info("✅ DAMAGE compensation updated: case={}, estimatedLoss={}, policyComp={}, finalComp={}",
+                compensationCase.name(), estimatedLoss, policyCompensation, finalCompensation);
+        
+        // Return full response
+        return getBasicIssue(saved.getId());
+    }
+    
+    @Override
+    public capstone_project.dtos.response.issue.DamageCompensationResponse getDamageCompensationDetail(UUID issueId) {
+        IssueEntity issue = issueEntityService.findByIdWithDetails(issueId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Issue not found: " + issueId,
+                        ErrorEnum.ISSUE_NOT_FOUND.getErrorCode()
+                ));
+        
+        // Validate issue is DAMAGE type
+        if (issue.getIssueTypeEntity() == null || 
+            !IssueCategoryEnum.DAMAGE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new BadRequestException(
+                    "Issue is not a DAMAGE type issue",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+        
+        return issueMapper.mapDamageCompensation(issue);
+    }
+    
     /**
      * Create issue notifications - broadcast to staff, notify customer if damage
      */

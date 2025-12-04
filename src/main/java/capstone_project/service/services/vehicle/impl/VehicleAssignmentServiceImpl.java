@@ -1,6 +1,7 @@
 package capstone_project.service.services.vehicle.impl;
 
 import capstone_project.common.enums.*;
+import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.*;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
@@ -23,7 +24,9 @@ import capstone_project.repository.entityServices.pricing.SizeRuleEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleReservationEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
+import capstone_project.service.services.vehicle.VehicleReservationService;
 import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
 import capstone_project.service.mapper.order.StaffOrderMapper;
 import capstone_project.service.mapper.user.DriverMapper;
@@ -76,10 +79,13 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final ContractService contractService;
     private final OrderService orderService;
     private final OrderDetailService orderDetailService;
+    private final OrderDetailStatusService orderDetailStatusService;
     private final JourneyHistoryEntityService journeyHistoryEntityService;
     private final VietmapService vietmapService;
     private final SealEntityService sealEntityService;
     private final ContractSettingService contractSettingService;
+    private final VehicleReservationEntityService vehicleReservationEntityService;
+    private final VehicleReservationService vehicleReservationService;
 
     private final ObjectMapper objectMapper;
 
@@ -687,9 +693,24 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             );
         }
 
+        // B3: Determine tripDate from first OrderDetail's estimatedStartTime
+        LocalDate tripDate = null;
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderID);
+        if (!orderDetails.isEmpty()) {
+            OrderDetailEntity firstDetail = orderDetails.get(0);
+            if (firstDetail.getEstimatedStartTime() != null) {
+                tripDate = firstDetail.getEstimatedStartTime().toLocalDate();
+            }
+        }
+        if (tripDate == null) {
+            log.warn("[getGroupedSuggestionsForOrder] No estimatedStartTime found for order {}, using current date", orderID);
+            tripDate = LocalDate.now();
+        }
+
         // Chuyển đổi kết quả từ assignVehicles thành định dạng OrderDetailGroup
+        // B8-B9: Pass orderId to check vehicle reservations
         List<GroupedVehicleAssignmentResponse.OrderDetailGroup> groups =
-                convertAssignmentsToGroups(vehicleAssignments);
+                convertAssignmentsToGroups(vehicleAssignments, tripDate, orderID);
 
         long elapsedMs = (System.nanoTime() - startTime) / 1_000_000;
 
@@ -699,9 +720,11 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     /**
      * Chuyển đổi kết quả từ assignVehicles sang định dạng OrderDetailGroup
      * Enhanced to track and exclude already suggested resources across groups
+     * B3: Added tripDate parameter to filter drivers by date (1 driver per trip per day)
+     * B8-B9: Added orderId parameter to check vehicle reservations
      */
     private List<GroupedVehicleAssignmentResponse.OrderDetailGroup> convertAssignmentsToGroups(
-            List<ContractRuleAssignResponse> assignments) {
+            List<ContractRuleAssignResponse> assignments, LocalDate tripDate, UUID orderId) {
 
         List<GroupedVehicleAssignmentResponse.OrderDetailGroup> groups = new ArrayList<>();
         
@@ -728,13 +751,17 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     getOrderDetailInfos(detailIds);
 
             // Pass excluded IDs to avoid duplicate suggestions
+            // B3: Pass tripDate to filter drivers by date (1 driver per trip per day)
+            // B8-B9: Pass orderId to check vehicle reservations
             List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions =
                     findSuitableVehiclesForGroup(
                             detailIds, 
                             sizeRule, 
                             sizeRule.getVehicleTypeEntity() != null ? sizeRule.getVehicleTypeEntity().getId() : null,
                             usedVehicleIds,
-                            usedDriverIds
+                            usedDriverIds,
+                            tripDate,
+                            orderId
                     );
             
             // Collect used resources from top recommendation to exclude from next groups
@@ -787,9 +814,13 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     /**
      * Implementation of createGroupedAssignments from the interface
      * Creates vehicle assignments for groups of order details
+     * 
+     * B10: Enhanced logging for debugging and monitoring
      */
     @Override
     public List<VehicleAssignmentResponse> createGroupedAssignments(GroupedAssignmentRequest request) {
+        final long startTime = System.currentTimeMillis();
+        log.info("🚀 [createGroupedAssignments] Starting with {} groups", request.groupAssignments().size());
 
         // VALIDATION: Check all groups have required data
         List<String> validationErrors = new ArrayList<>();
@@ -823,6 +854,130 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             log.error(errorMessage);
             throw new NotFoundException(errorMessage, ErrorEnum.INVALID_REQUEST.getErrorCode());
         }
+        
+        // ============ ENHANCED VALIDATION (B2) ============
+        
+        // B2.1: Check for duplicate orderDetailIds across all groups
+        Set<UUID> allDetailIds = new HashSet<>();
+        for (OrderDetailGroupAssignment groupAssignment : request.groupAssignments()) {
+            for (UUID detailId : groupAssignment.orderDetailIds()) {
+                if (!allDetailIds.add(detailId)) {
+                    throw new BadRequestException(
+                            "Order detail " + detailId + " được khai báo ở nhiều nhóm khác nhau. Mỗi kiện hàng chỉ được gán vào 1 nhóm duy nhất.",
+                            ErrorEnum.INVALID_REQUEST.getErrorCode()
+                    );
+                }
+            }
+        }
+        
+        // B2.2: Check all orderDetails belong to the same order
+        UUID mainOrderId = null;
+        OrderEntity mainOrder = null;
+        LocalDate tripDate = null;
+        
+        for (UUID detailId : allDetailIds) {
+            OrderDetailEntity detail = orderDetailEntityService.findEntityById(detailId)
+                    .orElseThrow(() -> new NotFoundException(
+                            "Order detail không tìm thấy với ID: " + detailId,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+            
+            if (mainOrderId == null) {
+                mainOrderId = detail.getOrderEntity().getId();
+                mainOrder = detail.getOrderEntity();
+                
+                // B2.3: Determine tripDate from first orderDetail's estimatedStartTime
+                if (detail.getEstimatedStartTime() != null) {
+                    tripDate = detail.getEstimatedStartTime().toLocalDate();
+                } else {
+                    log.warn("OrderDetail {} has no estimatedStartTime, using current date as tripDate", detailId);
+                    tripDate = LocalDate.now();
+                }
+            } else {
+                // Ensure all details belong to the same order
+                if (!detail.getOrderEntity().getId().equals(mainOrderId)) {
+                    throw new BadRequestException(
+                            "Các kiện hàng thuộc nhiều đơn hàng khác nhau (" + mainOrderId + " và " + detail.getOrderEntity().getId() + "). " +
+                            "Không được gộp kiện hàng từ nhiều đơn hàng vào cùng một request phân công.",
+                            ErrorEnum.INVALID_REQUEST.getErrorCode()
+                    );
+                }
+            }
+            
+            // B2.4: Check orderDetail status is valid (ON_PLANNING)
+            if (!OrderDetailStatusEnum.ON_PLANNING.name().equals(detail.getStatus())) {
+                throw new BadRequestException(
+                        "Order detail " + detailId + " có trạng thái '" + detail.getStatus() + "', không phải ON_PLANNING. " +
+                        "Chỉ có thể phân công xe cho kiện hàng đang ở trạng thái ON_PLANNING.",
+                        ErrorEnum.INVALID_REQUEST.getErrorCode()
+                );
+            }
+            
+            // B2.5: Check orderDetail doesn't already have a vehicleAssignment
+            if (detail.getVehicleAssignmentEntity() != null) {
+                throw new BadRequestException(
+                        "Order detail " + detailId + " đã được gán vào chuyến xe khác (Assignment ID: " + 
+                        detail.getVehicleAssignmentEntity().getId() + "). Không thể gán lại.",
+                        ErrorEnum.INVALID_REQUEST.getErrorCode()
+                );
+            }
+        }
+        
+        // B2.6: Check Order status is ON_PLANNING
+        if (mainOrder != null && !OrderStatusEnum.ON_PLANNING.name().equals(mainOrder.getStatus())) {
+            throw new BadRequestException(
+                    "Đơn hàng " + mainOrderId + " có trạng thái '" + mainOrder.getStatus() + "', không phải ON_PLANNING. " +
+                    "Chỉ có thể phân công xe cho đơn hàng đang ở trạng thái ON_PLANNING.",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+        
+        // B2.7: Check no duplicate vehicleId across groups (1 vehicle per group per order)
+        Set<UUID> usedVehicleIdsInRequest = new HashSet<>();
+        for (OrderDetailGroupAssignment groupAssignment : request.groupAssignments()) {
+            UUID vehicleId = groupAssignment.vehicleId();
+            if (!usedVehicleIdsInRequest.add(vehicleId)) {
+                throw new BadRequestException(
+                        "Xe " + vehicleId + " được sử dụng cho nhiều nhóm trong cùng request. " +
+                        "Mỗi xe chỉ được gán cho 1 nhóm duy nhất trong cùng đơn hàng.",
+                        ErrorEnum.INVALID_REQUEST.getErrorCode()
+                );
+            }
+        }
+        
+        // B2.8: Check 1 driver per trip per day (hard constraint)
+        final LocalDate finalTripDate = tripDate;
+        for (OrderDetailGroupAssignment groupAssignment : request.groupAssignments()) {
+            UUID driver1Id = groupAssignment.driverId_1();
+            UUID driver2Id = groupAssignment.driverId_2();
+            
+            // Check driver1
+            if (entityService.existsAssignmentForDriverOnDate(driver1Id, finalTripDate)) {
+                DriverEntity driver1 = driverEntityService.findEntityById(driver1Id).orElse(null);
+                String driverName = driver1 != null && driver1.getUser() != null ? driver1.getUser().getFullName() : driver1Id.toString();
+                throw new BadRequestException(
+                        "Tài xế " + driverName + " đã có chuyến xe trong ngày " + finalTripDate + ". " +
+                        "Mỗi tài xế chỉ được phân công 1 chuyến trong 1 ngày.",
+                        ErrorEnum.DRIVER_NOT_AVAILABLE.getErrorCode()
+                );
+            }
+            
+            // Check driver2
+            if (entityService.existsAssignmentForDriverOnDate(driver2Id, finalTripDate)) {
+                DriverEntity driver2 = driverEntityService.findEntityById(driver2Id).orElse(null);
+                String driverName = driver2 != null && driver2.getUser() != null ? driver2.getUser().getFullName() : driver2Id.toString();
+                throw new BadRequestException(
+                        "Tài xế " + driverName + " đã có chuyến xe trong ngày " + finalTripDate + ". " +
+                        "Mỗi tài xế chỉ được phân công 1 chuyến trong 1 ngày.",
+                        ErrorEnum.DRIVER_NOT_AVAILABLE.getErrorCode()
+                );
+            }
+        }
+        
+        log.info("✅ Enhanced validation passed for {} groups, order={}, tripDate={}", 
+                request.groupAssignments().size(), mainOrderId, tripDate);
+        
+        // ============ END ENHANCED VALIDATION ============
         
         List<VehicleAssignmentResponse> createdAssignments = new ArrayList<>();
         // Keep track of orders that need status update
@@ -933,8 +1088,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 orderDetail.setVehicleAssignmentEntity(savedAssignment);
                 orderDetailEntityService.save(orderDetail);
 
-                // Update order detail status to ASSIGNED_TO_DRIVER
-                orderDetailService.updateOrderDetailStatus(orderDetail.getId(), OrderStatusEnum.ASSIGNED_TO_DRIVER);
+                // B5: Update order detail status using correct enum (OrderDetailStatusEnum)
+                // Use OrderDetailStatusService instead of OrderDetailService for proper multi-trip handling
+                orderDetailStatusService.updateOrderDetailStatus(orderDetail.getId(), OrderDetailStatusEnum.ASSIGNED_TO_DRIVER);
 
                 // Add order ID to the set of orders that need status update
                 if (orderDetail.getOrderEntity() != null) {
@@ -949,9 +1105,20 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             createdAssignments.add(mapper.toResponse(savedAssignment));
         }
 
-        // Update status of all affected orders to ASSIGNED_TO_DRIVER
+        // B5: Use aggregator service to update Order status based on all OrderDetails
+        // This ensures proper multi-trip status calculation with priority logic
         for (UUID orderId : orderIdsToUpdate) {
-            orderService.updateOrderStatus(orderId, OrderStatusEnum.ASSIGNED_TO_DRIVER);
+            // Trigger Order status aggregation from all OrderDetails (multi-trip compliant)
+            orderDetailStatusService.triggerOrderStatusUpdate(orderId);
+            
+            // B8-B9: Consume any existing reservations for this order
+            // This marks reservations as CONSUMED since assignment is now created
+            try {
+                vehicleReservationService.consumeReservationsForOrder(orderId);
+            } catch (Exception e) {
+                log.warn("⚠️ Failed to consume reservations for order {}: {}", orderId, e.getMessage());
+                // Don't throw - reservation consumption failure shouldn't break assignment process
+            }
             
             // Handle full payment deadline when driver is assigned
             try {
@@ -967,6 +1134,11 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 // Don't throw - deadline update failure shouldn't break assignment process
             }
         }
+
+        // B10: Log completion summary
+        long elapsedMs = System.currentTimeMillis() - startTime;
+        log.info("✅ [createGroupedAssignments] Completed in {}ms - Created {} assignments for {} orders", 
+                elapsedMs, createdAssignments.size(), orderIdsToUpdate.size());
 
         return createdAssignments;
     }
@@ -1269,6 +1441,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      * @param vehicleTypeId ID của loại xe
      * @param excludedVehicleIds Set of vehicle IDs to exclude (already suggested for other groups)
      * @param excludedDriverIds Set of driver IDs to exclude (already suggested for other groups)
+     * @param tripDate Ngày chuyến để filter driver (B3: 1 driver per trip per day)
+     * @param orderId Order ID để check reservation (B8-B9: exclude reservation của chính order này)
      * @return Danh sách gợi ý xe và tài xế phù hợp cho nhóm
      */
     private List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> findSuitableVehiclesForGroup(
@@ -1276,9 +1450,15 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             SizeRuleEntity sizeRule, 
             UUID vehicleTypeId,
             Set<UUID> excludedVehicleIds,
-            Set<UUID> excludedDriverIds) {
+            Set<UUID> excludedDriverIds,
+            LocalDate tripDate,
+            UUID orderId) {
 
         List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions = new ArrayList<>();
+
+        // B8-B9: Final variables for lambda
+        final LocalDate finalTripDateForReservation = tripDate;
+        final UUID finalOrderId = orderId;
 
         // Lấy danh sách xe phù hợp với loại xe từ rule
         VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(sizeRule.getVehicleTypeEntity().getVehicleTypeName());
@@ -1286,14 +1466,21 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 sizeRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name())
                 .stream()
                 .filter(v -> !excludedVehicleIds.contains(v.getId()))  // Exclude already suggested vehicles
+                // B8-B9: Exclude vehicles with RESERVED reservation on tripDate (except for this order)
+                .filter(v -> !vehicleReservationEntityService.existsReservedByVehicleAndDateExcludingOrder(
+                        v.getId(), finalTripDateForReservation, finalOrderId))
                 .toList();
 
+        // B3: Filter drivers by tripDate - 1 driver per trip per day (hard constraint)
+        final LocalDate finalTripDate = tripDate;
+        
         // Lấy danh sách tài xế hợp lệ cho loại xe này
         List<DriverEntity> allEligibleDrivers = driverEntityService.findByStatus(CommonStatusEnum.ACTIVE.name())
                 .stream()
                 .filter(d -> driverService.isCheckClassDriverLicenseForVehicleType(d, vehicleTypeEnum))
                 .filter(d -> !entityService.existsActiveAssignmentForDriver(d.getId()))
                 .filter(d -> !excludedDriverIds.contains(d.getId()))  // Exclude already suggested drivers
+                .filter(d -> !entityService.existsAssignmentForDriverOnDate(d.getId(), finalTripDate))  // B3: Exclude drivers with assignment on tripDate
                 .toList();
 
         // Sắp xếp xe theo mức độ sử dụng (ít dùng nhất lên đầu)

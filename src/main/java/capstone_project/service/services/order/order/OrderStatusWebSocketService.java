@@ -2,16 +2,21 @@ package capstone_project.service.services.order.order;
 
 import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.dtos.response.order.OrderStatusChangeMessage;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.Instant;
 import java.util.UUID;
 
 /**
  * Service for sending order status change notifications via WebSocket
+ * Uses event-based approach to ensure WebSocket messages are sent AFTER transaction commits
  */
 @Service
 @RequiredArgsConstructor
@@ -19,10 +24,30 @@ import java.util.UUID;
 public class OrderStatusWebSocketService {
     
     private final SimpMessagingTemplate messagingTemplate;
+    private final ApplicationEventPublisher eventPublisher;
     
     /**
-     * Send order status change notification to WebSocket topic
-     * Topic: /topic/orders/{orderId}/status
+     * Event class for order status change - will be handled after transaction commits
+     */
+    @Getter
+    public static class OrderStatusChangeEvent {
+        private final UUID orderId;
+        private final String orderCode;
+        private final OrderStatusEnum previousStatus;
+        private final OrderStatusEnum newStatus;
+        
+        public OrderStatusChangeEvent(UUID orderId, String orderCode, 
+                                       OrderStatusEnum previousStatus, OrderStatusEnum newStatus) {
+            this.orderId = orderId;
+            this.orderCode = orderCode;
+            this.previousStatus = previousStatus;
+            this.newStatus = newStatus;
+        }
+    }
+    
+    /**
+     * Publish order status change event - will be handled after transaction commits
+     * This ensures staff/customer receives the updated status, not the stale one
      * 
      * @param orderId Order ID
      * @param orderCode Order code
@@ -35,23 +60,39 @@ public class OrderStatusWebSocketService {
             OrderStatusEnum previousStatus,
             OrderStatusEnum newStatus
     ) {
+        log.info("📤 [OrderStatusWebSocket] Publishing status change event for order {}: {} -> {}", 
+            orderCode, previousStatus, newStatus);
+        eventPublisher.publishEvent(new OrderStatusChangeEvent(orderId, orderCode, previousStatus, newStatus));
+    }
+    
+    /**
+     * Handle order status change event AFTER transaction commits
+     * This ensures the database has the updated status before WebSocket message is sent
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleOrderStatusChangeEvent(OrderStatusChangeEvent event) {
         try {
+            log.info("✅ [OrderStatusWebSocket] Transaction committed, sending WebSocket for order {}: {} -> {}", 
+                event.getOrderCode(), event.getPreviousStatus(), event.getNewStatus());
+            
             OrderStatusChangeMessage message = OrderStatusChangeMessage.builder()
-                    .orderId(orderId)
-                    .orderCode(orderCode)
-                    .previousStatus(previousStatus != null ? previousStatus.name() : null)
-                    .newStatus(newStatus.name())
+                    .orderId(event.getOrderId())
+                    .orderCode(event.getOrderCode())
+                    .previousStatus(event.getPreviousStatus() != null ? event.getPreviousStatus().name() : null)
+                    .newStatus(event.getNewStatus().name())
                     .timestamp(Instant.now())
-                    .message(getStatusChangeMessage(newStatus))
+                    .message(getStatusChangeMessage(event.getNewStatus()))
                     .build();
             
-            String topic = "/topic/orders/" + orderId + "/status";
+            String topic = "/topic/orders/" + event.getOrderId() + "/status";
             messagingTemplate.convertAndSend(topic, message);
+            
+            log.info("📢 [OrderStatusWebSocket] WebSocket message sent to topic: {}", topic);
 
         } catch (Exception e) {
             // Don't throw exception - WebSocket notification failure shouldn't break business logic
             log.error("❌ [OrderStatusWebSocket] Failed to send status change notification for order {}: {}",
-                    orderCode, e.getMessage(), e);
+                    event.getOrderCode(), e.getMessage(), e);
         }
     }
     

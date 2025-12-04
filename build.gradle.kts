@@ -102,6 +102,11 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation("org.springframework:spring-messaging:6.1.6")
 
+    // RATE LIMITING & SECURITY
+    implementation("com.github.vladimir-bukhtoyarov:bucket4j-core:7.6.0")
+    implementation("com.github.vladimir-bukhtoyarov:bucket4j-jcache:7.6.0")
+    implementation("javax.cache:cache-api:1.1.1")
+
     // DEVELOPMENT
     developmentOnly("org.springframework.boot:spring-boot-devtools")
 

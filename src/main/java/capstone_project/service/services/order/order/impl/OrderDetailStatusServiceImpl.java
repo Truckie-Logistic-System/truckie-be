@@ -18,6 +18,8 @@ import capstone_project.repository.entityServices.auth.UserEntityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -39,6 +41,9 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
     private final OrderStatusWebSocketService orderStatusWebSocketService;
     private final NotificationService notificationService;
     private final UserEntityService userEntityService;
+    
+    @PersistenceContext
+    private EntityManager entityManager;
     
     @Override
     @Transactional
@@ -267,20 +272,15 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
             OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(currentOrderStatus);
             order.setStatus(newOrderStatus.name());
             orderEntityService.save(order);
-
-            // Send WebSocket notification for status change
-            try {
-                orderStatusWebSocketService.sendOrderStatusChange(
-                    orderId,
-                    order.getOrderCode(),
-                    previousStatus,
-                    newOrderStatus
-                );
-                
-            } catch (Exception e) {
-                log.error("❌ Failed to send WebSocket notification for order status change: {}", e.getMessage());
-                // Don't throw - WebSocket failure shouldn't break business logic
-            }
+            
+            // Send WebSocket notification for status change (event-based, sent AFTER transaction commits)
+            // This ensures staff/customer receives the updated status, not the stale one
+            orderStatusWebSocketService.sendOrderStatusChange(
+                orderId,
+                order.getOrderCode(),
+                previousStatus,
+                newOrderStatus
+            );
             
             // 📧 Send persistent notifications for order status changes
             try {

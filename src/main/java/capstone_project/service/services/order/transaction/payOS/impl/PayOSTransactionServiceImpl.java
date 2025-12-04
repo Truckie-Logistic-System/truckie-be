@@ -22,6 +22,7 @@ import capstone_project.service.mapper.order.TransactionMapper;
 import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
 import capstone_project.service.services.pricing.PricingUtils;
+import capstone_project.service.services.vehicle.VehicleReservationService;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import capstone_project.service.services.notification.NotificationService;
 import capstone_project.service.services.notification.NotificationBuilder;
@@ -76,6 +77,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService;
     private final capstone_project.service.services.order.order.OrderStatusWebSocketService orderStatusWebSocketService;
     private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
+    private final VehicleReservationService vehicleReservationService;
     
     // Payment timeout scheduler to cancel scheduled task when payment received
     private final capstone_project.config.expired.PaymentTimeoutSchedulerService paymentTimeoutSchedulerService;
@@ -108,6 +110,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService,
             capstone_project.service.services.order.order.OrderStatusWebSocketService orderStatusWebSocketService,
             capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService,
+            VehicleReservationService vehicleReservationService,
             capstone_project.config.expired.PaymentTimeoutSchedulerService paymentTimeoutSchedulerService,
             capstone_project.service.services.order.order.OrderDetailStatusService orderDetailStatusService,
             PayOSProperties properties,
@@ -132,6 +135,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         this.issueWebSocketService = issueWebSocketService;
         this.orderStatusWebSocketService = orderStatusWebSocketService;
         this.orderDetailStatusWebSocketService = orderDetailStatusWebSocketService;
+        this.vehicleReservationService = vehicleReservationService;
         this.paymentTimeoutSchedulerService = paymentTimeoutSchedulerService;
         this.orderDetailStatusService = orderDetailStatusService;
         this.properties = properties;
@@ -834,11 +838,32 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 }
             }
 
-            case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
+            case CANCELLED, EXPIRED, FAILED -> {
+                contract.setStatus(ContractStatusEnum.UNPAID.name());
+                
+                // Cancel vehicle reservations when payment fails
+                try {
+                    vehicleReservationService.cancelReservationsForOrder(order.getId());
+                    log.info("✅ Cancelled vehicle reservations for order {} due to payment failure: {}", 
+                            order.getId(), transaction.getStatus());
+                } catch (Exception e) {
+                    log.error("❌ Failed to cancel reservations for order {}: {}", order.getId(), e.getMessage());
+                    // Don't throw - reservation cancel failure shouldn't break payment processing
+                }
+            }
 
             case REFUNDED -> {
                 contract.setStatus(ContractStatusEnum.REFUNDED.name());
                 order.setStatus(OrderStatusEnum.RETURNED.name());
+                
+                // Cancel vehicle reservations when refunded
+                try {
+                    vehicleReservationService.cancelReservationsForOrder(order.getId());
+                    log.info("✅ Cancelled vehicle reservations for order {} due to refund", order.getId());
+                } catch (Exception e) {
+                    log.error("❌ Failed to cancel reservations for order {}: {}", order.getId(), e.getMessage());
+                    // Don't throw - reservation cancel failure shouldn't break refund processing
+                }
             }
             default -> {
             }

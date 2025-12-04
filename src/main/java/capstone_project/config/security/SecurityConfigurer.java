@@ -152,6 +152,8 @@ public class SecurityConfigurer {
                     "/api/v1/emails/**",
                     "/api/v1/public/stipulations/**", // Public stipulation endpoint for customers
                     "/api/public/chat/**", // AI Chatbot public endpoint - no auth required
+                    "/api/v1/public/recipient-tracking/**", // Recipient order tracking - no auth required
+                    "/api/v1/vietmap/**", // Public VietMap endpoints for recipient tracking
                     "/api/v1/transactions/stripe/webhook",
                     "/api/v1/transactions/stripe/webhook/**",
                     "/api/v1/transactions/pay-os/webhook",

@@ -609,9 +609,14 @@ public class OrderServiceImpl implements OrderService {
         for (GetOrderDetailResponse detail : getOrderResponse.orderDetails()) {
             if (detail.vehicleAssignmentId() != null) {
                 UUID vehicleAssignmentId = detail.vehicleAssignmentId(); // Use the UUID directly
-                getIssueImageResponses.add(
-                        issueImageService.getByVehicleAssignment(vehicleAssignmentId)
-                );
+                GetIssueImageResponse issue = issueImageService.getByVehicleAssignment(vehicleAssignmentId);
+                
+                // Filter OUT_OFF_ROUTE_RUNAWAY issues from customer view
+                if (issue != null && issue.issue() != null && 
+                        issue.issue().issueCategory() != IssueCategoryEnum.OFF_ROUTE_RUNAWAY) {
+                    getIssueImageResponses.add(issue);
+                }
+                
                 photoCompletionResponses.put(vehicleAssignmentId, photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId));
             }
         }
@@ -1411,5 +1416,55 @@ public class OrderServiceImpl implements OrderService {
                 log.warn("Failed to fetch photo completions for vehicleAssignment {}: {}", va, e.getMessage());
             }
         }
+    }
+
+    @Override
+    public RecipientOrderTrackingResponse getOrderForRecipientByOrderCode(String orderCode) {
+        if (orderCode == null || orderCode.trim().isEmpty()) {
+            throw new BadRequestException(
+                    "Mã đơn hàng không được để trống",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Find order by order code
+        OrderEntity orderEntity = orderEntityService.findByOrderCode(orderCode.trim())
+                .orElseThrow(() -> new NotFoundException(
+                        "Không tìm thấy đơn hàng với mã: " + orderCode,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        UUID orderId = orderEntity.getId();
+
+        // Get order response (reuse existing logic)
+        GetOrderResponse orderResponse = getOrderById(orderId);
+
+        // Get issues and photo completions (reuse existing logic)
+        Map<UUID, List<GetIssueImageResponse>> issuesByVehicleAssignment = new HashMap<>();
+        Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment = new HashMap<>();
+
+        List<GetOrderDetailResponse> details = Optional.ofNullable(orderResponse)
+                .map(GetOrderResponse::orderDetails)
+                .orElse(Collections.emptyList());
+
+        processVehicleAssignments(details, issuesByVehicleAssignment, photosByVehicleAssignment);
+
+        // Filter OUT_OFF_ROUTE_RUNAWAY issues from customer/guest view
+        List<GetIssueImageResponse> issueImageResponsesList = issuesByVehicleAssignment.values().stream()
+                .flatMap(List::stream)
+                .filter(issue -> issue.issue() != null && 
+                        issue.issue().issueCategory() != IssueCategoryEnum.OFF_ROUTE_RUNAWAY)
+                .collect(Collectors.toList());
+
+        // Convert to SimpleOrderResponse WITHOUT contract/transaction data
+        SimpleOrderResponse simpleOrderResponse = simpleOrderMapper.toSimpleOrderForCustomerResponse(
+                orderResponse,
+                issueImageResponsesList,
+                photosByVehicleAssignment,
+                null, // No contract data for recipient
+                Collections.emptyList() // No transaction data for recipient
+        ).order();
+
+        return new RecipientOrderTrackingResponse(simpleOrderResponse);
     }
 }

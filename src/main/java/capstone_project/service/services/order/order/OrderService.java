@@ -115,4 +115,13 @@ public interface OrderService {
      * @return list of cancellation reasons
      */
     List<String> getStaffCancellationReasons();
+
+    /**
+     * Get order details for recipient tracking by order code (public - no auth required)
+     * Returns order information without sensitive contract/transaction data
+     * 
+     * @param orderCode the order code to search
+     * @return order tracking response for recipient
+     */
+    RecipientOrderTrackingResponse getOrderForRecipientByOrderCode(String orderCode);
 }

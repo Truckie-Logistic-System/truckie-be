@@ -58,6 +58,9 @@ public record GetBasicIssueResponse (
         
         // REROUTE specific fields
         JourneySegmentResponse affectedSegment, // The segment where issue occurred
-        JourneyHistoryResponse reroutedJourney // The new journey created after rerouting
+        JourneyHistoryResponse reroutedJourney, // The new journey created after rerouting
+        
+        // DAMAGE compensation specific fields
+        DamageCompensationResponse damageCompensation // All damage compensation details
 ) {
 }

@@ -591,8 +591,15 @@ public class UserChatServiceImpl implements UserChatService {
     public DriverOverviewResponse getDriverOverview(UUID driverId) {
         log.info("Getting driver overview for: {}", driverId);
         
+        // Try to find driver by userId first (for staff chat)
         DriverEntity driver = driverRepository.findByUserId(driverId)
-                .orElseThrow(() -> new NotFoundException("Driver not found", 15L));
+                .orElse(null);
+        
+        // If not found, try by driverId (for off-route warning)
+        if (driver == null) {
+            driver = driverRepository.findById(driverId)
+                    .orElseThrow(() -> new NotFoundException("Driver not found with userId or driverId: " + driverId, 15L));
+        }
         
         UserEntity user = driver.getUser();
         

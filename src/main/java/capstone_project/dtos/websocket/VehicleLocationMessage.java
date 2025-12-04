@@ -43,4 +43,7 @@ public class VehicleLocationMessage {
     private BigDecimal speed; // Speed in km/h
     private BigDecimal velocityLat; // Latitude velocity (degrees/second)
     private BigDecimal velocityLng; // Longitude velocity (degrees/second)
+    
+    // Off-route detection information
+    private BigDecimal distanceFromRoute; // Distance from planned route in meters
 }

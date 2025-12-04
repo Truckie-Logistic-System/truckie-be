@@ -13,5 +13,6 @@ public enum IssueCategoryEnum {
     ACCIDENT,
     SEAL_REPLACEMENT,
     ORDER_REJECTION,
-    REROUTE
+    REROUTE,
+    OFF_ROUTE_RUNAWAY  // Driver went off-route and potentially absconded with packages
 }

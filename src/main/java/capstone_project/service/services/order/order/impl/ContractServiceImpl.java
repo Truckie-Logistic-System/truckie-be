@@ -29,12 +29,19 @@ import capstone_project.repository.entityServices.auth.impl.UserEntityServiceImp
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractRuleEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryPricingDetailEntityService;
-import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
-import capstone_project.repository.entityServices.pricing.BasingPriceEntityService;
-import capstone_project.repository.entityServices.pricing.DistanceRuleEntityService;
+import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.pricing.SizeRuleEntityService;
+import capstone_project.repository.entityServices.pricing.DistanceRuleEntityService;
+import capstone_project.repository.entityServices.pricing.BasingPriceEntityService;
+import capstone_project.repository.repositories.order.order.OrderDetailRepository;
+import capstone_project.repository.repositories.order.order.OrderRepository;
+import capstone_project.repository.repositories.order.contract.ContractRuleRepository;
+import capstone_project.repository.repositories.user.DriverRepository;
+import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
+import capstone_project.service.services.vehicle.VehicleReservationService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
+import capstone_project.repository.repositories.vehicle.VehicleAssignmentRepository;
 import capstone_project.service.mapper.order.ContractMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.ContractService;
@@ -55,6 +62,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -81,6 +89,8 @@ public class ContractServiceImpl implements ContractService {
     private final InsuranceCalculationService insuranceCalculationService;
     private final ContractSettingService contractSettingService;
     private final capstone_project.repository.entityServices.auth.UserEntityService userEntityService; // For staff notifications
+    private final VehicleReservationService vehicleReservationService;
+    private final VehicleAssignmentRepository vehicleAssignmentRepository;
     
     private capstone_project.service.services.pdf.PdfGenerationService pdfGenerationService;
 
@@ -111,7 +121,9 @@ public class ContractServiceImpl implements ContractService {
             ContractSettingService contractSettingService,
             ContractMapper contractMapper,
             UserEntityServiceImpl userEntityServiceImpl,
-            capstone_project.repository.entityServices.auth.UserEntityService userEntityService
+            capstone_project.repository.entityServices.auth.UserEntityService userEntityService,
+            VehicleReservationService vehicleReservationService,
+            VehicleAssignmentRepository vehicleAssignmentRepository
     ) {
         this.contractEntityService = contractEntityService;
         this.contractRuleEntityService = contractRuleEntityService;
@@ -134,6 +146,8 @@ public class ContractServiceImpl implements ContractService {
         this.contractMapper = contractMapper;
         this.userEntityServiceImpl = userEntityServiceImpl;
         this.userEntityService = userEntityService;
+        this.vehicleReservationService = vehicleReservationService;
+        this.vehicleAssignmentRepository = vehicleAssignmentRepository;
     }
 
     @Autowired
@@ -565,7 +579,80 @@ public class ContractServiceImpl implements ContractService {
         
         ContractEntity updatedContract = contractEntityService.save(savedContract);
 
+        // Auto-reservation: Create vehicle reservations when customer accepts proposal
+        if (contractRequest.tripDate() != null && contractRequest.vehicleCount() != null && contractRequest.vehicleCount() > 0) {
+            try {
+                LocalDate reservationDate = contractRequest.tripDate().toLocalDate();
+                int vehiclesToReserve = contractRequest.vehicleCount();
+                
+                log.info("🚗 [createBothContractAndContractRuleForCus] Creating auto-reservation for order {} on {} for {} vehicles", 
+                        orderUuid, reservationDate, vehiclesToReserve);
+                
+                // Get realistic assignments to find available vehicles
+                List<ContractRuleAssignResponse> realisticAssignments = assignVehiclesWithAvailability(orderUuid);
+                
+                // Collect all available vehicle types from assignments
+                Set<UUID> availableVehicleTypeIds = realisticAssignments.stream()
+                        .map(ContractRuleAssignResponse::getSizeRuleId)
+                        .collect(Collectors.toSet());
+                
+                // Get available vehicles for each type, sorted by usage (least used first)
+                List<UUID> selectedVehicleIds = new ArrayList<>();
+                
+                for (UUID sizeRuleId : availableVehicleTypeIds) {
+                    if (selectedVehicleIds.size() >= vehiclesToReserve) break;
+                    
+                    SizeRuleEntity sizeRule = sizeRuleEntityService.findEntityById(sizeRuleId)
+                            .orElseThrow(() -> new NotFoundException("Size rule not found", ErrorEnum.NOT_FOUND.getErrorCode()));
+                    
+                    // Get available vehicles for this type, sorted by usage (least used first)
+                    List<UUID> availableVehicles = vehicleEntityService.getVehicleEntitiesByVehicleTypeEntityAndStatus(
+                            sizeRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name())
+                            .stream()
+                            .filter(v -> vehicleReservationService.isVehicleAvailable(v.getId(), reservationDate, orderUuid))
+                            .sorted(Comparator.comparing(v -> getVehicleUsageCount(v.getId()))) // Least used first
+                            .map(v -> v.getId())
+                            .limit(vehiclesToReserve - selectedVehicleIds.size())
+                            .toList();
+                    
+                    selectedVehicleIds.addAll(availableVehicles);
+                }
+                
+                // Create reservations for selected vehicles
+                if (!selectedVehicleIds.isEmpty()) {
+                    vehicleReservationService.createReservationsForOrder(
+                            orderUuid,
+                            selectedVehicleIds,
+                            reservationDate,
+                            "Auto-reservation when customer accepted vehicle proposal"
+                    );
+                    
+                    log.info("✅ [createBothContractAndContractRuleForCus] Created {} vehicle reservations for order {}", 
+                            selectedVehicleIds.size(), orderUuid);
+                } else {
+                    log.warn("⚠️ [createBothContractAndContractRuleForCus] No available vehicles to reserve for order {}", orderUuid);
+                }
+                
+            } catch (Exception e) {
+                log.error("❌ [createBothContractAndContractRuleForCus] Failed to create auto-reservation for order {}: {}", 
+                        orderUuid, e.getMessage());
+                // Don't throw - reservation failure shouldn't break contract creation
+            }
+        }
+
         return contractMapper.toContractResponse(updatedContract);
+    }
+
+    /**
+     * Get vehicle usage count for load balancing (least used first)
+     */
+    private long getVehicleUsageCount(UUID vehicleId) {
+        try {
+            return vehicleAssignmentRepository.countByVehicleEntityId(vehicleId);
+        } catch (Exception e) {
+            log.warn("Could not get usage count for vehicle {}: {}", vehicleId, e.getMessage());
+            return 0; // Default to 0 if query fails
+        }
     }
 
     @Override
