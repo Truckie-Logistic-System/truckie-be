@@ -5,6 +5,7 @@ import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.entityServices.common.BaseEntityService;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -84,4 +85,15 @@ public interface VehicleAssignmentEntityService extends BaseEntityService<Vehicl
     default Optional<VehicleAssignmentEntity> findById(UUID id) {
         return findEntityById(id);
     }
+
+    /**
+     * Check if a driver has any vehicle assignment on a specific date (B3 - Hard constraint: 1 driver per trip per day)
+     * This checks if the driver (as driver1 or driver2) has any assignment where the trip date matches the given date.
+     * Trip date is determined from the first OrderDetail's estimatedStartTime in the assignment.
+     * 
+     * @param driverId ID của tài xế
+     * @param tripDate Ngày chuyến (LocalDate)
+     * @return true nếu tài xế đã có assignment trong ngày đó, false nếu không
+     */
+    boolean existsAssignmentForDriverOnDate(UUID driverId, LocalDate tripDate);
 }

@@ -6,6 +6,7 @@ import capstone_project.dtos.response.setting.ContractSettingResponse;
 import capstone_project.entity.setting.ContractSettingEntity;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
@@ -13,8 +14,18 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 public interface ContractSettingMapper {
     ContractSettingResponse toContractSettingResponse(final ContractSettingEntity contractSettingEntity);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "modifiedAt", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "modifiedBy", ignore = true)
     ContractSettingEntity mapRequestToEntity(final ContractSettingRequest contractSettingRequest);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "modifiedAt", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "modifiedBy", ignore = true)
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void toContractSettingEntity(UpdateContractSettingRequest request, @MappingTarget ContractSettingEntity entity);
 }

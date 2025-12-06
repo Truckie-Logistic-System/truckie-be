@@ -113,11 +113,9 @@ public class SecurityConfigurer {
     @Value("${driver.api.base-path}")
     private String driverApiBasePath;
 
-    @Value("${room.api.base-path}")
-    private String roomApiBasePath;
 
-    @Value("${chat.api.base-path}")
-    private String chatApiBasePath;
+    @Value("${user-chat.api.base-path}")
+    private String userChatApiBasePath;
 
     @Value("${seal.api.base-path}")
     private String sealApiBasePath;
@@ -153,7 +151,10 @@ public class SecurityConfigurer {
                     "/api/v1/address/**",
                     "/api/v1/emails/**",
                     "/api/v1/public/stipulations/**", // Public stipulation endpoint for customers
+                    "/api/v1/public/pricing/**", // Public pricing endpoint for customers/guests
                     "/api/public/chat/**", // AI Chatbot public endpoint - no auth required
+                    "/api/v1/public/recipient-tracking/**", // Recipient order tracking - no auth required
+                    "/api/v1/vietmap/**", // Public VietMap endpoints for recipient tracking
                     "/api/v1/transactions/stripe/webhook",
                     "/api/v1/transactions/stripe/webhook/**",
                     "/api/v1/transactions/pay-os/webhook",
@@ -170,7 +171,6 @@ public class SecurityConfigurer {
                     "/actuator/health",
                     "/actuator/info",
                     "/error",
-                    "/chat/**",
                     "/vehicle-tracking-browser/**", // Adding SockJS endpoint for browser connections
                     "/ws/**" // Issue tracking WebSocket endpoint
             ),
@@ -265,20 +265,20 @@ public class SecurityConfigurer {
                         // ================= VEHICLE =================
                         .requestMatchers(HttpMethod.GET, vehicleTypeApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, sizeRuleApiBasePath + "/**").authenticated()
-                        .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(sizeRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(vehicleTypeApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
+                        .requestMatchers(sizeRuleApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= CATEGORY =================
                         .requestMatchers(HttpMethod.GET, categoryApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, categoryPricingDetailApiBasePath + "/**").authenticated()
-                        .requestMatchers(categoryApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(categoryPricingDetailApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(categoryApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
+                        .requestMatchers(categoryPricingDetailApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= DISTANCE & BASING PRICE =================
                         .requestMatchers(HttpMethod.GET, distanceRuleApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, basingPriceApiBasePath + "/**").authenticated()
-                        .requestMatchers(distanceRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(basingPriceApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(distanceRuleApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
+                        .requestMatchers(basingPriceApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
                         .requestMatchers(distanceBasePath + "/**").hasAnyAuthority("CUSTOMER","DRIVER","ADMIN","STAFF")
 
                         // ================= CONTRACT =================
@@ -294,8 +294,8 @@ public class SecurityConfigurer {
                         // ================= DEVICE =================
                         .requestMatchers(HttpMethod.GET, deviceTypeBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, deviceBasePath + "/**").authenticated()
-                        .requestMatchers(deviceTypeBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(deviceBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(deviceTypeBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
+                        .requestMatchers(deviceBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= CUSTOMER =================
                         .requestMatchers(HttpMethod.GET, customerApiBasePath + "/**").authenticated()
@@ -324,10 +324,14 @@ public class SecurityConfigurer {
                         .requestMatchers(managerApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(roleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
-                        // ================= ROOM & CHAT =================
-                        .requestMatchers(roomApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
-                        .requestMatchers(chatApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
-                        // ================= SETTING =================
+                        // ================= USER CHAT =================
+                        // Guest chat endpoints - allow public access
+                        .requestMatchers(userChatApiBasePath + "/guest/**").permitAll()
+                        // Guest message sending - allow public access
+                        .requestMatchers(userChatApiBasePath + "/conversations/*/messages").permitAll()
+                        .requestMatchers(userChatApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+
+                        // ================= NOTIFICATION =================
                         .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(weightUnitSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(stipulationSettingApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())

@@ -90,4 +90,9 @@ public class OrderEntity extends BaseEntity {
     @Builder.Default
     private BigDecimal totalDeclaredValue = BigDecimal.ZERO;
 
+    // Lý do hủy đơn hàng (nếu có)
+    @Size(max = 500)
+    @Column(name = "cancellation_reason", length = 500)
+    private String cancellationReason;
+
 }

@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -45,7 +46,7 @@ public class CarrierSettingServiceImpl implements CarrierSettingService {
 
     @Override
     @Transactional(readOnly = true)
-    public CarrierSettingResponse findById(Long id) {
+    public CarrierSettingResponse findById(UUID id) {
         
         if (id == null) {
             log.warn("Provided id is null");
@@ -86,7 +87,7 @@ public class CarrierSettingServiceImpl implements CarrierSettingService {
 
     @Override
     @Transactional
-    public CarrierSettingResponse update(Long id, CarrierSettingRequest request) {
+    public CarrierSettingResponse update(UUID id, CarrierSettingRequest request) {
         
         if (id == null || request == null) {
             log.warn("Update id or request is null - id: {}, request: {}", id, request);
@@ -112,7 +113,7 @@ public class CarrierSettingServiceImpl implements CarrierSettingService {
 
     @Override
     @Transactional
-    public void delete(Long id) {
+    public void delete(UUID id) {
         
         if (id == null) {
             log.warn("Delete id is null");

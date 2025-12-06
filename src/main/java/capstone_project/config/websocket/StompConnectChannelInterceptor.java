@@ -26,6 +26,17 @@ public class StompConnectChannelInterceptor implements ChannelInterceptor {
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
+        // Log all incoming STOMP commands for debugging
+        if (accessor != null) {
+            log.debug("📨 STOMP command received: {} to destination: {}", 
+                accessor.getCommand(), accessor.getDestination());
+            
+            if (StompCommand.SEND.equals(accessor.getCommand())) {
+                log.info("📤 STOMP SEND to destination: {} from user: {}", 
+                    accessor.getDestination(), accessor.getUser());
+            }
+        }
+
         if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
             
             // Try to get token from headers

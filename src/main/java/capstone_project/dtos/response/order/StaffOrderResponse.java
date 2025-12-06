@@ -28,6 +28,10 @@ public record StaffOrderResponse(
     String senderRepresentativePhone,
     String senderCompanyName,
     String categoryName,
+    String categoryDescription, // Category description from backend
+    Boolean hasInsurance,           // Khách hàng có mua bảo hiểm hay không
+    BigDecimal totalInsuranceFee,   // Tổng phí bảo hiểm (đã bao gồm VAT)
+    BigDecimal totalDeclaredValue,  // Tổng giá trị khai báo của tất cả kiện hàng
     List<StaffOrderDetailResponse> orderDetails,
     List<StaffVehicleAssignmentResponse> vehicleAssignments  // Moved from orderDetail level
 ) {}

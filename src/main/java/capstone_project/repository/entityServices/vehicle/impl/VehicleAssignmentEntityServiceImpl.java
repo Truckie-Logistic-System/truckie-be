@@ -7,6 +7,7 @@ import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntit
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -136,5 +137,10 @@ public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEnti
     @Override
     public List<VehicleAssignmentEntity> findAssignmentsForDriverSince(UUID driverId, LocalDateTime cutoffDate) {
         return vehicleAssignmentRepository.findAssignmentsForDriverSince(driverId, cutoffDate);
+    }
+
+    @Override
+    public boolean existsAssignmentForDriverOnDate(UUID driverId, LocalDate tripDate) {
+        return vehicleAssignmentRepository.existsAssignmentForDriverOnDate(driverId, tripDate);
     }
 }

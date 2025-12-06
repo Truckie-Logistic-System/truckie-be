@@ -5,6 +5,7 @@ import capstone_project.common.enums.SealEnum;
 import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.enums.OrderDetailStatusEnum;
 import capstone_project.common.enums.VehicleAssignmentStatusEnum;
+import capstone_project.common.enums.VehicleStatusEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionCreateRequest;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionEndReadingRequest;
@@ -52,6 +53,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
     private final JourneyHistoryEntityService journeyHistoryEntityService;
+    private final capstone_project.repository.entityServices.vehicle.VehicleEntityService vehicleEntityService;
 
     @Override
     @Transactional
@@ -86,8 +88,19 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
                     OrderDetailStatusEnum.PICKING_UP
             );
             
+            // ✅ NEW: Update vehicle status to IN_TRANSIT when start odometer is uploaded
+            var vehicleEntity = vehicleAssignmentEntity.getVehicleEntity();
+            if (vehicleEntity != null) {
+                String oldStatus = vehicleEntity.getStatus();
+                vehicleEntity.setStatus(VehicleStatusEnum.IN_TRANSIT.name());
+                vehicleEntityService.save(vehicleEntity);
+                
+                log.info("✅ Vehicle {} status updated from {} to IN_TRANSIT after start odometer upload", 
+                        vehicleEntity.getId(), oldStatus);
+            }
+            
         } catch (Exception e) {
-            log.warn("⚠️ Failed to auto-update OrderDetail status: {}", e.getMessage());
+            log.warn("⚠️ Failed to auto-update OrderDetail status or vehicle status: {}", e.getMessage());
             // Don't fail the main operation - fuel consumption was created successfully
         }
 
@@ -241,6 +254,17 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
                 vehicleAssignment.setStatus(VehicleAssignmentStatusEnum.COMPLETED.name());
                 vehicleAssignmentEntityService.save(vehicleAssignment);
                 
+            }
+            
+            // ✅ NEW: Update vehicle status to ACTIVE when end odometer is uploaded (trip completed)
+            var vehicleEntity = vehicleAssignment.getVehicleEntity();
+            if (vehicleEntity != null) {
+                String oldVehicleStatus = vehicleEntity.getStatus();
+                vehicleEntity.setStatus(VehicleStatusEnum.ACTIVE.name());
+                vehicleEntityService.save(vehicleEntity);
+                
+                log.info("✅ Vehicle {} status updated from {} to ACTIVE after end odometer upload", 
+                        vehicleEntity.getId(), oldVehicleStatus);
             }
         } catch (Exception e) {
             log.error("❌ Failed to auto-update OrderDetail/Order status or seal: {}", e.getMessage(), e);

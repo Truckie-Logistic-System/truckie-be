@@ -45,14 +45,14 @@ public class CategoryController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     @PostMapping("")
     public ResponseEntity<ApiResponse<CategoryResponse>> createCategory(@RequestBody @Valid CategoryRequest categoryRequest) {
         final var result = categoryService.createCategory(categoryRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(result));
     }
 
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CategoryResponse>> updateCategory(@PathVariable("id") UUID id,
                                                                         @RequestBody @Valid CategoryRequest categoryRequest) {
@@ -60,7 +60,7 @@ public class CategoryController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> deleteCategory(@PathVariable("id") UUID id) {
         categoryService.deleteCategory(id);

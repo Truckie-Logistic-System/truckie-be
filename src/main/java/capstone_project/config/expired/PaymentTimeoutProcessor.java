@@ -2,17 +2,26 @@ package capstone_project.config.expired;
 
 import capstone_project.common.enums.IssueEnum;
 import capstone_project.common.enums.OrderDetailStatusEnum;
+import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.enums.TransactionEnum;
 import capstone_project.entity.issue.IssueEntity;
+import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
+import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.order.transaction.TransactionEntityService;
-import capstone_project.service.services.order.order.OrderDetailStatusService;
+import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.order.order.OrderCancellationContext;
 import capstone_project.service.services.order.order.OrderDetailStatusWebSocketService;
+import capstone_project.service.services.order.order.OrderDetailStatusService;
 import capstone_project.service.services.websocket.IssueWebSocketService;
+import capstone_project.entity.order.order.OrderDetailEntity;
 import lombok.RequiredArgsConstructor;
+
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,10 +41,12 @@ public class PaymentTimeoutProcessor {
     private final IssueEntityService issueEntityService;
     private final TransactionEntityService transactionEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
+    private final OrderEntityService orderEntityService;
     private final IssueWebSocketService issueWebSocketService;
     private final OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
     private final JourneyHistoryEntityService journeyHistoryEntityService;
     private final OrderDetailStatusService orderDetailStatusService;
+    private final ObjectProvider<OrderService> orderServiceProvider;
     
     /**
      * Process payment timeout for an issue
@@ -94,48 +105,28 @@ public class PaymentTimeoutProcessor {
         issueEntityService.save(issue);
         
         // ═══════════════════════════════════════════════════════════════
-        // STEP 3: Cancel rejected OrderDetails
+        // STEP 3: Cancel rejected OrderDetails using unified cancellation
         // ═══════════════════════════════════════════════════════════════
         if (issue.getOrderDetails() != null && !issue.getOrderDetails().isEmpty()) {
-            UUID vehicleAssignmentId = issue.getVehicleAssignmentEntity() != null ? 
-                    issue.getVehicleAssignmentEntity().getId() : null;
+            UUID orderId = issue.getOrderDetails().get(0).getOrderEntity().getId();
             
-            issue.getOrderDetails().forEach(orderDetail -> {
-                String oldStatus = orderDetail.getStatus();
-                orderDetail.setStatus(OrderDetailStatusEnum.CANCELLED.name());
-                orderDetailEntityService.save(orderDetail);
-                
-                // Send WebSocket notification for OrderDetail status change
-                var order = orderDetail.getOrderEntity();
-                if (order != null) {
-                    try {
-                        orderDetailStatusWebSocketService.sendOrderDetailStatusChange(
-                            orderDetail.getId(),
-                            orderDetail.getTrackingCode(),
-                            order.getId(),
-                            order.getOrderCode(),
-                            vehicleAssignmentId,
-                            oldStatus,
-                            OrderDetailStatusEnum.CANCELLED
-                        );
-                    } catch (Exception e) {
-                        log.error("❌ Failed to send WebSocket for {}: {}", 
-                                orderDetail.getTrackingCode(), e.getMessage());
-                    }
-                }
-                
-            });
+            // Create context for payment timeout cancellation
+            OrderCancellationContext context = OrderCancellationContext.builder()
+                    .cancellationType(OrderCancellationContext.CancellationType.PAYMENT_TIMEOUT)
+                    .customReason("Quá hạn thanh toán cước trả hàng - không thanh toán trong thời gian quy định")
+                    .sendNotifications(false) // Notifications are sent separately below
+                    .cleanupReservations(true)
+                    .build();
             
-            // ═══════════════════════════════════════════════════════════════
-            // STEP 4: Auto-update Order status based on ALL OrderDetails
-            // ═══════════════════════════════════════════════════════════════
-            if (!issue.getOrderDetails().isEmpty()) {
-                try {
-                    UUID orderId = issue.getOrderDetails().get(0).getOrderEntity().getId();
-                    orderDetailStatusService.triggerOrderStatusUpdate(orderId);
-                } catch (Exception e) {
-                    log.error("❌ [PaymentTimeoutProcessor] Failed to update Order status: {}", e.getMessage(), e);
-                }
+            // Use unified cancellation for atomic transaction
+            try {
+                OrderService orderService = orderServiceProvider.getObject();
+                orderService.cancelOrderUnified(orderId, context);
+                log.info("✅ Used unified cancellation to cancel order {} due to payment timeout", orderId);
+            } catch (Exception e) {
+                log.error("❌ Failed to use unified cancellation for order {}: {}", orderId, e.getMessage(), e);
+                // Fallback to manual cancellation if unified method fails
+                fallbackManualCancellation(issue.getOrderDetails(), orderId);
             }
         }
         
@@ -269,6 +260,55 @@ public class PaymentTimeoutProcessor {
             
         } catch (Exception e) {
             log.error("❌ Failed to send timeout notification to customer: {}", e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Set cancellation reason for an order
+     * Only sets reason if order is in CANCELLED status
+     */
+    private void setOrderCancellationReason(UUID orderId, String reason) {
+        try {
+            OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+            
+            // Only set cancellation reason if order is cancelled
+            if (OrderStatusEnum.CANCELLED.name().equals(order.getStatus())) {
+                order.setCancellationReason(reason);
+                orderEntityService.save(order);
+                log.info("✅ Set cancellation reason for order {}: {}", orderId, reason);
+            } else {
+                log.warn("⚠️ Order {} is not in CANCELLED status (current: {}), cannot set cancellation reason", 
+                    orderId, order.getStatus());
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to set cancellation reason for order {}: {}", orderId, e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Fallback manual cancellation if unified method fails
+     * This preserves the original logic as backup
+     */
+    private void fallbackManualCancellation(List<OrderDetailEntity> orderDetails, UUID orderId) {
+        log.warn("⚠️ Using fallback manual cancellation for order {}", orderId);
+        
+        orderDetails.forEach(orderDetail -> {
+            orderDetail.setStatus(OrderDetailStatusEnum.CANCELLED.name());
+            orderDetailEntityService.save(orderDetail);
+        });
+        
+        // Set cancellation reason
+        try {
+            OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+            
+            if (OrderStatusEnum.CANCELLED.name().equals(order.getStatus())) {
+                order.setCancellationReason("Quá hạn thanh toán cước trả hàng - không thanh toán trong thời gian quy định");
+                orderEntityService.save(order);
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to set cancellation reason in fallback: {}", e.getMessage());
         }
     }
 }

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -77,4 +78,22 @@ public interface UserRepository extends BaseRepository<UserEntity> {
      * @return list of matching users
      */
     List<UserEntity> findByUsernameStartingWith(String prefix);
+
+    /**
+     * Count users by role and created date range for admin dashboard
+     */
+    @Query("SELECT COUNT(u) FROM UserEntity u JOIN u.role r WHERE LOWER(r.roleName) = LOWER(:role) AND u.createdAt BETWEEN :startDate AND :endDate")
+    Long countByRoleAndCreatedAtBetween(@Param("role") String role, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+
+    /**
+     * Find users by role and created date range for time series
+     */
+    @Query("SELECT u FROM UserEntity u JOIN u.role r WHERE LOWER(r.roleName) = LOWER(:role) AND u.createdAt BETWEEN :startDate AND :endDate")
+    List<UserEntity> findByRoleAndCreatedAtBetween(@Param("role") String role, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+
+    /**
+     * Find users by role name
+     */
+    @Query("SELECT u FROM UserEntity u JOIN u.role r WHERE LOWER(r.roleName) = LOWER(:role)")
+    List<UserEntity> findByRole(@Param("role") String role);
 }

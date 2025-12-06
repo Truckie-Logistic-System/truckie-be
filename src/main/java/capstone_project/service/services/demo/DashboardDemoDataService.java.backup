@@ -1,0 +1,859 @@
+package capstone_project.service.services.demo;
+
+import capstone_project.common.enums.IssueCategoryEnum;
+import capstone_project.dtos.request.demo.GenerateDemoDataRequest;
+import capstone_project.dtos.response.demo.DemoDataSummary;
+import capstone_project.entity.auth.UserEntity;
+import capstone_project.entity.issue.IssueEntity;
+import capstone_project.entity.order.contract.ContractEntity;
+import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.entity.order.order.RefundEntity;
+import capstone_project.entity.order.transaction.TransactionEntity;
+import capstone_project.entity.user.customer.CustomerEntity;
+import capstone_project.entity.user.driver.DriverEntity;
+import capstone_project.entity.user.driver.PenaltyHistoryEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.entity.vehicle.VehicleEntity;
+import capstone_project.entity.order.order.VehicleFuelConsumptionEntity;
+import capstone_project.entity.vehicle.VehicleMaintenanceEntity;
+import capstone_project.entity.auth.RoleEntity;
+import capstone_project.repository.entityServices.issue.IssueEntityService;
+import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
+import capstone_project.repository.entityServices.order.contract.ContractEntityService;
+import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
+import capstone_project.repository.entityServices.order.order.OrderEntityService;
+import capstone_project.repository.entityServices.order.transaction.TransactionEntityService;
+import capstone_project.repository.entityServices.refund.RefundEntityService;
+import capstone_project.repository.entityServices.user.CustomerEntityService;
+import capstone_project.repository.entityServices.user.DriverEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleMaintenanceEntityService;
+import capstone_project.repository.repositories.auth.RoleRepository;
+import capstone_project.repository.repositories.auth.UserRepository;
+import capstone_project.repository.repositories.issue.IssueRepository;
+import capstone_project.repository.repositories.order.VehicleFuelConsumptionRepository;
+import capstone_project.repository.repositories.order.contract.ContractRepository;
+import capstone_project.repository.repositories.order.order.OrderDetailRepository;
+import capstone_project.repository.repositories.order.order.OrderRepository;
+import capstone_project.repository.repositories.refund.RefundRepository;
+import capstone_project.repository.repositories.order.transaction.TransactionRepository;
+import capstone_project.repository.repositories.user.CustomerRepository;
+import capstone_project.repository.repositories.user.DriverRepository;
+import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
+import capstone_project.repository.repositories.vehicle.VehicleAssignmentRepository;
+import capstone_project.repository.repositories.vehicle.VehicleMaintenanceRepository;
+import capstone_project.repository.repositories.vehicle.VehicleRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
+
+/**
+ * Service for generating demo/test data for dashboard visualization
+ * Implements high-season distribution pattern (Q3 peak)
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class DashboardDemoDataService {
+
+    // Entity Services (for save operations)
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final CustomerEntityService customerEntityService;
+    private final DriverEntityService driverEntityService;
+    private final OrderEntityService orderEntityService;
+    private final OrderDetailEntityService orderDetailEntityService;
+    private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
+    private final ContractEntityService contractEntityService;
+    private final TransactionEntityService transactionEntityService;
+    private final RefundEntityService refundEntityService;
+    private final IssueEntityService issueEntityService;
+    private final VehicleEntityService vehicleEntityService;
+    private final VehicleMaintenanceEntityService vehicleMaintenanceEntityService;
+    private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
+    
+    // Repositories (for delete operations)
+    private final VehicleFuelConsumptionRepository vehicleFuelConsumptionRepository;
+    private final PenaltyHistoryRepository penaltyHistoryRepository;
+    private final VehicleMaintenanceRepository vehicleMaintenanceRepository;
+    private final RefundRepository refundRepository;
+    private final TransactionRepository transactionRepository;
+    private final IssueRepository issueRepository;
+    private final ContractRepository contractRepository;
+    private final VehicleAssignmentRepository vehicleAssignmentRepository;
+    private final OrderDetailRepository orderDetailRepository;
+    private final OrderRepository orderRepository;
+    private final VehicleRepository vehicleRepository;
+    private final CustomerRepository customerRepository;
+    private final DriverRepository driverRepository;
+
+    // Seasonal multipliers for realistic distribution
+    private static final Map<Integer, Double> SEASONAL_MULTIPLIERS = Map.ofEntries(
+            Map.entry(1, 0.6),  // Jan - Low (post-holiday)
+            Map.entry(2, 0.7),  // Feb - Low
+            Map.entry(3, 1.0),  // Mar - Normal
+            Map.entry(4, 1.1),  // Apr - Rising
+            Map.entry(5, 1.2),  // May - Rising
+            Map.entry(6, 1.5),  // Jun - High season start
+            Map.entry(7, 1.8),  // Jul - Peak
+            Map.entry(8, 2.0),  // Aug - Peak (Q3 highest)
+            Map.entry(9, 1.7),  // Sep - High season end
+            Map.entry(10, 1.0), // Oct - Normal
+            Map.entry(11, 0.9), // Nov - Cooling
+            Map.entry(12, 1.3)  // Dec - Year-end mini peak
+    );
+
+    private static final String[] DEMO_CUSTOMER_NAMES = {
+            "Công ty TNHH Vận Tải Demo", "Công ty CP Logistics Test", "Doanh nghiệp Thương Mại Sample",
+            "Công ty TNHH XNK Mock", "Công ty CP Sản Xuất Demo", "Xí Nghiệp Vận Chuyển Test",
+            "Công ty TNHH Phân Phối Sample", "Doanh nghiệp Tư Nhân Demo", "Công ty CP Thực Phẩm Test",
+            "Công ty TNHH Điện Tử Mock"
+    };
+
+    private static final String[] DEMO_DRIVER_NAMES = {
+            "Nguyễn Văn An", "Trần Văn Bình", "Lê Văn Cường", "Phạm Văn Dũng", "Hoàng Văn Em",
+            "Đặng Văn Phúc", "Vũ Văn Giang", "Bùi Văn Hải", "Đỗ Văn Kiên", "Ngô Văn Long",
+            "Phan Văn Minh", "Lương Văn Nam", "Mai Văn Phong", "Trương Văn Quang", "Đinh Văn Sơn",
+            "Huỳnh Văn Tâm", "Võ Văn Tuấn", "Dương Văn Việt", "Lý Văn Xuân", "Hồ Văn Yên"
+    };
+
+    private static final String[] DEMO_STAFF_NAMES = {
+            "Nguyễn Thị Hoa", "Trần Thị Lan", "Lê Thị Mai", "Phạm Thị Nga", "Hoàng Thị Oanh"
+    };
+
+    private static final String[] RECEIVER_NAMES = {
+            "Nguyễn Văn A", "Trần Thị B", "Lê Văn C", "Phạm Thị D", "Hoàng Văn E",
+            "Đặng Thị F", "Vũ Văn G", "Bùi Thị H", "Đỗ Văn I", "Ngô Thị K"
+    };
+
+    private static final String[] CITIES = {
+            "Hà Nội", "Hồ Chí Minh", "Đà Nẵng", "Hải Phòng", "Cần Thơ",
+            "Biên Hòa", "Nha Trang", "Huế", "Vũng Tàu", "Quy Nhơn"
+    };
+
+    private static final String[] ORDER_DETAIL_STATUSES = {
+            "PENDING", "ON_PLANNING", "ASSIGNED_TO_DRIVER", "PICKING_UP",
+            "ON_DELIVERED", "ONGOING_DELIVERED", "DELIVERED", "SUCCESSFUL",
+            "IN_TROUBLES", "COMPENSATION", "RETURNING", "RETURNED", "CANCELLED"
+    };
+
+    private static final String[] VEHICLE_TYPES = {
+            "TRUCK_1_TON", "TRUCK_2_TON", "TRUCK_3_5_TON", "TRUCK_5_TON",
+            "TRUCK_8_TON", "TRUCK_10_TON", "TRUCK_15_TON", "TRUCK_20_TON"
+    };
+
+    /**
+     * Generate demo data for all dashboards
+     */
+    @Transactional
+    public DemoDataSummary generateDemoData(GenerateDemoDataRequest request) {
+        long startTime = System.currentTimeMillis();
+        log.info("🎯 Starting demo data generation for year {}", request.getYear());
+
+        DemoDataSummary summary = DemoDataSummary.builder()
+                .year(request.getYear())
+                .build();
+
+        try {
+            // Step 1: Create demo users (customers, staff, drivers)
+            Map<String, List<?>> demoUsers = createDemoUsers(request);
+            summary.setUsersCreated(((List<?>) demoUsers.get("users")).size());
+            summary.setCustomersCreated(((List<?>) demoUsers.get("customers")).size());
+            summary.setStaffCreated(((List<?>) demoUsers.get("staff")).size());
+            summary.setDriversCreated(((List<?>) demoUsers.get("drivers")).size());
+
+            // Step 2: Create demo vehicles
+            List<VehicleEntity> demoVehicles = createDemoVehicles();
+            summary.setVehiclesCreated(demoVehicles.size());
+
+            // Step 3: Generate orders, trips, issues month by month
+            Map<String, Integer> entityCounts = generateMonthlyData(
+                    request,
+                    (List<CustomerEntity>) demoUsers.get("customers"),
+                    (List<DriverEntity>) demoUsers.get("drivers"),
+                    demoVehicles
+            );
+
+            summary.setOrdersCreated(entityCounts.get("orders"));
+            summary.setOrderDetailsCreated(entityCounts.get("orderDetails"));
+            summary.setVehicleAssignmentsCreated(entityCounts.get("assignments"));
+            summary.setContractsCreated(entityCounts.get("contracts"));
+            summary.setTransactionsCreated(entityCounts.get("transactions"));
+            summary.setRefundsCreated(entityCounts.get("refunds"));
+            summary.setIssuesCreated(entityCounts.get("issues"));
+            summary.setMaintenancesCreated(entityCounts.get("maintenances"));
+            summary.setPenaltiesCreated(entityCounts.get("penalties"));
+            summary.setFuelConsumptionsCreated(entityCounts.get("fuelConsumptions"));
+
+            long duration = System.currentTimeMillis() - startTime;
+            summary.setExecutionTimeMs(duration);
+            summary.setMessage("Demo data generated successfully for year " + request.getYear());
+
+            log.info("✅ Demo data generation completed in {}ms", duration);
+            return summary;
+
+        } catch (Exception e) {
+            log.error("❌ Error generating demo data", e);
+            throw new RuntimeException("Failed to generate demo data: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Clear all demo data marked with isDemoData = true
+     */
+    @Transactional
+    public DemoDataSummary clearDemoData() {
+        long startTime = System.currentTimeMillis();
+        log.info("🧹 Starting demo data cleanup");
+
+        try {
+            int totalDeleted = 0;
+
+            // Delete in correct order (child → parent) to avoid FK violations
+            
+            // 1. Delete fuel consumptions
+            List<VehicleFuelConsumptionEntity> demoFuels = vehicleFuelConsumptionRepository.findAll()
+                    .stream().filter(f -> Boolean.TRUE.equals(f.getIsDemoData()))
+                    .collect(Collectors.toList());
+            vehicleFuelConsumptionRepository.deleteAll(demoFuels);
+            totalDeleted += demoFuels.size();
+            log.info("Deleted {} demo fuel consumptions", demoFuels.size());
+
+            // 2. Delete penalties
+            List<PenaltyHistoryEntity> demoPenalties = penaltyHistoryRepository.findAll()
+                    .stream().filter(p -> Boolean.TRUE.equals(p.getIsDemoData()))
+                    .collect(Collectors.toList());
+            penaltyHistoryRepository.deleteAll(demoPenalties);
+            totalDeleted += demoPenalties.size();
+            log.info("Deleted {} demo penalties", demoPenalties.size());
+
+            // 3. Delete maintenances
+            List<VehicleMaintenanceEntity> demoMaintenances = vehicleMaintenanceRepository.findAll()
+                    .stream().filter(m -> Boolean.TRUE.equals(m.getIsDemoData()))
+                    .collect(Collectors.toList());
+            vehicleMaintenanceRepository.deleteAll(demoMaintenances);
+            totalDeleted += demoMaintenances.size();
+            log.info("Deleted {} demo maintenances", demoMaintenances.size());
+
+            // 4. Delete refunds
+            List<RefundEntity> demoRefunds = refundRepository.findAll()
+                    .stream().filter(r -> Boolean.TRUE.equals(r.getIsDemoData()))
+                    .collect(Collectors.toList());
+            refundRepository.deleteAll(demoRefunds);
+            totalDeleted += demoRefunds.size();
+            log.info("Deleted {} demo refunds", demoRefunds.size());
+
+            // 5. Delete transactions
+            List<TransactionEntity> demoTransactions = transactionRepository.findAll()
+                    .stream().filter(t -> Boolean.TRUE.equals(t.getIsDemoData()))
+                    .collect(Collectors.toList());
+            transactionRepository.deleteAll(demoTransactions);
+            totalDeleted += demoTransactions.size();
+            log.info("Deleted {} demo transactions", demoTransactions.size());
+
+            // 6. Delete issues
+            List<IssueEntity> demoIssues = issueRepository.findAll()
+                    .stream().filter(i -> Boolean.TRUE.equals(i.getIsDemoData()))
+                    .collect(Collectors.toList());
+            issueRepository.deleteAll(demoIssues);
+            totalDeleted += demoIssues.size();
+            log.info("Deleted {} demo issues", demoIssues.size());
+
+            // 7. Delete contracts
+            List<ContractEntity> demoContracts = contractRepository.findAll()
+                    .stream().filter(c -> Boolean.TRUE.equals(c.getIsDemoData()))
+                    .collect(Collectors.toList());
+            contractRepository.deleteAll(demoContracts);
+            totalDeleted += demoContracts.size();
+            log.info("Deleted {} demo contracts", demoContracts.size());
+
+            // 8. Delete vehicle assignments
+            List<VehicleAssignmentEntity> demoAssignments = vehicleAssignmentRepository.findAll()
+                    .stream().filter(a -> Boolean.TRUE.equals(a.getIsDemoData()))
+                    .collect(Collectors.toList());
+            vehicleAssignmentRepository.deleteAll(demoAssignments);
+            totalDeleted += demoAssignments.size();
+            log.info("Deleted {} demo assignments", demoAssignments.size());
+
+            // 9. Delete order details
+            List<OrderDetailEntity> demoOrderDetails = orderDetailRepository.findAll()
+                    .stream().filter(od -> Boolean.TRUE.equals(od.getIsDemoData()))
+                    .collect(Collectors.toList());
+            orderDetailRepository.deleteAll(demoOrderDetails);
+            totalDeleted += demoOrderDetails.size();
+            log.info("Deleted {} demo order details", demoOrderDetails.size());
+
+            // 10. Delete orders
+            List<OrderEntity> demoOrders = orderRepository.findAll()
+                    .stream().filter(o -> Boolean.TRUE.equals(o.getIsDemoData()))
+                    .collect(Collectors.toList());
+            orderRepository.deleteAll(demoOrders);
+            totalDeleted += demoOrders.size();
+            log.info("Deleted {} demo orders", demoOrders.size());
+
+            // 11. Delete vehicles
+            List<VehicleEntity> demoVehicles = vehicleRepository.findAll()
+                    .stream().filter(v -> Boolean.TRUE.equals(v.getIsDemoData()))
+                    .collect(Collectors.toList());
+            vehicleRepository.deleteAll(demoVehicles);
+            totalDeleted += demoVehicles.size();
+            log.info("Deleted {} demo vehicles", demoVehicles.size());
+
+            // 12. Delete customer/driver entities (staff are just users, no separate entity)
+            List<CustomerEntity> demoCustomers = customerRepository.findAll()
+                    .stream().filter(c -> Boolean.TRUE.equals(c.getIsDemoData()))
+                    .collect(Collectors.toList());
+            customerRepository.deleteAll(demoCustomers);
+            totalDeleted += demoCustomers.size();
+            log.info("Deleted {} demo customers", demoCustomers.size());
+
+            List<DriverEntity> demoDrivers = driverRepository.findAll()
+                    .stream().filter(d -> Boolean.TRUE.equals(d.getIsDemoData()))
+                    .collect(Collectors.toList());
+            driverRepository.deleteAll(demoDrivers);
+            totalDeleted += demoDrivers.size();
+            log.info("Deleted {} demo drivers", demoDrivers.size());
+
+            // 13. Delete users last
+            List<UserEntity> demoUsers = userRepository.findAll()
+                    .stream().filter(u -> Boolean.TRUE.equals(u.getIsDemoData()))
+                    .collect(Collectors.toList());
+            userRepository.deleteAll(demoUsers);
+            totalDeleted += demoUsers.size();
+            log.info("Deleted {} demo users", demoUsers.size());
+
+            long duration = System.currentTimeMillis() - startTime;
+            
+            return DemoDataSummary.builder()
+                    .totalRecordsDeleted(totalDeleted)
+                    .executionTimeMs(duration)
+                    .message("Successfully cleared " + totalDeleted + " demo records")
+                    .build();
+
+        } catch (Exception e) {
+            log.error("❌ Error clearing demo data", e);
+            throw new RuntimeException("Failed to clear demo data: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Create demo users (customers, staff, drivers) distributed across the year
+     */
+    private Map<String, List<?>> createDemoUsers(GenerateDemoDataRequest request) {
+        List<UserEntity> allUsers = new ArrayList<>();
+        List<CustomerEntity> customers = new ArrayList<>();
+        List<UserEntity> staff = new ArrayList<>(); // Staff are just users without separate entity
+        List<DriverEntity> drivers = new ArrayList<>();
+
+        int year = request.getYear();
+
+        // Create customers
+        if (request.getInclude().getCustomer()) {
+            for (int i = 0; i < DEMO_CUSTOMER_NAMES.length; i++) {
+                int month = (i % 12) + 1;
+                LocalDateTime createdAt = randomDateTimeInMonth(year, month);
+
+                UserEntity user = createDemoUser("customer" + i + "@demo.com", createdAt, "CUSTOMER");
+                allUsers.add(user);
+
+                CustomerEntity customer = CustomerEntity.builder()
+                        .user(user)
+                        .companyName(DEMO_CUSTOMER_NAMES[i])
+                        .businessAddress(randomAddress())
+                        .representativeName("Rep " + DEMO_CUSTOMER_NAMES[i])
+                        .representativePhone("09" + String.format("%08d", 10000000 + i))
+                        .status("ACTIVE")
+                        .isDemoData(true)
+                        .build();
+                customer.setCreatedAt(createdAt);
+                customer.setIsDemoData(true);
+                customers.add(customerEntityService.save(customer));
+            }
+        }
+
+        // Create staff (just users with STAFF role, no separate entity)
+        if (request.getInclude().getStaff()) {
+            for (int i = 0; i < DEMO_STAFF_NAMES.length; i++) {
+                int month = (i % 12) + 1;
+                LocalDateTime createdAt = randomDateTimeInMonth(year, month);
+
+                UserEntity user = createDemoUser("staff" + i + "@demo.com", createdAt, "STAFF");
+                allUsers.add(user);
+                staff.add(user);
+            }
+        }
+
+        // Create drivers
+        if (request.getInclude().getDriver()) {
+            for (int i = 0; i < DEMO_DRIVER_NAMES.length; i++) {
+                int month = (i % 12) + 1;
+                LocalDateTime createdAt = randomDateTimeInMonth(year, month);
+
+                UserEntity user = createDemoUser("driver" + i + "@demo.com", createdAt, "DRIVER");
+                allUsers.add(user);
+
+                DriverEntity driver = DriverEntity.builder()
+                        .user(user)
+                        .driverLicenseNumber("LICENSE-DEMO-" + String.format("%03d", i))
+                        .identityNumber("IDENTITY-" + String.format("%09d", 300000000 + i))
+                        .status("ACTIVE")
+                        .isDemoData(true)
+                        .build();
+                driver.setCreatedAt(createdAt);
+                driver.setIsDemoData(true);
+                drivers.add(driverEntityService.save(driver));
+            }
+        }
+
+        log.info("Created {} demo users: {} customers, {} staff, {} drivers",
+                allUsers.size(), customers.size(), staff.size(), drivers.size());
+
+        Map<String, List<?>> result = new HashMap<>();
+        result.put("users", allUsers);
+        result.put("customers", customers);
+        result.put("staff", staff);
+        result.put("drivers", drivers);
+        return result;
+    }
+
+    private UserEntity createDemoUser(String email, LocalDateTime createdAt, String roleName) {
+        // Fetch role entity by name
+        RoleEntity role = roleRepository.findAll().stream()
+                .filter(r -> roleName.equals(r.getRoleName()))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
+        
+        UserEntity user = UserEntity.builder()
+                .email(email)
+                .username(email)
+                .fullName("Demo " + roleName + " User")
+                .phoneNumber("0900000000")
+                .password("$2a$10$demo.hashed.password") // Pre-hashed demo password
+                .role(role)
+                .status("ACTIVE")
+                .isDemoData(true)
+                .build();
+        user.setCreatedAt(createdAt);
+        user.setIsDemoData(true);
+        return userRepository.save(user);
+    }
+
+    /**
+     * Create demo vehicles
+     */
+    private List<VehicleEntity> createDemoVehicles() {
+        List<VehicleEntity> vehicles = new ArrayList<>();
+
+        for (int i = 0; i < 30; i++) {
+            String vehicleType = VEHICLE_TYPES[i % VEHICLE_TYPES.length];
+            VehicleEntity vehicle = VehicleEntity.builder()
+                    .licensePlateNumber("DEMO-" + String.format("%02d", i) + randomChar() + "-" + String.format("%04d", 1000 + i))
+                    .model("Demo Model " + (i % 5))
+                    .manufacturer("Demo Manufacturer")
+                    .capacity(getCapacityForType(vehicleType))
+                    .status("AVAILABLE")
+                    .isDemoData(true)
+                    .build();
+            vehicle.setIsDemoData(true);
+            vehicles.add(vehicleEntityService.save(vehicle));
+        }
+
+        log.info("Created {} demo vehicles", vehicles.size());
+        return vehicles;
+    }
+
+    /**
+     * Generate monthly data with seasonal distribution
+     */
+    private Map<String, Integer> generateMonthlyData(
+            GenerateDemoDataRequest request,
+            List<CustomerEntity> customers,
+            List<DriverEntity> drivers,
+            List<VehicleEntity> vehicles) {
+
+        Map<String, Integer> counts = new HashMap<>();
+        counts.put("orders", 0);
+        counts.put("orderDetails", 0);
+        counts.put("assignments", 0);
+        counts.put("contracts", 0);
+        counts.put("transactions", 0);
+        counts.put("refunds", 0);
+        counts.put("issues", 0);
+        counts.put("maintenances", 0);
+        counts.put("penalties", 0);
+        counts.put("fuelConsumptions", 0);
+
+        int year = request.getYear();
+
+        for (int month = 1; month <= 12; month++) {
+            double seasonalMultiplier = SEASONAL_MULTIPLIERS.get(month);
+            int baseCount = randomInt(request.getMinPerMonth(), request.getMaxPerMonth());
+            int adjustedCount = (int) Math.ceil(baseCount * seasonalMultiplier);
+
+            log.info("📅 Generating data for month {}/{} - Count: {} (base: {}, multiplier: {})",
+                    month, year, adjustedCount, baseCount, seasonalMultiplier);
+
+            Map<String, Integer> monthCounts = generateDataForMonth(
+                    year, month, adjustedCount, customers, drivers, vehicles);
+
+            monthCounts.forEach((key, value) -> counts.merge(key, value, Integer::sum));
+        }
+
+        return counts;
+    }
+
+    private Map<String, Integer> generateDataForMonth(
+            int year, int month, int count,
+            List<CustomerEntity> customers,
+            List<DriverEntity> drivers,
+            List<VehicleEntity> vehicles) {
+
+        Map<String, Integer> counts = new HashMap<>();
+        int ordersCreated = 0, orderDetailsCreated = 0, assignmentsCreated = 0;
+        int contractsCreated = 0, transactionsCreated = 0, refundsCreated = 0;
+        int issuesCreated = 0, maintenancesCreated = 0, penaltiesCreated = 0, fuelConsumptionsCreated = 0;
+
+        // Track which issue categories we've created this month
+        Set<IssueCategoryEnum> createdIssueCategories = new HashSet<>();
+
+        for (int i = 0; i < count; i++) {
+            try {
+                // Create Order
+                CustomerEntity customer = randomElement(customers);
+                LocalDateTime orderDate = randomDateTimeInMonth(year, month);
+
+                OrderEntity order = createDemoOrder(customer, orderDate);
+                ordersCreated++;
+
+                // Create 1-5 OrderDetails per order
+                int detailCount = randomInt(1, 5);
+                List<OrderDetailEntity> orderDetails = new ArrayList<>();
+
+                for (int j = 0; j < detailCount; j++) {
+                    OrderDetailEntity detail = createDemoOrderDetail(order, j);
+                    orderDetails.add(detail);
+                    orderDetailsCreated++;
+
+                    // Create VehicleAssignment
+                    DriverEntity driver = randomElement(drivers);
+                    VehicleEntity vehicle = randomElement(vehicles);
+                    VehicleAssignmentEntity assignment = createDemoAssignment(detail, driver, vehicle, orderDate);
+                    assignmentsCreated++;
+
+                    // 30% chance of fuel consumption record
+                    if (randomPercent(30)) {
+                        createDemoFuelConsumption(assignment);
+                        fuelConsumptionsCreated++;
+                    }
+
+                    // 15% chance of issue (ensure we create all categories across the month)
+                    if (randomPercent(15) || createdIssueCategories.size() < IssueCategoryEnum.values().length) {
+                        IssueCategoryEnum category = selectIssueCategory(createdIssueCategories);
+                        createDemoIssue(assignment, detail, orderDate, category);
+                        createdIssueCategories.add(category);
+                        issuesCreated++;
+                    }
+
+                    // 10% chance of penalty for driver
+                    if (randomPercent(10)) {
+                        createDemoPenalty(driver, assignment, orderDate);
+                        penaltiesCreated++;
+                    }
+                }
+
+                // Create Contract for order
+                ContractEntity contract = createDemoContract(order, orderDate);
+                contractsCreated++;
+
+                // Create 1-3 Transactions
+                int transCount = randomInt(1, 3);
+                for (int k = 0; k < transCount; k++) {
+                    createDemoTransaction(contract, orderDate.plusDays(k + 1));
+                    transactionsCreated++;
+                }
+
+                // 10% chance of refund
+                if (randomPercent(10)) {
+                    createDemoRefund(contract, orderDate.plusDays(7));
+                    refundsCreated++;
+                }
+
+            } catch (Exception e) {
+                log.error("Error creating demo data bundle: {}", e.getMessage());
+            }
+        }
+
+        // Create some maintenances for vehicles in this month
+        int maintenanceCount = Math.max(1, count / 10);
+        for (int i = 0; i < maintenanceCount; i++) {
+            try {
+                VehicleEntity vehicle = randomElement(vehicles);
+                LocalDateTime maintenanceDate = randomDateTimeInMonth(year, month);
+                createDemoMaintenance(vehicle, maintenanceDate);
+                maintenancesCreated++;
+            } catch (Exception e) {
+                log.error("Error creating maintenance: {}", e.getMessage());
+            }
+        }
+
+        counts.put("orders", ordersCreated);
+        counts.put("orderDetails", orderDetailsCreated);
+        counts.put("assignments", assignmentsCreated);
+        counts.put("contracts", contractsCreated);
+        counts.put("transactions", transactionsCreated);
+        counts.put("refunds", refundsCreated);
+        counts.put("issues", issuesCreated);
+        counts.put("maintenances", maintenancesCreated);
+        counts.put("penalties", penaltiesCreated);
+        counts.put("fuelConsumptions", fuelConsumptionsCreated);
+
+        return counts;
+    }
+
+    // ===== Entity Creation Methods =====
+
+    private OrderEntity createDemoOrder(CustomerEntity customer, LocalDateTime createdAt) {
+        OrderEntity order = OrderEntity.builder()
+                .sender(customer)
+                .orderCode("DEMO-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .receiverName(randomElement(RECEIVER_NAMES))
+                .receiverPhone("09" + String.format("%08d", randomInt(40000000, 49999999)))
+                .packageDescription("Demo package description")
+                .status("PENDING")
+                .isDemoData(true)
+                .build();
+        order.setCreatedAt(createdAt);
+        order.setIsDemoData(true);
+        return orderEntityService.save(order);
+    }
+
+    private OrderDetailEntity createDemoOrderDetail(OrderEntity order, int index) {
+        String[] possibleStatuses = {"DELIVERED", "SUCCESSFUL", "PENDING", "ON_DELIVERED", "CANCELLED", "IN_TROUBLES"};
+        OrderDetailEntity detail = OrderDetailEntity.builder()
+                .orderEntity(order)
+                .trackingCode("TRK-DEMO-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .status(randomElement(possibleStatuses))
+                .weightTons(BigDecimal.valueOf(randomInt(1, 10) / 10.0)) // 0.1 to 1.0 tons
+                .description("Demo package " + (index + 1))
+                .isDemoData(true)
+                .build();
+        detail.setCreatedAt(order.getCreatedAt());
+        detail.setIsDemoData(true);
+        return orderDetailEntityService.save(detail);
+    }
+
+    private VehicleAssignmentEntity createDemoAssignment(
+            OrderDetailEntity detail, DriverEntity driver, VehicleEntity vehicle, LocalDateTime baseDate) {
+        VehicleAssignmentEntity assignment = VehicleAssignmentEntity.builder()
+                .driver1(driver)
+                .vehicleEntity(vehicle)
+                .trackingCode("ASG-DEMO-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .status(randomElement(new String[]{"COMPLETED", "IN_PROGRESS", "PENDING"}))
+                .description("Demo assignment")
+                .isDemoData(true)
+                .build();
+        assignment.setCreatedAt(baseDate);
+        assignment.setIsDemoData(true);
+        VehicleAssignmentEntity saved = vehicleAssignmentEntityService.save(assignment);
+
+        // Link to order detail
+        detail.setVehicleAssignmentEntity(saved);
+        orderDetailEntityService.save(detail);
+
+        return saved;
+    }
+
+    private ContractEntity createDemoContract(OrderEntity order, LocalDateTime createdAt) {
+        BigDecimal totalValue = BigDecimal.valueOf(randomInt(5000000, 50000000));
+        ContractEntity contract = ContractEntity.builder()
+                .orderEntity(order)
+                .contractName("Demo Contract " + order.getOrderCode())
+                .totalValue(totalValue)
+                .adjustedValue(totalValue)
+                .effectiveDate(createdAt)
+                .expirationDate(createdAt.plusMonths(6))
+                .status("SIGNED")
+                .isDemoData(true)
+                .build();
+        contract.setCreatedAt(createdAt);
+        contract.setIsDemoData(true);
+        return contractEntityService.save(contract);
+    }
+
+    private TransactionEntity createDemoTransaction(ContractEntity contract, LocalDateTime paymentDate) {
+        TransactionEntity transaction = TransactionEntity.builder()
+                .contractEntity(contract)
+                .gatewayOrderCode("TXN-DEMO-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .amount(BigDecimal.valueOf(randomInt(1000000, 10000000)))
+                .paymentDate(paymentDate)
+                .paymentProvider(randomElement(new String[]{"VNPAY", "MOMO", "ZALOPAY"}))
+                .transactionType(randomElement(new String[]{"DEPOSIT", "FULL_PAYMENT"}))
+                .currencyCode("VND")
+                .status("PAID")
+                .isDemoData(true)
+                .build();
+        transaction.setCreatedAt(paymentDate);
+        transaction.setIsDemoData(true);
+        return transactionEntityService.save(transaction);
+    }
+
+    private RefundEntity createDemoRefund(ContractEntity contract, LocalDateTime refundDate) {
+        RefundEntity refund = RefundEntity.builder()
+                .transactionCode("RFD-DEMO-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .refundAmount(BigDecimal.valueOf(randomInt(500000, 5000000)))
+                .refundDate(refundDate)
+                .notes("Demo refund reason")
+                .bankName("Demo Bank")
+                .accountNumber("1234567890")
+                .accountHolderName("Demo Account Holder")
+                .isDemoData(true)
+                .build();
+        refund.setCreatedAt(refundDate);
+        refund.setIsDemoData(true);
+        return refundEntityService.save(refund);
+    }
+
+    private IssueEntity createDemoIssue(
+            VehicleAssignmentEntity assignment, OrderDetailEntity detail, 
+            LocalDateTime reportedAt, IssueCategoryEnum category) {
+        // Create basic issue without issueTypeEntity for simplicity
+        // In production, would need to create/fetch IssueTypeEntity for each category
+        IssueEntity issue = IssueEntity.builder()
+                .vehicleAssignmentEntity(assignment)
+                .description("Demo " + category.name().toLowerCase().replace("_", " ") + " issue - " + category.name())
+                .reportedAt(reportedAt.plusHours(randomInt(1, 48)))
+                .status(randomElement(new String[]{"OPEN", "IN_PROGRESS", "RESOLVED"}))
+                .isDemoData(true)
+                .build();
+        issue.setCreatedAt(reportedAt);
+        issue.setIsDemoData(true);
+        IssueEntity saved = issueEntityService.save(issue);
+
+        // Link to order detail if applicable (not for PENALTY and OFF_ROUTE_RUNAWAY)
+        if (category != IssueCategoryEnum.PENALTY && category != IssueCategoryEnum.OFF_ROUTE_RUNAWAY) {
+            detail.setIssueEntity(saved);
+            orderDetailEntityService.save(detail);
+        }
+
+        return saved;
+    }
+
+    private VehicleMaintenanceEntity createDemoMaintenance(VehicleEntity vehicle, LocalDateTime maintenanceDate) {
+        VehicleMaintenanceEntity maintenance = VehicleMaintenanceEntity.builder()
+                .vehicleEntity(vehicle)
+                .description("Demo maintenance - " + randomElement(new String[]{"Oil change", "Tire replacement", "Brake check"}))
+                .maintenanceDate(maintenanceDate)
+                .Status("COMPLETED")
+                .completedAt(maintenanceDate.plusHours(randomInt(2, 8)))
+                .isDemoData(true)
+                .build();
+        maintenance.setCreatedAt(maintenanceDate);
+        maintenance.setIsDemoData(true);
+        return vehicleMaintenanceEntityService.save(maintenance);
+    }
+
+    private void createDemoPenalty(DriverEntity driver, VehicleAssignmentEntity assignment, LocalDateTime penaltyDate) {
+        PenaltyHistoryEntity penalty = PenaltyHistoryEntity.builder()
+                .issueBy(driver)
+                .vehicleAssignmentEntity(assignment)
+                .violationType(randomElement(new String[]{"SPEEDING", "WRONG_PARKING", "OVERLOAD"}))
+                .penaltyDate(penaltyDate.toLocalDate())
+                .isDemoData(true)
+                .build();
+        penalty.setCreatedAt(penaltyDate);
+        penalty.setIsDemoData(true);
+        penaltyHistoryRepository.save(penalty);
+    }
+
+    private void createDemoFuelConsumption(VehicleAssignmentEntity assignment) {
+        VehicleFuelConsumptionEntity fuel = VehicleFuelConsumptionEntity.builder()
+                .vehicleAssignmentEntity(assignment)
+                .fuelVolume(BigDecimal.valueOf(randomInt(50, 300)))
+                .odometerReadingAtStart(BigDecimal.valueOf(randomInt(10000, 50000)))
+                .odometerReadingAtEnd(BigDecimal.valueOf(randomInt(50001, 100000)))
+                .distanceTraveled(BigDecimal.valueOf(randomInt(100, 500)))
+                .dateRecorded(assignment.getCreatedAt())
+                .notes("Demo fuel consumption record")
+                .isDemoData(true)
+                .build();
+        fuel.setCreatedAt(assignment.getCreatedAt());
+        fuel.setIsDemoData(true);
+        vehicleFuelConsumptionEntityService.save(fuel);
+    }
+
+    // ===== Helper Methods =====
+
+    private IssueCategoryEnum selectIssueCategory(Set<IssueCategoryEnum> created) {
+        // First, try to create categories we haven't created yet
+        List<IssueCategoryEnum> remaining = Arrays.stream(IssueCategoryEnum.values())
+                .filter(cat -> !created.contains(cat))
+                .collect(Collectors.toList());
+
+        if (!remaining.isEmpty()) {
+            return randomElement(remaining);
+        }
+
+        // If all created, pick random
+        return randomElement(Arrays.asList(IssueCategoryEnum.values()));
+    }
+
+    private LocalDateTime randomDateTimeInMonth(int year, int month) {
+        LocalDate firstDay = LocalDate.of(year, month, 1);
+        LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
+        int randomDay = randomInt(1, lastDay.getDayOfMonth());
+        int randomHour = randomInt(0, 23);
+        int randomMinute = randomInt(0, 59);
+        return LocalDateTime.of(year, month, randomDay, randomHour, randomMinute);
+    }
+
+    private String randomAddress() {
+        String city = randomElement(CITIES);
+        int streetNum = randomInt(1, 999);
+        return streetNum + " Đường Demo, " + city;
+    }
+
+    private int randomInt(int min, int max) {
+        return ThreadLocalRandom.current().nextInt(min, max + 1);
+    }
+
+    private boolean randomPercent(int percent) {
+        return randomInt(1, 100) <= percent;
+    }
+
+    private <T> T randomElement(T[] array) {
+        return array[randomInt(0, array.length - 1)];
+    }
+
+    private <T> T randomElement(List<T> list) {
+        return list.get(randomInt(0, list.size() - 1));
+    }
+
+    private char randomChar() {
+        return (char) ('A' + randomInt(0, 25));
+    }
+
+    private BigDecimal getCapacityForType(String vehicleType) {
+        return switch (vehicleType) {
+            case "TRUCK_1_TON" -> BigDecimal.valueOf(1000);
+            case "TRUCK_2_TON" -> BigDecimal.valueOf(2000);
+            case "TRUCK_3_5_TON" -> BigDecimal.valueOf(3500);
+            case "TRUCK_5_TON" -> BigDecimal.valueOf(5000);
+            case "TRUCK_8_TON" -> BigDecimal.valueOf(8000);
+            case "TRUCK_10_TON" -> BigDecimal.valueOf(10000);
+            case "TRUCK_15_TON" -> BigDecimal.valueOf(15000);
+            case "TRUCK_20_TON" -> BigDecimal.valueOf(20000);
+            default -> BigDecimal.valueOf(5000);
+        };
+    }
+}

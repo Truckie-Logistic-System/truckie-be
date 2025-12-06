@@ -209,4 +209,31 @@ public interface IssueService {
      */
     capstone_project.dtos.response.vietmap.VietmapRouteV3Response getSuggestedRoutesForReroute(UUID issueId);
 
+    // ===== OFF_ROUTE_RUNAWAY flow methods =====
+    
+    /**
+     * Get OFF_ROUTE_RUNAWAY issue detail including all packages in the trip
+     * @param issueId Issue ID
+     * @return Off-route runaway detail with packages
+     */
+    capstone_project.dtos.response.issue.OffRouteRunawayDetailResponse getOffRouteRunawayDetail(UUID issueId);
+
+    // ===== DAMAGE compensation flow methods =====
+    
+    /**
+     * Update DAMAGE issue compensation information (Staff)
+     * Calculates compensation based on insurance policy and saves assessment data.
+     * 
+     * @param request Update damage compensation request with assessment data
+     * @return Updated issue with compensation details
+     */
+    GetBasicIssueResponse updateDamageCompensation(capstone_project.dtos.request.issue.UpdateDamageCompensationRequest request);
+    
+    /**
+     * Get DAMAGE issue compensation details including policy information
+     * @param issueId Issue ID
+     * @return Damage compensation details
+     */
+    capstone_project.dtos.response.issue.DamageCompensationResponse getDamageCompensationDetail(UUID issueId);
+
 }

@@ -5,7 +5,9 @@ import java.math.BigDecimal;
 public record UpdateContractSettingRequest(
 
         BigDecimal depositPercent,
-        Integer expiredDepositDate,
+        Integer depositDeadlineHours,
+        Integer signingDeadlineHours,
+        Integer fullPaymentDaysBeforePickup,
         BigDecimal insuranceRateNormal,
         BigDecimal insuranceRateFragile,
         BigDecimal vatRate

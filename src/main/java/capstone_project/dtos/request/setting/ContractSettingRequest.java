@@ -11,9 +11,17 @@ public record ContractSettingRequest(
         @Min(value = 0L, message = "Deposit percent must be positive")
         BigDecimal depositPercent,
 
-        @NotNull(message = "Expired deposit date must not be null")
-        @Min(value = 0L, message = "Expired deposit date must be positive")
-        Integer expiredDepositDate,
+        @NotNull(message = "Deposit deadline hours must not be null")
+        @Min(value = 1L, message = "Deposit deadline hours must be at least 1")
+        Integer depositDeadlineHours,
+
+        @NotNull(message = "Signing deadline hours must not be null")
+        @Min(value = 1L, message = "Signing deadline hours must be at least 1")
+        Integer signingDeadlineHours,
+
+        @NotNull(message = "Full payment days before pickup must not be null")
+        @Min(value = 0L, message = "Full payment days before pickup must be non-negative")
+        Integer fullPaymentDaysBeforePickup,
 
         @NotNull(message = "Insurance rate for normal goods must not be null")
         @Min(value = 0L, message = "Insurance rate must be positive")

@@ -10,9 +10,12 @@ import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.repository.repositories.vehicle.VehicleAssignmentRepository;
 import capstone_project.repository.repositories.order.order.OrderDetailRepository;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
+import capstone_project.service.services.offroute.OffRouteDetectionService;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +36,11 @@ public class VehicleLocationService {
     private final VehicleAssignmentRepository vehicleAssignmentRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final OrderEntityService orderEntityService;
+    
+    // Lazy injection to avoid circular dependency
+    @Autowired
+    @Lazy
+    private OffRouteDetectionService offRouteDetectionService;
 
     private static final String TOPIC_ALL_VEHICLES = "/topic/vehicles/locations";
     private static final String TOPIC_VEHICLE_PREFIX = "/topic/vehicles/";
@@ -79,6 +87,9 @@ public class VehicleLocationService {
      * Uses actual speed and bearing from mobile if available, otherwise calculates defaults
      */
     private void enhanceMessageWithVelocity(VehicleLocationMessage message) {
+        // Calculate off-route distance for real-time tracking
+        calculateDistanceFromRoute(message);
+        
         // Use speed from message if available, otherwise default
         double speedKmh = message.getSpeed() != null ? 
             message.getSpeed().doubleValue() : 45.0;
@@ -106,6 +117,42 @@ public class VehicleLocationService {
         
         message.setVelocityLat(BigDecimal.valueOf(velocityLat));
         message.setVelocityLng(BigDecimal.valueOf(velocityLng));
+    }
+
+    /**
+     * Calculate distance from route for real-time off-route tracking
+     */
+    private void calculateDistanceFromRoute(VehicleLocationMessage message) {
+        if (message == null || message.getVehicleAssignmentId() == null || 
+            message.getLatitude() == null || message.getLongitude() == null) {
+            return;
+        }
+
+        try {
+            // Calculate distance using OffRouteDetectionService and get real-time value
+            Double distance = offRouteDetectionService.processLocationUpdate(
+                message.getVehicleAssignmentId(),
+                message.getLatitude(),
+                message.getLongitude(),
+                message.getSpeed() != null ? message.getSpeed().doubleValue() : null,
+                message.getBearing() != null ? message.getBearing().doubleValue() : null
+            );
+            
+            // Set real-time distance in WebSocket message
+            if (distance != null) {
+                message.setDistanceFromRoute(BigDecimal.valueOf(distance));
+                log.debug("[VehicleLocation] Real-time distance from route for assignment {}: {} meters", 
+                    message.getVehicleAssignmentId(), distance);
+            } else {
+                message.setDistanceFromRoute(null);
+            }
+                
+        } catch (Exception e) {
+            log.warn("[VehicleLocation] Failed to calculate distance from route for assignment {}: {}", 
+                message.getVehicleAssignmentId(), e.getMessage());
+            // Set distance to null if calculation fails
+            message.setDistanceFromRoute(null);
+        }
     }
 
     /**
@@ -137,6 +184,22 @@ public class VehicleLocationService {
                                 List.of("PICKING_UP", "ON_DELIVERED", "ONGOING_DELIVERED", 
                                        "DELIVERED", "IN_TROUBLES", "RESOLVED", "COMPENSATION",
                                        "RETURNING", "RETURNED"));
+                
+                // ✅ OFF-ROUTE DETECTION: Check if driver is off-route for active trips
+                if (!activeOrderDetails.isEmpty() && offRouteDetectionService != null) {
+                    try {
+                        offRouteDetectionService.processLocationUpdate(
+                            assignment.getId(),
+                            message.getLatitude(),
+                            message.getLongitude(),
+                            message.getSpeed() != null ? message.getSpeed().doubleValue() : null,
+                            message.getBearing() != null ? message.getBearing().doubleValue() : null
+                        );
+                    } catch (Exception e) {
+                        log.debug("[OffRoute] Error processing off-route check for {}: {}", 
+                            assignment.getId(), e.getMessage());
+                    }
+                }
 
                 // Group order details by order ID to avoid duplicate broadcasts
                 for (OrderDetailEntity orderDetail : activeOrderDetails) {
@@ -264,7 +327,7 @@ public class VehicleLocationService {
 
         // Add vehicle type information if available
         if (vehicle.getVehicleTypeEntity() != null) {
-            builder.vehicleTypeName(vehicle.getVehicleTypeEntity().getVehicleTypeName());
+            builder.vehicleTypeName(vehicle.getVehicleTypeEntity().getDescription());
         }
 
         return builder.build();
@@ -296,7 +359,7 @@ public class VehicleLocationService {
             if (vehicle.getVehicleTypeEntity() != null) {
                 String vehicleTypeName = null;
                 try {
-                    vehicleTypeName = vehicle.getVehicleTypeEntity().getVehicleTypeName();
+                    vehicleTypeName = vehicle.getVehicleTypeEntity().getDescription();
                 } catch (Exception e) {
                     log.warn("Could not load vehicle type name for vehicle {}: {}",
                              vehicle.getId(), e.getMessage());
@@ -400,7 +463,7 @@ public class VehicleLocationService {
 
                         // Add vehicle type - now eagerly loaded
                         if (vehicle.getVehicleTypeEntity() != null) {
-                            builder.vehicleTypeName(vehicle.getVehicleTypeEntity().getVehicleTypeName());
+                            builder.vehicleTypeName(vehicle.getVehicleTypeEntity().getDescription());
                         }
 
                         // Add assignment info if available

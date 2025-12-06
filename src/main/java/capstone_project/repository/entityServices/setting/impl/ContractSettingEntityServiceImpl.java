@@ -24,7 +24,9 @@ public class ContractSettingEntityServiceImpl implements ContractSettingEntitySe
                 .map(existing -> {
                     // update
                     existing.setDepositPercent(newSetting.getDepositPercent());
-                    existing.setExpiredDepositDate(newSetting.getExpiredDepositDate());
+                    existing.setDepositDeadlineHours(newSetting.getDepositDeadlineHours());
+                    existing.setSigningDeadlineHours(newSetting.getSigningDeadlineHours());
+                    existing.setFullPaymentDaysBeforePickup(newSetting.getFullPaymentDaysBeforePickup());
                     existing.setInsuranceRateNormal(newSetting.getInsuranceRateNormal());
                     existing.setInsuranceRateFragile(newSetting.getInsuranceRateFragile());
                     existing.setVatRate(newSetting.getVatRate());

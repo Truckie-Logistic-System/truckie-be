@@ -526,11 +526,13 @@ public class ChatService {
      * Load chat history từ Redis với user ID để tránh trộn lẫn tài khoản
      */
     private List<ChatMessage> loadChatHistory(String sessionId, String userId) {
+        // For guest users, use sessionId as the key
+        String key;
         if (userId == null || userId.trim().isEmpty()) {
-            throw new IllegalArgumentException("User ID cannot be null or empty for chat history loading");
+            key = SESSION_KEY_PREFIX + "guest:" + sessionId;
+        } else {
+            key = SESSION_KEY_PREFIX + userId + ":" + sessionId;
         }
-        
-        String key = SESSION_KEY_PREFIX + userId + ":" + sessionId;
         String historyJson = redisService.getString(key);
 
         if (historyJson == null || historyJson.isEmpty()) {
@@ -561,11 +563,13 @@ public class ChatService {
      */
     private void saveChatHistory(String sessionId, String userId, List<ChatMessage> history,
                                   String userMessage, String assistantMessage) {
+        // For guest users, use sessionId as the key
+        String key;
         if (userId == null || userId.trim().isEmpty()) {
-            throw new IllegalArgumentException("User ID cannot be null or empty for chat history storage");
+            key = SESSION_KEY_PREFIX + "guest:" + sessionId;
+        } else {
+            key = SESSION_KEY_PREFIX + userId + ":" + sessionId;
         }
-        
-        String key = SESSION_KEY_PREFIX + userId + ":" + sessionId;
 
         // Add new messages (don't modify original history list)
         List<ChatMessage> updatedHistory = new ArrayList<>(history);

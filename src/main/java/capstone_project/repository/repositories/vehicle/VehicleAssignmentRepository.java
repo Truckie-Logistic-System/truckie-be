@@ -7,6 +7,7 @@ import capstone_project.repository.repositories.common.BaseRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -196,4 +197,58 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
     List<VehicleAssignmentEntity> findAssignmentsForDriverSince(
             @Param("driverId") UUID driverId,
             @Param("cutoffDate") LocalDateTime cutoffDate);
+
+    /**
+     * Find all vehicle assignments by driver (primary or secondary), ordered by creation date desc
+     */
+    @Query("SELECT va FROM VehicleAssignmentEntity va " +
+           "LEFT JOIN FETCH va.vehicleEntity v " +
+           "LEFT JOIN FETCH va.driver1 d1 " +
+           "LEFT JOIN FETCH d1.user u1 " +
+           "WHERE va.driver1.id = :driverId OR va.driver2.id = :driverId " +
+           "ORDER BY va.createdAt DESC NULLS LAST")
+    List<VehicleAssignmentEntity> findByPrimaryDriverIdOrSecondaryDriverIdOrderByCreatedAtDesc(
+            @Param("driverId") UUID primaryDriverId,
+            @Param("driverId") UUID secondaryDriverId);
+
+    /**
+     * Find active vehicle assignments for driver1, ordered by creation date desc
+     */
+    List<VehicleAssignmentEntity> findByDriver1IdAndStatusOrderByCreatedAtDesc(UUID driverId, String status);
+
+    /**
+     * Check if a driver has any vehicle assignment on a specific date (B3 - Hard constraint: 1 driver per trip per day)
+     * This checks if the driver (as driver1 or driver2) has any assignment where the trip date matches the given date.
+     * Trip date is determined from the first OrderDetail's estimatedStartTime in the assignment.
+     * 
+     * @param driverId ID của tài xế
+     * @param tripDate Ngày chuyến (LocalDate)
+     * @return true nếu tài xế đã có assignment trong ngày đó, false nếu không
+     */
+    @Query(value = """
+        SELECT CASE WHEN COUNT(va.id) > 0 THEN true ELSE false END
+        FROM vehicle_assignments va
+        JOIN order_details od ON od.vehicle_assignment_id = va.id
+        WHERE (va.driver_id_1 = :driverId OR va.driver_id_2 = :driverId)
+        AND CAST(od.estimated_start_time AS DATE) = :tripDate
+        GROUP BY va.id
+        LIMIT 1
+    """, nativeQuery = true)
+    boolean existsAssignmentForDriverOnDate(@Param("driverId") UUID driverId, @Param("tripDate") LocalDate tripDate);
+
+    /**
+     * Count completed trips by driver and date range for admin dashboard
+     */
+    @Query("SELECT COUNT(va) FROM VehicleAssignmentEntity va WHERE (va.driver1.id = :driverId OR va.driver2.id = :driverId) AND va.status = :status AND va.modifiedAt BETWEEN :startDate AND :endDate")
+    Long countByDriverIdAndStatusAndCreatedAtBetween(@Param("driverId") UUID driverId, @Param("status") String status, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+
+    /**
+     * Count total assignments for a vehicle (for load balancing)
+     */
+    long countByVehicleEntityId(UUID vehicleId);
+
+    /**
+     * Find all vehicle assignments created between start and end date
+     */
+    List<VehicleAssignmentEntity> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
 }

@@ -8,6 +8,7 @@ import capstone_project.repository.repositories.common.BaseRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -93,4 +94,23 @@ public interface IssueRepository extends BaseRepository<IssueEntity> {
             "LEFT JOIN FETCH rj.journeySegments " +
             "WHERE i.id = :id")
     Optional<IssueEntity> findByIdWithReroutedJourney(@Param("id") UUID id);
+    
+    @Query("SELECT COUNT(i) FROM IssueEntity i " +
+            "WHERE i.vehicleAssignmentEntity.driver1.id = :driverId " +
+            "OR i.vehicleAssignmentEntity.driver2.id = :driverId")
+    long countByDriverId(@Param("driverId") UUID driverId);
+
+    /**
+     * Count resolved issues by assigned staff and date range for admin dashboard
+     */
+    @Query("SELECT COUNT(i) FROM IssueEntity i WHERE i.staff.id = :staffId AND i.status = :status AND i.resolvedAt BETWEEN :startDate AND :endDate")
+    Long countByAssignedToIdAndStatusAndUpdatedAtBetween(@Param("staffId") UUID staffId, @Param("status") String status, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    
+    /**
+     * Count issues for driver within date range (optimized query)
+     */
+    @Query("SELECT COUNT(i) FROM IssueEntity i " +
+           "WHERE (i.vehicleAssignmentEntity.driver1.id = :driverId OR i.vehicleAssignmentEntity.driver2.id = :driverId) " +
+           "AND i.reportedAt BETWEEN :startDate AND :endDate")
+    Long countByDriverIdAndReportedAtBetween(@Param("driverId") UUID driverId, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 }

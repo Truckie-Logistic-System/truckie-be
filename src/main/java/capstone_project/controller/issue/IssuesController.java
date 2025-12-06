@@ -343,4 +343,40 @@ public class IssuesController {
         final var result = issueService.getSuggestedRoutesForReroute(issueId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    // ===== OFF_ROUTE_RUNAWAY endpoints =====
+    
+    // Get OFF_ROUTE_RUNAWAY issue detail with packages
+    @GetMapping("/off-route-runaway/{issueId}/detail")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.issue.OffRouteRunawayDetailResponse>> getOffRouteRunawayDetail(
+            @PathVariable("issueId") UUID issueId) {
+        final var result = issueService.getOffRouteRunawayDetail(issueId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+    
+    // ===== DAMAGE compensation endpoints =====
+    
+    /**
+     * Update DAMAGE issue compensation information (Staff)
+     * Calculates compensation based on insurance policy and saves assessment data.
+     */
+    @PutMapping("/damage/compensation")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<ApiResponse<GetBasicIssueResponse>> updateDamageCompensation(
+            @RequestBody @jakarta.validation.Valid capstone_project.dtos.request.issue.UpdateDamageCompensationRequest request) {
+        final var result = issueService.updateDamageCompensation(request);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Đã cập nhật thông tin bồi thường"));
+    }
+    
+    /**
+     * Get DAMAGE issue compensation details including policy information
+     */
+    @GetMapping("/damage/{issueId}/compensation")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.issue.DamageCompensationResponse>> getDamageCompensationDetail(
+            @PathVariable("issueId") UUID issueId) {
+        final var result = issueService.getDamageCompensationDetail(issueId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }

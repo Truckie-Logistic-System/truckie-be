@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -24,7 +25,7 @@ public class CarrierSettingEntityServiceImpl implements CarrierSettingEntityServ
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<CarrierSettingEntity> findById(Long id) {
+    public Optional<CarrierSettingEntity> findById(UUID id) {
         return repository.findById(id);
     }
 
@@ -36,13 +37,13 @@ public class CarrierSettingEntityServiceImpl implements CarrierSettingEntityServ
 
     @Override
     @Transactional
-    public void deleteById(Long id) {
+    public void deleteById(UUID id) {
         repository.deleteById(id);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public boolean existsById(Long id) {
+    public boolean existsById(UUID id) {
         return repository.existsById(id);
     }
 }

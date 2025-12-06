@@ -33,7 +33,7 @@ public abstract class BaseEntity implements Serializable {
     @Column(name = "id", updatable = false, nullable = false, columnDefinition = "uuid")
     private UUID id;
 
-    @CreatedDate
+    // @CreatedDate - DISABLED to prevent override for demo data
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -49,10 +49,23 @@ public abstract class BaseEntity implements Serializable {
     @Column(name = "modified_by")
     private String modifiedBy;
 
+    /**
+     * Flag to mark demo/seed data for testing dashboards
+     * Used to easily clear test data without affecting real production data
+     */
+    @lombok.Builder.Default
+    @Column(name = "is_demo_data")
+    private Boolean isDemoData = false;
+
     @PrePersist
     public void prePersist() {
-        if (createdAt == null) {
+        // Set createdAt to now for all non-demo data
+        // Demo data should have createdAt set manually in DashboardDemoDataService
+        if (createdAt == null || !Boolean.TRUE.equals(isDemoData)) {
             createdAt = LocalDateTime.now();
+        }
+        if (isDemoData == null) {
+            isDemoData = false;
         }
     }
 

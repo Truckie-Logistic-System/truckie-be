@@ -4,46 +4,50 @@ ________________
 
 
 PHẦN 1: CHÍNH SÁCH NGHIỆP VỤ, BẢO HIỂM VÀ GIẢI QUYẾT TRANH CHẤP
-(Dùng làm tài liệu hướng dẫn vận hành và giải thích cho Khách hàng)
+(Dùng làm tài liệu hướng dẫn vận hành nội bộ và giải thích chi tiết cho Khách hàng)
 1. Cơ sở Pháp lý
 Mọi quy định trong tài liệu này được xây dựng dựa trên các văn bản pháp luật hiện hành của Việt Nam:
-* Bộ luật Dân sự 2015: Quy định về hợp đồng, quyền cầm giữ và xử lý tài sản.
+* Bộ luật Dân sự 2015: Quy định về hợp đồng, quyền cầm giữ và xử lý tài sản, trách nhiệm bồi thường thiệt hại.
 * Luật Thương mại 2005: Quy định về dịch vụ logistics, quyền kiểm tra hàng hóa và giới hạn trách nhiệm bồi thường.
 * Luật Kinh doanh Bảo hiểm 2022: Quy định về nguyên tắc trung thực tuyệt đối và quyền lợi bảo hiểm.
+* Luật Thuế Giá trị gia tăng (GTGT): Quy định về thuế suất đối với dịch vụ bảo hiểm.
 * Nghị định 10/2020/NĐ-CP: Quy định về điều kiện kinh doanh vận tải bằng xe ô tô.
 * Thông tư 46/2015/TT-BGTVT: Quy định về tải trọng và khổ giới hạn đường bộ.
 2. Chính sách Phí Phạt và Từ chối Phục vụ (Tại chỗ)
-Nhằm bù đắp chi phí vận hành (nhiên liệu, lương tài xế, khấu hao) khi xe đã được điều động nhưng không thể thực hiện dịch vụ do lỗi của Khách hàng.
+Nhằm bù đắp chi phí vận hành (nhiên liệu, lương tài xế, khấu hao) khi xe đã được điều động nhưng không thể thực hiện dịch vụ do lỗi chủ quan của Khách hàng.
 A. Các trường hợp áp dụng:
-1. Hủy sau khi xuất phát: Khách hàng hủy đơn khi xe đã lăn bánh hoặc đã đến điểm lấy hàng.
+1. Hủy sau khi xuất phát: Khách hàng đơn phương hủy đơn khi xe đã lăn bánh hoặc đã đến điểm lấy hàng.
 2. Sai lệch trọng lượng: Trọng lượng thực tế vượt quá tải trọng cho phép của xe hoặc vượt quá 5% so với trọng lượng khai báo ban đầu.
-3. Sai quy cách đóng gói: Hàng dễ vỡ không được đóng gói chuẩn (thiếu xốp, kiện gỗ) khiến Tài xế từ chối nhận để tránh rủi ro.
-4. Hàng cấm: Phát hiện hàng hóa thuộc danh mục cấm vận chuyển.
+3. Sai quy cách đóng gói: Hàng dễ vỡ không được đóng gói chuẩn (thiếu xốp, kiện gỗ, nhãn cảnh báo) khiến Tài xế từ chối nhận để tránh rủi ro.
+4. Hàng cấm: Phát hiện hàng hóa thuộc danh mục cấm vận chuyển hoặc không có hóa đơn chứng từ đi đường.
 B. Cơ chế xử lý tài chính:
-* Giữ lại 100% cước phí: Bên Vận Chuyển sẽ giữ lại toàn bộ số tiền cước phí mà Khách hàng đã thanh toán (bao gồm Cọc và Thanh toán nốt).
-* Nguyên tắc: Bên Vận Chuyển KHÔNG thu thêm khoản phạt nào khác. Khoản tiền đã thu được coi là phí bồi hoàn chi phí vận hành và phạt vi phạm hợp đồng.
-3. Chính sách Bảo hiểm Hàng hóa
-A. Nguyên tắc Phí Bảo hiểm (Đã bao gồm VAT):
-LƯU Ý QUAN TRỌNG: Tỷ lệ phí bảo hiểm cơ bản (chưa VAT) dưới đây được quy định bởi Công ty Bảo hiểm đối tác. Tỷ lệ phí thu thực tế của Khách hàng sẽ được cộng thêm Thuế GTGT (VAT) theo quy định của pháp luật hiện hành. Công ty Vận Chuyển chỉ có trách nhiệm thu hộ tổng phí bảo hiểm (bao gồm cả VAT) để chuyển cho đơn vị bảo hiểm, không tự ý định đoạt mức phí hay thuế suất.
-* Phí Bảo hiểm cơ bản (Chưa VAT):
+* Giữ lại 100% cước phí: Bên Vận Chuyển sẽ giữ lại toàn bộ số tiền cước phí mà Khách hàng đã thanh toán (bao gồm Tiền Cọc và Khoản thanh toán còn lại).
+* Nguyên tắc: Chúng tôi KHÔNG thu thêm khoản phạt nào khác ngoài số tiền đã thanh toán. Khoản tiền đã thu được coi là phí bồi hoàn chi phí vận hành và phạt vi phạm hợp đồng.
+3. Chính sách Bảo hiểm Hàng hóa (Đã bao gồm VAT)
+A. Nguyên tắc Phí Bảo hiểm:
+LƯU Ý QUAN TRỌNG: Tỷ lệ phí bảo hiểm cơ bản (chưa VAT) dưới đây được quy định bởi Công ty Bảo hiểm đối tác. Bên Vận Chuyển chỉ đóng vai trò là đại lý thu hộ phí này để chuyển cho đơn vị bảo hiểm và không có quyền tự ý thay đổi mức phí.
+* Cơ cấu phí thu: Tổng phí thu của Khách hàng = (Giá trị Khai báo x Tỷ lệ phí cơ bản) + Thuế GTGT (VAT).
+* Tỷ lệ phí cơ bản (Tham khảo):
    * Hàng hóa thông thường: 0.08% x Giá trị Khai báo.
    * Hàng hóa dễ vỡ/Rủi ro cao: 0.15% x Giá trị Khai báo.
-* Cơ cấu phí thu: Tổng phí thu của Khách hàng = Phí Bảo hiểm cơ bản + Thuế GTGT (VAT).
-B. Điều kiện hiệu lực: Để được bồi thường theo giá trị khai báo, Khách hàng BẮT BUỘC phải cung cấp Hóa đơn VAT, chứng từ mua bán hợp pháp chứng minh giá trị hàng hóa khi xảy ra sự cố.
+B. Điều kiện hiệu lực: Để được bồi thường theo giá trị khai báo, Khách hàng BẮT BUỘC phải cung cấp Hóa đơn VAT, chứng từ mua bán hợp pháp chứng minh giá trị hàng hóa khi xảy ra sự cố. Nếu không có chứng từ, bảo hiểm vô hiệu.
 4. Quy trình Bồi thường và Thẩm định Giá trị
 (Áp dụng khi xảy ra mất mát, hư hỏng)
 Kịch bản 1: Khách hàng CÓ mua Bảo hiểm và CÓ chứng từ
 * Mức bồi thường: Dựa trên Tỷ lệ hư hại thực tế x Giá trị Khai báo (theo Hợp đồng bảo hiểm).
 Kịch bản 2: Khách hàng KHÔNG mua Bảo hiểm (hoặc Mua nhưng KHÔNG có chứng từ)
-* Hệ quả: Hợp đồng bảo hiểm bị vô hiệu hóa (nếu có). Trách nhiệm chuyển về mức giới hạn pháp lý.
+* Hệ quả: Hợp đồng bảo hiểm bị vô hiệu hóa (nếu có). Trách nhiệm chuyển về mức giới hạn pháp lý cơ bản.
 * Giới hạn bồi thường: Tối đa 10 lần cước phí vận chuyển của lô hàng bị thiệt hại.
+Kịch bản 3: Lỗi Cố Ý của Tài xế (Chiếm đoạt/Bỏ trốn)
+* Trách nhiệm: Bên Vận Chuyển chịu trách nhiệm bồi thường 100% Giá trị thực tế + Hoàn trả 100% Cước phí vận chuyển.
+* Điều kiện: Không áp dụng giới hạn trách nhiệm 10 lần cước phí trong trường hợp này.
 Quy trình Thẩm định (Khi không có hóa đơn): Nếu Khách hàng không chứng minh được giá trị, mức bồi thường là giá trị NHỎ HƠN giữa hai con số sau:
 1. Giới hạn trần: (10 x Cước phí vận chuyển).
 2. Thiệt hại ước tính: (Giá thị trường Proxy của hàng hóa tương đương x Tỷ lệ hư hỏng vật lý).
 Giải quyết tranh chấp về giá trị:
 * Nếu Khách hàng không đồng ý với mức thẩm định của Công ty, Khách hàng có quyền thuê Giám định viên độc lập.
 * Chi phí giám định:
-   * Công ty chịu: Nếu kết quả cho thấy Công ty định giá thấp hơn thực tế quá 10% hoặc lỗi hoàn toàn do vận hành.
+   * Công ty chịu: Nếu kết quả cho thấy Công ty định giá thấp hơn thực tế quá 10% hoặc lỗi hoàn toàn do vận hành (lỗi chủ quan).
    * Khách hàng chịu: Trong các trường hợp còn lại.
 ________________
 ________________
@@ -141,20 +145,16 @@ ________________
 
 
 ĐIỀU 7. QUY TẮC BẢO HIỂM, BỒI THƯỜNG VÀ GIỚI HẠN TRÁCH NHIỆM
-7.1. Thời hạn và Quy trình khiếu nại (Theo Điều 318 Luật Thương mại 2005): Mọi sự cố hư hỏng, mất mát hoặc thiếu hụt hàng hóa phải được lập biên bản và báo cáo ngay lập tức lên hệ thống tại thời điểm giao hàng. Thời hiệu khiếu nại tối đa là 03 (ba) tháng. Chúng tôi từ chối giải quyết mọi khiếu nại phát sinh sau khi Tài xế đã rời khỏi điểm giao và đơn hàng đã chuyển trạng thái "Hoàn thành".
-7.2. Chính sách Bảo hiểm và Giới hạn Trách nhiệm:
-* Trường hợp KHÔNG mua Bảo hiểm (Trách nhiệm Mặc định - Theo Điều 546 Luật Thương mại 2005): Trách nhiệm bồi thường của Bên Vận Chuyển được giới hạn tối đa 10 lần cước phí vận chuyển của lô hàng bị thiệt hại. Khách hàng chấp nhận rủi ro đối với giá trị hàng hóa vượt quá giới hạn này.
-* Trường hợp CÓ mua Bảo hiểm (Trách nhiệm Mở rộng - Theo Luật Kinh doanh Bảo hiểm 2022):
-   * Phí Bảo hiểm (Đã bao gồm VAT): Khách hàng phải khai báo Giá trị hàng hóa (Declared Value). Phí được tính dựa trên Giá trị Khai báo với tỷ lệ do Công ty Bảo hiểm đối tác quy định (Ví dụ: 0.08% cho Hàng Thường, 0.15% cho Hàng Dễ Vỡ). Phí này chưa bao gồm Thuế GTGT (VAT). Thuế VAT sẽ được cộng thêm vào Tổng phí bảo hiểm theo quy định của pháp luật hiện hành. Lưu ý: Bên Vận Chuyển chỉ thực hiện thu hộ tổng phí này (bao gồm cả VAT) cho đơn vị Bảo hiểm.
-   * Điều kiện Vô hiệu hóa: Khách hàng BẮT BUỘC phải cung cấp đầy đủ Hóa đơn, Chứng từ hợp pháp để chứng minh giá trị hàng hóa khi có sự cố. Nếu không chứng minh được, hoặc khai báo sai lệch, Bảo hiểm sẽ bị vô hiệu hóa và trách nhiệm bồi thường của Bên Vận Chuyển sẽ chuyển về mức giới hạn 10 lần cước phí vận chuyển.
-7.3. Thẩm định Giá trị và Giải quyết Tranh chấp (Khi thiếu chứng từ): Trong trường hợp Khách hàng không có hóa đơn chứng từ và Bảo hiểm bị vô hiệu:
-* Xác định mức bồi thường (Theo Điều 360 Bộ luật Dân sự 2015 và Điều 546 Luật Thương mại 2005): Bên Vận Chuyển sẽ thẩm định giá trị thiệt hại thực tế dựa trên giá thị trường ước tính (Giá Proxy) tại thời điểm xảy ra sự cố. Mức bồi thường cuối cùng sẽ là giá trị NHỎ HƠN giữa [Giá trị thiệt hại ước tính] và [Giới hạn 10 lần cước phí].
-* Hình thức đền bù: Việc đền bù được xử lý offline qua kênh ngân hàng; hệ thống chỉ ghi nhận lịch sử giao dịch đền bù.
-* Thẩm định độc lập: Nếu không đồng ý với mức thẩm định của Bên Vận Chuyển, Khách hàng có quyền thuê Giám định viên độc lập. Chi phí giám định sẽ do Bên Vận Chuyển chịu nếu kết quả cho thấy lỗi thuộc về Vận Chuyển hoặc mức thẩm định ban đầu thấp hơn thực tế quá 10% so với giá trị bồi thường cuối cùng; ngược lại sẽ do Khách hàng chịu.
-7.4. Định đoạt hàng hóa hư hại (Salvage Rights) (Bộ luật Dân sự 2015 và Luật Thương mại 2005): Sau khi lập biên bản sự cố và báo cáo hư hại:
-* Quyền sở hữu xác hàng: Trong trường hợp Bên Vận Chuyển chấp nhận bồi thường 100% giá trị hàng hóa, quyền sở hữu đối với phần hàng hóa bị hư hỏng đó mặc nhiên chuyển sang cho Bên Vận Chuyển (Quyền Salvage). Bên Vận Chuyển có quyền thu hồi và định đoạt (thanh lý) để bù đắp chi phí.
-* Xử lý hàng tồn đọng: Nếu Khách hàng không có yêu cầu nhận lại hàng hư hỏng hoặc không thống nhất phương án xử lý trong vòng 07 (bảy) ngày kể từ ngày lập biên bản, Bên Vận Chuyển có quyền tiêu hủy hoặc thanh lý hàng hóa để giải phóng kho bãi và được miễn trừ trách nhiệm bảo quản.
-7.5. Bất khả kháng (Theo Điều 351 Bộ luật Dân sự 2015): Bên Vận Chuyển được miễn trừ trách nhiệm trong các trường hợp bất khả kháng bao gồm nhưng không giới hạn: Thiên tai, hỏa hoạn, đình công, cấm đường đột xuất của cơ quan nhà nước, hoặc tai nạn giao thông không do lỗi chủ quan của Tài xế. Trong trường hợp này, hai bên có thể thỏa thuận thay đổi lịch giao hàng nếu thông báo trước 02 ngày.
+7.1. Căn cứ Kích hoạt Trách nhiệm Bồi thường: Trách nhiệm bồi thường của Bên Vận Chuyển chỉ phát sinh khi tổn thất hoặc hư hỏng hàng hóa được xác định là do lỗi chủ quan của Bên Vận Chuyển, Tài xế hoặc người đại diện của Công ty. Bên Vận Chuyển được miễn trừ trách nhiệm bồi thường khi tổn thất xảy ra do lỗi của Khách hàng, lỗi do bên thứ ba, hoặc do các nguyên nhân bất khả kháng (Xem Mục 7.6).
+7.2. Phạm vi Bồi thường và Loại trừ (Điều 360 Bộ luật Dân sự 2015): Bên Vận Chuyển chỉ chịu trách nhiệm bồi thường cho Thiệt hại Trực tiếp (giá trị vật chất, cước phí). Chúng tôi miễn trừ mọi trách nhiệm đối với Thiệt hại Gián tiếp (bao gồm nhưng không giới hạn: mất lợi nhuận, đình trệ sản xuất, mất cơ hội kinh doanh).
+7.3. Chính sách Bảo hiểm và Giới hạn Trách nhiệm:
+* Trường hợp KHÔNG mua Bảo hiểm (Trách nhiệm Mặc định): Trách nhiệm bồi thường được giới hạn tối đa 10 lần cước phí vận chuyển (Theo Điều 546 Luật Thương mại 2005).
+* Trường hợp CÓ mua Bảo hiểm (Trách nhiệm Mở rộng): Khách hàng phải khai báo Giá trị hàng hóa. Phí được tính dựa trên Giá trị Khai báo với tỷ lệ do Công ty Bảo hiểm đối tác quy định. Điều kiện Vô hiệu hóa: Khách hàng BẮT BUỘC phải cung cấp đầy đủ Hóa đơn, Chứng từ hợp pháp để chứng minh giá trị hàng hóa khi có sự cố. Nếu không chứng minh được, Bảo hiểm sẽ bị vô hiệu hóa và trách nhiệm bồi thường sẽ chuyển về mức giới hạn 10 lần cước phí vận chuyển.
+7.4. Thẩm định Giá trị và Giải quyết Tranh chấp (Khi thiếu chứng từ):
+* Xác định mức bồi thường: Mức bồi thường cuối cùng sẽ là giá trị NHỎ HƠN giữa [Giá trị thiệt hại ước tính] và [Giới hạn 10 lần cước phí] (Theo Điều 360 BLDS 2015 và Điều 546 Luật Thương mại 2005).
+* Thẩm định độc lập: Nếu không đồng ý với mức thẩm định, Khách hàng có quyền thuê Giám định viên độc lập. Chi phí giám định sẽ do Bên Vận Chuyển chịu nếu lỗi thuộc về Vận Chuyển hoặc mức thẩm định ban đầu thấp hơn thực tế quá 10%; ngược lại sẽ do Khách hàng chịu.
+7.5. Trách nhiệm đối với hành vi vi phạm pháp luật của Nhân viên (Lỗi Cố Ý): Trong trường hợp tổn thất hàng hóa xảy ra do hành vi cố ý vi phạm pháp luật hình sự của Tài xế (như trộm cắp, chiếm đoạt tài sản, bỏ trốn), Bên Vận Chuyển cam kết chịu trách nhiệm bồi thường cho Khách hàng theo 100% Giá trị thực tế của lô hàng (dựa trên hóa đơn chứng từ hợp pháp), cộng thêm toàn bộ Cước phí Vận chuyển đã thu, và KHÔNG áp dụng các giới hạn trách nhiệm thông thường (Theo Điều 600 BLDS 2015 và Khoản 1 Điều 294 Luật Thương mại 2005).
+7.6. Bất khả kháng (Theo Điều 351 Bộ luật Dân sự 2015): Bên Vận Chuyển được miễn trừ trách nhiệm trong các trường hợp bất khả kháng bao gồm nhưng không giới hạn: Thiên tai, hỏa hoạn, đình công, cấm đường đột xuất của cơ quan nhà nước, hoặc tai nạn giao thông không do lỗi chủ quan của Tài xế.
 ________________
 
 

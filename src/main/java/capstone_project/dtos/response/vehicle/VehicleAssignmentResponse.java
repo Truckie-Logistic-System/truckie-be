@@ -26,7 +26,8 @@ public record VehicleAssignmentResponse(
 
     public record VehicleTypeInfo(
             UUID id,
-            String vehicleTypeName
+            String vehicleTypeName,
+            String description
     ) {}
     
     public record DriverInfo(

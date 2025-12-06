@@ -97,4 +97,41 @@ public interface OrderService {
      * @return success status
      */
     boolean cancelOrder(UUID orderId);
+
+    /**
+     * Cancel an order by staff with a specific reason
+     * Only allowed for orders with status PROCESSING
+     * Sends notification and email to customer
+     * 
+     * @param orderId the order ID to cancel
+     * @param cancellationReason the reason for cancellation
+     * @return success status
+     */
+    boolean staffCancelOrder(UUID orderId, String cancellationReason);
+
+    /**
+     * Get list of cancellation reasons for staff
+     * 
+     * @return list of cancellation reasons
+     */
+    List<String> getStaffCancellationReasons();
+
+    /**
+     * Get order details for recipient tracking by order code (public - no auth required)
+     * Returns order information without sensitive contract/transaction data
+     * 
+     * @param orderCode the order code to search
+     * @return order tracking response for recipient
+     */
+    RecipientOrderTrackingResponse getOrderForRecipientByOrderCode(String orderCode);
+
+    /**
+     * Unified order cancellation method that handles all cancellation scenarios
+     * Ensures atomic transaction across order, order details, and contract updates
+     * 
+     * @param orderId the order ID to cancel
+     * @param context cancellation context containing type, reason, and configuration
+     * @return success status
+     */
+    boolean cancelOrderUnified(UUID orderId, OrderCancellationContext context);
 }

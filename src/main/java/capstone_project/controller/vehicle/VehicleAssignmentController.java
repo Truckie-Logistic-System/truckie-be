@@ -4,6 +4,7 @@ import capstone_project.dtos.request.vehicle.GroupedAssignmentRequest;
 import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
 import capstone_project.dtos.response.common.ApiResponse;
+import capstone_project.dtos.response.order.StaffVehicleAssignmentFullResponse;
 import capstone_project.dtos.response.vehicle.GroupedVehicleAssignmentResponse;
 import capstone_project.dtos.response.vehicle.SampleVehicleAssignmentResponse;
 import capstone_project.dtos.response.vehicle.SimplifiedVehicleAssignmentResponse;
@@ -35,6 +36,15 @@ public class VehicleAssignmentController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<VehicleAssignmentResponse>> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(service.getAssignmentById(id)));
+    }
+
+    /**
+     * Get full vehicle assignment details for staff view
+     * Includes: vehicle, drivers, penalties, fuel consumption, seals, journey histories, photo completions, issues
+     */
+    @GetMapping("/{id}/full")
+    public ResponseEntity<ApiResponse<StaffVehicleAssignmentFullResponse>> getFullById(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getFullAssignmentById(id)));
     }
 
     @PostMapping

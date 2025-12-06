@@ -14,6 +14,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.UUID;
 
@@ -75,7 +78,26 @@ public class UserContextUtils {
     }
 
     public UUID getCurrentUserId() {
-        return getCurrentUser().getId();
+        // Extract user ID directly from JWT token instead of username→DB lookup
+        // This avoids "Invalid UUID string: staff" error from role extraction
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new UnauthorizedException(
+                    ErrorEnum.UNAUTHORIZED.getMessage() + " - No authenticated user found",
+                    ErrorEnum.UNAUTHORIZED.getErrorCode());
+        }
+        
+        // Get JWT token from current authentication details
+        // The token is stored in the authentication object or can be extracted from request context
+        try {
+            // Extract user ID directly from JWT subject claim
+            String userIdStr = JWTUtil.extractUserId(getCurrentTokenFromContext());
+            return UUID.fromString(userIdStr);
+        } catch (Exception e) {
+            // Fallback to original method if JWT extraction fails
+            return getCurrentUser().getId();
+        }
     }
 
     public CustomerEntity getCurrentCustomer() {
@@ -88,6 +110,30 @@ public class UserContextUtils {
 
     public UUID getCurrentCustomerId() {
         return getCurrentCustomer().getId();
+    }
+    
+    /**
+     * Extract JWT token from current request context
+     * Used to get user ID directly from JWT instead of username lookup
+     */
+    private String getCurrentTokenFromContext() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes == null) {
+                throw new UnauthorizedException("No request context available", ErrorEnum.UNAUTHORIZED.getErrorCode());
+            }
+            
+            HttpServletRequest request = attributes.getRequest();
+            String authorizationHeader = request.getHeader("Authorization");
+            
+            if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+                return authorizationHeader.substring(7); // Remove "Bearer " prefix
+            }
+            
+            throw new UnauthorizedException("No JWT token found in request", ErrorEnum.UNAUTHORIZED.getErrorCode());
+        } catch (Exception e) {
+            throw new UnauthorizedException("Failed to extract JWT token: " + e.getMessage(), ErrorEnum.UNAUTHORIZED.getErrorCode());
+        }
     }
 
     public DriverEntity getCurrentDriver() {

@@ -17,6 +17,9 @@ public class CarrierSettingRequest {
     @Size(max = 255)
     private String carrierName;
 
+    @Size(max = 255)
+    private String representativeName;
+
     @Size(max = 500)
     private String carrierAddressLine;
 
