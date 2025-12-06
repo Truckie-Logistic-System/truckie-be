@@ -151,6 +151,7 @@ public class SecurityConfigurer {
                     "/api/v1/address/**",
                     "/api/v1/emails/**",
                     "/api/v1/public/stipulations/**", // Public stipulation endpoint for customers
+                    "/api/v1/public/pricing/**", // Public pricing endpoint for customers/guests
                     "/api/public/chat/**", // AI Chatbot public endpoint - no auth required
                     "/api/v1/public/recipient-tracking/**", // Recipient order tracking - no auth required
                     "/api/v1/vietmap/**", // Public VietMap endpoints for recipient tracking
@@ -264,20 +265,20 @@ public class SecurityConfigurer {
                         // ================= VEHICLE =================
                         .requestMatchers(HttpMethod.GET, vehicleTypeApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, sizeRuleApiBasePath + "/**").authenticated()
-                        .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(sizeRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(vehicleTypeApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
+                        .requestMatchers(sizeRuleApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= CATEGORY =================
                         .requestMatchers(HttpMethod.GET, categoryApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, categoryPricingDetailApiBasePath + "/**").authenticated()
-                        .requestMatchers(categoryApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(categoryPricingDetailApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(categoryApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
+                        .requestMatchers(categoryPricingDetailApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= DISTANCE & BASING PRICE =================
                         .requestMatchers(HttpMethod.GET, distanceRuleApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, basingPriceApiBasePath + "/**").authenticated()
-                        .requestMatchers(distanceRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(basingPriceApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(distanceRuleApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
+                        .requestMatchers(basingPriceApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
                         .requestMatchers(distanceBasePath + "/**").hasAnyAuthority("CUSTOMER","DRIVER","ADMIN","STAFF")
 
                         // ================= CONTRACT =================
@@ -293,8 +294,8 @@ public class SecurityConfigurer {
                         // ================= DEVICE =================
                         .requestMatchers(HttpMethod.GET, deviceTypeBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, deviceBasePath + "/**").authenticated()
-                        .requestMatchers(deviceTypeBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
-                        .requestMatchers(deviceBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(deviceTypeBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
+                        .requestMatchers(deviceBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= CUSTOMER =================
                         .requestMatchers(HttpMethod.GET, customerApiBasePath + "/**").authenticated()

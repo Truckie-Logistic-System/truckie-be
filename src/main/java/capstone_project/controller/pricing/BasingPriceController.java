@@ -34,16 +34,25 @@ public class BasingPriceController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     @PostMapping()
     public ResponseEntity<ApiResponse<BasingPriceResponse>> createBasingRule(@RequestBody @Valid BasingPriceRequest basingPriceRequest) {
         final var result = basingPriceService.createBasingPrice(basingPriceRequest);
         return ResponseEntity.status(201).body(ApiResponse.ok(result));
     }
 
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<BasingPriceResponse>> updateBasingRule(@PathVariable("id") final UUID id, @RequestBody @Valid UpdateBasingPriceRequest basingPriceRequest) {
         final var result = basingPriceService.updateBasingPrice(id, basingPriceRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<String>> deleteBasingRule(@PathVariable("id") final UUID id) {
+        basingPriceService.deleteBasingPrice(id);
+        return ResponseEntity.ok(ApiResponse.ok("Basing price deleted successfully"));
     }
 
 }

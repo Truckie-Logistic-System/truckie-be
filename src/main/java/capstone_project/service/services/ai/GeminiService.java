@@ -27,10 +27,14 @@ public class GeminiService {
     private final Gson gson = new Gson();
 
     /**
-     * Gọi Gemini API với conversation history using REST API
+     * Gọi Gemini API với conversation history using REST API with retry mechanism
      */
     public String generateResponse(String systemPrompt, List<ChatMessage> messages) {
-        try {
+        int maxRetries = 3;
+        long[] retryDelays = {1000, 2000, 4000}; // Exponential backoff in milliseconds
+        
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
             // Build request URL
             String url = String.format("%s/models/%s:generateContent",
                     geminiConfig.getBaseUrl(),
@@ -126,12 +130,36 @@ public class GeminiService {
             }
 
         } catch (IOException e) {
-            log.error("❌ IO Error calling Gemini API", e);
+            log.error("❌ IO Error calling Gemini API (attempt {}/{})", attempt + 1, maxRetries, e);
+            if (attempt < maxRetries - 1) {
+                try {
+                    Thread.sleep(retryDelays[attempt]);
+                    log.info("🔄 Retrying Gemini API call after {}ms...", retryDelays[attempt]);
+                    continue;
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Failed to call Gemini API: " + e.getMessage(), e);
+                }
+            }
             throw new RuntimeException("Failed to call Gemini API: " + e.getMessage(), e);
         } catch (Exception e) {
-            log.error("❌ Error calling Gemini API", e);
+            log.error("❌ Error calling Gemini API (attempt {}/{})", attempt + 1, maxRetries, e);
+            if (attempt < maxRetries - 1) {
+                try {
+                    Thread.sleep(retryDelays[attempt]);
+                    log.info("🔄 Retrying Gemini API call after {}ms...", retryDelays[attempt]);
+                    continue;
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Failed to call Gemini API: " + e.getMessage(), e);
+                }
+            }
             throw new RuntimeException("Failed to call Gemini API: " + e.getMessage(), e);
         }
+        }
+        
+        // If we get here, all retries failed
+        throw new RuntimeException("Failed to call Gemini API after " + maxRetries + " attempts");
     }
 
 

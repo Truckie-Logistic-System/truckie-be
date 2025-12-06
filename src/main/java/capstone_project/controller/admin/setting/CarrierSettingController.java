@@ -9,6 +9,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("${carrier-setting.api.base-path}")
@@ -24,7 +25,7 @@ public class CarrierSettingController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<CarrierSettingResponse> get(@PathVariable Long id) {
+    public ResponseEntity<CarrierSettingResponse> get(@PathVariable UUID id) {
         return ResponseEntity.ok(service.findById(id));
     }
 
@@ -35,13 +36,13 @@ public class CarrierSettingController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<CarrierSettingResponse> update(@PathVariable Long id,
+    public ResponseEntity<CarrierSettingResponse> update(@PathVariable UUID id,
                                                          @RequestBody @Validated CarrierSettingRequest request) {
         return ResponseEntity.ok(service.update(id, request));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }

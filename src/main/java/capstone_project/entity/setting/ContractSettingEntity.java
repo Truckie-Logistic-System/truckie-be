@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
@@ -17,13 +18,11 @@ import java.math.BigDecimal;
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(callSuper = false)
 public class ContractSettingEntity extends BaseEntity {
 
     @Column(name = "deposit_percent")
     private BigDecimal depositPercent;
-
-    @Column(name = "expired_deposit_date")
-    private Integer expiredDepositDate;
 
     // Hạn thanh toán cọc (số giờ) - mặc định 24 giờ
     @Column(name = "deposit_deadline_hours")
@@ -32,6 +31,10 @@ public class ContractSettingEntity extends BaseEntity {
     // Hạn ký hợp đồng (số giờ) - mặc định 24 giờ
     @Column(name = "signing_deadline_hours")
     private Integer signingDeadlineHours;
+
+    // Số ngày trước khi lấy hàng phải thanh toán toàn bộ - mặc định 1 ngày
+    @Column(name = "full_payment_days_before_pickup")
+    private Integer fullPaymentDaysBeforePickup;
 
     // Tỷ lệ bảo hiểm cho hàng thông thường (0.0008 = 0.08%)
     @Column(name = "insurance_rate_normal", precision = 6, scale = 5)

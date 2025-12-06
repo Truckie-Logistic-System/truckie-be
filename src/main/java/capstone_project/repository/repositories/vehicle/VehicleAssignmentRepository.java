@@ -237,7 +237,18 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
     boolean existsAssignmentForDriverOnDate(@Param("driverId") UUID driverId, @Param("tripDate") LocalDate tripDate);
 
     /**
+     * Count completed trips by driver and date range for admin dashboard
+     */
+    @Query("SELECT COUNT(va) FROM VehicleAssignmentEntity va WHERE (va.driver1.id = :driverId OR va.driver2.id = :driverId) AND va.status = :status AND va.modifiedAt BETWEEN :startDate AND :endDate")
+    Long countByDriverIdAndStatusAndCreatedAtBetween(@Param("driverId") UUID driverId, @Param("status") String status, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+
+    /**
      * Count total assignments for a vehicle (for load balancing)
      */
     long countByVehicleEntityId(UUID vehicleId);
+
+    /**
+     * Find all vehicle assignments created between start and end date
+     */
+    List<VehicleAssignmentEntity> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
 }

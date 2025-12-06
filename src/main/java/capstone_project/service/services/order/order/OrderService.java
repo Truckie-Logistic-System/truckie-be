@@ -124,4 +124,14 @@ public interface OrderService {
      * @return order tracking response for recipient
      */
     RecipientOrderTrackingResponse getOrderForRecipientByOrderCode(String orderCode);
+
+    /**
+     * Unified order cancellation method that handles all cancellation scenarios
+     * Ensures atomic transaction across order, order details, and contract updates
+     * 
+     * @param orderId the order ID to cancel
+     * @param context cancellation context containing type, reason, and configuration
+     * @return success status
+     */
+    boolean cancelOrderUnified(UUID orderId, OrderCancellationContext context);
 }

@@ -48,14 +48,14 @@ public class SizeRuleController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     @PostMapping()
     public ResponseEntity<ApiResponse<SizeRuleResponse>> createsizeRule(@RequestBody @Valid SizeRuleRequest sizeRuleRequest) {
         final var result = sizeRuleService.createsizeRule(sizeRuleRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(result));
     }
 
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<SizeRuleResponse>> updatesizeRule(
             @PathVariable("id") UUID id,

@@ -150,7 +150,7 @@ public class RegisterServiceImpl implements RegisterService {
                 .gender(registerCustomerRequest.getGender())
                 .imageUrl(registerCustomerRequest.getImageUrl())
                 .dateOfBirth(validatedDob.toLocalDate())
-                .status(UserStatusEnum.OTP_PENDING.name())
+                .status(UserStatusEnum.ACTIVE.name())
                 .role(role)
                 .createdAt(LocalDateTime.now())
                 .build();

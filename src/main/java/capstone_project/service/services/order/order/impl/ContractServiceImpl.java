@@ -1499,16 +1499,22 @@ public class ContractServiceImpl implements ContractService {
     }
 
     /**
-     * Set contract deadlines based on order details
-     * Reasonable deadlines for Vietnamese logistics:
+     * Set contract deadlines based on order details and contract settings
+     * Deadlines are configurable through contract settings:
      * - Effective date: Now (contract creation time)
      * - Expiration date: 1 year from effective date
-     * - Contract signing: 24 hours after contract draft creation (staff exports contract)
-     * - Deposit payment: 24 hours after contract signing (set when customer signs)
+     * - Contract signing: Uses signingDeadlineHours from contract settings
+     * - Deposit payment: Uses depositDeadlineHours from contract settings (set when customer signs)
      * - Full payment: 1 day before pickup time (earliest estimated start time)
      */
     private void setContractDeadlines(ContractEntity contract, OrderEntity order) {
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        
+        // Get contract settings for deadline hours
+        var contractSetting = contractSettingService.getLatestContractSetting();
+        if (contractSetting == null) {
+            throw new NotFoundException("Contract settings not found", ErrorEnum.NOT_FOUND.getErrorCode());
+        }
         
         // Effective date: Contract creation time
         contract.setEffectiveDate(now);
@@ -1516,13 +1522,13 @@ public class ContractServiceImpl implements ContractService {
         // Expiration date: 1 year from effective date
         contract.setExpirationDate(now.plusYears(1));
         
-        // Signing deadline: 24 hours from contract creation (when staff exports contract)
-        contract.setSigningDeadline(now.plusHours(24));
+        // Signing deadline: Use signingDeadlineHours from contract settings
+        contract.setSigningDeadline(now.plusHours(contractSetting.signingDeadlineHours()));
         
-        // Deposit payment deadline: Will be set when customer signs the contract (24h after signing)
+        // Deposit payment deadline: Will be set when customer signs the contract using depositDeadlineHours
         // Do NOT set here - will be set in signContractAndOrder() method
         
-        // Full payment deadline: 1 day before pickup time
+        // Full payment deadline: Use configurable days before pickup time from contract settings
         // Get the earliest estimated start time from order details
         java.time.LocalDateTime earliestPickupTime = order.getOrderDetailEntities().stream()
                 .map(OrderDetailEntity::getEstimatedStartTime)
@@ -1530,7 +1536,7 @@ public class ContractServiceImpl implements ContractService {
                 .min(java.time.LocalDateTime::compareTo)
                 .orElse(now.plusDays(7)); // Default to 7 days if no estimated time
         
-        // Set deadline to 1 day before pickup time
-        contract.setFullPaymentDeadline(earliestPickupTime.minusDays(1));
+        // Set deadline using configurable days before pickup
+        contract.setFullPaymentDeadline(earliestPickupTime.minusDays(contractSetting.fullPaymentDaysBeforePickup()));
     }
 }

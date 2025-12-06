@@ -106,7 +106,9 @@ public class PdfGenerationService {
                     ));
 
             context.setVariable("depositPercent", setting.getDepositPercent());
-            context.setVariable("expiredDepositDate", setting.getExpiredDepositDate());
+            context.setVariable("depositDeadlineHours", setting.getDepositDeadlineHours());
+            context.setVariable("signingDeadlineHours", setting.getSigningDeadlineHours());
+            context.setVariable("fullPaymentDaysBeforePickup", setting.getFullPaymentDaysBeforePickup());
             context.setVariable("insuranceRateNormal", setting.getInsuranceRateNormal());
             context.setVariable("insuranceRateFragile", setting.getInsuranceRateFragile());
             context.setVariable("vatRate", setting.getVatRate());

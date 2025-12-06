@@ -9,6 +9,8 @@ import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
+import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.order.order.OrderCancellationContext;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +39,7 @@ public class ContractExpiryScheduler {
     private final OrderEntityService orderEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
+    private final OrderService orderService;
 
     /**
      * Check for expired contracts every 10 minutes
@@ -165,62 +168,85 @@ public class ContractExpiryScheduler {
     }
 
     /**
-     * Cancel both order and contract due to expired deadline
+     * Cancel both order and contract due to expired deadline using unified cancellation
      */
     private void cancelOrderAndContract(ContractEntity contract, String reason, String deadlineType) {
+        // Get the associated order
+        OrderEntity order = contract.getOrderEntity();
+        if (order == null) {
+            log.warn("Contract {} has no associated order", contract.getId());
+            return;
+        }
+
+        // Create context for contract expiry cancellation
+        OrderCancellationContext context = OrderCancellationContext.builder()
+                .cancellationType(OrderCancellationContext.CancellationType.CONTRACT_EXPIRY)
+                .customReason(reason)
+                .sendNotifications(true)
+                .cleanupReservations(true)
+                .build();
+
+        // Use unified cancellation for atomic transaction
+        try {
+            orderService.cancelOrderUnified(order.getId(), context);
+            log.info("✅ Used unified cancellation to cancel order {} due to {}", order.getOrderCode(), deadlineType);
+        } catch (Exception e) {
+            log.error("❌ Failed to use unified cancellation for order {}: {}", order.getId(), e.getMessage(), e);
+            // Fallback to manual cancellation if unified method fails
+            fallbackManualCancellation(contract, order, reason);
+        }
+    }
+
+    /**
+     * Fallback manual cancellation if unified method fails
+     * This preserves the original logic as backup
+     */
+    private void fallbackManualCancellation(ContractEntity contract, OrderEntity order, String reason) {
+        log.warn("⚠️ Using fallback manual cancellation for order {} due to contract expiry", order.getOrderCode());
+        
         // Update contract status to EXPIRED
         contract.setStatus(ContractStatusEnum.EXPIRED.name());
         contractEntityService.save(contract);
 
-        // Get and cancel the associated order
-        OrderEntity order = contract.getOrderEntity();
-        if (order != null) {
-            // Only cancel if order is in a cancellable state
-            String currentStatus = order.getStatus();
-            List<String> cancellableStatuses = List.of(
-                    OrderStatusEnum.PENDING.name(),
-                    OrderStatusEnum.PROCESSING.name(),
-                    OrderStatusEnum.CONTRACT_DRAFT.name(),
-                    OrderStatusEnum.CONTRACT_SIGNED.name()
-            );
+        // Only cancel if order is in a cancellable state
+        String currentStatus = order.getStatus();
+        List<String> cancellableStatuses = List.of(
+                OrderStatusEnum.PENDING.name(),
+                OrderStatusEnum.PROCESSING.name(),
+                OrderStatusEnum.CONTRACT_DRAFT.name(),
+                OrderStatusEnum.CONTRACT_SIGNED.name()
+        );
 
-            if (cancellableStatuses.contains(currentStatus)) {
-                OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(currentStatus);
-                order.setStatus(OrderStatusEnum.CANCELLED.name());
-                orderEntityService.save(order);
-                
-                // Cancel all order details
-                try {
-                    List<OrderDetailEntity> orderDetails = order.getOrderDetailEntities();
-                    if (orderDetails != null && !orderDetails.isEmpty()) {
-                        for (OrderDetailEntity orderDetail : orderDetails) {
-                            orderDetail.setStatus(OrderDetailStatusEnum.CANCELLED.name());
-                        }
-                        orderDetailEntityService.saveAllOrderDetailEntities(orderDetails);
-                        log.info("✅ Cancelled {} order details for order {}", orderDetails.size(), order.getOrderCode());
+        if (cancellableStatuses.contains(currentStatus)) {
+            OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(currentStatus);
+            order.setStatus(OrderStatusEnum.CANCELLED.name());
+            order.setCancellationReason(reason);
+            orderEntityService.save(order);
+            
+            // Cancel all order details
+            try {
+                List<OrderDetailEntity> orderDetails = order.getOrderDetailEntities();
+                if (orderDetails != null && !orderDetails.isEmpty()) {
+                    for (OrderDetailEntity orderDetail : orderDetails) {
+                        orderDetail.setStatus(OrderDetailStatusEnum.CANCELLED.name());
                     }
-                } catch (Exception e) {
-                    log.error("❌ Failed to cancel order details for order {}: {}", order.getId(), e.getMessage());
+                    orderDetailEntityService.saveAllOrderDetailEntities(orderDetails);
+                    log.info("✅ Cancelled {} order details for order {}", orderDetails.size(), order.getOrderCode());
                 }
 
                 // Send WebSocket notification to customer
-                try {
-                    orderStatusWebSocketService.sendOrderStatusChange(
-                            order.getId(),
-                            order.getOrderCode(),
-                            previousStatus,
-                            OrderStatusEnum.CANCELLED
-                    );
-                } catch (Exception e) {
-                    log.warn("Failed to send WebSocket notification for cancelled order {}: {}", 
-                            order.getId(), e.getMessage());
-                }
-            } else {
-                log.warn("Order {} is in status {} and cannot be automatically cancelled", 
-                        order.getId(), currentStatus);
+                orderStatusWebSocketService.sendOrderStatusChange(
+                        order.getId(),
+                        order.getOrderCode(),
+                        previousStatus,
+                        OrderStatusEnum.CANCELLED
+                );
+            } catch (Exception e) {
+                log.error("❌ Failed to complete fallback cancellation for order {}: {}", order.getId(), e.getMessage());
             }
         } else {
-            log.warn("Contract {} has no associated order", contract.getId());
+            log.warn("Order {} is in status {} and cannot be automatically cancelled", 
+                    order.getId(), currentStatus);
         }
     }
 }
