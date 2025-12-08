@@ -1,12 +1,18 @@
 # Stage 1: Build
-FROM gradle:8.5-jdk17 AS builder
+FROM eclipse-temurin:17-jdk AS builder
 WORKDIR /app
-COPY . .
-RUN gradle clean build -x test
+
+COPY gradlew .
+COPY gradle ./gradle
+COPY build.gradle* settings.gradle* ./
+COPY src ./src
+
+RUN chmod +x gradlew
+RUN ./gradlew clean build -x test
 
 # Stage 2: Run
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre
 WORKDIR /app
-COPY --from=builder /app/build/libs/capstone-project-0.0.1-SNAPSHOT.jar truckie.jar
+COPY --from=builder /app/build/libs/*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "truckie.jar"]
+ENTRYPOINT ["java","-jar","/app/app.jar"]
