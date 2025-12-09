@@ -31,12 +31,14 @@ public interface VehicleReservationRepository extends BaseRepository<VehicleRese
      * Used to check availability when suggesting vehicles
      */
     @Query("""
-        SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END
-        FROM VehicleReservationEntity r
-        WHERE r.vehicleEntity.id = :vehicleId
-        AND r.tripDate = :tripDate
-        AND r.status = 'RESERVED'
-        AND r.orderEntity.id != :excludeOrderId
+        SELECT EXISTS (
+            SELECT 1
+            FROM VehicleReservationEntity r
+            WHERE r.vehicleEntity.id = :vehicleId
+            AND r.tripDate = :tripDate
+            AND r.status = 'RESERVED'
+            AND r.orderEntity.id != :excludeOrderId
+        )
     """)
     boolean existsReservedByVehicleAndDateExcludingOrder(
             @Param("vehicleId") UUID vehicleId,
@@ -48,11 +50,13 @@ public interface VehicleReservationRepository extends BaseRepository<VehicleRese
      * Used to check availability when suggesting vehicles (no order exclusion)
      */
     @Query("""
-        SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END
-        FROM VehicleReservationEntity r
-        WHERE r.vehicleEntity.id = :vehicleId
-        AND r.tripDate = :tripDate
-        AND r.status = 'RESERVED'
+        SELECT EXISTS (
+            SELECT 1
+            FROM VehicleReservationEntity r
+            WHERE r.vehicleEntity.id = :vehicleId
+            AND r.tripDate = :tripDate
+            AND r.status = 'RESERVED'
+        )
     """)
     boolean existsReservedByVehicleAndDate(
             @Param("vehicleId") UUID vehicleId,

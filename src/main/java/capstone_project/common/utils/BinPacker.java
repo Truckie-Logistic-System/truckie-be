@@ -281,18 +281,31 @@ public class BinPacker {
             boxes.add(new BoxItem(d.getId(), lx, ly, lz, w));
         }
 
-        // Optimized sorting strategy: heaviest first, then by volume
-        // This ensures large/heavy packages are placed first for better space utilization
+        // OPTIMIZED sorting strategy: density-aware multi-criteria sorting
+        // This ensures optimal packing by considering weight, volume, and density together
         boxes.sort((a, b) -> {
-            // Primary: Sort by weight (heaviest first)
-            int cmp = Long.compare(b.weight, a.weight);
+            // Calculate density (weight/volume ratio) for both packages
+            double densityA = a.volume > 0 ? (double) a.weight / a.volume : 0.0;
+            double densityB = b.volume > 0 ? (double) b.weight / b.volume : 0.0;
+            
+            // Primary: Sort by density category (heavy-dense items first)
+            // This prevents placing light items first and wasting weight capacity
+            boolean aIsHeavyDense = densityA > 15.0; // >15 kg/dm³ = metals, machinery
+            boolean bIsHeavyDense = densityB > 15.0;
+            if (aIsHeavyDense != bIsHeavyDense) {
+                return bIsHeavyDense ? 1 : -1; // Heavy-dense items first
+            }
+
+            // Secondary: Within same density category, sort by volume (largest first)
+            // This ensures large items are placed before small ones
+            int cmp = Long.compare(b.volume, a.volume);
             if (cmp != 0) return cmp;
 
-            // Secondary: Sort by volume (largest first) for better packing
-            cmp = Long.compare(b.volume, a.volume);
+            // Tertiary: Sort by weight (heaviest first) for items with same volume
+            cmp = Long.compare(b.weight, a.weight);
             if (cmp != 0) return cmp;
 
-            // Tertiary: Sort by longest dimension (to minimize container upgrades)
+            // Quaternary: Sort by longest dimension (to minimize container upgrades)
             int aMaxDim = Math.max(a.lx, Math.max(a.ly, a.lz));
             int bMaxDim = Math.max(b.lx, Math.max(b.ly, b.lz));
             return Integer.compare(bMaxDim, aMaxDim);
@@ -307,12 +320,14 @@ public class BinPacker {
 
             // Strategy 1: Try to place in existing vehicles (minimize vehicle count)
             if (!used.isEmpty()) {
-                // Sort containers by remaining capacity (place in fullest container that fits)
+                // Sort containers by COMBINED utilization score (weight + volume)
+                // Prefer containers with balanced utilization for better packing efficiency
                 List<ContainerState> sortedContainers = used.stream()
                         .sorted((c1, c2) -> {
-                            long remaining1 = convertWeightToLong(c1.rule.getMaxWeight()) - c1.currentWeight;
-                            long remaining2 = convertWeightToLong(c2.rule.getMaxWeight()) - c2.currentWeight;
-                            return Long.compare(remaining1, remaining2);
+                            double score1 = calculateCombinedUtilization(c1);
+                            double score2 = calculateCombinedUtilization(c2);
+                            // Higher score first (better utilized)
+                            return Double.compare(score2, score1);
                         })
                         .toList();
 
@@ -367,10 +382,11 @@ public class BinPacker {
 
             if (placed) continue;
 
-            // Strategy 3: Open new vehicle with optimal size (resource optimization)
+            // Strategy 3: Open new vehicle with BEST-FIT size (optimal resource utilization)
             if (!placed) {
                 SizeRuleEntity bestRule = null;
                 ContainerState bestContainer = null;
+                double bestFitScore = -1.0;
 
                 for (SizeRuleEntity rule : sizeRules) {
                     int maxX = convertToInt(rule.getMaxLength());
@@ -388,8 +404,12 @@ public class BinPacker {
 
                         Placement p = tryPlaceBoxInContainer(box, candidate);
                         if (p != null) {
-                            // Select the SMALLEST vehicle that fits (cost optimization)
-                            if (bestRule == null || compareSizeRules(rule, bestRule) < 0) {
+                            // Calculate fit score: balance between minimizing waste and avoiding upgrades later
+                            double fitScore = calculateVehicleFitScore(box, rule, maxX, maxY, maxZ);
+                            
+                            // Select vehicle with BEST fit score (not just smallest)
+                            if (fitScore > bestFitScore) {
+                                bestFitScore = fitScore;
                                 bestRule = rule;
                                 bestContainer = candidate;
                                 bestContainer.addPlacement(p);
@@ -431,13 +451,41 @@ public class BinPacker {
             }
         }
 
-        // Log packing summary
+        // Log packing summary with volume and weight utilization
         log.info("✅ Bin packing completed: {} packages assigned to {} vehicles", boxes.size(), used.size());
         for (int i = 0; i < used.size(); i++) {
             ContainerState container = used.get(i);
-            double utilization = (double) container.currentWeight / convertWeightToLong(container.rule.getMaxWeight()) * 100;
-            log.info("   Vehicle {}: {} - {} packages, {:.1f}% weight utilization",
-                    i + 1, container.rule.getSizeRuleName(), container.placements.size(), utilization);
+            
+            // Calculate weight utilization
+            long maxWeightGram = convertWeightToLong(container.rule.getMaxWeight());
+            double weightUtil = (double) container.currentWeight / maxWeightGram * 100;
+            
+            // Calculate volume utilization
+            long usedVolume = container.placements.stream()
+                    .mapToLong(p -> (long) p.lx * p.ly * p.lz)
+                    .sum();
+            long totalVolume = (long) container.maxX * container.maxY * container.maxZ;
+            double volumeUtil = (double) usedVolume / totalVolume * 100;
+            
+            log.info("   Vehicle {}: {} - {} packages, Weight: {:.1f}%, Volume: {:.1f}%",
+                    i + 1, container.rule.getSizeRuleName(), container.placements.size(), 
+                    weightUtil, volumeUtil);
+            
+            // Add intelligent warnings based on utilization patterns
+            if (volumeUtil < 30 && weightUtil > 70) {
+                log.info("      ℹ️  Heavy-Dense cargo detected (low volume, high weight). " +
+                        "Normal for metals, machinery, or dense materials.");
+            } else if (volumeUtil > 70 && weightUtil < 30) {
+                log.info("      ℹ️  Light-Bulky cargo detected (high volume, low weight). " +
+                        "Normal for cotton, foam, paper, or packaging materials.");
+            } else if (volumeUtil < 30 && weightUtil < 30) {
+                log.warn("      ⚠️  INEFFICIENT packing: Low utilization on BOTH volume ({:.1f}%) and weight ({:.1f}%). " +
+                        "Consider consolidating with other shipments or using a smaller vehicle.",
+                        volumeUtil, weightUtil);
+            } else if (volumeUtil > 80 && weightUtil > 80) {
+                log.info("      ✅ Excellent utilization! Both volume ({:.1f}%) and weight ({:.1f}%) are well optimized.",
+                        volumeUtil, weightUtil);
+            }
         }
 
         return used;
@@ -487,6 +535,64 @@ public class BinPacker {
         cmp = a.getMaxWidth().compareTo(b.getMaxWidth());
         if (cmp != 0) return cmp;
         return a.getMaxHeight().compareTo(b.getMaxHeight());
+    }
+
+    /**
+     * Calculate COMBINED utilization score for a container (weight + volume)
+     * Higher score = better utilization = prefer this container
+     */
+    private static double calculateCombinedUtilization(ContainerState container) {
+        // Weight utilization
+        long maxWeightGram = convertWeightToLong(container.rule.getMaxWeight());
+        double weightUtil = maxWeightGram > 0 ? (double) container.currentWeight / maxWeightGram : 0.0;
+        
+        // Volume utilization
+        long usedVolume = container.placements.stream()
+                .mapToLong(p -> (long) p.lx * p.ly * p.lz)
+                .sum();
+        long totalVolume = (long) container.maxX * container.maxY * container.maxZ;
+        double volumeUtil = totalVolume > 0 ? (double) usedVolume / totalVolume : 0.0;
+        
+        // Combined score: weight is more important (60%) than volume (40%)
+        // This prevents wasting expensive weight capacity
+        return (weightUtil * 0.6) + (volumeUtil * 0.4);
+    }
+
+    /**
+     * Calculate fit score for selecting the best vehicle for a package
+     * Considers: size fit, weight fit, and potential for future packing
+     * Higher score = better fit
+     */
+    private static double calculateVehicleFitScore(BoxItem box, SizeRuleEntity rule, int maxX, int maxY, int maxZ) {
+        // 1. Dimension fit ratio (avoid too much wasted space)
+        double lengthFit = (double) box.lx / maxX;
+        double widthFit = (double) box.ly / maxY;
+        double heightFit = (double) box.lz / maxZ;
+        double avgDimensionFit = (lengthFit + widthFit + heightFit) / 3.0;
+        
+        // 2. Weight fit ratio
+        long maxWeightGram = convertWeightToLong(rule.getMaxWeight());
+        double weightFit = maxWeightGram > 0 ? (double) box.weight / maxWeightGram : 0.0;
+        
+        // 3. Volume fit ratio
+        long boxVolume = (long) box.lx * box.ly * box.lz;
+        long containerVolume = (long) maxX * maxY * maxZ;
+        double volumeFit = containerVolume > 0 ? (double) boxVolume / containerVolume : 0.0;
+        
+        // Combined fit score:
+        // - Prefer balanced utilization (30% dimension, 35% weight, 35% volume)
+        // - Penalize vehicles that are TOO LARGE (waste) or TOO SMALL (won't fit more items later)
+        // - Sweet spot: 0.4-0.7 utilization on first item
+        double rawScore = (avgDimensionFit * 0.3) + (weightFit * 0.35) + (volumeFit * 0.35);
+        
+        // Bonus for "good fit" range (40-70% utilization)
+        if (rawScore >= 0.4 && rawScore <= 0.7) {
+            rawScore += 0.2; // Boost score for vehicles in sweet spot
+        } else if (rawScore < 0.2) {
+            rawScore *= 0.5; // Penalize vehicles that are way too large
+        }
+        
+        return rawScore;
     }
 
     public static int convertToInt(BigDecimal bd) {
@@ -576,6 +682,10 @@ public class BinPacker {
                     .sizeRuleName(c.rule.getSizeRuleName())
                     .currentLoad(currentLoadPrecise)
                     .currentLoadUnit(dominantUnit) // Sử dụng đơn vị động
+                    // Vehicle dimensions for 3D visualization (in meters)
+                    .maxLength(c.rule.getMaxLength())
+                    .maxWidth(c.rule.getMaxWidth())
+                    .maxHeight(c.rule.getMaxHeight())
                     .assignedDetails(assigned)
                     .packedDetailDetails(packedDetails)
                     .build();

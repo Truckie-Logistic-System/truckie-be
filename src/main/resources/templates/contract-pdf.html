@@ -269,8 +269,7 @@
 
         <p><strong>Khoảng cách vận chuyển:</strong> <span th:text="${#numbers.formatDecimal(distanceKm, 0, 'POINT', 2, 'COMMA')}">0</span> km</p>
 
-        <p><strong>Danh mục hàng hóa:</strong> <span th:text="${order.category != null ? order.category.categoryName : 'N/A'}">N/A</span></p>
-        <p><strong>Mô tả danh mục:</strong> <span th:text="${order.category != null ? order.category.description : 'N/A'}">N/A</span></p>
+        <p><strong>Danh mục hàng hóa:</strong> <span th:text="${order.category != null ? order.category.description : 'N/A'}">N/A</span></p>
 
         <!-- Chi tiết hàng hóa -->
         <th:block th:if="${order.orderDetailEntities != null and !order.orderDetailEntities.isEmpty()}">
@@ -320,14 +319,18 @@
                 </tr>
             </thead>
             <tbody>
-                <tr th:each="step : ${calculationDetails}">
-                    <td th:text="${step.sizeRuleName}">N/A</td>
-                    <td class="text-center" th:text="${step.numOfVehicles}">0</td>
-                    <td th:text="${step.distanceRange}">N/A</td>
-                    <td class="text-right" th:text="${#numbers.formatDecimal(step.unitPrice, 0, 'POINT', 0, 'COMMA')}">0</td>
-                    <td class="text-center" th:text="${#numbers.formatDecimal(step.appliedKm, 0, 'POINT', 2, 'COMMA')}">0</td>
-                    <td class="text-right" th:text="${#numbers.formatDecimal(step.subtotal, 0, 'POINT', 0, 'COMMA')}">0</td>
-                </tr>
+                <!-- Group steps by sizeRuleName to use rowSpan for vehicle type columns -->
+                <th:block th:each="entry : ${groupedCalculationDetails.entrySet()}">
+                    <tr th:each="step, stepStat : ${entry.value}">
+                        <!-- Only render vehicle type and count on first row of each group -->
+                        <td th:if="${stepStat.first}" th:rowspan="${entry.value.size()}" style="vertical-align: middle;" th:text="${entry.key}">N/A</td>
+                        <td th:if="${stepStat.first}" th:rowspan="${entry.value.size()}" style="vertical-align: middle; text-align: center;" th:text="${step.numOfVehicles}">0</td>
+                        <td th:text="${step.distanceRange}">N/A</td>
+                        <td class="text-right" th:text="${#numbers.formatDecimal(step.unitPrice, 0, 'POINT', 0, 'COMMA')}">0</td>
+                        <td class="text-center" th:text="${#numbers.formatDecimal(step.appliedKm, 0, 'POINT', 2, 'COMMA')}">0</td>
+                        <td class="text-right" th:text="${#numbers.formatDecimal(step.subtotal, 0, 'POINT', 0, 'COMMA')}">0</td>
+                    </tr>
+                </th:block>
             </tbody>
         </table>
 
@@ -337,14 +340,31 @@
             
             <p class="price-detail">a) Cước vận chuyển cơ bản theo quãng đường <span th:text="${#numbers.formatDecimal(distanceKm, 0, 'POINT', 2, 'COMMA')}">0</span> km:</p>
             
-            <p th:each="step : ${calculationDetails}" class="price-sub-detail">
-                - <span th:text="${step.sizeRuleName}">N/A</span> (<span th:text="${step.numOfVehicles}">0</span> xe): 
-                <span th:text="${#numbers.formatDecimal(step.unitPrice, 0, 'POINT', 0, 'COMMA')}">0</span>/km × 
-                <span th:text="${#numbers.formatDecimal(step.appliedKm, 0, 'POINT', 2, 'COMMA')}">0</span> km = 
-                <strong th:text="${#numbers.formatDecimal(step.subtotal, 0, 'POINT', 0, 'COMMA')}">0</strong>
-            </p>
+            <!-- Group steps by sizeRuleName to show detailed breakdown and totals per vehicle type -->
+            <th:block th:each="entry : ${groupedCalculationDetails.entrySet()}">
+                <th:block th:with="steps=${entry.value}, vehicleTotal=${vehicleTotals.get(entry.key)}">
+                    <p class="price-sub-detail">
+                        - <span th:text="${entry.key}">N/A</span> (<span th:text="${steps[0].numOfVehicles}">0</span> xe): 
+                        <th:block th:each="step, stepStat : ${steps}">
+                            <span>(<span th:text="${#numbers.formatDecimal(step.unitPrice, 0, 'POINT', 0, 'COMMA')}">0</span>/km × <span th:text="${#numbers.formatDecimal(step.appliedKm, 0, 'POINT', 2, 'COMMA')}">0</span> km)</span>
+                            <span th:if="${!stepStat.last}"> + </span>
+                        </th:block>
+                         = <strong th:text="${#numbers.formatDecimal(vehicleTotal, 0, 'POINT', 0, 'COMMA')}">0</strong>
+                    </p>
+                </th:block>
+            </th:block>
             
-            <p class="price-sub-detail">Tổng cước cơ bản: <strong th:text="${#numbers.formatDecimal(totalBeforeAdjustment, 0, 'POINT', 0, 'COMMA')}">0</strong></p>
+            <!-- Show total as sum of vehicle type totals -->
+            <p class="price-sub-detail">
+                Tổng cước cơ bản: 
+                <th:block th:each="entry, entryStat : ${groupedCalculationDetails.entrySet()}">
+                    <th:block th:with="vehicleTotal=${vehicleTotals.get(entry.key)}">
+                        <span th:text="${#numbers.formatDecimal(vehicleTotal, 0, 'POINT', 0, 'COMMA')}">0</span>
+                        <span th:if="${!entryStat.last}"> + </span>
+                    </th:block>
+                </th:block>
+                 = <strong th:text="${#numbers.formatDecimal(totalBeforeAdjustment, 0, 'POINT', 0, 'COMMA')}">0</strong>
+            </p>
 
             <p class="price-detail">b) Hệ số danh mục hàng hóa (<span th:text="${order.category != null ? order.category.description : 'N/A'}">N/A</span>): × <span th:text="${categoryMultiplier}">1</span></p>
 

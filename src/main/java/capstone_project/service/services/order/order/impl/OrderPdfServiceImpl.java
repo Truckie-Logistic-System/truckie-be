@@ -55,12 +55,28 @@ public class OrderPdfServiceImpl implements OrderPdfService {
     @Override
     public ContractPdfResponse generateAndUploadContractPdf(UUID contractId) {
         try {
-            ContractEntity contract = contractEntityService.findEntityById(contractId)
+            // Sử dụng fetch join để load đầy đủ order, sender và user
+            ContractEntity contract = contractEntityService.findByIdWithOrderAndSender(contractId)
                     .orElseThrow(() -> new IllegalArgumentException("Contract not found: " + contractId));
 
             OrderEntity order = contract.getOrderEntity();
             if (order == null) {
                 throw new IllegalStateException("Contract has no associated order: " + contractId);
+            }
+            
+            // Log để debug - sender và user đã được load đầy đủ qua fetch join
+            CustomerEntity sender = order.getSender();
+            if (sender != null) {
+                log.info("📋 PDF Generation - Sender loaded: CompanyName={}, RepName={}, Phone={}, Address={}", 
+                    sender.getCompanyName(),
+                    sender.getRepresentativeName(),
+                    sender.getRepresentativePhone(),
+                    sender.getBusinessAddress());
+                if (sender.getUser() != null) {
+                    log.info("📋 PDF Generation - User loaded: Email={}", sender.getUser().getEmail());
+                }
+            } else {
+                log.warn("⚠️ PDF Generation - Sender is NULL for order: {}", order.getId());
             }
 
             List<ContractRuleAssignResponse> assignResult = contractService.assignVehiclesWithAvailability(order.getId());

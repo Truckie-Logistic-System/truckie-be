@@ -163,6 +163,14 @@ public class IssuesController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
     
+    // Fallback: Get available ACTIVE seals by tracking code
+    @GetMapping("/vehicle-assignment/tracking-code/{trackingCode}/active-seals")
+    public ResponseEntity<ApiResponse<List<capstone_project.dtos.response.order.seal.GetSealResponse>>> getActiveSealsByTrackingCode(
+            @PathVariable("trackingCode") String trackingCode) {
+        final var result = issueService.getActiveSealsByTrackingCode(trackingCode);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+    
     // Get pending seal replacements for a vehicle assignment (for driver to confirm)
     @GetMapping("/vehicle-assignment/{vehicleAssignmentId}/pending-seal-replacements")
     public ResponseEntity<ApiResponse<List<GetBasicIssueResponse>>> getPendingSealReplacements(

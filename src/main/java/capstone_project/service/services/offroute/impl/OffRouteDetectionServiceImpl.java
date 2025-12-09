@@ -150,8 +150,16 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
             offRouteEventEntityService.findActiveByVehicleAssignmentId(assignmentId);
         
         if (existingEventOpt.isPresent()) {
-            // Update existing event
+            // Update existing event only if still active
             OffRouteEventEntity event = existingEventOpt.get();
+            
+            // CRITICAL FIX: Check if event is still active before updating
+            // This prevents tracking after ISSUE_CREATED status
+            if (!event.isActive()) {
+                log.debug("[OffRoute] Skipping update for inactive event {} with status {}", 
+                    event.getId(), event.getWarningStatus());
+                return;
+            }
             
             // Store previous distance before updating
             event.setPreviousDistanceFromRouteMeters(event.getDistanceFromRouteMeters());
@@ -214,6 +222,14 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
      * - After confirm contact on RED: reset to YELLOW, then RED again after redWarningMinutes from last contact
      */
     private void checkWarningThresholds(OffRouteEventEntity event) {
+        // CRITICAL FIX: Check if event is still active before processing warnings
+        // This prevents sending warnings for ISSUE_CREATED or other inactive events
+        if (!event.isActive()) {
+            log.debug("[OffRoute] Skipping warning check for inactive event {} with status {}", 
+                event.getId(), event.getWarningStatus());
+            return;
+        }
+        
         long durationMinutes = event.getOffRouteDurationMinutes();
         OffRouteWarningStatus currentStatus = event.getWarningStatus();
 

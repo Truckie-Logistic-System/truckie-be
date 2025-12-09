@@ -1523,6 +1523,10 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                         ? vehicle.getVehicleTypeEntity().getVehicleTypeName()
                         : sizeRule.getVehicleTypeEntity().getVehicleTypeName();
 
+                String vehicleTypeDescription = vehicle.getVehicleTypeEntity() != null
+                        ? vehicle.getVehicleTypeEntity().getDescription()
+                        : sizeRule.getVehicleTypeEntity().getDescription();
+
                 vehicleSuggestions.add(new GroupedVehicleAssignmentResponse.VehicleSuggestionResponse(
                         vehicle.getId(),
                         vehicle.getLicensePlateNumber(),
@@ -1530,6 +1534,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                         vehicle.getManufacturer(),
                         finalVehicleTypeId,
                         vehicleTypeName,
+                        vehicleTypeDescription,
                         driverSuggestions,
                         isRecommended
                 ));
@@ -1590,35 +1595,53 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             // Factor 1: License class rank (0-200 points)
             score += licenseClassRank(driver.getLicenseClass()) * 100;
 
-            // Factor 2: Previous assignment to this vehicle - familiarity bonus (0-500 points)
-            int previousAssignmentScore = lastAssignmentDriverOrder.indexOf(driverId);
-            score += (previousAssignmentScore >= 0) ? previousAssignmentScore * 50 : 500;
+            // Factor 2: Previous assignment to this vehicle - familiarity bonus (-600 to 0 points)
+            // ✅ FIXED: Familiar drivers should get BONUS (negative score = higher priority)
+            int previousAssignmentIndex = lastAssignmentDriverOrder.indexOf(driverId);
+            if (previousAssignmentIndex >= 0) {
+                // Driver is familiar with this vehicle - BIG BONUS!
+                score -= 500;  // Subtract points (lower score = higher priority)
+                // Driver1 from last assignment gets extra bonus
+                if (previousAssignmentIndex == 0) {
+                    score -= 100;  // Primary driver gets even more bonus
+                }
+            }
+            // Else: Driver never drove this vehicle - no bonus, no penalty (neutral)
 
-            // Factor 3: Recent activity (weighted by our improved scoring system) (0-300 points)
+            // Factor 3: Recent activity (weighted by our improved scoring system) (0-200 points)
+            // ✅ OPTIMIZED: Reduced weight from 30 to 20 for better balance
             int recentActivity = recentActivityMap.getOrDefault(driverId, 0);
-            score += recentActivity * 30;
+            score += recentActivity * 20;
 
-            // Factor 4: Experience vs workload balance (100-300 points)
+            // Factor 4: Experience vs workload balance (0-350 points)
+            // ✅ OPTIMIZED: More granular workload distribution with clear sweet spot
             int completedTrips = completedTripsMap.getOrDefault(driverId, 0);
+            double workloadRatio = avgCompletedTrips > 0 ? (double) completedTrips / avgCompletedTrips : 0.0;
 
-            // Prefer drivers with experience but don't overwork them
-            if (completedTrips < avgCompletedTrips * 0.5) {
-                // Less experienced driver gets medium priority
+            if (workloadRatio < 0.3) {
+                // Very inexperienced - medium-high penalty
+                score += 250;
+            } else if (workloadRatio < 0.7) {
+                // Less experienced - medium penalty
+                score += 150;
+            } else if (workloadRatio < 1.3) {
+                // Balanced workload - BEST! (sweet spot: 70-130% of average)
+                score += 0;
+            } else if (workloadRatio < 1.8) {
+                // Slightly overworked - medium penalty
                 score += 200;
-            } else if (completedTrips > avgCompletedTrips * 1.5) {
-                // Overworked driver gets lower priority
-                score += 300;
             } else {
-                // Balanced workload gets highest priority
-                score += 100;
+                // Very overworked - high penalty
+                score += 350;
             }
 
-            // Factor 5: Violations (0-400 points)
+            // Factor 5: Violations (0-300 points)
+            // ✅ OPTIMIZED: Reduced weight from 80 to 60 for better balance
             int violations = violationCountMap.getOrDefault(driverId, 0);
-            score += violations * 80;
+            score += violations * 60;
 
-            // Factor 6: Driver workload balance over time (0-300 points)
-            // Calculate days since last assignment to prevent overworking recent drivers
+            // Factor 6: Driver workload balance over time (0-400 points)
+            // ✅ OPTIMIZED: More granular levels + prevents consecutive day assignments
             Optional<VehicleAssignmentEntity> lastAssignment = entityService.findLatestAssignmentByDriverId(driverId);
             if (lastAssignment.isPresent()) {
                 LocalDateTime lastAssignmentDate = lastAssignment.get().getCreatedAt();
@@ -1628,18 +1651,24 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 ).toDays();
 
                 // Drivers who haven't been assigned recently get priority
-                if (daysSinceLastAssignment < 2) {
-                    // Assigned very recently (less than 2 days ago)
+                if (daysSinceLastAssignment < 1) {
+                    // Just assigned yesterday - highest penalty
+                    score += 400;
+                } else if (daysSinceLastAssignment < 3) {
+                    // Very recent (1-3 days ago)
                     score += 300;
-                } else if (daysSinceLastAssignment < 5) {
-                    // Assigned recently (2-5 days ago)
+                } else if (daysSinceLastAssignment < 7) {
+                    // Recent (3-7 days ago)
                     score += 200;
                 } else if (daysSinceLastAssignment < 14) {
-                    // Assigned not too recently (5-14 days ago)
+                    // Not recent (1-2 weeks ago)
                     score += 100;
+                } else if (daysSinceLastAssignment < 30) {
+                    // Long rest (2-4 weeks ago)
+                    score += 50;
                 } else {
-                    // Hasn't been assigned in a while (14+ days)
-                    score += 0; // Highest priority - no penalty
+                    // Very long rest (>1 month) - highest priority
+                    score += 0;
                 }
             }
 
@@ -2114,6 +2143,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 String vehicleTypeName = (vehicle.getVehicleTypeEntity() != null && vehicle.getVehicleTypeEntity().getVehicleTypeName() != null) 
                     ? vehicle.getVehicleTypeEntity().getVehicleTypeName() : "Truck";
                 
+                // 🔧 Get tracking code for display instead of UUID
+                String vehicleAssignmentTrackingCode = assignment.getTrackingCode();
+                
                 CreateNotificationRequest customerNotif = NotificationBuilder.buildDriverAssigned(
                     order.getSender().getUser().getId(),
                     order.getOrderCode(),
@@ -2127,6 +2159,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                         ? assignmentOrderDetails.get(0).getEstimatedStartTime() : null,
                     assignmentOrderDetails,
                     categoryDescription,
+                    vehicleAssignmentTrackingCode,
                     order.getId(),
                     assignment.getId()
                 );

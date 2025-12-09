@@ -22,9 +22,17 @@ public class ContractRuleAssignResponse {
     private String sizeRuleName;
     private BigDecimal currentLoad;
     private String currentLoadUnit; // Đơn vị của currentLoad (luôn là "Tấn")
+    
+    // Vehicle dimensions (meters) - for 3D visualization
+    private BigDecimal maxLength;
+    private BigDecimal maxWidth;
+    private BigDecimal maxHeight;
+    
     //    private List<UUID> assignedDetails = new ArrayList<>();
+    @Builder.Default
     private List<OrderDetailForPackingResponse> assignedDetails = new ArrayList<>();
-    List<PackedDetailResponse> packedDetailDetails;
+    @Builder.Default
+    private List<PackedDetailResponse> packedDetailDetails = new ArrayList<>();
 
 }
 

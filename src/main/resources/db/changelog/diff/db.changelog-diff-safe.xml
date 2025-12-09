@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+        SAFE CHANGES - Không mất data
+        Chỉ chứa: Add constraints, Modify types, Add comments
+    -->
+
+    <!-- ========================================
+         PHASE 1: Archive data trước khi drop
+         ======================================== -->
+    
+    <changeSet id="archive-issue-damage-assessment" author="migration">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="issue_damage_assessment"/>
+        </preConditions>
+        <sql>
+            CREATE TABLE IF NOT EXISTS issue_damage_assessment_archive AS 
+            SELECT *, NOW() as archived_at 
+            FROM issue_damage_assessment;
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS issue_damage_assessment_archive;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="archive-issue-off-route-assessment" author="migration">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="issue_off_route_assessment"/>
+        </preConditions>
+        <sql>
+            CREATE TABLE IF NOT EXISTS issue_off_route_assessment_archive AS 
+            SELECT *, NOW() as archived_at 
+            FROM issue_off_route_assessment;
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS issue_off_route_assessment_archive;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="archive-signature-requests" author="migration">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="signature_requests"/>
+        </preConditions>
+        <sql>
+            CREATE TABLE IF NOT EXISTS signature_requests_archive AS 
+            SELECT *, NOW() as archived_at 
+            FROM signature_requests;
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS signature_requests_archive;
+        </rollback>
+    </changeSet>
+
+    <!-- Archive columns data -->
+    <changeSet id="archive-dropped-columns" author="migration">
+        <sql>
+            CREATE TABLE IF NOT EXISTS archived_columns (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                table_name VARCHAR(100),
+                column_name VARCHAR(100),
+                record_id UUID,
+                column_value TEXT,
+                archived_at TIMESTAMP DEFAULT NOW()
+            );
+
+            -- Archive contract_settings columns
+            INSERT INTO archived_columns (table_name, column_name, record_id, column_value)
+            SELECT 'contract_settings', 'expired_deposit_date', id, expired_deposit_date::TEXT
+            FROM contract_settings
+            WHERE expired_deposit_date IS NOT NULL;
+
+            INSERT INTO archived_columns (table_name, column_name, record_id, column_value)
+            SELECT 'contract_settings', 'insurance_rate', id, insurance_rate::TEXT
+            FROM contract_settings
+            WHERE insurance_rate IS NOT NULL;
+
+            -- Archive orders.total_price
+            INSERT INTO archived_columns (table_name, column_name, record_id, column_value)
+            SELECT 'orders', 'total_price', id, total_price::TEXT
+            FROM orders
+            WHERE total_price IS NOT NULL;
+
+            -- Archive contract_rules.vehicle_rule_id
+            INSERT INTO archived_columns (table_name, column_name, record_id, column_value)
+            SELECT 'contract_rules', 'vehicle_rule_id', id, vehicle_rule_id::TEXT
+            FROM contract_rules
+            WHERE vehicle_rule_id IS NOT NULL;
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS archived_columns;
+        </rollback>
+    </changeSet>
+
+    <!-- ========================================
+         PHASE 2: Add new constraints (SAFE)
+         ======================================== -->
+
+    <changeSet author="liquibase-generated" id="add-unique-refunds-issue">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <uniqueConstraintExists tableName="refunds" constraintName="refunds_issue_id_key"/>
+            </not>
+        </preConditions>
+        <addUniqueConstraint columnNames="issue_id" constraintName="refunds_issue_id_key" tableName="refunds"/>
+    </changeSet>
+
+    <!-- ========================================
+         PHASE 3: Modify data types (SAFE)
+         ======================================== -->
+
+    <changeSet author="liquibase-generated" id="modify-packing-proof-created-at">
+        <modifyDataType columnName="created_at" newDataType="timestamp" tableName="packing_proof_images"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="modify-packing-proof-modified-at">
+        <modifyDataType columnName="modified_at" newDataType="timestamp" tableName="packing_proof_images"/>
+    </changeSet>
+
+    <!-- ========================================
+         PHASE 4: Drop default values (SAFE)
+         ======================================== -->
+
+    <changeSet author="liquibase-generated" id="drop-default-packing-proof-created-at">
+        <dropDefaultValue columnDataType="timestamp" columnName="created_at" tableName="packing_proof_images"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-default-grace-period-extension-count">
+        <dropDefaultValue columnDataType="int" columnName="grace_period_extension_count" tableName="off_route_events"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-default-packing-proof-id">
+        <dropDefaultValue columnDataType="uuid" columnName="id" tableName="packing_proof_images"/>
+    </changeSet>
+
+    <!-- ========================================
+         PHASE 5: Add comments (SAFE)
+         ======================================== -->
+
+    <changeSet author="liquibase-generated" id="add-comments-batch-1">
+        <setTableRemarks tableName="penalty_history"/>
+        <setColumnRemarks columnDataType="number(19,2)" columnName="adjusted_return_fee" tableName="issues"/>
+        <setColumnRemarks columnDataType="number(38,2)" columnName="adjusted_value" tableName="contracts"/>
+        <setColumnRemarks columnDataType="timestamp" columnName="contacted_at" tableName="off_route_events"/>
+        <setColumnRemarks columnDataType="uuid" columnName="contacted_by" tableName="off_route_events"/>
+        <setColumnRemarks columnDataType="uuid" columnName="driver_id" tableName="penalty_history"/>
+        <setColumnRemarks columnDataType="timestamp" columnName="grace_period_expires_at" tableName="off_route_events"/>
+        <setColumnRemarks columnDataType="boolean" columnName="grace_period_extended" tableName="off_route_events"/>
+        <setColumnRemarks columnDataType="timestamp" columnName="grace_period_extended_at" tableName="off_route_events"/>
+        <setColumnRemarks columnDataType="int" columnName="grace_period_extension_count" tableName="off_route_events"/>
+        <setColumnRemarks columnDataType="varchar(30)" columnName="issue_category" tableName="issue_types"/>
+        <setColumnRemarks columnDataType="timestamp" columnName="last_location_update_at" tableName="off_route_events"/>
+        <setColumnRemarks columnDataType="timestamp" columnName="modified_at" tableName="notifications"/>
+        <setColumnRemarks columnDataType="timestamp" columnName="new_seal_confirmed_at" tableName="issues"/>
+        <setColumnRemarks columnDataType="timestamp" columnName="payment_deadline" tableName="issues"/>
+        <setColumnRemarks columnDataType="date" columnName="penalty_date" tableName="penalty_history"/>
+        <setColumnRemarks columnDataType="float8" columnName="previous_distance_from_route_meters" tableName="off_route_events"/>
+        <setColumnRemarks columnDataType="uuid" columnName="return_journey_id" tableName="issues"/>
+        <setColumnRemarks columnDataType="number(19,2)" columnName="return_shipping_fee" tableName="issues"/>
+        <setColumnRemarks columnDataType="clob" columnName="traffic_violation_record_image_url" tableName="penalty_history"/>
+        <setColumnRemarks columnDataType="varchar(500)" columnName="trip_status_at_report" tableName="issues"/>
+        <setColumnRemarks columnDataType="uuid" columnName="vehicle_assignment_id" tableName="penalty_history"/>
+        <setColumnRemarks columnDataType="varchar(100)" columnName="violation_type" tableName="penalty_history"/>
+    </changeSet>
+
+</databaseChangeLog>

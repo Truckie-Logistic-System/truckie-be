@@ -28,6 +28,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -80,15 +81,40 @@ public class NotificationServiceImpl implements NotificationService {
     // ============= New Persistent Notification Methods =============
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public NotificationResponse createNotification(CreateNotificationRequest request) {
-        log.info("📢 Creating notification for user: {}, type: {}", request.getUserId(), request.getNotificationType());
+        log.info(" Creating notification for user: {}, type: {}", request.getUserId(), request.getNotificationType());
         
         try {
             // Validate user exists
             UserEntity user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found: " + request.getUserId()));
+                .orElse(null);
             
+            if (user == null) {
+                log.warn(" User not found for notification: {} - skipping notification creation", request.getUserId());
+                return null;
+            }
+
+            // Special case: DRIVER_CREATED for DRIVER should send email only (no in-app notification / WebSocket / FCM)
+            if (NotificationTypeEnum.DRIVER_CREATED.equals(request.getNotificationType())
+                    && "DRIVER".equals(request.getRecipientRole())) {
+                log.info("Sending DRIVER_CREATED email without creating persistent notification for user: {}", user.getId());
+
+                NotificationEntity tempNotification = NotificationEntity.builder()
+                        .user(user)
+                        .recipientRole(request.getRecipientRole())
+                        .title(request.getTitle())
+                        .description(request.getDescription())
+                        .notificationType(request.getNotificationType())
+                        .createdAt(LocalDateTime.now())
+                        .build();
+
+                // Directly send email using the email service; no DB record, no WebSocket, no FCM
+                emailNotificationService.sendNotificationEmail(tempNotification, user);
+
+                return null;
+            }
+        
             // Convert related order detail IDs to JSON string
             String orderDetailIdsJson = null;
             if (request.getRelatedOrderDetailIds() != null && !request.getRelatedOrderDetailIds().isEmpty()) {
@@ -131,8 +157,9 @@ public class NotificationServiceImpl implements NotificationService {
             applicationEventPublisher.publishEvent(new NotificationCreatedEvent(notification));
             log.info("✅ NotificationCreatedEvent published successfully");
             
-            // Send email if customer AND notification requires email
-            if ("CUSTOMER".equals(request.getRecipientRole()) && shouldSendEmail(request.getNotificationType(), request.getMetadata())) {
+            // Send email if customer AND notification requires email, OR if driver account created
+            if (("CUSTOMER".equals(request.getRecipientRole()) && shouldSendEmail(request.getNotificationType(), request.getMetadata())) ||
+                ("DRIVER".equals(request.getRecipientRole()) && NotificationTypeEnum.DRIVER_CREATED.equals(request.getNotificationType()))) {
                 sendEmailNotificationAsync(notification, user);
             }
             
@@ -142,8 +169,11 @@ public class NotificationServiceImpl implements NotificationService {
             return response;
             
         } catch (JsonProcessingException e) {
-            log.error("❌ Error converting to JSON", e);
-            throw new RuntimeException("Failed to create notification", e);
+            log.error("❌ Error converting to JSON for notification: {} - skipping", request.getNotificationType(), e);
+            return null;
+        } catch (Exception e) {
+            log.error("❌ Unexpected error creating notification: {} - skipping", request.getNotificationType(), e);
+            return null;
         }
     }
 
@@ -277,51 +307,53 @@ public class NotificationServiceImpl implements NotificationService {
      * Convert entity to response DTO
      */
     public NotificationResponse toResponse(NotificationEntity entity) {
-        try {
-            // Parse order detail IDs from JSON
-            List<UUID> orderDetailIds = null;
-            if (entity.getRelatedOrderDetailIds() != null) {
+        // Parse order detail IDs from JSON
+        List<UUID> orderDetailIds = null;
+        if (entity.getRelatedOrderDetailIds() != null) {
+            try {
                 orderDetailIds = objectMapper.readValue(
                     entity.getRelatedOrderDetailIds(), 
                     new TypeReference<List<UUID>>() {}
                 );
+            } catch (JsonProcessingException e) {
+                log.warn("⚠️ Failed to parse orderDetailIds JSON for notification: {} - using null", entity.getId());
             }
-            
-            // Parse metadata from JSON
-            Map<String, Object> metadata = null;
-            if (entity.getMetadata() != null) {
+        }
+        
+        // Parse metadata from JSON
+        Map<String, Object> metadata = null;
+        if (entity.getMetadata() != null) {
+            try {
                 metadata = objectMapper.readValue(
                     entity.getMetadata(), 
                     new TypeReference<Map<String, Object>>() {}
                 );
+            } catch (JsonProcessingException e) {
+                log.warn("⚠️ Failed to parse metadata JSON for notification: {} - using null", entity.getId());
             }
-            
-            return NotificationResponse.builder()
-                .id(entity.getId())
-                .recipientRole(entity.getRecipientRole())
-                .title(entity.getTitle())
-                .description(entity.getDescription())
-                .notificationType(entity.getNotificationType())
-                .relatedOrderId(entity.getRelatedOrderId())
-                .relatedOrderDetailIds(orderDetailIds)
-                .relatedIssueId(entity.getRelatedIssueId())
-                .relatedVehicleAssignmentId(entity.getRelatedVehicleAssignmentId())
-                .relatedContractId(entity.getRelatedContractId())
-                .metadata(metadata)
-                .isRead(entity.isRead())
-                .readAt(entity.getReadAt())
-                .emailSent(entity.isEmailSent())
-                .emailSentAt(entity.getEmailSentAt())
-                .pushNotificationSent(entity.isPushNotificationSent())
-                .pushNotificationSentAt(entity.getPushNotificationSentAt())
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getModifiedAt())
-                .build();
-                
-        } catch (JsonProcessingException e) {
-            log.error("❌ Error parsing JSON in notification: {}", entity.getId(), e);
-            throw new RuntimeException("Failed to parse notification JSON", e);
         }
+        
+        return NotificationResponse.builder()
+            .id(entity.getId())
+            .recipientRole(entity.getRecipientRole())
+            .title(entity.getTitle())
+            .description(entity.getDescription())
+            .notificationType(entity.getNotificationType())
+            .relatedOrderId(entity.getRelatedOrderId())
+            .relatedOrderDetailIds(orderDetailIds)
+            .relatedIssueId(entity.getRelatedIssueId())
+            .relatedVehicleAssignmentId(entity.getRelatedVehicleAssignmentId())
+            .relatedContractId(entity.getRelatedContractId())
+            .metadata(metadata)
+            .isRead(entity.isRead())
+            .readAt(entity.getReadAt())
+            .emailSent(entity.isEmailSent())
+            .emailSentAt(entity.getEmailSentAt())
+            .pushNotificationSent(entity.isPushNotificationSent())
+            .pushNotificationSentAt(entity.getPushNotificationSentAt())
+            .createdAt(entity.getCreatedAt())
+            .updatedAt(entity.getModifiedAt())
+            .build();
     }
     private String determinePriority(NotificationTypeEnum type) {
         return switch (type) {
@@ -373,19 +405,10 @@ public class NotificationServiceImpl implements NotificationService {
                  COMPENSATION_PROCESSED,
                  ORDER_CANCELLED -> true;
             
-            // Conditional - Only when ALL packages affected
-            case DELIVERY_COMPLETED -> {
-                if (metadata != null && metadata.containsKey("allPackagesDelivered")) {
-                    yield Boolean.TRUE.equals(metadata.get("allPackagesDelivered"));
-                }
-                yield false;
-            }
-            case RETURN_COMPLETED -> {
-                if (metadata != null && metadata.containsKey("allPackagesReturned")) {
-                    yield Boolean.TRUE.equals(metadata.get("allPackagesReturned"));
-                }
-                yield false;
-            }
+            // Delivery / Return completed - send email whenever there is at least one affected package
+            case DELIVERY_COMPLETED -> true;
+            case RETURN_COMPLETED -> true;
+            case CUSTOMER_RETURN_IN_PROGRESS -> true;
             
             // Staff/Driver notifications - No email (they use in-app only)
             default -> false;

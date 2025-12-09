@@ -38,6 +38,12 @@ public record UpdateDamageCompensationRequest(
     String damageHandlerNote,
     
     // Trạng thái xử lý: PROPOSED, APPROVED, REJECTED
-    String damageCompensationStatus
+    String damageCompensationStatus,
+    
+    // Fraud detection
+    Boolean fraudDetected,
+    
+    @Size(max = 500, message = "Fraud reason must not exceed 500 characters")
+    String fraudReason
 ) {
 }

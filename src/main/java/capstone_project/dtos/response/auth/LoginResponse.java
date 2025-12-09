@@ -19,4 +19,16 @@ public class LoginResponse implements Serializable {
     private String refreshToken;
 
     private UserResponse user;
+
+    /**
+     * Indicates if this is the driver's first login (status = INACTIVE).
+     * If true, driver must complete onboarding before accessing the app.
+     */
+    private Boolean firstTimeLogin;
+
+    /**
+     * List of required actions for first-time login.
+     * e.g., ["CHANGE_PASSWORD", "UPLOAD_FACE"]
+     */
+    private java.util.List<String> requiredActions;
 }

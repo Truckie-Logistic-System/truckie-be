@@ -1,5 +1,5 @@
 ﻿TÀI LIỆU QUY ĐỊNH VÀ CHÍNH SÁCH VẬN CHUYỂN TOÀN DIỆN
-Ngày hiệu lực: 26/11/2025 Phiên bản: 1.0 Phạm vi áp dụng: Vận tải đường bộ bằng xe tải (TP.HCM)
+Ngày hiệu lực: 26/11/2025 | Phiên bản: 1.2 | Phạm vi áp dụng: Vận tải đường bộ bằng xe tải (TP.HCM)
 ________________
 
 
@@ -16,16 +16,16 @@ Mọi quy định trong tài liệu này được xây dựng dựa trên các v
 2. Chính sách Phí Phạt và Từ chối Phục vụ (Tại chỗ)
 Nhằm bù đắp chi phí vận hành (nhiên liệu, lương tài xế, khấu hao) khi xe đã được điều động nhưng không thể thực hiện dịch vụ do lỗi chủ quan của Khách hàng.
 A. Các trường hợp áp dụng:
-1. Hủy sau khi xuất phát: Khách hàng đơn phương hủy đơn khi xe đã lăn bánh hoặc đã đến điểm lấy hàng.
-2. Sai lệch trọng lượng: Trọng lượng thực tế vượt quá tải trọng cho phép của xe hoặc vượt quá 5% so với trọng lượng khai báo ban đầu.
-3. Sai quy cách đóng gói: Hàng dễ vỡ không được đóng gói chuẩn (thiếu xốp, kiện gỗ, nhãn cảnh báo) khiến Tài xế từ chối nhận để tránh rủi ro.
-4. Hàng cấm: Phát hiện hàng hóa thuộc danh mục cấm vận chuyển hoặc không có hóa đơn chứng từ đi đường.
+* Hủy sau khi xuất phát: Khách hàng đơn phương hủy đơn khi xe đã lăn bánh hoặc đã đến điểm lấy hàng.
+* Sai lệch trọng lượng: Trọng lượng thực tế vượt quá tải trọng cho phép của xe hoặc vượt quá 5% so với trọng lượng khai báo ban đầu.
+* Sai quy cách đóng gói: Hàng dễ vỡ không được đóng gói chuẩn (thiếu xốp, kiện gỗ, nhãn cảnh báo) khiến Tài xế từ chối nhận để tránh rủi ro.
+* Hàng cấm: Phát hiện hàng hóa thuộc danh mục cấm vận chuyển hoặc không có hóa đơn chứng từ đi đường.
 B. Cơ chế xử lý tài chính:
 * Giữ lại 100% cước phí: Bên Vận Chuyển sẽ giữ lại toàn bộ số tiền cước phí mà Khách hàng đã thanh toán (bao gồm Tiền Cọc và Khoản thanh toán còn lại).
 * Nguyên tắc: Chúng tôi KHÔNG thu thêm khoản phạt nào khác ngoài số tiền đã thanh toán. Khoản tiền đã thu được coi là phí bồi hoàn chi phí vận hành và phạt vi phạm hợp đồng.
 3. Chính sách Bảo hiểm Hàng hóa (Đã bao gồm VAT)
 A. Nguyên tắc Phí Bảo hiểm:
-LƯU Ý QUAN TRỌNG: Tỷ lệ phí bảo hiểm cơ bản (chưa VAT) dưới đây được quy định bởi Công ty Bảo hiểm đối tác. Bên Vận Chuyển chỉ đóng vai trò là đại lý thu hộ phí này để chuyển cho đơn vị bảo hiểm và không có quyền tự ý thay đổi mức phí.
+* LƯU Ý QUAN TRỌNG: Tỷ lệ phí bảo hiểm cơ bản (chưa VAT) dưới đây được quy định bởi Công ty Bảo hiểm đối tác. Bên Vận Chuyển chỉ đóng vai trò là đại lý thu hộ phí này để chuyển cho đơn vị bảo hiểm và không có quyền tự ý thay đổi mức phí.
 * Cơ cấu phí thu: Tổng phí thu của Khách hàng = (Giá trị Khai báo x Tỷ lệ phí cơ bản) + Thuế GTGT (VAT).
 * Tỷ lệ phí cơ bản (Tham khảo):
    * Hàng hóa thông thường: 0.08% x Giá trị Khai báo.
@@ -33,54 +33,47 @@ LƯU Ý QUAN TRỌNG: Tỷ lệ phí bảo hiểm cơ bản (chưa VAT) dưới 
 B. Điều kiện hiệu lực: Để được bồi thường theo giá trị khai báo, Khách hàng BẮT BUỘC phải cung cấp Hóa đơn VAT, chứng từ mua bán hợp pháp chứng minh giá trị hàng hóa khi xảy ra sự cố. Nếu không có chứng từ, bảo hiểm vô hiệu.
 4. Quy trình Bồi thường và Thẩm định Giá trị
 (Áp dụng khi xảy ra mất mát, hư hỏng)
-Kịch bản 1: Khách hàng CÓ mua Bảo hiểm và CÓ chứng từ
-* Mức bồi thường: Dựa trên Tỷ lệ hư hại thực tế x Giá trị Khai báo (theo Hợp đồng bảo hiểm).
-Kịch bản 2: Khách hàng KHÔNG mua Bảo hiểm (hoặc Mua nhưng KHÔNG có chứng từ)
-* Hệ quả: Hợp đồng bảo hiểm bị vô hiệu hóa (nếu có). Trách nhiệm chuyển về mức giới hạn pháp lý cơ bản.
-* Giới hạn bồi thường: Tối đa 10 lần cước phí vận chuyển của lô hàng bị thiệt hại.
-Kịch bản 3: Lỗi Cố Ý của Tài xế (Chiếm đoạt/Bỏ trốn)
-* Trách nhiệm: Bên Vận Chuyển chịu trách nhiệm bồi thường 100% Giá trị thực tế + Hoàn trả 100% Cước phí vận chuyển.
-* Điều kiện: Không áp dụng giới hạn trách nhiệm 10 lần cước phí trong trường hợp này.
-Quy trình Thẩm định (Khi không có hóa đơn): Nếu Khách hàng không chứng minh được giá trị, mức bồi thường là giá trị NHỎ HƠN giữa hai con số sau:
-1. Giới hạn trần: (10 x Cước phí vận chuyển).
-2. Thiệt hại ước tính: (Giá thị trường Proxy của hàng hóa tương đương x Tỷ lệ hư hỏng vật lý).
-Giải quyết tranh chấp về giá trị:
-* Nếu Khách hàng không đồng ý với mức thẩm định của Công ty, Khách hàng có quyền thuê Giám định viên độc lập.
-* Chi phí giám định:
-   * Công ty chịu: Nếu kết quả cho thấy Công ty định giá thấp hơn thực tế quá 10% hoặc lỗi hoàn toàn do vận hành (lỗi chủ quan).
-   * Khách hàng chịu: Trong các trường hợp còn lại.
-________________
+* Kịch bản 1: Khách hàng CÓ mua Bảo hiểm và CÓ chứng từ
+   * Mức bồi thường: Dựa trên Tỷ lệ hư hại thực tế x Giá trị Khai báo (theo Hợp đồng bảo hiểm).
+   * Xử lý chênh lệch giá trị (MỚI):
+      * Nếu Giá trị Chứng từ < Giá trị Khai báo: Đền theo Giá trị Chứng từ (Thực tế).
+      * Nếu Giá trị Chứng từ > Giá trị Khai báo: Đền theo Giá trị Khai báo (Bảo hiểm dưới giá trị).
+* Kịch bản 2: Khách hàng KHÔNG mua Bảo hiểm (hoặc Mua nhưng KHÔNG có chứng từ)
+   * Hệ quả: Hợp đồng bảo hiểm bị vô hiệu hóa (nếu có). Trách nhiệm chuyển về mức giới hạn pháp lý cơ bản.
+   * Giới hạn bồi thường: Tối đa 10 lần cước phí vận chuyển của lô hàng bị thiệt hại.
+* Kịch bản 3: Lỗi Cố Ý của Tài xế (Chiếm đoạt/Bỏ trốn)
+   * Trách nhiệm: Bên Vận Chuyển chịu trách nhiệm bồi thường 100% Giá trị thực tế + Hoàn trả 100% Cước phí vận chuyển.
+   * Điều kiện: Không áp dụng giới hạn trách nhiệm 10 lần cước phí trong trường hợp này.
+* Nguyên tắc Hoàn trả Cước phí Vận chuyển (Pro-rata):
+   * Ngoài tiền bồi thường hàng hóa, Khách hàng sẽ được hoàn lại cước phí vận chuyển (nếu lỗi do Vận chuyển):
+      * Hư hỏng toàn bộ: Hoàn trả 100% cước phí của đơn hàng.
+      * Hư hỏng một phần: Chỉ hoàn trả phần cước phí tương ứng theo tỷ lệ (trọng lượng/kích thước) của phần hàng hóa bị hư hỏng.
+* Quy trình Thẩm định (Khi không có hóa đơn): Nếu Khách hàng không chứng minh được giá trị, mức bồi thường là giá trị NHỎ HƠN giữa hai con số sau:
+   * Giới hạn trần: (10 x Cước phí vận chuyển).
+   * Thiệt hại ước tính: (Giá thị trường Proxy của hàng hóa tương đương x Tỷ lệ hư hỏng vật lý).
+* Giải quyết tranh chấp về giá trị:
+   * Nếu Khách hàng không đồng ý với mức thẩm định của Công ty, Khách hàng có quyền thuê Giám định viên độc lập.
+   * Chi phí giám định:
+      * Công ty chịu: Nếu kết quả cho thấy Công ty định giá thấp hơn thực tế quá 10% hoặc lỗi hoàn toàn do vận hành (lỗi chủ quan).
+      * Khách hàng chịu: Trong các trường hợp còn lại.
 ________________
 
 
 PHẦN 2: NỘI DUNG ĐIỀU KHOẢN DỊCH VỤ (HIỂN THỊ TRÊN WEB)
 ĐIỀU KHOẢN VÀ ĐIỀU KIỆN DỊCH VỤ VẬN CHUYỂN
 (Tuân thủ Bộ luật Dân sự 2015, Luật Thương mại 2005 và Luật Thuế GTGT)
-________________
-
-
-ĐIỀU KHOẢN VÀ ĐIỀU KIỆN DỊCH VỤ VẬN CHUYỂN
-(Tuân thủ Bộ luật Dân sự 2015, Luật Thương mại 2005 và Luật Thuế GTGT)
-________________
-
-
 ĐIỀU 1. ĐỊNH NGHĨA VÀ PHẠM VI DỊCH VỤ
 1.1. Các bên tham gia:
-* "Bên Vận Chuyển": Là đơn vị cung cấp nền tảng công nghệ, phương tiện và tài xế để thực hiện dịch vụ vận tải.
+* "Bên Vận Chuyển" (Chúng tôi): Là đơn vị cung cấp nền tảng công nghệ, phương tiện và tài xế để thực hiện dịch vụ vận tải.
 * "Khách Hàng" (Bên A): Là cá nhân hoặc tổ chức thực hiện việc đặt đơn hàng, ký kết hợp đồng và thanh toán cước phí.
 * "Đơn hàng": Là yêu cầu vận chuyển đã được xác nhận trên hệ thống bao gồm thông tin hàng hóa, điểm đi, điểm đến và cước phí.
 1.2. Phạm vi cung cấp dịch vụ:
-* Phương thức: Vận chuyển đường bộ nội thành. Để đảm bảo an toàn lao động, Tài xế chỉ chạy tối đa 01 chuyến trong ngày; các chuyến đường dài hoặc phức tạp sẽ được phân công tối đa 02 tài xế.
-* Phương tiện: Dịch vụ chỉ được thực hiện bằng XE TẢI đã được cấp phép vận tải và thuộc danh sách quản lý của hệ thống. Các loại phương tiện khác (xe máy, container đầu kéo, xe ba gác) không thuộc phạm vi phục vụ.
+* Phương thức: Vận chuyển đường bộ nội thành.
+* Phương tiện: Dịch vụ chỉ được thực hiện bằng XE TẢI. Các loại phương tiện khác (xe máy, container đầu kéo, xe ba gác) không thuộc phạm vi phục vụ của Hệ thống.
 * Khu vực: Giới hạn trong phạm vi Thành phố Hồ Chí Minh.
 * Tải trọng: Tổng khối lượng hàng hóa cho phép vận chuyển phải nằm trong khoảng từ 0.01 tấn (10 kg) đến 50 tấn. Lưu ý: Khối lượng tối đa của một kiện hàng riêng lẻ (package) phải từ 0.01 tấn (10 kg) đến 10 tấn. Khách hàng có thể tạo đơn với nhiều kiện hàng.
-________________
-
-
 ĐIỀU 2. QUY ĐỊNH VỀ HÀNG HÓA
-2.1. Hàng hóa Hợp lệ và Phân loại:
-* Hệ thống chấp nhận vận chuyển hàng tiêu dùng nhanh (FMCG), hàng điện tử, hàng may mặc, tài liệu/bưu phẩm và các loại hàng hóa thông thường.
-* Nguyên tắc phân loại: Mỗi đơn hàng chỉ được đăng ký cho một loại hàng hóa duy nhất (Ví dụ: Toàn bộ lô hàng phải là Hàng Thường, hoặc Toàn bộ là Hàng Dễ Vỡ). Không chấp nhận trộn lẫn các loại hàng để đảm bảo tính toán phí bảo hiểm chính xác.
+2.1. Hàng hóa Hợp lệ: Hệ thống chấp nhận vận chuyển hàng tiêu dùng nhanh (FMCG), hàng điện tử, hàng may mặc, tài liệu/bưu phẩm và các loại hàng hóa thông thường không yêu cầu điều kiện bảo quản đặc biệt (nhiệt độ, độ ẩm).
 2.2. Hàng hóa CẤM VẬN CHUYỂN và Miễn trừ trách nhiệm: Khách hàng cam kết tuyệt đối không gửi các mặt hàng sau:
 * Thực phẩm tươi sống, hàng đông lạnh, sinh vật sống.
 * Vũ khí, đạn dược, vật liệu nổ, chất ma túy, chất kích thích.
@@ -89,77 +82,70 @@ ________________
 2.3. Miễn trừ trách nhiệm pháp lý: Bên Vận Chuyển không chịu trách nhiệm pháp lý nếu hàng hóa bị cơ quan chức năng kiểm tra, tịch thu hoặc tiêu hủy do Khách hàng vi phạm quy định về hàng cấm. Khách hàng phải chịu trách nhiệm bồi thường toàn bộ thiệt hại gây ra cho Bên Vận Chuyển trong trường hợp này.
 2.4. Quy cách đóng gói và Tính cước:
 * Trách nhiệm đóng gói: Khách hàng chịu hoàn toàn trách nhiệm về quy cách đóng gói. Bên Vận Chuyển không chịu trách nhiệm bồi thường các hư hỏng do lỗi đóng gói nội bộ (hàng vỡ bên trong kiện còn nguyên seal).
-* Kiểm tra Hàng Dễ Vỡ: Với đơn hàng có bảo hiểm là Hàng Dễ Vỡ, Tài xế có quyền kiểm tra quy cách đóng gói (xốp, khung gỗ). Nếu không đạt chuẩn, Tài xế có quyền từ chối vận chuyển để tránh làm vô hiệu hợp đồng bảo hiểm.
 * Quy đổi trọng lượng: Đối với hàng lỏng hoặc hàng cồng kềnh, Khách hàng bắt buộc phải quy đổi sang trọng lượng (kg/tấn) trước khi tạo đơn hàng trên hệ thống.
-________________
-
-
 ĐIỀU 3. NGHĨA VỤ XÁC MINH VÀ GIAO NHẬN (BÊN A)
 3.1. Đảm bảo tính chính xác của Trọng lượng (Theo Thông tư 46/2015/TT-BGTVT):
 * Độ chính xác: Khách hàng chịu trách nhiệm tuyệt đối về sự chính xác của trọng lượng khai báo trên hệ thống.
 * Quyền từ chối tại chỗ: Nếu trọng lượng thực tế vượt quá tải trọng pháp lý cho phép của phương tiện hoặc vượt quá trọng lượng đã khai báo quá 5% (hoặc mức cho phép khác theo thỏa thuận), Tài xế có quyền từ chối nhận hàng và Hợp đồng bị hủy (xem chính sách phạt hủy ở Điều 4.6).
 * Chứng từ: Khách hàng có nghĩa vụ cung cấp các chứng từ cân đo, biên lai trạm cân hoặc các giấy tờ chứng thực trọng lượng khác theo yêu cầu của Tài xế hoặc Bên Vận Chuyển.
-3.2. Giấy tờ pháp lý (Điều 535 Luật Thương mại 2005): Mỗi đơn hàng phải có Vận đơn (Bill of Lading) điện tử hoặc bản in. Khách hàng có nghĩa vụ cung cấp đầy đủ Hóa đơn giá trị gia tăng, Phiếu xuất kho kiêm vận chuyển nội bộ hoặc các chứng từ hợp pháp khác kèm theo hàng hóa để Tài xế xuất trình khi lưu thông trên đường.
+3.2. Giấy tờ pháp lý (Điều 535 Luật Thương mại 2005): Khách hàng có nghĩa vụ cung cấp đầy đủ Hóa đơn giá trị gia tăng, Phiếu xuất kho kiêm vận chuyển nội bộ hoặc các chứng từ hợp pháp khác kèm theo hàng hóa để Tài xế xuất trình khi lưu thông trên đường.
 3.3. Xếp dỡ hàng hóa: Trừ khi có thỏa thuận khác trong Hợp đồng, trách nhiệm và chi phí xếp hàng lên xe tại điểm đi và dỡ hàng xuống xe tại điểm đến thuộc về Khách hàng. Tài xế chỉ có trách nhiệm giám sát việc xếp hàng để đảm bảo an toàn cho phương tiện.
-________________
-
-
+3.4. Nghiêm cấm Gian lận và Khai khống (Anti-Fraud Policy): Chúng tôi áp dụng chính sách "Không khoan nhượng" đối với mọi hành vi gian lận. Khách hàng cam kết tính trung thực của thông tin và không thực hiện các hành vi sau:
+* Khai khống Giá trị (Trục lợi bảo hiểm): Cố ý khai báo giá trị hàng hóa cao hơn thực tế, sử dụng hóa đơn giả mạo hoặc chứng từ không hợp lệ nhằm mục đích trục lợi tiền bồi thường khi có sự cố.
+* Khai khống Trọng lượng/Kích thước: Cố ý khai báo sai lệch trọng lượng hoặc kích thước hàng hóa thấp hơn thực tế nhằm giảm cước phí vận chuyển.
+* Gian lận hiện trạng hàng hóa: Gửi hàng đã hư hỏng, vỡ nát, hàng cũ nhưng khai báo là hàng mới/nguyên vẹn; hoặc tráo đổi ruột hàng hóa (tráo hàng thật bằng hàng giả/kém chất lượng) trước khi đóng Seal.
+* Thông đồng gian lận: Móc nối với Tài xế để làm sai lệch hồ sơ vận chuyển.
+* Chế tài xử lý: Nếu phát hiện gian lận, Bên Vận Chuyển có quyền hủy đơn hàng ngay lập tức mà không hoàn cước, từ chối mọi trách nhiệm bồi thường, khóa tài khoản Khách hàng vĩnh viễn và chuyển hồ sơ sang cơ quan Công an nếu có dấu hiệu lừa đảo chiếm đoạt tài sản.
 ĐIỀU 4. QUY ĐỊNH VỀ HỢP ĐỒNG VÀ THANH TOÁN
 4.1. Điều kiện Xác lập Hợp đồng:
-* Mọi đơn hàng đều bắt buộc phải có Hợp đồng vận chuyển (Contract). Hợp đồng chỉ có hiệu lực khi cả hai bên xác nhận ký điện tử/OTP trên hệ thống.
-* Tính duy nhất: Hợp đồng là duy nhất; không thể ký lại hoặc sửa đổi nếu trạng thái đã hoàn tất hoặc bị hủy. Khách hàng không được sửa thông tin đơn hàng sau khi Tài xế đã tiếp nhận.
+* Mọi đơn hàng đều bắt buộc phải có Hợp đồng vận chuyển (Contract). Hợp đồng chỉ có hiệu lực khi cả hai bên xác nhận ký điện tử trên hệ thống.
 * Thời gian đặt hàng: Ngày lấy hàng dự kiến không được sớm hơn 02 (hai) ngày tính từ thời điểm Khách hàng tạo đơn trên hệ thống.
-4.2. Điều khoản Đặt cọc: Khách hàng phải tiến hành thanh toán khoản đặt cọc ngay sau khi ký Hợp đồng. Nếu hệ thống không ghi nhận khoản cọc trong vòng 24 giờ kể từ thời điểm ký, Đơn hàng và Hợp đồng sẽ bị HỦY TỰ ĐỘNG (Theo Điều 423 Bộ luật Dân sự 2015 về hủy bỏ hợp đồng).
+4.2. Điều khoản Đặt cọc (Deposit) - Quy định nghiêm ngặt: Khách hàng phải tiến hành thanh toán khoản đặt cọc ngay sau khi ký Hợp đồng. Nếu hệ thống không ghi nhận khoản cọc trong vòng 24 giờ kể từ thời điểm ký, Đơn hàng và Hợp đồng sẽ bị HỦY TỰ ĐỘNG (Theo Điều 423 Bộ luật Dân sự 2015 về hủy bỏ hợp đồng).
 4.3. Điều khoản Thanh toán toàn bộ: Khoản thanh toán còn lại của Hợp đồng phải được hoàn tất tối thiểu 01 (một) ngày trước ngày lấy hàng dự kiến. Nếu quá thời hạn này mà chưa thanh toán đủ, Đơn hàng và Hợp đồng sẽ bị HỦY TỰ ĐỘNG.
 4.4. Quyền Cầm giữ hàng hóa (Lien on Goods) (Theo Điều 346 Bộ luật Dân sự 2015): Trong trường hợp Khách hàng không thanh toán đầy đủ cước phí vận chuyển hoặc các chi phí phát sinh hợp lý (phí lưu kho, phí bến bãi, phí chờ, chi phí phạt do quá tải), Bên Vận Chuyển có quyền thực hiện quyền cầm giữ hàng hóa đang vận chuyển cho đến khi Khách hàng hoàn thành nghĩa vụ thanh toán.
 4.5. Quyền Hủy Hàng Trả về do Thiếu Phí Hoàn: Trong trường hợp hàng hóa bị hoàn trả (Return) do không giao được, Khách hàng có nghĩa vụ thanh toán cước phí vận chuyển chiều về. Nếu Khách hàng không hoàn tất thanh toán cước phí chiều về trong vòng 30 phút kể từ thời điểm hệ thống/Nhân viên gửi yêu cầu thanh toán, Bên Vận Chuyển có quyền hủy việc trả hàng và tiến hành xử lý hàng hóa theo quy định tại Điều 6.2 (Quyền định đoạt hàng hóa).
-4.6. Chính sách Phạt Hủy và Từ chối phục vụ (Tại chỗ): Trong trường hợp đơn hàng bị hủy hoặc Tài xế từ chối phục vụ tại chỗ do lỗi của Khách hàng (Quá tải, Sai quy cách đóng gói, Hàng cấm) hoặc Khách hàng đơn phương hủy sau khi xe đã di chuyển:
+4.6. Chính sách Phạt Hủy và Từ chối phục vụ (Tại chỗ): Trong trường hợp đơn hàng bị hủy hoặc Tài xế từ chối phục vụ tại chỗ do lỗi của Khách hàng (Quá tải, Sai quy cách đóng gói, Hàng cấm, Gian lận theo Điều 3.4) hoặc Khách hàng đơn phương hủy sau khi xe đã di chuyển:
 * Phí phạt: Bên Vận Chuyển sẽ giữ lại 100% cước phí đã thu (bao gồm cọc và các khoản đã thanh toán).
 * Cơ chế: Chúng tôi KHÔNG thu thêm bất kỳ khoản phí phạt nào khác. Khoản tiền đã mất này được xem là phí bồi hoàn chi phí vận hành (nhiên liệu, nhân sự) theo thỏa thuận phạt vi phạm (Điều 418 Bộ luật Dân sự 2015).
-________________
-
-
 ĐIỀU 5. QUY ĐỊNH VẬN HÀNH VÀ NIÊM PHONG (SEAL)
 5.1. Quy trình tại điểm xuất phát:
-* Trước khi khởi hành, Tài xế phải thực hiện checklist kiểm tra phương tiện và hàng hóa. Tài xế phải quay video/chụp ảnh công tơ mét (ODO) trước và sau chuyến đi để đối soát nhiên liệu và chống gian lận.
-* Thùng xe tải/Container phải được niêm phong (Seal) sau khi xếp hàng xong. Trước khi giao, Tài xế phải chụp ảnh Container/Thùng xe còn nguyên Niêm phong.
+* Trước khi khởi hành, Tài xế phải thực hiện checklist kiểm tra phương tiện và hàng hóa.
+* Thùng xe tải/Container phải được niêm phong (Seal) sau khi xếp hàng xong. Tài xế có trách nhiệm chụp ảnh Seal đã niêm phong và cập nhật lên hệ thống.
 * Thông báo Seal: Ngay khi Tài xế cập nhật trạng thái niêm phong, hệ thống tự động gửi Email chứa Mã Seal và Ảnh chụp cho Khách hàng (Người gửi). Người gửi có trách nhiệm thông báo mã này cho Người nhận để đối chiếu khi nhận hàng.
 * Tài xế tuyệt đối không được tự ý thay đổi hoặc phá Seal nếu không có sự cho phép từ Nhân viên điều phối (Staff).
 5.2. Giám sát hành trình (GPS):
 * Khách hàng đồng ý cho phép hệ thống thu thập dữ liệu vị trí xe tải theo thời gian thực trong suốt quá trình thực hiện đơn hàng.
 * Tín hiệu GPS được cập nhật định kỳ tối thiểu mỗi 60 giây. Nếu mất tín hiệu quá 2 phút, hệ thống sẽ phát cảnh báo an ninh (Tuân thủ Nghị định 10/2020/NĐ-CP).
 * Tài xế không được tự ý thay đổi tuyến đường đã được chỉ định. Mọi sự thay đổi tuyến đường phải được sự chấp thuận của hệ thống.
-________________
-
-
 ĐIỀU 6. GIAO NHẬN, TRẢ HÀNG VÀ XỬ LÝ SỰ CỐ
-6.1. Xác nhận Giao hàng (POD): Việc giao nhận phải tuân thủ nghiêm ngặt các bước sau:
-* Xác thực: Hệ thống yêu cầu xác thực 2 yếu tố (Tài xế & Phương tiện) tại điểm giao nhận. Cấm giao hàng nếu không có xác thực hợp lệ trên App.
-* Kiểm tra: Người nhận hàng có trách nhiệm kiểm tra tình trạng Niêm phong (Seal), số lượng kiện hàng và ký xác nhận (E-signature).
-* Hoàn tất: Đơn hàng chỉ được xem là Hoàn tất khi có ảnh chụp bằng chứng giao hàng (POD) và dữ liệu định vị (GPS) tại điểm giao.
-6.2. Quy trình Trả hàng (Return Policy): Trong trường hợp giao hàng thất bại (do Người nhận từ chối nhận, không liên lạc được, hoặc địa chỉ không chính xác):
-* Quy trình hoàn trả hàng về điểm xuất phát sẽ được kích hoạt (cần có lý do cụ thể và log hệ thống).
+6.1. Xác nhận Giao hàng (POD): Tại điểm đến, Người nhận hàng có trách nhiệm kiểm tra tình trạng Niêm phong (Seal), số lượng kiện hàng và ký xác nhận (ký giấy hoặc ký điện tử). Đơn hàng chỉ được xem là Hoàn tất khi có ảnh chụp bằng chứng giao hàng (Proof of Delivery) và dữ liệu định vị tại điểm giao.
+6.2. Quy trình Trả hàng (Return Policy) - Quan trọng: Trong trường hợp giao hàng thất bại (do Người nhận từ chối nhận, không liên lạc được, hoặc địa chỉ không chính xác):
+* Quy trình hoàn trả hàng về điểm xuất phát sẽ được kích hoạt.
 * Khách hàng (Bên gửi) có nghĩa vụ thanh toán 100% cước phí vận chuyển chiều về cho Tài xế.
 * Quyền định đoạt hàng hóa (Theo Điều 350 Bộ luật Dân sự 2015): Nếu Khách hàng từ chối thanh toán cước phí chiều về (hoặc quá thời hạn 30 phút tại Điều 4.5), Bên Vận Chuyển có quyền từ chối vận chuyển hàng quay lại và để lại hàng hóa tại địa điểm giao hoặc đưa về kho để xử lý thanh lý bù đắp chi phí. Bên Vận Chuyển được miễn trừ hoàn toàn trách nhiệm bảo quản đối với lô hàng này.
-________________
-
-
 ĐIỀU 7. QUY TẮC BẢO HIỂM, BỒI THƯỜNG VÀ GIỚI HẠN TRÁCH NHIỆM
-7.1. Căn cứ Kích hoạt Trách nhiệm Bồi thường: Trách nhiệm bồi thường của Bên Vận Chuyển chỉ phát sinh khi tổn thất hoặc hư hỏng hàng hóa được xác định là do lỗi chủ quan của Bên Vận Chuyển, Tài xế hoặc người đại diện của Công ty. Bên Vận Chuyển được miễn trừ trách nhiệm bồi thường khi tổn thất xảy ra do lỗi của Khách hàng, lỗi do bên thứ ba, hoặc do các nguyên nhân bất khả kháng (Xem Mục 7.6).
-7.2. Phạm vi Bồi thường và Loại trừ (Điều 360 Bộ luật Dân sự 2015): Bên Vận Chuyển chỉ chịu trách nhiệm bồi thường cho Thiệt hại Trực tiếp (giá trị vật chất, cước phí). Chúng tôi miễn trừ mọi trách nhiệm đối với Thiệt hại Gián tiếp (bao gồm nhưng không giới hạn: mất lợi nhuận, đình trệ sản xuất, mất cơ hội kinh doanh).
-7.3. Chính sách Bảo hiểm và Giới hạn Trách nhiệm:
-* Trường hợp KHÔNG mua Bảo hiểm (Trách nhiệm Mặc định): Trách nhiệm bồi thường được giới hạn tối đa 10 lần cước phí vận chuyển (Theo Điều 546 Luật Thương mại 2005).
-* Trường hợp CÓ mua Bảo hiểm (Trách nhiệm Mở rộng): Khách hàng phải khai báo Giá trị hàng hóa. Phí được tính dựa trên Giá trị Khai báo với tỷ lệ do Công ty Bảo hiểm đối tác quy định. Điều kiện Vô hiệu hóa: Khách hàng BẮT BUỘC phải cung cấp đầy đủ Hóa đơn, Chứng từ hợp pháp để chứng minh giá trị hàng hóa khi có sự cố. Nếu không chứng minh được, Bảo hiểm sẽ bị vô hiệu hóa và trách nhiệm bồi thường sẽ chuyển về mức giới hạn 10 lần cước phí vận chuyển.
-7.4. Thẩm định Giá trị và Giải quyết Tranh chấp (Khi thiếu chứng từ):
-* Xác định mức bồi thường: Mức bồi thường cuối cùng sẽ là giá trị NHỎ HƠN giữa [Giá trị thiệt hại ước tính] và [Giới hạn 10 lần cước phí] (Theo Điều 360 BLDS 2015 và Điều 546 Luật Thương mại 2005).
-* Thẩm định độc lập: Nếu không đồng ý với mức thẩm định, Khách hàng có quyền thuê Giám định viên độc lập. Chi phí giám định sẽ do Bên Vận Chuyển chịu nếu lỗi thuộc về Vận Chuyển hoặc mức thẩm định ban đầu thấp hơn thực tế quá 10%; ngược lại sẽ do Khách hàng chịu.
-7.5. Trách nhiệm đối với hành vi vi phạm pháp luật của Nhân viên (Lỗi Cố Ý): Trong trường hợp tổn thất hàng hóa xảy ra do hành vi cố ý vi phạm pháp luật hình sự của Tài xế (như trộm cắp, chiếm đoạt tài sản, bỏ trốn), Bên Vận Chuyển cam kết chịu trách nhiệm bồi thường cho Khách hàng theo 100% Giá trị thực tế của lô hàng (dựa trên hóa đơn chứng từ hợp pháp), cộng thêm toàn bộ Cước phí Vận chuyển đã thu, và KHÔNG áp dụng các giới hạn trách nhiệm thông thường (Theo Điều 600 BLDS 2015 và Khoản 1 Điều 294 Luật Thương mại 2005).
-7.6. Bất khả kháng (Theo Điều 351 Bộ luật Dân sự 2015): Bên Vận Chuyển được miễn trừ trách nhiệm trong các trường hợp bất khả kháng bao gồm nhưng không giới hạn: Thiên tai, hỏa hoạn, đình công, cấm đường đột xuất của cơ quan nhà nước, hoặc tai nạn giao thông không do lỗi chủ quan của Tài xế.
-________________
-
-
+7.1. Căn cứ Kích hoạt Trách nhiệm Bồi thường: Trách nhiệm bồi thường của Bên Vận Chuyển chỉ phát sinh khi tổn thất hoặc hư hỏng hàng hóa được xác định là do lỗi chủ quan của Bên Vận Chuyển, Tài xế hoặc người đại diện của Công ty. Bên Vận Chuyển được miễn trừ trách nhiệm bồi thường khi tổn thất xảy ra do lỗi của Khách hàng (bao gồm lỗi do gian lận nêu tại Điều 3.4), lỗi do bên thứ ba, hoặc do các nguyên nhân bất khả kháng (Xem Mục 7.7).
+7.2. Phạm vi Bồi thường và Loại trừ (Điều 360 Bộ luật Dân sự 2015): Bên Vận Chuyển chỉ chịu trách nhiệm bồi thường cho Thiệt hại Trực tiếp (bao gồm giá trị vật chất của hàng hóa và cước phí đã thu). Chúng tôi miễn trừ mọi trách nhiệm đối với Thiệt hại Gián tiếp (bao gồm nhưng không giới hạn: mất lợi nhuận, đình trệ sản xuất, mất cơ hội kinh doanh).
+7.3. Thời hạn và Quy trình khiếu nại (Theo Điều 318 Luật Thương mại 2005): Mọi sự cố hư hỏng, mất mát hoặc thiếu hụt hàng hóa phải được lập biên bản và báo cáo ngay lập tức lên hệ thống tại thời điểm giao hàng. Thời hiệu khiếu nại tối đa là 03 (ba) tháng. Chúng tôi từ chối giải quyết mọi khiếu nại phát sinh sau khi Tài xế đã rời khỏi điểm giao và đơn hàng đã chuyển trạng thái "Hoàn thành".
+7.4. Chính sách Bảo hiểm và Giới hạn Trách nhiệm:
+* Trường hợp KHÔNG mua Bảo hiểm (Trách nhiệm Mặc định - Theo Điều 546 Luật Thương mại 2005): Trách nhiệm bồi thường của Bên Vận Chuyển được giới hạn tối đa 10 lần cước phí vận chuyển của lô hàng bị thiệt hại. Khách hàng chấp nhận rủi ro đối với giá trị hàng hóa vượt quá giới hạn này.
+* Trường hợp CÓ mua Bảo hiểm (Trách nhiệm Mở rộng - Theo Luật Kinh doanh Bảo hiểm 2022):
+   * Phí Bảo hiểm (Đã bao gồm VAT): Khách hàng phải khai báo Giá trị hàng hóa (Declared Value). Phí được tính dựa trên Giá trị Khai báo với tỷ lệ do Công ty Bảo hiểm đối tác quy định.
+   * Điều kiện Vô hiệu hóa: Khách hàng BẮT BUỘC phải cung cấp đầy đủ Hóa đơn, Chứng từ hợp pháp để chứng minh giá trị hàng hóa khi có sự cố. Nếu không chứng minh được, hoặc khai báo sai lệch/gian lận, Bảo hiểm sẽ bị vô hiệu hóa và trách nhiệm bồi thường của Bên Vận Chuyển sẽ chuyển về mức giới hạn 10 lần cước phí vận chuyển (hoặc từ chối hoàn toàn theo Điều 3.4).
+7.5. Quy tắc Xác định Giá trị Bồi thường và Thẩm định (Khi thiếu/sai lệch chứng từ): Trong trường hợp xảy ra sự cố:
+* Trường hợp CÓ Hóa đơn nhưng lệch Giá trị Khai báo (Theo Điều 45 & Điều 47 Luật Kinh doanh Bảo hiểm 2022):
+   * Nếu Giá trị Hóa đơn NHỎ HƠN Giá trị Khai báo: Bồi thường theo Giá trị Hóa đơn (Thực tế).
+   * Nếu Giá trị Hóa đơn LỚN HƠN Giá trị Khai báo: Bồi thường tối đa bằng Giá trị Khai báo (Áp dụng nguyên tắc Bảo hiểm dưới giá trị).
+* Trường hợp KHÔNG có Hóa đơn (Bảo hiểm vô hiệu):
+   * Mức bồi thường cuối cùng sẽ là giá trị NHỎ HƠN giữa [Giá trị thiệt hại ước tính theo thị trường] và [Giới hạn 10 lần cước phí].
+* Nguyên tắc Hoàn trả Cước phí (Pro-rata) do lỗi Vận Chuyển:
+   * Hư hỏng toàn bộ: Bên Vận Chuyển hoàn trả 100% Cước phí vận chuyển đã thu của đơn hàng.
+   * Hư hỏng một phần (Partial Loss): Bên Vận Chuyển chỉ hoàn trả phần cước phí vận chuyển tương ứng theo tỷ lệ (dựa trên trọng lượng hoặc kích thước) của phần hàng hóa bị hư hỏng.
+* Thẩm định độc lập: Nếu không đồng ý với mức thẩm định của Bên Vận Chuyển, Khách hàng có quyền thuê Giám định viên độc lập. Chi phí giám định sẽ do Bên Vận Chuyển chịu nếu kết quả cho thấy lỗi thuộc về Vận Chuyển hoặc mức thẩm định ban đầu thấp hơn thực tế quá 10% so với giá trị bồi thường cuối cùng; ngược lại sẽ do Khách hàng chịu.
+7.6. Trách nhiệm đối với hành vi vi phạm pháp luật của Nhân viên (Lỗi Cố Ý): Trong trường hợp tổn thất hàng hóa xảy ra do hành vi cố ý vi phạm pháp luật hình sự của Tài xế (như trộm cắp, chiếm đoạt tài sản, bỏ trốn), Bên Vận Chuyển cam kết chịu trách nhiệm bồi thường cho Khách hàng theo 100% Giá trị thực tế của lô hàng (dựa trên hóa đơn chứng từ hợp pháp), cộng thêm toàn bộ Cước phí Vận chuyển đã thu, NHƯNG KHÔNG bao gồm các thiệt hại gián tiếp, và KHÔNG áp dụng các giới hạn trách nhiệm thông thường (Theo Điều 600 BLDS 2015 và Khoản 1 Điều 294 Luật Thương mại 2005). Bên Vận Chuyển có trách nhiệm phối hợp với cơ quan chức năng để xử lý vụ việc.
+7.7. Bất khả kháng (Theo Điều 351 Bộ luật Dân sự 2015): Bên Vận Chuyển được miễn trừ trách nhiệm trong các trường hợp bất khả kháng bao gồm nhưng không giới hạn: Thiên tai, hỏa hoạn, đình công, cấm đường đột xuất của cơ quan nhà nước, hoặc tai nạn giao thông không do lỗi chủ quan của Tài xế. Trong trường hợp này, hai bên có thể thỏa thuận thay đổi lịch giao hàng nếu thông báo trước 02 ngày.
 ĐIỀU 8. BẢO MẬT THÔNG TIN VÀ LUẬT ÁP DỤNG
-8.1. Bảo mật dữ liệu (Theo Nghị định 13/2023/NĐ-CP): Mọi quy trình thu thập, lưu trữ, xử lý dữ liệu GPS, hình ảnh đơn hàng (bao gồm video ODO) và thông tin cá nhân của Khách hàng/Tài xế đều cam kết tuân thủ Luật An ninh mạng và Luật Bảo vệ dữ liệu cá nhân tại Việt Nam.
+8.1. Bảo mật dữ liệu (Theo Nghị định 13/2023/NĐ-CP): Mọi quy trình thu thập, lưu trữ, xử lý dữ liệu GPS, hình ảnh đơn hàng và thông tin cá nhân của Khách hàng/Tài xế đều cam kết tuân thủ Luật An ninh mạng và Luật Bảo vệ dữ liệu cá nhân tại Việt Nam.
 8.2. Luật điều chỉnh và Giải quyết tranh chấp: Các Điều khoản này được điều chỉnh bởi pháp luật Việt Nam. Mọi tranh chấp không thể thương lượng sẽ được giải quyết tại Tòa án có thẩm quyền tại Thành phố Hồ Chí Minh.
 ________________
 

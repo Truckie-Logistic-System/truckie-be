@@ -6,9 +6,11 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.config.payment.PayOS.PayOSProperties;
 import capstone_project.dtos.response.order.transaction.GetTransactionStatusResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
+import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.transaction.TransactionEntity;
 import capstone_project.entity.setting.ContractSettingEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
@@ -632,6 +634,9 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             String payOsStatus = webhookEvent.path("data").path("status").asText(null);
             String payOsCode = webhookEvent.path("data").path("code").asText(null);
 
+            log.info("\uD83D\uDCE5 [PayOS Webhook] Received callback: orderCode={}, payOsStatus={}, payOsCode={}",
+                    orderCode, payOsStatus, payOsCode);
+
             log.info("🔍 Webhook parsed - orderCode: {}, status: {}, code: {}", orderCode, payOsStatus, payOsCode);
 
             // Skip test webhook
@@ -660,8 +665,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 transactionEntityService.findByGatewayOrderCode(orderCode).ifPresentOrElse(transaction -> {
                 TransactionEnum mappedStatus = mapPayOsStatusToEnum(payOsStatus, payOsCode);
                 
-                log.info("🔄 Processing transaction {} - Current status: {}, New status: {}", 
-                    transaction.getId(), transaction.getStatus(), mappedStatus.name());
+                log.info("\uD83D\uDD01 [PayOS Webhook] Processing transaction {} - currentStatus={}, mappedStatus={}",
+                        transaction.getId(), transaction.getStatus(), mappedStatus.name());
 
                 // 🔍 DEDUPLICATION: Skip if transaction already has the target status
                 // Re-fetch from database to get latest status (avoid race condition)
@@ -816,23 +821,15 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 } else {
                     log.info("💰 Processing DEPOSIT payment scenario");
                     
-                    // Update contract and order status
+                    // Update contract status
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
-                    OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
-                    order.setStatus(OrderStatusEnum.ON_PLANNING.name());
-                    orderEntityService.save(order);
                     contractEntityService.save(contract);
                     
-                    log.info("✅ Order {} status updated from {} to {}", 
-                        order.getOrderCode(), previousStatus, OrderStatusEnum.ON_PLANNING);
+                    // Update both order and all order details status to ON_PLANNING
+                    CreateOrderResponse response = orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
                     
-                    // Send WebSocket notification
-                    orderStatusWebSocketService.sendOrderStatusChange(
-                            order.getId(),
-                            order.getOrderCode(),
-                            previousStatus,
-                            OrderStatusEnum.ON_PLANNING
-                    );
+                    log.info("✅ Order {} and all order details status updated to ON_PLANNING", 
+                        order.getOrderCode());
                     
                     log.info("📡 WebSocket notification sent for deposit payment");
                 }
@@ -854,7 +851,6 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
             case REFUNDED -> {
                 contract.setStatus(ContractStatusEnum.REFUNDED.name());
-                order.setStatus(OrderStatusEnum.RETURNED.name());
                 
                 // Cancel vehicle reservations when refunded
                 try {
@@ -863,6 +859,18 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 } catch (Exception e) {
                     log.error("❌ Failed to cancel reservations for order {}: {}", order.getId(), e.getMessage());
                     // Don't throw - reservation cancel failure shouldn't break refund processing
+                }
+
+                // ✅ IMPORTANT: Do NOT set Order status to RETURNED directly here.
+                // RETURNING/RETURNED are max statuses and must be derived via aggregation
+                // over all OrderDetails (OrderDetailStatusService).
+                try {
+                    orderDetailStatusService.triggerOrderStatusUpdate(order.getId());
+                    log.info("✅ Triggered aggregated Order status update after REFUNDED payment for order {}", order.getId());
+                } catch (Exception e) {
+                    log.error("❌ Failed to trigger aggregated Order status update after REFUNDED payment for order {}: {}",
+                            order.getId(), e.getMessage());
+                    // Don't throw - aggregation failure shouldn't break refund processing
                 }
             }
             default -> {
@@ -986,18 +994,28 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private boolean handleReturnShippingPayment(TransactionEntity transaction) {
         try {
 
+            log.info("\uD83D\uDD0E [handleReturnShippingPayment] Start - transactionId={}, status={}, type={}, amount={}, issueId={}",
+                    transaction.getId(),
+                    transaction.getStatus(),
+                    transaction.getTransactionType(),
+                    transaction.getAmount(),
+                    transaction.getIssueId());
+
             // Check if this transaction has an issueId (RETURN_SHIPPING type)
             if (transaction.getIssueId() == null) {
-                
+                log.warn("⚠️ [handleReturnShippingPayment] Transaction {} has no issueId, skipping return shipping flow", transaction.getId());
                 return false;
             }
             
-            // Find issue by ID from transaction
-            capstone_project.entity.issue.IssueEntity issue = issueEntityService.findEntityById(transaction.getIssueId())
+            // Find issue by ID from transaction - MUST use findByIdWithDetails to fetch LAZY relationships
+            // (vehicleAssignmentEntity, driver1, etc.) otherwise they will be null
+            capstone_project.entity.issue.IssueEntity issue = issueEntityService.findByIdWithDetails(transaction.getIssueId())
                     .orElseThrow(() -> new NotFoundException(
                             "Issue not found: " + transaction.getIssueId(),
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
+            
+            log.info("🔍 [handleReturnShippingPayment] Issue loaded with details - ID: {}", issue.getId());
 
             // ⏰ CRITICAL: Cancel scheduled timeout check (customer paid on time)
             paymentTimeoutSchedulerService.cancelTimeoutCheck(issue.getId());
@@ -1045,6 +1063,48 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     }
 
                 });
+
+                // 📧 Send notifications for RETURNING status (customer paid, packages being returned)
+                try {
+                    if (orderForReturning != null && orderForReturning.getSender() != null && orderForReturning.getSender().getUser() != null) {
+                        // Get all order details for context
+                        List<OrderDetailEntity> allOrderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderForReturning.getId());
+                        int returningCount = issue.getOrderDetails().size();
+                        int totalPackageCount = allOrderDetails.size();
+                        
+                        // Customer notification: RETURNING with email
+                        var customerNotification = capstone_project.service.services.notification.NotificationBuilder.buildCustomerReturnInProgress(
+                            orderForReturning.getSender().getUser().getId(),
+                            orderForReturning.getOrderCode(),
+                            returningCount,
+                            totalPackageCount,
+                            issue.getOrderDetails(),
+                            orderForReturning.getId(),
+                            issue.getOrderDetails().stream().map(OrderDetailEntity::getId).collect(java.util.stream.Collectors.toList())
+                        );
+                        notificationService.createNotification(customerNotification);
+                        log.info("📧 Customer notification created for RETURNING status ({} / {} packages)",
+                                returningCount, totalPackageCount);
+                        
+                        // Staff notification: RETURNING without email
+                        var staffNotificationTemplate = capstone_project.service.services.notification.NotificationBuilder.buildStaffReturnInProgress(
+                            null, // Will be set for each staff user
+                            orderForReturning.getOrderCode(),
+                            orderForReturning.getSender().getUser().getFullName(),
+                            returningCount,
+                            totalPackageCount,
+                            issue.getOrderDetails(),
+                            orderForReturning.getId(),
+                            issue.getOrderDetails().stream().map(OrderDetailEntity::getId).collect(java.util.stream.Collectors.toList())
+                        );
+                        sendStaffNotification(staffNotificationTemplate);
+                        log.info("📧 Staff notification created for RETURNING status ({} / {} packages)",
+                                returningCount, totalPackageCount);
+                    }
+                } catch (Exception e) {
+                    log.error("❌ Failed to create notifications for RETURNING status", e);
+                    // Don't fail the main flow if notification fails
+                }
 
                 // Update remaining order details in this vehicle assignment to DELIVERED
                 // AND update Order status to RETURNING
@@ -1116,6 +1176,12 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             // Send WebSocket notification to driver
             try {
                 var vehicleAssignment = issue.getVehicleAssignmentEntity();
+                log.info("🔍 [DRIVER_NOTIFICATION] Checking vehicleAssignment: {}", vehicleAssignment != null ? vehicleAssignment.getId() : "NULL");
+                
+                if (vehicleAssignment != null) {
+                    log.info("🔍 [DRIVER_NOTIFICATION] Driver1: {}", vehicleAssignment.getDriver1() != null ? vehicleAssignment.getDriver1().getId() : "NULL");
+                }
+                
                 if (vehicleAssignment != null && vehicleAssignment.getDriver1() != null) {
                     // CRITICAL: Use driver ID (not user ID) to match mobile app subscription
                     UUID driverId = vehicleAssignment.getDriver1().getId();
@@ -1130,6 +1196,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                         orderId = orderOpt.get().getId();
                     }
                     
+                    log.info("📤 [DRIVER_NOTIFICATION] Sending RETURN_PAYMENT_SUCCESS to driver: {}", driverId);
+                    
                     // Send via WebSocket to driver
                     issueWebSocketService.sendReturnPaymentSuccessNotification(
                             driverId,
@@ -1138,7 +1206,12 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                             returnJourneyId,
                             orderId
                     );
+                    
+                    log.info("✅ [DRIVER_NOTIFICATION] Successfully called sendReturnPaymentSuccessNotification");
 
+                } else {
+                    log.warn("⚠️ [DRIVER_NOTIFICATION] Cannot send notification - vehicleAssignment or driver1 is NULL! issueId={}, transactionId={}",
+                            issue.getId(), transaction.getId());
                 }
             } catch (Exception e) {
                 log.error("❌ Failed to send driver notification: {}", e.getMessage(), e);
@@ -1765,5 +1838,39 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             sb.append(province);
         }
         return sb.length() > 0 ? sb.toString() : "Chưa xác định";
+    }
+    
+    /**
+     * Helper method to send staff notifications
+     * Creates a notification for each staff user from a template
+     */
+    private void sendStaffNotification(CreateNotificationRequest template) {
+        try {
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            if (!staffUsers.isEmpty()) {
+                for (var staff : staffUsers) {
+                    // Create a new notification request for each staff user
+                    CreateNotificationRequest staffNotification = CreateNotificationRequest.builder()
+                        .userId(staff.getId())
+                        .recipientRole("STAFF")
+                        .title(template.getTitle())
+                        .description(template.getDescription())
+                        .notificationType(template.getNotificationType())
+                        .relatedOrderId(template.getRelatedOrderId())
+                        .relatedIssueId(template.getRelatedIssueId())
+                        .relatedVehicleAssignmentId(template.getRelatedVehicleAssignmentId())
+                        .relatedContractId(template.getRelatedContractId())
+                        .metadata(template.getMetadata())
+                        .build();
+                    
+                    notificationService.createNotification(staffNotification);
+                }
+                log.info("📧 Staff notifications sent: {} staff users notified, type: {}", 
+                    staffUsers.size(), template.getNotificationType());
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to send staff notification: {}", e.getMessage());
+            // Don't throw - Notification failure shouldn't break business logic
+        }
     }
 }

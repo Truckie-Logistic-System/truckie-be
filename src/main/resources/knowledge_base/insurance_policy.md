@@ -137,22 +137,192 @@ Phí Bảo Hiểm = Giá trị Khai báo × Tỷ lệ BH × (1 + VAT)
 
 ### 📋 BẢNG TỔNG HỢP CÁC TRƯỜNG HỢP
 
-| Bảo hiểm | Chứng từ | Mức bồi thường | Ghi chú |
-|----------|----------|----------------|---------|
-| ✅ CÓ | ✅ CÓ | **Tỷ lệ hư hại × Giá trị khai báo** | Tối ưu nhất |
-| ✅ CÓ | ❌ KHÔNG | Tối đa 10 × Cước phí | BH bị vô hiệu hóa |
-| ❌ KHÔNG | ✅ CÓ | Tối đa 10 × Cước phí | Giới hạn pháp lý |
-| ❌ KHÔNG | ❌ KHÔNG | Tối đa 10 × Cước phí | Rủi ro cao nhất |
+| Trường hợp | Bảo hiểm | Chứng từ | Mức bồi thường chính | Ghi chú |
+|-----------|----------|----------|-----------------------|--------|
+| Trường hợp 1 | CÓ | CÓ | Bồi thường = Tỷ lệ hư hại × Giá trị Khai báo | Không giới hạn 10× cước, áp dụng đúng hợp đồng bảo hiểm |
+| Trường hợp 2 | CÓ | KHÔNG | Bảo hiểm **vô hiệu**, bồi thường = MIN(Thiệt hại ước tính, 10× cước phí) | Vi phạm nguyên tắc trung thực tuyệt đối, quay về giới hạn pháp lý |
+| Trường hợp 3 | KHÔNG | CÓ | Bồi thường = MIN(Thiệt hại theo chứng từ, 10× cước phí) | Chứng từ chỉ để xác định thiệt hại, **không nâng trần** bồi thường |
+| Trường hợp 4 | KHÔNG | KHÔNG | Bồi thường = MIN(Thiệt hại ước tính theo thị trường, 10× cước phí) | Rủi ro cao nhất, giá trị ước tính có thể thấp hơn giá trị thực |
 
-⚠️ **LƯU Ý QUAN TRỌNG**: Trong cả 4 trường hợp, trách nhiệm bồi thường chỉ phát sinh khi tổn thất do lỗi chủ quan của Bên Vận Chuyển (xem Điều 7.1).
+Để được bồi thường theo **Giá trị Khai báo** (không bị giới hạn 10× cước), Khách hàng **BẮT BUỘC** phải:
+
+- Mua Bảo hiểm cho lô hàng.
+- Cung cấp đầy đủ **Hóa đơn VAT** và **chứng từ mua bán hợp pháp** chứng minh giá trị hàng hóa khi xảy ra sự cố.
 
 ---
 
-## ✅ Điều kiện hiệu lực
+## 🧮 CÔNG THỨC TÍNH BỒI THƯỜNG TỔNG CỘNG
 
-Để được bồi thường theo giá trị khai báo, Khách hàng **BẮT BUỘC** phải cung cấp:
-- Hóa đơn VAT
-- Chứng từ mua bán hợp pháp chứng minh giá trị hàng hóa khi xảy ra sự cố
+Công thức tính bồi thường tổng cộng phải đảm bảo bao quát được **cả giá trị hàng hóa bị thiệt hại** và **phần cước phí vận chuyển tương ứng** (Thiệt hại Trực tiếp), đồng thời **tuân thủ giới hạn trách nhiệm** (Giá trị khai báo, giới hạn 10× cước khi không có bảo hiểm, các trường hợp vô hiệu hóa bảo hiểm...).
+
+### 1. Công thức tổng quát
+
+Tổng bồi thường sẽ là tổng của **Giá trị hàng hóa bị thiệt hại đã được giới hạn** ($B_{Hàng}$) và **Khoản cước phí được hoàn trả theo tỷ lệ** ($C_{Hư}$):
+
+$$
+\mathbf{B_{Tổng\ Cộng}} = \mathbf{B_{Hàng}} + \mathbf{C_{Hư}}
+$$
+
+Trong đó:
+
+- $B_{Hàng}$: Giá trị bồi thường cho **hàng hóa bị thiệt hại** sau khi áp dụng các giới hạn (Giá trị khai báo, 10× cước… tùy trường hợp).
+- $C_{Hư}$: **Phần cước phí vận chuyển được hoàn trả tương ứng** với phần hàng bị hư hỏng (Pro‑rata).
+
+### 2. Thành phần chi tiết
+
+#### 2.1. Giá trị Bồi thường Hàng hóa ($B_{Hàng}$)
+
+Công thức cơ bản:
+
+$$
+B_{Hàng} = V_{thực\ tế} \times T_{hư}
+$$
+
+Trong thực tế áp dụng:
+
+- Nếu **CÓ bảo hiểm + CÓ chứng từ** và không gian lận:  
+  → $B_{Hàng}$ tối đa bằng **Giá trị Khai báo** ($V_{khai\ báo}$), có thể thấp hơn nếu mức thiệt hại thực tế nhỏ hơn.
+- Nếu **KHÔNG có bảo hiểm** hoặc **bảo hiểm vô hiệu**:  
+  → $B_{Hàng}$ bị giới hạn bởi quy tắc:
+
+$$
+B_{Hàng} \leq 10 \times C_{total}
+$$
+
+- Nếu có **chênh lệch giữa Giá trị khai báo và Giá trị chứng từ**, áp dụng quy tắc:  
+  → Hóa đơn < Khai báo → Bồi thường tối đa = Giá trị trên Hóa đơn.  
+  → Hóa đơn > Khai báo → Bồi thường tối đa = Giá trị Khai báo.
+
+Tóm lại, trong mọi trường hợp:
+
+$$
+B_{Hàng} = \min\bigl(V_{thực\ tế} \times T_{hư},\ \text{Các giới hạn pháp lý và hợp đồng (V_{khai\ báo}, 10 \times C_{total}, ...)}\bigr)
+$$
+
+#### 2.2. Cước phí Hoàn trả ($C_{Hư}$)
+
+Cước phí được hoàn trả theo **nguyên tắc Pro‑rata**, phân bổ theo **tỷ lệ trọng lượng/kích thước** và **tỷ lệ hư hỏng**:
+
+$$
+C_{Hư} = C_{total} \times \frac{W_{kiện}}{W_{total}} \times T_{hư}
+$$
+
+Trong đó:
+
+- $C_{total}$: **Tổng cước phí vận chuyển** của đơn hàng.
+- $W_{kiện}$: Trọng lượng (hoặc thể tích quy đổi) của **phần hàng bị hư hỏng**.
+- $W_{total}$: Trọng lượng (hoặc thể tích quy đổi) của **toàn bộ lô hàng**.
+- $T_{hư}$: **Tỷ lệ hư hỏng** (ví dụ: 70% → $T_{hư} = 0{.}7$).
+
+Các trường hợp đặc biệt:
+
+- Nếu **hư hỏng/mất mát toàn bộ lô hàng** ($W_{kiện} = W_{total}$, $T_{hư} = 1$):
+
+$$
+C_{Hư} = C_{total}
+$$
+
+→ Hoàn 100% cước phí vận chuyển.
+
+- Nếu chỉ hư hỏng một phần → $C_{Hư}$ phản ánh **phần cước tương ứng với phần hàng hư hỏng**.
+
+---
+
+## 🧮 PHƯƠNG PHÁP TÍNH BỒI THƯỜNG TOÀN DIỆN (HƯ HỎNG MỘT PHẦN)
+
+Khi **chỉ một phần lô hàng bị hư hỏng**, Tổng số tiền bồi thường bao gồm **hai thành phần chính**:
+
+- **Khoản bồi thường Giá trị Hàng hóa** ($B_{Hàng}$)
+- **Khoản hoàn trả Cước phí** ($C_{Hư}$)
+
+### 1. Tính Khoản Hoàn trả Cước phí ($C_{Hư}$)
+
+Khoản này được tính theo nguyên tắc **tỷ lệ tương ứng (Pro‑rata)**, dựa trên trọng lượng hoặc kích thước của phần hàng hóa bị hư hỏng so với cả lô hàng.
+
+**Bước 1 – Tính Cước phí Phân bổ cho kiện hàng bị hư:**
+
+- Lấy **Tổng Cước phí** của lô hàng ($C_{total}$).
+- Chia cho **Tổng trọng lượng** của lô hàng ($W_{total}$).
+- Nhân với **trọng lượng phần hàng/kiện hàng bị hư hỏng** ($W_{kiện}$).
+
+> Đây là **Cước phí riêng của phần hàng/kiện đó**.
+
+**Bước 2 – Tính Khoản Cước phí Hoàn trả:**
+
+- Lấy **Cước phí riêng** ở Bước 1.
+- Nhân với **Tỷ lệ Hư hỏng/Mất mát** ($T_{hư}$, ví dụ 70% = 0.7).
+
+Kết quả sau Bước 2 chính là:
+
+$$
+C_{Hư} = \Bigl(C_{total} \times \frac{W_{kiện}}{W_{total}}\Bigr) \times T_{hư}
+$$
+
+### 2. Tính Khoản Bồi thường Giá trị Hàng hóa ($B_{Hàng}$)
+
+Khoản này được tính dựa trên **giá trị tổn thất thực tế** của hàng hóa, sau đó áp dụng **mức giới hạn trách nhiệm** theo luật và hợp đồng.
+
+**Bước 1 – Tính Giá trị Tổn thất Thực tế:**
+
+- Lấy **Giá trị Thực tế** của phần hàng bị hư hỏng ($V_{thực\ tế}$).
+- Nhân với **Tỷ lệ Hư hỏng/Mất mát** ($T_{hư}$).
+
+$$
+V_{tổn\ thất\ thực\ tế} = V_{thực\ tế} \times T_{hư}
+$$
+
+**Bước 2 – Áp dụng Giới hạn Trách nhiệm:**
+
+- Nếu **KHÔNG có Bảo hiểm**:  
+  → Giá trị bồi thường hàng hóa ($B_{Hàng}$) **tối đa là Mười (10) lần** khoản **Cước phí được hoàn trả ($C_{Hư}$)** đã tính ở Mục 1.  
+  → Bên Vận Chuyển bồi thường theo **Giá trị tổn thất thực tế**, nhưng **không vượt quá** giới hạn này.
+
+- Nếu **CÓ Bảo hiểm** (và không bị vô hiệu):  
+  → Bồi thường theo **Giá trị tổn thất thực tế** đã tính ở Bước 1,  
+  → **Tối đa bằng Giá trị Khai báo** ($V_{khai\ báo}$) trong Hợp đồng bảo hiểm.
+
+Tóm lại:
+
+$$
+B_{Hàng} = \min\Bigl(V_{thực\ tế} \times T_{hư},\ \text{Giới hạn theo Bảo hiểm hoặc 10 \times C_{Hư}}\Bigr)
+$$
+
+### 3. Công thức Tổng Bồi thường
+
+Sau khi xác định được hai thành phần:
+
+- $B_{Hàng}$: Khoản bồi thường Giá trị Hàng hóa (sau giới hạn).  
+- $C_{Hư}$: Khoản Cước phí được Hoàn trả (Pro‑rata).
+
+**Tổng Bồi thường trực tiếp** được tính như sau:
+
+$$
+\text{Tổng Bồi thường} = B_{Hàng} + C_{Hư}
+$$
+
+### 4. Thông tin cần thiết để tính toán chính xác
+
+Để áp dụng phương pháp trên, hệ thống cần tối thiểu các thông số sau cho phần hàng bị hư hỏng:
+
+1. **Giá trị Thực tế** của phần hàng bị thiệt hại ($V_{thực\ tế}$)  
+   - Chứng minh qua **Hóa đơn/Chứng từ hợp lệ**.
+
+2. **Giá trị Khai báo** ($V_{khai\ báo}$) (nếu có bảo hiểm)  
+   - Dùng để xác định **mức trần bồi thường khi có bảo hiểm**.
+
+3. **Tổng Cước phí Vận chuyển** của đơn hàng ($C_{total}$)  
+   - Dùng để tính **cước phân bổ Pro‑rata**.
+
+4. **Trọng lượng/Kích thước** của phần hàng bị hư hỏng ($W_{kiện}$) và **Tổng trọng lượng** lô hàng ($W_{total}$)  
+   - Để tính tỷ lệ $\dfrac{W_{kiện}}{W_{total}}$ khi phân bổ cước.
+
+5. **Tỷ lệ Hư hỏng/Mất mát** ($T_{hư}$)  
+   - Ví dụ: 30%, 50%, 70%...
+
+6. **Tình trạng Bảo hiểm** (Có/Không, còn hiệu lực hay đã vô hiệu do gian lận/chứng từ không hợp lệ)  
+   - Để quyết định áp dụng **cơ chế giới hạn theo Bảo hiểm** hay **giới hạn mặc định 10× cước phí**.
+
+---
 
 ## 🔄 Quy trình Bồi thường và Thẩm định Giá trị
 

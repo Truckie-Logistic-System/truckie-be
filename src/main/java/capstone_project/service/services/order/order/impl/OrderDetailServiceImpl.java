@@ -62,6 +62,20 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     private final OrderDetailMapper orderDetailMapper;
     private final OrderMapper orderMapper;
 
+    /**
+     * Helper method to determine if a status requires ALL order details to have that status
+     * before updating the parent order status
+     */
+    private boolean requiresAllAggregation(OrderStatusEnum status) {
+        return Set.of(
+            OrderStatusEnum.IN_TROUBLES,
+            OrderStatusEnum.DELIVERED,
+            OrderStatusEnum.RETURNED,
+            OrderStatusEnum.SUCCESSFUL,
+            OrderStatusEnum.COMPENSATION
+        ).contains(status);
+    }
+
     @Override
     @Transactional
     public GetOrderDetailResponse changeStatusOrderDetailExceptTroubles(UUID orderDetailId, OrderStatusEnum orderDetailStatus) {
@@ -102,10 +116,14 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         //Check change status for order
         OrderEntity orderEntity = orderDetailEntity.getOrderEntity();
         List<OrderDetailEntity> details = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderEntity.getId());
-        boolean allSameStatus = details.stream()
-                .allMatch(d -> d.getStatus().equals(orderDetailStatus.name()));
+        
+        // For statuses requiring ALL aggregation, check if all order details have the same status
+        // For other statuses, update immediately (partial completion is valid)
+        boolean shouldUpdateOrder = requiresAllAggregation(orderDetailStatus) 
+            ? details.stream().allMatch(d -> d.getStatus().equals(orderDetailStatus.name()))
+            : details.stream().anyMatch(d -> d.getStatus().equals(orderDetailStatus.name()));
 
-        if (allSameStatus) {
+        if (shouldUpdateOrder) {
             // Update status của Order and send WebSocket notification
             orderService.updateOrderStatus(orderEntity.getId(), orderDetailStatus);
             
@@ -127,9 +145,16 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         orderDetailEntity.setStatus(OrderStatusEnum.IN_TROUBLES.name());
         orderDetailEntityService.save(orderDetailEntity);
 
+        // Check if ALL order details are IN_TROUBLES before updating order status
         OrderEntity orderEntity = orderDetailEntity.getOrderEntity();
-        // Update status của Order and send WebSocket notification
-        orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.IN_TROUBLES);
+        List<OrderDetailEntity> details = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderEntity.getId());
+        boolean allInTroubles = details.stream()
+                .allMatch(d -> d.getStatus().equals(OrderStatusEnum.IN_TROUBLES.name()));
+
+        if (allInTroubles) {
+            // Only update Order status if ALL order details are IN_TROUBLES
+            orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.IN_TROUBLES);
+        }
 
         return orderDetailMapper.toGetOrderDetailResponse(orderDetailEntity);
     }

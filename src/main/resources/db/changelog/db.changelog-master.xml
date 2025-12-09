@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- 
+        Master Changelog File
+        Quản lý tất cả migration files theo thứ tự
+    -->
+
+    <!-- 
+        Migration Strategy: Archive data trước khi drop
+        - Safe changes: Archive data + Add constraints
+        - Risky changes: Drop tables/columns (data đã archive)
+    -->
+
+    <!-- STEP 1: Safe changes - Archive data và add constraints -->
+    <include file="db/changelog/diff/db.changelog-diff-safe.xml"/>
+
+    <!-- STEP 2: Risky changes - Drop tables/columns (data đã archive) -->
+    <include file="db/changelog/diff/db.changelog-diff-risky.xml"/>
+
+</databaseChangeLog>
