@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- 
+        Master Changelog File
+        Quản lý tất cả migration files theo thứ tự
+    -->
+
+    <!-- Diff: Thay đổi để sync với entity -->
+    <!-- Uncomment sau khi review diff file -->
+    <!-- <include file="db/changelog/diff/db.changelog-diff.xml"/> -->
+
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-34">
+        <dropForeignKeyConstraint baseTableName="issue_off_route_assessment" constraintName="fk8ujol3f53oafdabhaxg5dt053"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-35">
+        <dropForeignKeyConstraint baseTableName="issue_damage_assessment" constraintName="fkda4relosee251cm1f17nk312i"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-36">
+        <dropForeignKeyConstraint baseTableName="issue_damage_assessment" constraintName="fkh6svii373y1rr060gb73v75xe"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-37">
+        <dropForeignKeyConstraint baseTableName="contract_rules" constraintName="fkinaprh3r4vbce65un3p5pqvd4"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-38">
+        <dropForeignKeyConstraint baseTableName="signature_requests" constraintName="fkjtd6jdhd710q0myaogxg4xh4i"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-39">
+        <dropForeignKeyConstraint baseTableName="issue_off_route_assessment" constraintName="fkkhk8b0t0cleiccof7fon3sr8d"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-40">
+        <dropForeignKeyConstraint baseTableName="signature_requests" constraintName="fkowq7kaqlr6bn1elt07jm2uxf3"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-1">
+        <dropForeignKeyConstraint baseTableName="issues" constraintName="fk9i550gtrldhvv8x8sj6irfm6g"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-3">
+        <dropForeignKeyConstraint baseTableName="packing_proof_images" constraintName="fkopr088kl99xifo5sy2glwgw6c"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-33">
+        <addUniqueConstraint columnNames="issue_id" constraintName="refunds_issue_id_key" tableName="refunds"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-41">
+        <dropUniqueConstraint constraintName="uk678ht8rdr5x4278o2iuq4mbv3" tableName="issue_off_route_assessment"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-42">
+        <dropUniqueConstraint constraintName="uklkq75tpwxy3u0nk6tacst6hft" tableName="issue_damage_assessment"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-43">
+        <dropTable tableName="issue_damage_assessment"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-44">
+        <dropTable tableName="issue_off_route_assessment"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-45">
+        <dropTable tableName="signature_requests"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-46">
+        <dropColumn columnName="expired_deposit_date" tableName="contract_settings"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-47">
+        <dropColumn columnName="insurance_rate" tableName="contract_settings"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-48">
+        <dropColumn columnName="total_price" tableName="orders"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-49">
+        <dropColumn columnName="vehicle_rule_id" tableName="contract_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-50">
+        <dropIndex indexName="idx_issues_trip_status_at_report" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-51">
+        <dropIndex indexName="idx_order_seals_seal_code" tableName="seals"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-52">
+        <dropIndex indexName="idx_packing_proof_vehicle_assignment" tableName="packing_proof_images"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-53">
+        <dropIndex indexName="idx_penalty_history_driver_id" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-54">
+        <dropIndex indexName="idx_penalty_history_penalty_date" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-55">
+        <dropIndex indexName="idx_penalty_history_vehicle_assignment_id" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-56">
+        <dropIndex indexName="idx_transaction_issue_id" tableName="transaction"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-57">
+        <dropIndex indexName="idx_vehicle_maintenance_status" tableName="vehicle_maintenance"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-2">
+        <addForeignKeyConstraint baseColumnNames="return_journey_id" baseTableName="issues" constraintName="fk9i550gtrldhvv8x8sj6irfm6g" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="journey_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-4">
+        <addForeignKeyConstraint baseColumnNames="vehicle_assignment_id" baseTableName="packing_proof_images" constraintName="fkopr088kl99xifo5sy2glwgw6c" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="vehicle_assignments"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-5">
+        <setTableRemarks tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-6">
+        <setColumnRemarks columnDataType="number(19,2)" columnName="adjusted_return_fee" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-7">
+        <setColumnRemarks columnDataType="number(38,2)" columnName="adjusted_value" tableName="contracts"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-8">
+        <setColumnRemarks columnDataType="timestamp" columnName="contacted_at" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-9">
+        <setColumnRemarks columnDataType="uuid" columnName="contacted_by" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-10">
+        <modifyDataType columnName="created_at" newDataType="timestamp" tableName="packing_proof_images"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-11">
+        <dropDefaultValue columnDataType="timestamp" columnName="created_at" tableName="packing_proof_images"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-12">
+        <setColumnRemarks columnDataType="uuid" columnName="driver_id" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-13">
+        <setColumnRemarks columnDataType="timestamp" columnName="grace_period_expires_at" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-14">
+        <setColumnRemarks columnDataType="boolean" columnName="grace_period_extended" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-15">
+        <setColumnRemarks columnDataType="timestamp" columnName="grace_period_extended_at" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-16">
+        <dropDefaultValue columnDataType="int" columnName="grace_period_extension_count" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-17">
+        <setColumnRemarks columnDataType="int" columnName="grace_period_extension_count" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-18">
+        <dropDefaultValue columnDataType="uuid" columnName="id" tableName="packing_proof_images"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-19">
+        <setColumnRemarks columnDataType="varchar(30)" columnName="issue_category" tableName="issue_types"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-20">
+        <setColumnRemarks columnDataType="timestamp" columnName="last_location_update_at" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-21">
+        <setColumnRemarks columnDataType="timestamp" columnName="modified_at" tableName="notifications"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-22">
+        <modifyDataType columnName="modified_at" newDataType="timestamp" tableName="packing_proof_images"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-23">
+        <setColumnRemarks columnDataType="timestamp" columnName="new_seal_confirmed_at" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-24">
+        <setColumnRemarks columnDataType="timestamp" columnName="payment_deadline" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-25">
+        <setColumnRemarks columnDataType="date" columnName="penalty_date" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-26">
+        <setColumnRemarks columnDataType="float8" columnName="previous_distance_from_route_meters" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-27">
+        <setColumnRemarks columnDataType="uuid" columnName="return_journey_id" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-28">
+        <setColumnRemarks columnDataType="number(19,2)" columnName="return_shipping_fee" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-29">
+        <setColumnRemarks columnDataType="clob" columnName="traffic_violation_record_image_url" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-30">
+        <setColumnRemarks columnDataType="varchar(500)" columnName="trip_status_at_report" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-31">
+        <setColumnRemarks columnDataType="uuid" columnName="vehicle_assignment_id" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270537701-32">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="violation_type" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-34">
+        <dropForeignKeyConstraint baseTableName="issue_off_route_assessment" constraintName="fk8ujol3f53oafdabhaxg5dt053"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-35">
+        <dropForeignKeyConstraint baseTableName="issue_damage_assessment" constraintName="fkda4relosee251cm1f17nk312i"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-36">
+        <dropForeignKeyConstraint baseTableName="issue_damage_assessment" constraintName="fkh6svii373y1rr060gb73v75xe"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-37">
+        <dropForeignKeyConstraint baseTableName="contract_rules" constraintName="fkinaprh3r4vbce65un3p5pqvd4"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-38">
+        <dropForeignKeyConstraint baseTableName="signature_requests" constraintName="fkjtd6jdhd710q0myaogxg4xh4i"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-39">
+        <dropForeignKeyConstraint baseTableName="issue_off_route_assessment" constraintName="fkkhk8b0t0cleiccof7fon3sr8d"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-40">
+        <dropForeignKeyConstraint baseTableName="signature_requests" constraintName="fkowq7kaqlr6bn1elt07jm2uxf3"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-1">
+        <dropForeignKeyConstraint baseTableName="issues" constraintName="fk9i550gtrldhvv8x8sj6irfm6g"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-3">
+        <dropForeignKeyConstraint baseTableName="packing_proof_images" constraintName="fkopr088kl99xifo5sy2glwgw6c"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-33">
+        <addUniqueConstraint columnNames="issue_id" constraintName="refunds_issue_id_key" tableName="refunds"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-41">
+        <dropUniqueConstraint constraintName="uk678ht8rdr5x4278o2iuq4mbv3" tableName="issue_off_route_assessment"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-42">
+        <dropUniqueConstraint constraintName="uklkq75tpwxy3u0nk6tacst6hft" tableName="issue_damage_assessment"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-43">
+        <dropTable tableName="issue_damage_assessment"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-44">
+        <dropTable tableName="issue_off_route_assessment"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-45">
+        <dropTable tableName="signature_requests"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-46">
+        <dropColumn columnName="expired_deposit_date" tableName="contract_settings"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-47">
+        <dropColumn columnName="insurance_rate" tableName="contract_settings"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-48">
+        <dropColumn columnName="total_price" tableName="orders"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-49">
+        <dropColumn columnName="vehicle_rule_id" tableName="contract_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-50">
+        <dropIndex indexName="idx_issues_trip_status_at_report" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-51">
+        <dropIndex indexName="idx_order_seals_seal_code" tableName="seals"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-52">
+        <dropIndex indexName="idx_packing_proof_vehicle_assignment" tableName="packing_proof_images"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-53">
+        <dropIndex indexName="idx_penalty_history_driver_id" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-54">
+        <dropIndex indexName="idx_penalty_history_penalty_date" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-55">
+        <dropIndex indexName="idx_penalty_history_vehicle_assignment_id" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-56">
+        <dropIndex indexName="idx_transaction_issue_id" tableName="transaction"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-57">
+        <dropIndex indexName="idx_vehicle_maintenance_status" tableName="vehicle_maintenance"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-2">
+        <addForeignKeyConstraint baseColumnNames="return_journey_id" baseTableName="issues" constraintName="fk9i550gtrldhvv8x8sj6irfm6g" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="journey_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-4">
+        <addForeignKeyConstraint baseColumnNames="vehicle_assignment_id" baseTableName="packing_proof_images" constraintName="fkopr088kl99xifo5sy2glwgw6c" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="vehicle_assignments"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-5">
+        <setTableRemarks tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-6">
+        <setColumnRemarks columnDataType="number(19,2)" columnName="adjusted_return_fee" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-7">
+        <setColumnRemarks columnDataType="number(38,2)" columnName="adjusted_value" tableName="contracts"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-8">
+        <setColumnRemarks columnDataType="timestamp" columnName="contacted_at" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-9">
+        <setColumnRemarks columnDataType="uuid" columnName="contacted_by" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-10">
+        <modifyDataType columnName="created_at" newDataType="timestamp" tableName="packing_proof_images"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-11">
+        <dropDefaultValue columnDataType="timestamp" columnName="created_at" tableName="packing_proof_images"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-12">
+        <setColumnRemarks columnDataType="uuid" columnName="driver_id" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-13">
+        <setColumnRemarks columnDataType="timestamp" columnName="grace_period_expires_at" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-14">
+        <setColumnRemarks columnDataType="boolean" columnName="grace_period_extended" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-15">
+        <setColumnRemarks columnDataType="timestamp" columnName="grace_period_extended_at" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-16">
+        <dropDefaultValue columnDataType="int" columnName="grace_period_extension_count" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-17">
+        <setColumnRemarks columnDataType="int" columnName="grace_period_extension_count" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-18">
+        <dropDefaultValue columnDataType="uuid" columnName="id" tableName="packing_proof_images"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-19">
+        <setColumnRemarks columnDataType="varchar(30)" columnName="issue_category" tableName="issue_types"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-20">
+        <setColumnRemarks columnDataType="timestamp" columnName="last_location_update_at" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-21">
+        <setColumnRemarks columnDataType="timestamp" columnName="modified_at" tableName="notifications"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-22">
+        <modifyDataType columnName="modified_at" newDataType="timestamp" tableName="packing_proof_images"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-23">
+        <setColumnRemarks columnDataType="timestamp" columnName="new_seal_confirmed_at" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-24">
+        <setColumnRemarks columnDataType="timestamp" columnName="payment_deadline" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-25">
+        <setColumnRemarks columnDataType="date" columnName="penalty_date" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-26">
+        <setColumnRemarks columnDataType="float8" columnName="previous_distance_from_route_meters" tableName="off_route_events"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-27">
+        <setColumnRemarks columnDataType="uuid" columnName="return_journey_id" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-28">
+        <setColumnRemarks columnDataType="number(19,2)" columnName="return_shipping_fee" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-29">
+        <setColumnRemarks columnDataType="clob" columnName="traffic_violation_record_image_url" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-30">
+        <setColumnRemarks columnDataType="varchar(500)" columnName="trip_status_at_report" tableName="issues"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-31">
+        <setColumnRemarks columnDataType="uuid" columnName="vehicle_assignment_id" tableName="penalty_history"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765270587991-32">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="violation_type" tableName="penalty_history"/>
+    </changeSet>
+</databaseChangeLog>

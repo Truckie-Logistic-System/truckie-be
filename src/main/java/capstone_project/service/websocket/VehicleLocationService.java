@@ -68,6 +68,14 @@ public class VehicleLocationService {
      * Broadcast updated vehicle location to all subscribers using the message DTO
      */
     public void broadcastVehicleLocation(VehicleLocationMessage message) {
+        log.info("[VehicleLocation] Incoming WS location: vehicleId={}, assignmentId={}, lat={}, lng={}, speed={}, bearing={}",
+                message.getVehicleId(),
+                message.getVehicleAssignmentId(),
+                message.getLatitude(),
+                message.getLongitude(),
+                message.getSpeed(),
+                message.getBearing());
+
         // Calculate velocity for smooth frontend interpolation
         enhanceMessageWithVelocity(message);
         
@@ -175,6 +183,17 @@ public class VehicleLocationService {
 
             // For each assignment, find active order details
             for (VehicleAssignmentEntity assignment : assignments) {
+                // ✅ Multi-trip-safe: If message has a specific assignmentId, only process that one.
+                // If assignmentId is null (older mobile clients), process all assignments for this vehicle.
+                if (message.getVehicleAssignmentId() != null &&
+                        !assignment.getId().equals(message.getVehicleAssignmentId())) {
+                    log.debug("[VehicleLocation] Skipping assignment {} - location update is for assignment {}", 
+                        assignment.getId(), message.getVehicleAssignmentId());
+                    continue;
+                }
+
+                log.debug("[VehicleLocation] Processing location update for assignment {} - vehicle {}", 
+                    assignment.getId(), message.getVehicleId());
 
                 // Check Order status (not OrderDetail status) for real-time tracking
                 // Include all statuses from PICKING_UP onwards as defined in frontend OrderStatusEnum
@@ -231,11 +250,11 @@ public class VehicleLocationService {
                             enhancedMessage.setVelocityLng(message.getVelocityLng());
                             
                             // DEBUG: Log speed values to identify discrepancy
-                            log.info("=== [WEBSOCKET SPEED DEBUG] Vehicle {} ({}) - Speed from mobile: {} km/h, Speed being sent: {} km/h", 
-                                    message.getVehicleId(), 
-                                    message.getLicensePlateNumber(),
-                                    message.getSpeed() != null ? message.getSpeed().doubleValue() + "" : "NULL",
-                                    enhancedMessage.getSpeed() != null ? enhancedMessage.getSpeed().doubleValue() + "" : "NULL");
+                            // log.info("=== [WEBSOCKET SPEED DEBUG] Vehicle {} ({}) - Speed from mobile: {} km/h, Speed being sent: {} km/h", 
+                            //         message.getVehicleId(), 
+                            //         message.getLicensePlateNumber(),
+                            //         message.getSpeed() != null ? message.getSpeed().doubleValue() + "" : "NULL",
+                            //         enhancedMessage.getSpeed() != null ? enhancedMessage.getSpeed().doubleValue() + "" : "NULL");
 
                             messagingTemplate.convertAndSend(orderTopic, enhancedMessage);
                             broadcastedOrders.add(orderId); // Mark as broadcast

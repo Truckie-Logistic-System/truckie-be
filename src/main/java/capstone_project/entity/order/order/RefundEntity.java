@@ -57,4 +57,12 @@ public class RefundEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "processed_by_staff_id")
     private UserEntity processedByStaff; // Staff thực hiện refund
+    
+    // Source tracking for flexible refund origins
+    @Size(max = 50)
+    @Column(name = "source_type", length = 50)
+    private String sourceType; // e.g., "ISSUE_DAMAGE", "ORDER_CANCELLATION", "OVERCHARGE"
+    
+    @Column(name = "source_id")
+    private java.util.UUID sourceId; // Reference to source entity (issue_id, order_id, etc.)
 }

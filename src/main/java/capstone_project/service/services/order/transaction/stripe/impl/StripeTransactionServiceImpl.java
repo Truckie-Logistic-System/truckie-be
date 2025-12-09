@@ -10,6 +10,9 @@ import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.transaction.TransactionEntity;
 import capstone_project.entity.setting.ContractSettingEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
+import capstone_project.dtos.response.order.transaction.GetTransactionStatusResponse;
+import capstone_project.dtos.response.order.transaction.TransactionResponse;
+import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
@@ -302,18 +305,11 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
                 if (transaction.getAmount().compareTo(totalValue) < 0) {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
-                    // Update Order status only (OrderDetail will be updated when assigned to driver)
-                    OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
-                    order.setStatus(OrderStatusEnum.ON_PLANNING.name());
-                    orderEntityService.save(order);
+                    // Update both order and all order details status to ON_PLANNING
+                    CreateOrderResponse response = orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
                     
-                    // Send WebSocket notification
-                    orderStatusWebSocketService.sendOrderStatusChange(
-                            order.getId(),
-                            order.getOrderCode(),
-                            previousStatus,
-                            OrderStatusEnum.ON_PLANNING
-                    );
+                    log.info("✅ Order {} and all order details status updated to ON_PLANNING", 
+                        order.getOrderCode());
                 } else {
                     contract.setStatus(ContractStatusEnum.PAID.name());
                     // Update Order status only (OrderDetail will be updated when assigned to driver)
@@ -335,13 +331,28 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
             case REFUNDED -> {
                 contract.setStatus(ContractStatusEnum.REFUNDED.name());
-                order.setStatus(OrderStatusEnum.RETURNED.name());
+
+                // ✅ IMPORTANT: Do NOT set Order status to RETURNED directly here.
+                // RETURNING/RETURNED are max statuses and must be enforced via aggregation
+                // across all OrderDetails. Delegate to OrderService.updateOrderStatus which
+                // already validates that ALL order details are in the proper return status.
+                try {
+                    orderService.updateOrderStatus(order.getId(), OrderStatusEnum.RETURNED);
+                    log.info("✅ Aggregated Order status update to RETURNED after Stripe REFUNDED for order {}", order.getId());
+                } catch (Exception e) {
+                    log.error("❌ Failed to update Order status to RETURNED via aggregation for order {}: {}",
+                            order.getId(), e.getMessage());
+                    // Don't throw - aggregation enforcement failure shouldn't break refund processing
+                }
             }
             default -> {
             }
         }
 
         if (TransactionEnum.valueOf(transaction.getStatus()) == TransactionEnum.REFUNDED) {
+            // Order status (including RETURNED) is now managed via aggregation logic in OrderService
+            // and/or OrderDetailStatusService, so we don't need to force-save the Order here
+            // unless it was actually modified above.
             orderEntityService.save(order);
         }
 

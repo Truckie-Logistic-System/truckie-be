@@ -423,7 +423,7 @@ public class NotificationBuilder {
     
     /**
      * DRIVER_ASSIGNED - Đã phân công tài xế
-     * Updated to include package details with categoryDescription
+     * Updated to include package details with categoryDescription and vehicleAssignmentTrackingCode
      */
     public static CreateNotificationRequest buildDriverAssigned(
         UUID userId,
@@ -437,6 +437,7 @@ public class NotificationBuilder {
         LocalDateTime estimatedPickupDate,
         List<capstone_project.entity.order.order.OrderDetailEntity> orderDetails,
         String categoryDescription,
+        String vehicleAssignmentTrackingCode,
         UUID orderId,
         UUID vehicleAssignmentId
     ) {
@@ -448,6 +449,10 @@ public class NotificationBuilder {
         metadata.put("vehicleType", vehicleType);
         metadata.put("remainingAmount", String.format("%,.0f VNĐ", remainingAmount));
         metadata.put("categoryDescription", categoryDescription != null ? categoryDescription : "Hàng hóa");
+        // 🔧 Add tracking code for display instead of UUID
+        if (vehicleAssignmentTrackingCode != null) {
+            metadata.put("vehicleAssignmentTrackingCode", vehicleAssignmentTrackingCode);
+        }
         if (paymentDeadline != null) {
             metadata.put("paymentDeadline", paymentDeadline.format(DATE_FORMATTER));
         }
@@ -652,6 +657,7 @@ public class NotificationBuilder {
     
     /**
      * PICKING_UP_STARTED - Tài xế bắt đầu lấy hàng (cho Customer - Email: YES)
+     * Updated to include vehicleAssignmentTrackingCode for display
      */
     public static CreateNotificationRequest buildPickingUpStarted(
         UUID userId,
@@ -662,6 +668,7 @@ public class NotificationBuilder {
         List<capstone_project.entity.order.order.OrderDetailEntity> orderDetails,
         String categoryDescription,
         String vehicleTypeDescription,
+        String vehicleAssignmentTrackingCode,
         UUID orderId,
         UUID vehicleAssignmentId
     ) {
@@ -672,6 +679,10 @@ public class NotificationBuilder {
         metadata.put("vehiclePlate", vehiclePlate);
         metadata.put("categoryDescription", categoryDescription != null ? categoryDescription : "Hàng hóa");
         metadata.put("vehicleType", vehicleTypeDescription != null ? vehicleTypeDescription : "N/A");
+        // 🔧 Add tracking code for display instead of UUID
+        if (vehicleAssignmentTrackingCode != null) {
+            metadata.put("vehicleAssignmentTrackingCode", vehicleAssignmentTrackingCode);
+        }
         
         // Add detailed package information
         if (orderDetails != null && !orderDetails.isEmpty()) {
@@ -721,6 +732,7 @@ public class NotificationBuilder {
     
     /**
      * DELIVERY_STARTED - Đang vận chuyển hàng (cho Customer - Email: NO)
+     * Updated to include vehicleAssignmentTrackingCode for display
      */
     public static CreateNotificationRequest buildDeliveryStarted(
         UUID userId,
@@ -731,6 +743,7 @@ public class NotificationBuilder {
         String categoryDescription,
         String deliveryLocation,
         String vehicleTypeDescription,
+        String vehicleAssignmentTrackingCode,
         UUID orderId,
         UUID vehicleAssignmentId
     ) {
@@ -741,6 +754,10 @@ public class NotificationBuilder {
         metadata.put("categoryDescription", categoryDescription != null ? categoryDescription : "Hàng hóa");
         metadata.put("deliveryLocation", deliveryLocation);
         metadata.put("vehicleType", vehicleTypeDescription != null ? vehicleTypeDescription : "N/A");
+        // 🔧 Add tracking code for display instead of UUID
+        if (vehicleAssignmentTrackingCode != null) {
+            metadata.put("vehicleAssignmentTrackingCode", vehicleAssignmentTrackingCode);
+        }
         
         // Add detailed package information
         if (orderDetails != null && !orderDetails.isEmpty()) {
@@ -790,6 +807,7 @@ public class NotificationBuilder {
     
     /**
      * DELIVERY_IN_PROGRESS - Sắp giao hàng (cho Customer - Email: NO)
+     * Updated to include vehicleAssignmentTrackingCode for display
      */
     public static CreateNotificationRequest buildDeliveryInProgress(
         UUID userId,
@@ -800,6 +818,7 @@ public class NotificationBuilder {
         String categoryDescription,
         String deliveryLocation,
         String vehicleTypeDescription,
+        String vehicleAssignmentTrackingCode,
         UUID orderId,
         UUID vehicleAssignmentId
     ) {
@@ -810,6 +829,10 @@ public class NotificationBuilder {
         metadata.put("categoryDescription", categoryDescription != null ? categoryDescription : "Hàng hóa");
         metadata.put("deliveryLocation", deliveryLocation);
         metadata.put("vehicleType", vehicleTypeDescription != null ? vehicleTypeDescription : "N/A");
+        // 🔧 Add tracking code for display instead of UUID
+        if (vehicleAssignmentTrackingCode != null) {
+            metadata.put("vehicleAssignmentTrackingCode", vehicleAssignmentTrackingCode);
+        }
         
         // Add detailed package information
         if (orderDetails != null && !orderDetails.isEmpty()) {
@@ -880,10 +903,19 @@ public class NotificationBuilder {
         metadata.put("deliveryLocation", deliveryLocation);
         metadata.put("receiverName", receiverName);
         metadata.put("allPackagesDelivered", allPackagesDelivered);
+        metadata.put("packageCount", deliveredPackages.size());
         
-        // Thêm thông tin chi tiết về các kiện hàng đã giao
+        // Calculate total weight
+        double totalWeight = deliveredPackages.stream()
+            .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+            .sum();
+        String totalUnit = !deliveredPackages.isEmpty() && deliveredPackages.get(0).getUnit() != null 
+            ? deliveredPackages.get(0).getUnit() : "Tấn";
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+        
+        // Thêm thông tin chi tiết về các kiện hàng đã giao (dùng key "packages" để FE hiển thị đúng)
         List<Map<String, Object>> packageDetails = createPackageMetadata(deliveredPackages);
-        metadata.put("deliveredPackages", packageDetails);
+        metadata.put("packages", packageDetails);
         
         String title;
         String description;
@@ -1010,10 +1042,19 @@ public class NotificationBuilder {
         metadata.put("totalPackageCount", totalPackageCount);
         metadata.put("pickupLocation", pickupLocation);
         metadata.put("allPackagesReturned", allPackagesReturned);
+        metadata.put("packageCount", returnedPackages.size());
         
-        // Thêm thông tin chi tiết về các kiện hàng đã trả
+        // Calculate total weight
+        double totalWeight = returnedPackages.stream()
+            .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+            .sum();
+        String totalUnit = !returnedPackages.isEmpty() && returnedPackages.get(0).getUnit() != null 
+            ? returnedPackages.get(0).getUnit() : "Tấn";
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+        
+        // Thêm thông tin chi tiết về các kiện hàng đã trả (dùng key "packages" để FE hiển thị đúng)
         List<Map<String, Object>> packageDetails = createPackageMetadata(returnedPackages);
-        metadata.put("returnedPackages", packageDetails);
+        metadata.put("packages", packageDetails);
         
         String title;
         String description;
@@ -1567,10 +1608,10 @@ public class NotificationBuilder {
     public static CreateNotificationRequest buildPackageDamaged(
         UUID userId,
         String orderCode,
-        String issueCode,
         int damagedCount,
         int totalPackageCount,
         List<OrderDetailEntity> damagedPackages,
+        String vehicleAssignmentTrackingCode,
         UUID orderId,
         UUID issueId,
         List<UUID> damagedOrderDetailIds,
@@ -1578,32 +1619,43 @@ public class NotificationBuilder {
     ) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("orderCode", orderCode);
-        metadata.put("issueCode", issueCode);
+        metadata.put("issueId", issueId != null ? issueId.toString() : null);
         metadata.put("damagedCount", damagedCount);
         metadata.put("totalPackageCount", totalPackageCount);
         metadata.put("issueType", "DAMAGE");
         metadata.put("actionRequired", "CONTACT_STAFF");
+        // 🔧 Add tracking code for display instead of UUID
+        if (vehicleAssignmentTrackingCode != null) {
+            metadata.put("vehicleAssignmentTrackingCode", vehicleAssignmentTrackingCode);
+        }
         
-        // Thêm thông tin chi tiết về các kiện hàng bị hư hỏng
+        // Thêm thông tin chi tiết về các kiện hàng bị hư hỏng (dùng key "packages" để FE hiển thị đúng)
         List<Map<String, Object>> packageDetails = createPackageMetadata(damagedPackages);
-        metadata.put("damagedPackages", packageDetails);
+        metadata.put("packages", packageDetails);
+        
+        // Calculate total weight
+        double totalWeight = damagedPackages.stream()
+            .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+            .sum();
+        String totalUnit = !damagedPackages.isEmpty() && damagedPackages.get(0).getUnit() != null 
+            ? damagedPackages.get(0).getUnit() : "Tấn";
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+        metadata.put("packageCount", damagedPackages.size());
         
         String description = String.format(
             "⚠️ THÔNG BÁO SỰ CỐ HƯ HỎNG HÀNG HÓA\n\n" +
             "Chúng tôi rất tiếc phải thông báo rằng %d/%d kiện hàng trong đơn hàng %s đã bị hư hỏng trong quá trình vận chuyển.\n\n" +
             "📋 THÔNG TIN SỰ CỐ:\n" +
-            "• Mã sự cố: %s\n" +
             "• Số kiện hàng bị ảnh hưởng: %d kiện\n" +
             "• Nguyên nhân: Do phía vận chuyển\n\n" +
             "📦 CHI TIẾT KIỆN HÀNG BỊ HƯ HỎNG:\n" +
             "%s\n\n" +
             "💰 HƯỚNG DẪN YÊU CẦU BỒI THƯỜNG:\n" +
             "1. Vui lòng liên hệ với nhân viên hỗ trợ của chúng tôi qua hotline hoặc email\n" +
-            "2. Cung cấp mã sự cố %s để được hỗ trợ nhanh nhất\n" +
-            "3. Mức bồi thường sẽ được tính theo điều khoản trong hợp đồng vận chuyển\n\n" +
+            "2. Mức bồi thường sẽ được tính theo điều khoản trong hợp đồng vận chuyển\n\n" +
             "Chúng tôi cam kết xử lý và bồi thường theo đúng quy định trong hợp đồng đã ký kết.",
             damagedCount, totalPackageCount, orderCode,
-            issueCode, damagedCount, formatPackageList(damagedPackages), issueCode
+            damagedCount, formatPackageList(damagedPackages)
         );
         
         return CreateNotificationRequest.builder()
@@ -1623,39 +1675,58 @@ public class NotificationBuilder {
     /**
      * ORDER_REJECTED_BY_RECEIVER - Người nhận từ chối nhận hàng (cho Customer)
      * Email yêu cầu thanh toán cước trả hàng với deadline và cảnh báo
+     * @param deadlineMinutes thời hạn thanh toán từ properties (mặc định 30 phút)
      */
     public static CreateNotificationRequest buildOrderRejectedByReceiver(
         UUID userId,
         String orderCode,
-        String issueCode,
         int rejectedCount,
         int totalPackageCount,
         String deliveryLocation,
         List<OrderDetailEntity> rejectedPackages,
+        String vehicleAssignmentTrackingCode,
         UUID orderId,
         UUID issueId,
         List<UUID> rejectedOrderDetailIds,
-        UUID vehicleAssignmentId
+        UUID vehicleAssignmentId,
+        int deadlineMinutes
     ) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("orderCode", orderCode);
-        metadata.put("issueCode", issueCode);
+        metadata.put("issueId", issueId != null ? issueId.toString() : null);
         metadata.put("rejectedCount", rejectedCount);
         metadata.put("totalPackageCount", totalPackageCount);
         metadata.put("deliveryLocation", deliveryLocation);
         metadata.put("issueType", "ORDER_REJECTION");
         metadata.put("actionRequired", "PAYMENT_RETURN_FEE");
-        metadata.put("deadlineDays", 3);
+        metadata.put("deadlineMinutes", deadlineMinutes);
+        // 🔧 Add tracking code for display instead of UUID
+        if (vehicleAssignmentTrackingCode != null) {
+            metadata.put("vehicleAssignmentTrackingCode", vehicleAssignmentTrackingCode);
+        }
         
-        // Thêm thông tin chi tiết về các kiện hàng bị từ chối
+        // Thêm thông tin chi tiết về các kiện hàng bị từ chối (dùng key "packages" để FE hiển thị đúng)
         List<Map<String, Object>> packageDetails = createPackageMetadata(rejectedPackages);
-        metadata.put("rejectedPackages", packageDetails);
+        metadata.put("packages", packageDetails);
+        
+        // Calculate total weight
+        double totalWeight = rejectedPackages.stream()
+            .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+            .sum();
+        String totalUnit = !rejectedPackages.isEmpty() && rejectedPackages.get(0).getUnit() != null 
+            ? rejectedPackages.get(0).getUnit() : "Tấn";
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+        metadata.put("packageCount", rejectedPackages.size());
+        
+        // Format deadline display
+        String deadlineDisplay = deadlineMinutes >= 60 
+            ? String.format("%d GIỜ", deadlineMinutes / 60) 
+            : String.format("%d PHÚT", deadlineMinutes);
         
         String description = String.format(
             "🚫 THÔNG BÁO TỪ CHỐI NHẬN HÀNG\n\n" +
             "Người nhận tại địa chỉ %s đã từ chối nhận %d/%d kiện hàng trong đơn hàng %s.\n\n" +
             "📋 THÔNG TIN SỰ CỐ:\n" +
-            "• Mã sự cố: %s\n" +
             "• Số kiện hàng bị từ chối: %d kiện\n" +
             "• Địa điểm giao hàng: %s\n\n" +
             "📦 CHI TIẾT KIỆN HÀNG BỊ TỪ CHỐI:\n" +
@@ -1664,13 +1735,13 @@ public class NotificationBuilder {
             "Để tiến hành trả hàng về điểm lấy hàng, vui lòng:\n" +
             "1. Truy cập trang Chi tiết đơn hàng → Mục \"Vấn đề trả hàng\"\n" +
             "2. Thanh toán cước phí trả hàng để tài xế tiến hành trả hàng\n\n" +
-            "⏰ THỜI HẠN THANH TOÁN: 3 NGÀY\n\n" +
+            "⏰ THỜI HẠN THANH TOÁN: %s\n\n" +
             "⚠️ LƯU Ý QUAN TRỌNG:\n" +
             "Nếu quý khách không thanh toán cước trả hàng trong thời hạn quy định, " +
             "phía vận chuyển sẽ KHÔNG chịu trách nhiệm với các kiện hàng bị từ chối này. " +
             "Hàng hóa có thể bị xử lý theo quy định của công ty.",
             deliveryLocation, rejectedCount, totalPackageCount, orderCode,
-            issueCode, rejectedCount, deliveryLocation, formatPackageList(rejectedPackages)
+            rejectedCount, deliveryLocation, formatPackageList(rejectedPackages), deadlineDisplay
         );
         
         return CreateNotificationRequest.builder()
@@ -1691,6 +1762,11 @@ public class NotificationBuilder {
     
     /**
      * SEAL_ASSIGNED - Seal mới được gán cho chuyến xe
+     * Bao gồm đầy đủ thông tin:
+     * - Mã seal, mô tả seal
+     * - Ảnh seal đã gắn
+     * - Mã chuyến (vehicleTrackingCode)
+     * - Danh sách kiện hàng (metadata.packages) + tổng số kiện + tổng khối lượng
      */
     public static CreateNotificationRequest buildSealAssigned(
         UUID userId,
@@ -1698,6 +1774,7 @@ public class NotificationBuilder {
         String sealCode,
         String sealDescription,
         String vehicleTrackingCode,
+        String sealImageUrl,
         List<OrderDetailEntity> packages,
         UUID orderId,
         UUID vehicleAssignmentId
@@ -1707,24 +1784,42 @@ public class NotificationBuilder {
         metadata.put("sealCode", sealCode);
         metadata.put("sealDescription", sealDescription);
         metadata.put("vehicleTrackingCode", vehicleTrackingCode);
+        metadata.put("sealImageUrl", sealImageUrl);
         
-        // Thêm thông tin chi tiết về các kiện hàng được bảo vệ bởi seal
-        List<Map<String, Object>> packageDetails = createPackageMetadata(packages);
+        // Thêm tổng số kiện và tổng khối lượng để FE hiển thị thống kê nhanh
+        int packageCount = packages != null ? packages.size() : 0;
+        metadata.put("packageCount", packageCount);
+        
+        double totalWeight = 0.0;
+        String totalUnit = null;
+        if (packages != null && !packages.isEmpty()) {
+            totalWeight = packages.stream()
+                .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+                .sum();
+            totalUnit = packages.get(0).getUnit() != null ? packages.get(0).getUnit() : "Tấn";
+        }
+        if (totalUnit == null) {
+            totalUnit = "Tấn";
+        }
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+        
+        // Thêm thông tin chi tiết về các kiện hàng được bảo vệ bởi seal (key chuẩn: packages)
+        List<Map<String, Object>> packageDetails = createPackageMetadata(packages != null ? packages : java.util.Collections.emptyList());
         metadata.put("packages", packageDetails);
         
         String description = String.format(
-            "Seal %s đã được gán cho chuyến xe %s. Mã seal này sẽ được sử dụng để đảm bảo an toàn cho hàng hóa của bạn.\n\n" +
-            "📦 CHI TIẾT KIỆN HÀNG ĐƯỢC BẢO VỆ:\n" +
+            "Tài xế đã hoàn tất đóng gói và niêm phong hàng hóa. Seal %s đã được gắn cho chuyến xe %s, chuẩn bị BẮT ĐẦU GIAO HÀNG. Mã seal này sẽ được sử dụng để đảm bảo an toàn cho toàn bộ kiện hàng trên chuyến đi.\n\n" +
+            "📦 CHI TIẾT KIỆN HÀNG ĐƯỢC NIÊM PHONG:\n" +
             "%s",
             sealCode,
             vehicleTrackingCode,
-            formatPackageList(packages)
+            formatPackageList(packages != null ? packages : java.util.Collections.emptyList())
         );
         
         return CreateNotificationRequest.builder()
             .userId(userId)
             .recipientRole("CUSTOMER")
-            .title(String.format("Seal mới được gán - Đơn %s", orderCode))
+            .title(String.format("Tài xế bắt đầu giao hàng - Đơn %s", orderCode))
             .description(description)
             .notificationType(NotificationTypeEnum.SEAL_ASSIGNED)
             .relatedOrderId(orderId)
@@ -1851,6 +1946,245 @@ public class NotificationBuilder {
             .description(description)
             .notificationType(NotificationTypeEnum.ORDER_CANCELLED)
             .relatedOrderId(orderId)
+            .metadata(metadata)
+            .build();
+    }
+    
+    // ============= STAFF DELIVERY/RETURN NOTIFICATIONS =============
+    
+    /**
+     * STAFF_DELIVERY_COMPLETED - Giao hàng hoàn tất (cho Staff, NO EMAIL)
+     */
+    public static CreateNotificationRequest buildStaffDeliveryCompleted(
+        UUID staffUserId,
+        String orderCode,
+        String customerName,
+        int deliveredCount,
+        int totalPackageCount,
+        List<OrderDetailEntity> deliveredPackages,
+        UUID orderId,
+        List<UUID> deliveredOrderDetailIds
+    ) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("orderCode", orderCode);
+        metadata.put("customerName", customerName);
+        metadata.put("deliveredCount", deliveredCount);
+        metadata.put("totalPackageCount", totalPackageCount);
+        metadata.put("packageCount", deliveredPackages.size());
+        
+        // Calculate total weight
+        double totalWeight = deliveredPackages.stream()
+            .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+            .sum();
+        String totalUnit = !deliveredPackages.isEmpty() && deliveredPackages.get(0).getUnit() != null 
+            ? deliveredPackages.get(0).getUnit() : "Tấn";
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+        
+        // Thêm thông tin chi tiết về các kiện hàng đã giao (dùng key "packages" để FE hiển thị đúng)
+        List<Map<String, Object>> packageDetails = createPackageMetadata(deliveredPackages);
+        metadata.put("packages", packageDetails);
+        
+        String title;
+        String description;
+        
+        if (deliveredCount == totalPackageCount) {
+            title = String.format("Đơn %s đã giao hoàn tất", orderCode);
+            description = String.format("Tất cả %d kiện của đơn %s (%s) đã được giao thành công.", 
+                deliveredCount, orderCode, customerName);
+        } else {
+            title = String.format("%d kiện đơn %s đã giao", deliveredCount, orderCode);
+            description = String.format("%d/%d kiện của đơn %s (%s) đã được giao thành công.", 
+                deliveredCount, totalPackageCount, orderCode, customerName);
+        }
+        
+        return CreateNotificationRequest.builder()
+            .userId(staffUserId)
+            .recipientRole("STAFF")
+            .title(title)
+            .description(description)
+            .notificationType(NotificationTypeEnum.STAFF_DELIVERY_COMPLETED)
+            .relatedOrderId(orderId)
+            .relatedOrderDetailIds(deliveredOrderDetailIds)
+            .metadata(metadata)
+            .build();
+    }
+    
+    /**
+     * STAFF_RETURN_COMPLETED - Trả hàng hoàn tất (cho Staff, NO EMAIL)
+     */
+    public static CreateNotificationRequest buildStaffReturnCompleted(
+        UUID staffUserId,
+        String orderCode,
+        String customerName,
+        int returnedCount,
+        int totalPackageCount,
+        List<OrderDetailEntity> returnedPackages,
+        UUID orderId,
+        List<UUID> returnedOrderDetailIds
+    ) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("orderCode", orderCode);
+        metadata.put("customerName", customerName);
+        metadata.put("returnedCount", returnedCount);
+        metadata.put("totalPackageCount", totalPackageCount);
+        metadata.put("packageCount", returnedPackages.size());
+        
+        // Calculate total weight
+        double totalWeight = returnedPackages.stream()
+            .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+            .sum();
+        String totalUnit = !returnedPackages.isEmpty() && returnedPackages.get(0).getUnit() != null 
+            ? returnedPackages.get(0).getUnit() : "Tấn";
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+        
+        // Thêm thông tin chi tiết về các kiện hàng đã trả (dùng key "packages" để FE hiển thị đúng)
+        List<Map<String, Object>> packageDetails = createPackageMetadata(returnedPackages);
+        metadata.put("packages", packageDetails);
+        
+        String title;
+        String description;
+        
+        if (returnedCount == totalPackageCount) {
+            title = String.format("Đơn %s đã trả hàng hoàn tất", orderCode);
+            description = String.format("Tất cả %d kiện của đơn %s (%s) đã được trả về điểm lấy hàng.", 
+                returnedCount, orderCode, customerName);
+        } else {
+            title = String.format("%d kiện đơn %s đã trả", returnedCount, orderCode);
+            description = String.format("%d/%d kiện của đơn %s (%s) đã được trả về điểm lấy hàng.", 
+                returnedCount, totalPackageCount, orderCode, customerName);
+        }
+        
+        return CreateNotificationRequest.builder()
+            .userId(staffUserId)
+            .recipientRole("STAFF")
+            .title(title)
+            .description(description)
+            .notificationType(NotificationTypeEnum.STAFF_RETURN_COMPLETED)
+            .relatedOrderId(orderId)
+            .relatedOrderDetailIds(returnedOrderDetailIds)
+            .metadata(metadata)
+            .build();
+    }
+    
+    /**
+     * STAFF_RETURN_IN_PROGRESS - Đang trả hàng (cho Staff, NO EMAIL)
+     */
+    public static CreateNotificationRequest buildStaffReturnInProgress(
+        UUID staffUserId,
+        String orderCode,
+        String customerName,
+        int returningCount,
+        int totalPackageCount,
+        List<OrderDetailEntity> returningPackages,
+        UUID orderId,
+        List<UUID> returningOrderDetailIds
+    ) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("orderCode", orderCode);
+        metadata.put("customerName", customerName);
+        metadata.put("returningCount", returningCount);
+        metadata.put("totalPackageCount", totalPackageCount);
+        metadata.put("packageCount", returningPackages.size());
+        
+        // Calculate total weight
+        double totalWeight = returningPackages.stream()
+            .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+            .sum();
+        String totalUnit = !returningPackages.isEmpty() && returningPackages.get(0).getUnit() != null 
+            ? returningPackages.get(0).getUnit() : "Tấn";
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+        
+        // Thêm thông tin chi tiết về các kiện hàng đang trả (dùng key "packages" để FE hiển thị đúng)
+        List<Map<String, Object>> packageDetails = createPackageMetadata(returningPackages);
+        metadata.put("packages", packageDetails);
+        
+        String title;
+        String description;
+        
+        if (returningCount == totalPackageCount) {
+            title = String.format("Đơn %s đang trả hàng", orderCode);
+            description = String.format("Khách hàng đã thanh toán cước phí. Tất cả %d kiện của đơn %s (%s) đang được trả về điểm lấy hàng.", 
+                returningCount, orderCode, customerName);
+        } else {
+            title = String.format("%d kiện đơn %s đang trả", returningCount, orderCode);
+            description = String.format("Khách hàng đã thanh toán cước phí. %d/%d kiện của đơn %s (%s) đang được trả về điểm lấy hàng.", 
+                returningCount, totalPackageCount, orderCode, customerName);
+        }
+        
+        return CreateNotificationRequest.builder()
+            .userId(staffUserId)
+            .recipientRole("STAFF")
+            .title(title)
+            .description(description)
+            .notificationType(NotificationTypeEnum.STAFF_RETURN_IN_PROGRESS)
+            .relatedOrderId(orderId)
+            .relatedOrderDetailIds(returningOrderDetailIds)
+            .metadata(metadata)
+            .build();
+    }
+    
+    /**
+     * CUSTOMER_RETURN_IN_PROGRESS - Đang trả hàng (cho Customer, có EMAIL)
+     */
+    public static CreateNotificationRequest buildCustomerReturnInProgress(
+        UUID userId,
+        String orderCode,
+        int returningCount,
+        int totalPackageCount,
+        List<OrderDetailEntity> returningPackages,
+        UUID orderId,
+        List<UUID> returningOrderDetailIds
+    ) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("orderCode", orderCode);
+        metadata.put("returningCount", returningCount);
+        metadata.put("totalPackageCount", totalPackageCount);
+        metadata.put("actionRequired", "TRACK_RETURN");
+        metadata.put("packageCount", returningPackages.size());
+        
+        // Calculate total weight
+        double totalWeight = returningPackages.stream()
+            .mapToDouble(detail -> detail.getWeightBaseUnit() != null ? detail.getWeightBaseUnit().doubleValue() : 0.0)
+            .sum();
+        String totalUnit = !returningPackages.isEmpty() && returningPackages.get(0).getUnit() != null 
+            ? returningPackages.get(0).getUnit() : "Tấn";
+        metadata.put("totalWeight", String.format("%.2f %s", totalWeight, totalUnit));
+        
+        // Thêm thông tin chi tiết về các kiện hàng đang trả (dùng key "packages" để FE hiển thị đúng)
+        List<Map<String, Object>> packageDetails = createPackageMetadata(returningPackages);
+        metadata.put("packages", packageDetails);
+        
+        String title;
+        String description;
+        
+        if (returningCount == totalPackageCount) {
+            title = String.format("Đơn %s đang được trả hàng", orderCode);
+            description = String.format(
+                "Cảm ơn quý khách đã thanh toán cước phí trả hàng. Tất cả %d kiện hàng trong đơn %s đang được vận chuyển về điểm lấy hàng.\n\n" +
+                "📦 CHI TIẾT KIỆN HÀNG ĐANG TRẢ:\n" +
+                "%s\n\n" +
+                "Quý khách có thể theo dõi tiến trình trả hàng trong trang Chi tiết đơn hàng.",
+                returningCount, orderCode, formatPackageList(returningPackages)
+            );
+        } else {
+            title = String.format("%d kiện đơn %s đang được trả hàng", returningCount, orderCode);
+            description = String.format(
+                "Cảm ơn quý khách đã thanh toán cước phí trả hàng. %d/%d kiện hàng trong đơn %s đang được vận chuyển về điểm lấy hàng.\n\n" +
+                "📦 CHI TIẾT KIỆN HÀNG ĐANG TRẢ:\n" +
+                "%s\n\n" +
+                "Quý khách có thể theo dõi tiến trình trả hàng trong trang Chi tiết đơn hàng.",
+                returningCount, totalPackageCount, orderCode, formatPackageList(returningPackages)
+            );
+        }
+        
+        return CreateNotificationRequest.builder()
+            .userId(userId)
+            .recipientRole("CUSTOMER")
+            .title(title)
+            .description(description)
+            .notificationType(NotificationTypeEnum.CUSTOMER_RETURN_IN_PROGRESS)
+            .relatedOrderId(orderId)
+            .relatedOrderDetailIds(returningOrderDetailIds)
             .metadata(metadata)
             .build();
     }

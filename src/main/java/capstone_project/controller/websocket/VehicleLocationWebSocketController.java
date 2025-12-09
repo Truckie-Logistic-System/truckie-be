@@ -97,16 +97,20 @@ public class VehicleLocationWebSocketController {
                 vehicleId, message.getLatitude(), message.getLongitude(), 1);
 
         if (updated) {
-            // Broadcast directly with provided license plate number, bearing, and speed from mobile
-            vehicleLocationService.broadcastVehicleLocation(
-                    vehicleId,
-                    message.getLatitude(),
-                    message.getLongitude(),
-                    message.getLicensePlateNumber(),
-                    message.getBearing(),
-                    message.getSpeed()
-            );
-            
+            // Build full VehicleLocationMessage including assignment for multi-trip off-route
+            capstone_project.dtos.websocket.VehicleLocationMessage wsMessage =
+                    capstone_project.dtos.websocket.VehicleLocationMessage.builder()
+                            .vehicleId(vehicleId)
+                            .latitude(message.getLatitude())
+                            .longitude(message.getLongitude())
+                            .licensePlateNumber(message.getLicensePlateNumber())
+                            .bearing(message.getBearing())
+                            .speed(message.getSpeed())
+                            .vehicleAssignmentId(message.getVehicleAssignmentId())
+                            .build();
+
+            vehicleLocationService.broadcastVehicleLocation(wsMessage);
+
         } else {
             // Check if vehicle exists
             if (!vehicleEntityService.findByVehicleId(vehicleId).isPresent()) {

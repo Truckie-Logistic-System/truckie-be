@@ -40,6 +40,7 @@ public record GroupedVehicleAssignmentResponse(
         String manufacturer,
         UUID vehicleTypeId,
         String vehicleTypeName,
+        String vehicleTypeDescription,
         List<DriverSuggestionResponse> suggestedDrivers,
         boolean isRecommended
     ) {}

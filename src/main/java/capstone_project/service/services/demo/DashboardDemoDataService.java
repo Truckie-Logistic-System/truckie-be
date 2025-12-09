@@ -541,7 +541,7 @@ public class DashboardDemoDataService {
                     // Create VehicleAssignment - distribute drivers evenly for top driver stats
                     DriverEntity driver;
                     if (request.getTargetDriverId() != null) {
-                        // 60% chance to use target driver, 40% random for diversity
+                        // 60% chance to use target driver, 40% random cho đa dạng dữ liệu
                         if (randomPercent(60)) {
                             driver = drivers.stream()
                                     .filter(d -> d.getId().equals(request.getTargetDriverId()))
@@ -551,21 +551,22 @@ public class DashboardDemoDataService {
                             driver = randomElement(drivers);
                         }
                     } else {
-                        // Distribute evenly across all drivers using global counter for better top driver statistics
+                        // Phân bổ đều tài xế cho thống kê top driver
                         driver = drivers.get(globalDriverCounter % drivers.size());
                         globalDriverCounter++;
                     }
+
                     VehicleEntity vehicle = randomElement(vehicles);
                     VehicleAssignmentEntity assignment = createDemoAssignment(detail, driver, vehicle, orderDate);
                     assignmentsCreated++;
 
-                    // 30% chance of fuel consumption record
+                    // 30% xác suất có bản ghi tiêu thụ nhiên liệu
                     if (randomPercent(30)) {
                         createDemoFuelConsumption(assignment);
                         fuelConsumptionsCreated++;
                     }
 
-                    // 15% chance of issue (ensure we create all categories across the month)
+                    // 15% xác suất tạo issue, đồng thời đảm bảo đủ các category trong tháng
                     if (randomPercent(15) || createdIssueCategories.size() < IssueCategoryEnum.values().length) {
                         IssueCategoryEnum category = selectIssueCategory(createdIssueCategories);
                         createDemoIssue(assignment, detail, orderDate, category, staffUsers);
@@ -573,24 +574,24 @@ public class DashboardDemoDataService {
                         issuesCreated++;
                     }
 
-                    // 10% chance of penalty for driver
-                    if (randomPercent(10)) {
+                    // Tăng xác suất phạt vi phạm giao thông để có nhiều penalty_history demo
+                    if (randomPercent(35)) {
                         createDemoPenalty(driver, assignment, orderDate);
                         penaltiesCreated++;
                     }
                 }
 
-                // Create Contract for order
+                // Tạo hợp đồng cho order
                 ContractEntity contract = createDemoContract(order, orderDate);
                 contractsCreated++;
 
-                // Create single transaction for PAID contracts (full payment)
+                // Giao dịch thanh toán cho hợp đồng đã PAID (full payment)
                 if ("PAID".equals(contract.getStatus())) {
                     createDemoTransaction(contract, orderDate.plusDays(1));
                     transactionsCreated++;
                 }
 
-                // 15% chance of refund only for PAID contracts
+                // 15% xác suất hoàn tiền cho các hợp đồng đã thanh toán
                 if ("PAID".equals(contract.getStatus()) && randomPercent(15)) {
                     createDemoRefund(contract, orderDate.plusDays(7));
                     refundsCreated++;
@@ -868,6 +869,8 @@ public class DashboardDemoDataService {
                 .vehicleAssignmentEntity(assignment)
                 .violationType(randomElement(new String[]{"SPEEDING", "WRONG_PARKING", "OVERLOAD"}))
                 .penaltyDate(penaltyDate.toLocalDate())
+                // Fill traffic violation image URL for demo data so all fields are populated
+                .trafficViolationRecordImageUrl("https://demo-cdn.truckie.local/penalties/" + UUID.randomUUID())
                 .isDemoData(true)
                 .build();
         // IMPORTANT: Set isDemoData FIRST, then createdAt to prevent override

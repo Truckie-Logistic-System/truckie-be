@@ -10,6 +10,9 @@ import java.util.UUID;
 
 public interface ContractEntityService extends BaseEntityService<ContractEntity, UUID> {
     Optional<ContractEntity> getContractByOrderId(UUID orderId);
+    
+    // Fetch contract with order, sender and user eagerly loaded for PDF generation
+    Optional<ContractEntity> findByIdWithOrderAndSender(UUID contractId);
 
     void deleteContractByOrderId(UUID orderId);
 

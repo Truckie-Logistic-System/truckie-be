@@ -99,6 +99,20 @@ public class OrderServiceImpl implements OrderService {
     @Value("${prefix.order.detail.code}")
     private String prefixOrderDetailCode;
 
+    /**
+     * Helper method to determine if a status requires ALL order details to have that status
+     * before updating the parent order status
+     */
+    private boolean requiresAllAggregation(OrderStatusEnum status) {
+        return Set.of(
+            OrderStatusEnum.IN_TROUBLES,
+            OrderStatusEnum.DELIVERED,
+            OrderStatusEnum.RETURNED,
+            OrderStatusEnum.SUCCESSFUL,
+            OrderStatusEnum.COMPENSATION
+        ).contains(status);
+    }
+
     @Override
     public List<OrderForCustomerListResponse> getOrdersForCurrentCustomer() {
         UUID customerId = userContextUtils.getCurrentCustomerId();
@@ -368,15 +382,27 @@ public class OrderServiceImpl implements OrderService {
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
+        
+        // Validate that cascading is only used for initialization states
+        // Delivery progress states should be set via aggregation from OrderDetails
+        if (!isValidForCascadingUpdate(newStatus)) {
+            throw new BadRequestException(
+                    ErrorEnum.INVALID.getMessage() + " Status " + newStatus + " should be updated via aggregation from OrderDetails, not cascading from Order. Use updateOrderStatus() instead.",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
         // Update Order
         OrderStatusEnum previousStatus = currentStatus;
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
 
-        // Update toàn bộ OrderDetail
+        // Update toàn bộ OrderDetail với status tương ứng
         List<OrderDetailEntity> orderDetailEntities = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
-
-        orderDetailEntities.forEach(detail -> detail.setStatus(newStatus.name()));
+        
+        // Map OrderStatusEnum to OrderDetailStatusEnum
+        OrderDetailStatusEnum correspondingDetailStatus = mapOrderStatusToDetailStatus(newStatus);
+        
+        orderDetailEntities.forEach(detail -> detail.setStatus(correspondingDetailStatus.name()));
         orderDetailEntityService.saveAllOrderDetailEntities(orderDetailEntities);
 
         // Send WebSocket notification for status change
@@ -888,6 +914,22 @@ public class OrderServiceImpl implements OrderService {
             );
         }
         
+        // Validate aggregation for statuses that require ALL order details to match
+        if (requiresAllAggregation(newStatus)) {
+            List<OrderDetailEntity> orderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
+            boolean allDetailsMatch = orderDetails.stream()
+                    .allMatch(detail -> detail.getStatus().equals(newStatus.name()));
+            
+            if (!allDetailsMatch) {
+                throw new BadRequestException(
+                        ErrorEnum.INVALID.getMessage() + " Cannot update order status to " + newStatus + 
+                        " because not all order details have this status. " +
+                        "This status requires all order details to be " + newStatus + " first.",
+                        ErrorEnum.INVALID.getErrorCode()
+                );
+            }
+        }
+        
         OrderStatusEnum previousStatus = currentStatus;
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
@@ -1005,15 +1047,21 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // Update status to ONGOING_DELIVERED
+        OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
         order.setStatus(OrderStatusEnum.ONGOING_DELIVERED.name());
         OrderEntity updatedOrder = orderEntityService.save(order);
 
-        // Send WebSocket notification
-//        orderStatusWebSocketService.sendOrderStatusUpdate(
-//                orderId,
-//                OrderStatusEnum.ONGOING_DELIVERED,
-//                "Xe đang trên đường giao hàng (trong phạm vi 3km)"
-//        );
+        // Send WebSocket notification for status change
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                orderId,
+                order.getOrderCode(),
+                previousStatus,
+                OrderStatusEnum.ONGOING_DELIVERED
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
+        }
 
         return orderMapper.toCreateOrderResponse(updatedOrder);
     }
@@ -1046,16 +1094,15 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
-        // Update status to DELIVERED
-        order.setStatus(OrderStatusEnum.DELIVERED.name());
-        OrderEntity updatedOrder = orderEntityService.save(order);
+        // Use centralized aggregation logic: only allow DELIVERED when ALL order details are DELIVERED
+        updateOrderStatus(orderId, OrderStatusEnum.DELIVERED);
 
-        // Send WebSocket notification
-//        orderStatusWebSocketService.sendOrderStatusUpdate(
-//                orderId,
-//                OrderStatusEnum.DELIVERED,
-//                "Đã đến điểm giao hàng"
-//        );
+        // Reload order after status update
+        OrderEntity updatedOrder = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID after update: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
 
         return orderMapper.toCreateOrderResponse(updatedOrder);
     }
@@ -1088,16 +1135,15 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
-        // Update status to SUCCESSFUL
-        order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
-        OrderEntity updatedOrder = orderEntityService.save(order);
+        // Use centralized aggregation logic: only allow SUCCESSFUL when ALL order details are SUCCESSFUL
+        updateOrderStatus(orderId, OrderStatusEnum.SUCCESSFUL);
 
-        // Send WebSocket notification
-//        orderStatusWebSocketService.sendOrderStatusUpdate(
-//                orderId,
-//                OrderStatusEnum.SUCCESSFUL,
-//                "Chuyến xe đã hoàn thành thành công"
-//        );
+        // Reload order after status update
+        OrderEntity updatedOrder = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID after update: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
 
         return orderMapper.toCreateOrderResponse(updatedOrder);
     }
@@ -1568,5 +1614,46 @@ public class OrderServiceImpl implements OrderService {
         ).order();
 
         return new RecipientOrderTrackingResponse(simpleOrderResponse);
+    }
+
+    /**
+     * Check if the status is valid for cascading update from Order to OrderDetails
+     * Only initialization states should use cascading, delivery progress states should aggregate from OrderDetails
+     */
+    private boolean isValidForCascadingUpdate(OrderStatusEnum status) {
+        return switch (status) {
+            // Initialization states - safe for cascading
+            case PENDING, PROCESSING, CONTRACT_DRAFT, CONTRACT_SIGNED, ON_PLANNING, CANCELLED -> true;
+            
+            // Delivery progress states - should aggregate from OrderDetails, not cascade
+            case ASSIGNED_TO_DRIVER, FULLY_PAID, PICKING_UP, ON_DELIVERED, ONGOING_DELIVERED, 
+                 IN_TROUBLES, COMPENSATION, DELIVERED, SUCCESSFUL, RETURNING, RETURNED -> false;
+        };
+    }
+
+    /**
+     * Map OrderStatusEnum to corresponding OrderDetailStatusEnum
+     * Used for cascading status updates from Order to OrderDetails
+     */
+    private OrderDetailStatusEnum mapOrderStatusToDetailStatus(OrderStatusEnum orderStatus) {
+        return switch (orderStatus) {
+            case PENDING -> OrderDetailStatusEnum.PENDING;
+            case PROCESSING -> OrderDetailStatusEnum.PENDING; // Processing order maps to PENDING details
+            case CANCELLED -> OrderDetailStatusEnum.CANCELLED;
+            case CONTRACT_DRAFT -> OrderDetailStatusEnum.PENDING;
+            case CONTRACT_SIGNED -> OrderDetailStatusEnum.PENDING;
+            case ON_PLANNING -> OrderDetailStatusEnum.ON_PLANNING;
+            case ASSIGNED_TO_DRIVER -> OrderDetailStatusEnum.ASSIGNED_TO_DRIVER;
+            case FULLY_PAID -> OrderDetailStatusEnum.ASSIGNED_TO_DRIVER; // Fully paid order maps to assigned details
+            case PICKING_UP -> OrderDetailStatusEnum.PICKING_UP;
+            case ON_DELIVERED -> OrderDetailStatusEnum.ON_DELIVERED;
+            case ONGOING_DELIVERED -> OrderDetailStatusEnum.ONGOING_DELIVERED;
+            case IN_TROUBLES -> OrderDetailStatusEnum.IN_TROUBLES;
+            case COMPENSATION -> OrderDetailStatusEnum.COMPENSATION;
+            case DELIVERED -> OrderDetailStatusEnum.DELIVERED;
+            case SUCCESSFUL -> OrderDetailStatusEnum.DELIVERED; // SUCCESSFUL maps to DELIVERED for order details
+            case RETURNING -> OrderDetailStatusEnum.RETURNING;
+            case RETURNED -> OrderDetailStatusEnum.RETURNED;
+        };
     }
 }

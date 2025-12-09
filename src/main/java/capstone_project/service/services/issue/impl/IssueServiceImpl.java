@@ -13,8 +13,11 @@ import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.service.services.websocket.IssueWebSocketService;
 import capstone_project.dtos.request.issue.*;
 import capstone_project.dtos.response.issue.GetBasicIssueResponse;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.issue.IssueEntity;
+import capstone_project.entity.user.driver.PenaltyHistoryEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.repository.entityServices.issue.IssueTypeEntityService;
@@ -41,7 +44,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
+import capstone_project.service.services.user.UserService;
 
 @Service
 @RequiredArgsConstructor
@@ -77,6 +82,8 @@ public class IssueServiceImpl implements IssueService {
     private final capstone_project.service.mapper.vehicle.VehicleAssignmentMapper vehicleAssignmentMapper;
     private final capstone_project.service.mapper.order.JourneyHistoryMapper journeyHistoryMapper;
     private final capstone_project.repository.repositories.order.order.JourneyHistoryRepository journeyHistoryRepository;
+    private final UserService userService;
+    
     
     // Return payment deadline configuration
     @org.springframework.beans.factory.annotation.Value("${issue.return-payment.deadline-minutes:30}")
@@ -97,6 +104,7 @@ public class IssueServiceImpl implements IssueService {
     // ✅ OFF_ROUTE_RUNAWAY dependencies
     private final capstone_project.repository.entityServices.offroute.OffRouteEventEntityService offRouteEventEntityService;
     private final capstone_project.service.services.refund.RefundService refundService;
+    private final capstone_project.repository.entityServices.user.PenaltyHistoryEntityService penaltyHistoryEntityService;
 
     @Override
     public GetBasicIssueResponse getBasicIssue(UUID issueId) {
@@ -1103,10 +1111,10 @@ public class IssueServiceImpl implements IssueService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
         
-        // Find active seal
+        // Find IN_USE seal
         List<SealEntity> allSeals = sealEntityService.findAllByVehicleAssignment(vehicleAssignment);
         SealEntity activeSeal = allSeals.stream()
-                .filter(seal -> SealEnum.ACTIVE.name().equals(seal.getStatus()))
+                .filter(seal -> SealEnum.IN_USE.name().equals(seal.getStatus()))
                 .findFirst()
                 .orElse(null);
         
@@ -1115,7 +1123,7 @@ public class IssueServiceImpl implements IssueService {
     
     @Override
     public List<capstone_project.dtos.response.order.seal.GetSealResponse> getActiveSealsByVehicleAssignment(UUID vehicleAssignmentId) {
-
+        
         // Tìm vehicle assignment
         var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId)
                 .orElseThrow(() -> new NotFoundException(
@@ -1135,6 +1143,21 @@ public class IssueServiceImpl implements IssueService {
         return activeSeals.stream()
                 .map(sealMapper::toGetSealResponse)
                 .toList();
+    }
+    
+    // Get active seals by tracking code (fallback mechanism)
+    @Override
+    public List<capstone_project.dtos.response.order.seal.GetSealResponse> getActiveSealsByTrackingCode(String trackingCode) {
+        
+        // Tìm vehicle assignment theo tracking code
+        var vehicleAssignment = vehicleAssignmentEntityService.findByTrackingCode(trackingCode)
+                .orElseThrow(() -> new NotFoundException(
+                        "Không tìm thấy vehicle assignment với tracking code: " + trackingCode,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        // Reuse existing logic
+        return getActiveSealsByVehicleAssignment(vehicleAssignment.getId());
     }
 
     @Override
@@ -1394,22 +1417,31 @@ public class IssueServiceImpl implements IssueService {
             if (!selectedOrderDetails.isEmpty()) {
                 var order = selectedOrderDetails.get(0).getOrderEntity();
                 var customer = order.getSender();
-                
-                var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildPackageDamaged(
-                    customer.getId(),
-                    order.getOrderCode(),
-                    capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(saved.getId()),
-                    selectedOrderDetails.size(),
-                    orderDetailEntityService.findByVehicleAssignmentId(vehicleAssignment.getId()).size(),
-                    selectedOrderDetails,
-                    order.getId(),
-                    saved.getId(),
-                    selectedOrderDetails.stream().map(OrderDetailEntity::getId).collect(java.util.stream.Collectors.toList()),
-                    vehicleAssignment.getId()
-                );
-                
-                notificationService.createNotification(notificationRequest);
-                log.info("📧 Customer notification created for package damage");
+
+                if (customer == null || customer.getUser() == null) {
+                    log.warn("⚠️ Skip customer damage notification - customer or user is null for order {}", 
+                        order.getId());
+                } else {
+                    // 🔧 Get tracking code for trip info
+                    String vehicleAssignmentTrackingCode = vehicleAssignment != null 
+                        ? vehicleAssignment.getTrackingCode() : null;
+                    
+                    var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildPackageDamaged(
+                        customer.getUser().getId(),
+                        order.getOrderCode(),
+                        selectedOrderDetails.size(),
+                        orderDetailEntityService.findByVehicleAssignmentId(vehicleAssignment.getId()).size(),
+                        selectedOrderDetails,
+                        vehicleAssignmentTrackingCode,
+                        order.getId(),
+                        saved.getId(),
+                        selectedOrderDetails.stream().map(OrderDetailEntity::getId).collect(java.util.stream.Collectors.toList()),
+                        vehicleAssignment.getId()
+                    );
+                    
+                    notificationService.createNotification(notificationRequest);
+                    log.info("📧 Customer notification created for package damage");
+                }
             }
         } catch (Exception e) {
             log.error("❌ Failed to create customer notification for package damage", e);
@@ -1467,23 +1499,23 @@ public class IssueServiceImpl implements IssueService {
         // Save issue
         IssueEntity saved = issueEntityService.save(issue);
 
-        // Upload penalty violation record image to Cloudinary
+        String imageUrl = null;
+
         if (violationImage != null && !violationImage.isEmpty()) {
             try {
-                
-                String imageUrl = cloudinaryService.uploadFile(
-                        violationImage.getBytes(), 
-                        "penalty_" + saved.getId() + "_" + System.currentTimeMillis(), 
+
+                imageUrl = cloudinaryService.uploadFile(
+                        violationImage.getBytes(),
+                        "penalty_" + saved.getId() + "_" + System.currentTimeMillis(),
                         "penalties/traffic-violations"
                 ).get("secure_url").toString();
 
-                // Save image URL to issue_images table
                 IssueImageEntity imageEntity = IssueImageEntity.builder()
                         .imageUrl(imageUrl)
                         .description("Biên bản vi phạm giao thông")
                         .issueEntity(saved)
                         .build();
-                
+
                 issueImageEntityService.save(imageEntity);
 
             } catch (Exception e) {
@@ -1491,6 +1523,16 @@ public class IssueServiceImpl implements IssueService {
                 throw new RuntimeException("Failed to upload penalty violation image", e);
             }
         }
+
+        PenaltyHistoryEntity penaltyHistory = PenaltyHistoryEntity.builder()
+                .violationType(violationType)
+                .penaltyDate(LocalDate.now())
+                .trafficViolationRecordImageUrl(imageUrl)
+                .issueBy(vehicleAssignment.getDriver1())
+                .vehicleAssignmentEntity(vehicleAssignment)
+                .build();
+
+        penaltyHistoryEntityService.save(penaltyHistory);
 
         // Fetch full issue with all nested objects
         GetBasicIssueResponse response = getBasicIssue(saved.getId());
@@ -1671,46 +1713,6 @@ public class IssueServiceImpl implements IssueService {
             // Don't fail the main flow if notification fails
         }
         
-        // 📧 Send persistent notification to CUSTOMER about order rejection
-        try {
-            if (!selectedOrderDetails.isEmpty()) {
-                var order = selectedOrderDetails.get(0).getOrderEntity();
-                var customer = order.getSender();
-                String deliveryLocation;
-if (order.getDeliveryAddress() != null) {
-    var address = order.getDeliveryAddress();
-    deliveryLocation = String.format("%s, %s, %s", 
-        address.getStreet() != null ? address.getStreet() : "",
-        address.getWard() != null ? address.getWard() : "",
-        address.getProvince() != null ? address.getProvince() : "").trim();
-    if (deliveryLocation.startsWith(", ")) deliveryLocation = deliveryLocation.substring(2);
-    if (deliveryLocation.isEmpty()) deliveryLocation = "Địa chỉ nhận hàng";
-} else {
-    deliveryLocation = "Địa chỉ nhận hàng";
-}
-                
-                var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildOrderRejectedByReceiver(
-                    customer.getId(),
-                    order.getOrderCode(),
-                    capstone_project.service.services.notification.NotificationBuilder.generateIssueCode(saved.getId()),
-                    selectedOrderDetails.size(),
-                    orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment).size(),
-                    deliveryLocation != null ? deliveryLocation : "Địa chỉ nhận hàng",
-                    selectedOrderDetails,
-                    order.getId(),
-                    saved.getId(),
-                    selectedOrderDetails.stream().map(OrderDetailEntity::getId).collect(java.util.stream.Collectors.toList()),
-                    vehicleAssignment.getId()
-                );
-                
-                notificationService.createNotification(notificationRequest);
-                log.info("📧 Customer notification created for order rejection");
-            }
-        } catch (Exception e) {
-            log.error("❌ Failed to create customer notification for order rejection", e);
-            // Don't fail the main flow if notification fails
-        }
-
         return response;
     }
 
@@ -2013,6 +2015,72 @@ if (order.getDeliveryAddress() != null) {
         // 4. Backend creates transaction + PayOS link
         // 5. Frontend redirects to PayOS checkout URL
 
+        // 📧 Send persistent notification to CUSTOMER about order rejection
+        // Moved from reportOrderRejection so that content uses finalized return route & pricing
+        try {
+            // Use ONLY order details linked to this issue as return packages
+            List<OrderDetailEntity> returnOrderDetails = issue.getOrderDetails() != null
+                    ? issue.getOrderDetails()
+                    : java.util.Collections.emptyList();
+
+            if (!returnOrderDetails.isEmpty()) {
+                var firstOrderDetail = returnOrderDetails.get(0);
+                var customerOrder = firstOrderDetail.getOrderEntity();
+                var customer = customerOrder != null ? customerOrder.getSender() : null;
+
+                if (customer == null || customer.getUser() == null) {
+                    log.warn("⚠️ Skip customer order rejection notification - customer or user is null for order {}",
+                            customerOrder != null ? customerOrder.getId() : null);
+                } else {
+                    // Build delivery location string (same logic as before)
+                    String deliveryLocation;
+                    if (customerOrder.getDeliveryAddress() != null) {
+                        var address = customerOrder.getDeliveryAddress();
+                        deliveryLocation = String.format("%s, %s, %s",
+                                address.getStreet() != null ? address.getStreet() : "",
+                                address.getWard() != null ? address.getWard() : "",
+                                address.getProvince() != null ? address.getProvince() : "").trim();
+                        if (deliveryLocation.startsWith(", ")) {
+                            deliveryLocation = deliveryLocation.substring(2);
+                        }
+                        if (deliveryLocation.isEmpty()) {
+                            deliveryLocation = "Địa chỉ nhận hàng";
+                        }
+                    } else {
+                        deliveryLocation = "Địa chỉ nhận hàng";
+                    }
+
+                    // Total packages in this vehicle assignment (for x/y display)
+                    int totalPackageCountInAssignment = orderDetails.size();
+
+                    String vehicleAssignmentTrackingCode = issue.getVehicleAssignmentEntity() != null
+                            ? issue.getVehicleAssignmentEntity().getTrackingCode()
+                            : null;
+
+                    var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildOrderRejectedByReceiver(
+                            customer.getUser().getId(),
+                            customerOrder.getOrderCode(),
+                            returnOrderDetails.size(),
+                            totalPackageCountInAssignment,
+                            deliveryLocation,
+                            returnOrderDetails,
+                            vehicleAssignmentTrackingCode,
+                            customerOrder.getId(),
+                            issue.getId(),
+                            returnOrderDetails.stream().map(OrderDetailEntity::getId).collect(java.util.stream.Collectors.toList()),
+                            issue.getVehicleAssignmentEntity() != null ? issue.getVehicleAssignmentEntity().getId() : null,
+                            returnPaymentDeadlineMinutes
+                    );
+
+                    notificationService.createNotification(notificationRequest);
+                    log.info("📧 Customer notification created for order rejection (staff processed)");
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create customer notification for order rejection after staff processing", e);
+            // Don't fail the main flow if notification fails
+        }
+
         // Return detail response
         return getOrderRejectionDetail(issue.getId());
     }
@@ -2266,6 +2334,78 @@ if (order.getDeliveryAddress() != null) {
 
         // Save issue
         issue = issueEntityService.save(issue);
+
+        // 📧 Send notification to CUSTOMER about return completion (at least 1 package returned)
+        try {
+            List<OrderDetailEntity> returnedDetails = issue.getOrderDetails() != null
+                    ? issue.getOrderDetails()
+                    : java.util.Collections.emptyList();
+
+            if (!returnedDetails.isEmpty()) {
+                var order = returnedDetails.get(0).getOrderEntity();
+                var customer = order.getSender();
+
+                if (customer == null || customer.getUser() == null) {
+                    log.warn("⚠️ Skip customer return completed notification - customer or user is null for order {}", 
+                            order.getId());
+                } else {
+                    // Determine total packages of the order for context
+                    List<OrderDetailEntity> allOrderDetails = orderDetailEntityService
+                            .findOrderDetailEntitiesByOrderEntityId(order.getId());
+
+                    int returnedCount = returnedDetails.size();
+                    int totalPackageCount = allOrderDetails.size();
+
+                    String pickupLocation = order.getPickupAddress() != null
+                            ? order.getPickupAddress().getStreet()
+                            : "điểm lấy hàng";
+
+                    // Check if all packages of the order are now RETURNED
+                    boolean allPackagesReturned = allOrderDetails.stream()
+                            .allMatch(od -> OrderDetailStatusEnum.RETURNED.name().equals(od.getStatus()));
+
+                    var notificationRequest = capstone_project.service.services.notification.NotificationBuilder.buildReturnCompleted(
+                            customer.getUser().getId(),
+                            order.getOrderCode(),
+                            returnedCount,
+                            totalPackageCount,
+                            pickupLocation,
+                            returnedDetails,
+                            order.getId(),
+                            returnedDetails.stream().map(OrderDetailEntity::getId).collect(java.util.stream.Collectors.toList()),
+                            vehicleAssignmentId,
+                            allPackagesReturned
+                    );
+
+                    notificationService.createNotification(notificationRequest);
+                    log.info("📧 Customer notification created for return completed ({} / {} packages)",
+                            returnedCount, totalPackageCount);
+                    
+                    // Staff notification: Return completed (NO EMAIL)
+                    try {
+                        CreateNotificationRequest staffReturnTemplate = capstone_project.service.services.notification.NotificationBuilder.buildStaffReturnCompleted(
+                            null, // Will be set for each staff user
+                            order.getOrderCode(),
+                            customer.getUser().getFullName(),
+                            returnedCount,
+                            totalPackageCount,
+                            returnedDetails,
+                            order.getId(),
+                            returnedDetails.stream().map(OrderDetailEntity::getId).collect(java.util.stream.Collectors.toList())
+                        );
+                        sendStaffNotification(staffReturnTemplate);
+                        log.info("📧 Staff notification created for return completed ({} / {} packages)",
+                                returnedCount, totalPackageCount);
+                    } catch (Exception e) {
+                        log.error("❌ Failed to create staff notification for return completed", e);
+                        // Don't fail the main flow if notification fails
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to create customer notification for return completed", e);
+            // Don't fail the main flow if notification fails
+        }
 
         return getBasicIssue(issue.getId());
     }
@@ -3093,18 +3233,22 @@ if (order.getDeliveryAddress() != null) {
             }
         }
         
-        // Get sender info
+        // Get sender info 
         capstone_project.dtos.response.user.CustomerResponse senderResponse = null;
-        if (!orderDetails.isEmpty() && orderDetails.get(0).getOrderEntity() != null 
-            && orderDetails.get(0).getOrderEntity().getSender() != null) {
-            capstone_project.entity.user.customer.CustomerEntity sender = orderDetails.get(0).getOrderEntity().getSender();
-            senderResponse = capstone_project.dtos.response.user.CustomerResponse.builder()
-                    .id(sender.getId().toString())
-                    .companyName(sender.getCompanyName())
-                    .representativeName(sender.getRepresentativeName())
-                    .representativePhone(sender.getRepresentativePhone())
-                    .businessAddress(sender.getBusinessAddress())
-                    .build();
+        if (!orderDetails.isEmpty() && orderDetails.get(0).getOrderEntity() != null) {
+            OrderEntity order = orderDetails.get(0).getOrderEntity();
+            
+            // Get sender info
+            if (order.getSender() != null) {
+                capstone_project.entity.user.customer.CustomerEntity sender = order.getSender();
+                senderResponse = capstone_project.dtos.response.user.CustomerResponse.builder()
+                        .id(sender.getId().toString())
+                        .companyName(sender.getCompanyName())
+                        .representativeName(sender.getRepresentativeName())
+                        .representativePhone(sender.getRepresentativePhone())
+                        .businessAddress(sender.getBusinessAddress())
+                        .build();
+            }
         }
         
         // Get refund if exists
@@ -3114,6 +3258,39 @@ if (order.getDeliveryAddress() != null) {
         } catch (Exception e) {
             // No refund yet - that's fine
             log.debug("No refund found for issue {}: {}", issueId, e.getMessage());
+        }
+
+        // Resolve transport fee from contract similar to DAMAGE flow
+        java.math.BigDecimal transportFee = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal legalLimit = java.math.BigDecimal.ZERO;
+        try {
+            if (!orderDetails.isEmpty() && orderDetails.get(0).getOrderEntity() != null) {
+                OrderEntity orderForFee = orderDetails.get(0).getOrderEntity();
+                var contractOpt = contractEntityService.getContractByOrderId(orderForFee.getId());
+                if (contractOpt.isPresent()) {
+                    var contract = contractOpt.get();
+                    if (contract.getAdjustedValue() != null && contract.getAdjustedValue().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                        transportFee = contract.getAdjustedValue();
+                    } else if (contract.getTotalValue() != null) {
+                        transportFee = contract.getTotalValue();
+                    }
+                    legalLimit = transportFee.multiply(java.math.BigDecimal.TEN);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ Could not resolve transport fee for OFF_ROUTE_RUNAWAY issue {}: {}", issueId, e.getMessage());
+        }
+
+        String compensationPolicyNote = "Trường hợp lỗi cố ý của tài xế (chiếm đoạt/bỏ trốn): bồi thường 100% giá trị thực tế lô hàng cộng 100% cước phí vận chuyển, không áp dụng giới hạn 10× cước phí. " +
+                "Để xác định đúng giá trị thực tế, khách hàng cần cung cấp hóa đơn/chứng từ hợp lệ của lô hàng.";
+
+        // Suggested compensation: 100% giá trị lô hàng (totalDeclaredValue) + 100% cước phí vận chuyển
+        java.math.BigDecimal suggestedCompensation = java.math.BigDecimal.ZERO;
+        if (totalDeclaredValue != null) {
+            suggestedCompensation = totalDeclaredValue;
+        }
+        if (transportFee != null) {
+            suggestedCompensation = suggestedCompensation.add(transportFee);
         }
         
         return capstone_project.dtos.response.issue.OffRouteRunawayDetailResponse.builder()
@@ -3129,7 +3306,12 @@ if (order.getDeliveryAddress() != null) {
                 .sender(senderResponse)
                 .packages(packages)
                 .totalDeclaredValue(totalDeclaredValue)
+                .transportFee(transportFee)
+                .legalLimit(legalLimit)
+                .compensationPolicyNote(compensationPolicyNote)
+                .suggestedCompensation(suggestedCompensation)
                 .refund(refundResponse)
+                .assessment(null) // Assessment now fetched via CompensationService separately
                 .build();
     }
 
@@ -3356,5 +3538,48 @@ if (order.getDeliveryAddress() != null) {
             log.error("❌ Failed to create issue notifications: {}", e.getMessage());
         }
     }
+    
+    /**
+     * Helper method to send staff notifications
+     * Creates a notification for each staff user from a template
+     */
+    private void sendStaffNotification(CreateNotificationRequest template) {
+        try {
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            if (!staffUsers.isEmpty()) {
+                for (var staff : staffUsers) {
+                    // Create a new notification request for each staff user
+                    CreateNotificationRequest staffNotification = CreateNotificationRequest.builder()
+                        .userId(staff.getId())
+                        .recipientRole("STAFF")
+                        .title(template.getTitle())
+                        .description(template.getDescription())
+                        .notificationType(template.getNotificationType())
+                        .relatedOrderId(template.getRelatedOrderId())
+                        .relatedIssueId(template.getRelatedIssueId())
+                        .relatedVehicleAssignmentId(template.getRelatedVehicleAssignmentId())
+                        .relatedContractId(template.getRelatedContractId())
+                        .metadata(template.getMetadata())
+                        .build();
+                    
+                    notificationService.createNotification(staffNotification);
+                }
+                log.info("📧 Staff notifications sent: {} staff users notified, type: {}", 
+                    staffUsers.size(), template.getNotificationType());
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to send staff notification: {}", e.getMessage());
+            // Don't throw - Notification failure shouldn't break business logic
+        }
+    }
 
+    
+    private CustomerEntity getCustomerFromIssue(IssueEntity issue) {
+        if (issue.getOrderDetails() != null && !issue.getOrderDetails().isEmpty()) {
+            OrderDetailEntity orderDetail = issue.getOrderDetails().get(0);
+            OrderEntity order = orderDetail.getOrderEntity();
+            return order.getSender();
+        }
+        return null;
+    }
 }

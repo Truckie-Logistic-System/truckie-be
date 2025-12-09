@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+        RISKY CHANGES - Drop tables/columns
+        Data đã được archive trong db.changelog-diff-safe.xml
+        Chỉ apply sau khi đã chạy safe changes
+    -->
+
+    <!-- ========================================
+         PHASE 1: Drop Foreign Keys trước
+         ======================================== -->
+
+    <changeSet author="liquibase-generated" id="drop-fk-issue-off-route-1">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fk8ujol3f53oafdabhaxg5dt053"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="issue_off_route_assessment" constraintName="fk8ujol3f53oafdabhaxg5dt053"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-fk-issue-damage-1">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fkda4relosee251cm1f17nk312i"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="issue_damage_assessment" constraintName="fkda4relosee251cm1f17nk312i"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-fk-issue-damage-2">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fkh6svii373y1rr060gb73v75xe"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="issue_damage_assessment" constraintName="fkh6svii373y1rr060gb73v75xe"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-fk-contract-rules">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fkinaprh3r4vbce65un3p5pqvd4"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="contract_rules" constraintName="fkinaprh3r4vbce65un3p5pqvd4"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-fk-signature-requests-1">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fkjtd6jdhd710q0myaogxg4xh4i"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="signature_requests" constraintName="fkjtd6jdhd710q0myaogxg4xh4i"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-fk-issue-off-route-2">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fkkhk8b0t0cleiccof7fon3sr8d"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="issue_off_route_assessment" constraintName="fkkhk8b0t0cleiccof7fon3sr8d"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-fk-signature-requests-2">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fkowq7kaqlr6bn1elt07jm2uxf3"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="signature_requests" constraintName="fkowq7kaqlr6bn1elt07jm2uxf3"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-fk-issues-return-journey-old">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fk9i550gtrldhvv8x8sj6irfm6g"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="issues" constraintName="fk9i550gtrldhvv8x8sj6irfm6g"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-fk-packing-proof-old">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fkopr088kl99xifo5sy2glwgw6c"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="packing_proof_images" constraintName="fkopr088kl99xifo5sy2glwgw6c"/>
+    </changeSet>
+
+    <!-- ========================================
+         PHASE 2: Drop Unique Constraints
+         ======================================== -->
+
+    <changeSet author="liquibase-generated" id="drop-unique-issue-off-route">
+        <preConditions onFail="MARK_RAN">
+            <uniqueConstraintExists tableName="issue_off_route_assessment" constraintName="uk678ht8rdr5x4278o2iuq4mbv3"/>
+        </preConditions>
+        <dropUniqueConstraint constraintName="uk678ht8rdr5x4278o2iuq4mbv3" tableName="issue_off_route_assessment"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-unique-issue-damage">
+        <preConditions onFail="MARK_RAN">
+            <uniqueConstraintExists tableName="issue_damage_assessment" constraintName="uklkq75tpwxy3u0nk6tacst6hft"/>
+        </preConditions>
+        <dropUniqueConstraint constraintName="uklkq75tpwxy3u0nk6tacst6hft" tableName="issue_damage_assessment"/>
+    </changeSet>
+
+    <!-- ========================================
+         PHASE 3: Drop Tables (Data đã archive)
+         ======================================== -->
+
+    <changeSet author="liquibase-generated" id="drop-table-issue-damage-assessment">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="issue_damage_assessment"/>
+        </preConditions>
+        <dropTable tableName="issue_damage_assessment"/>
+        <rollback>
+            <sql>
+                CREATE TABLE issue_damage_assessment AS 
+                SELECT * FROM issue_damage_assessment_archive 
+                WHERE archived_at = (SELECT MAX(archived_at) FROM issue_damage_assessment_archive);
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-table-issue-off-route-assessment">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="issue_off_route_assessment"/>
+        </preConditions>
+        <dropTable tableName="issue_off_route_assessment"/>
+        <rollback>
+            <sql>
+                CREATE TABLE issue_off_route_assessment AS 
+                SELECT * FROM issue_off_route_assessment_archive 
+                WHERE archived_at = (SELECT MAX(archived_at) FROM issue_off_route_assessment_archive);
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-table-signature-requests">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="signature_requests"/>
+        </preConditions>
+        <dropTable tableName="signature_requests"/>
+        <rollback>
+            <sql>
+                CREATE TABLE signature_requests AS 
+                SELECT * FROM signature_requests_archive 
+                WHERE archived_at = (SELECT MAX(archived_at) FROM signature_requests_archive);
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ========================================
+         PHASE 4: Drop Columns (Data đã archive)
+         ======================================== -->
+
+    <changeSet author="liquibase-generated" id="drop-column-expired-deposit-date">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="contract_settings" columnName="expired_deposit_date"/>
+        </preConditions>
+        <dropColumn columnName="expired_deposit_date" tableName="contract_settings"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-column-insurance-rate">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="contract_settings" columnName="insurance_rate"/>
+        </preConditions>
+        <dropColumn columnName="insurance_rate" tableName="contract_settings"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-column-total-price">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="orders" columnName="total_price"/>
+        </preConditions>
+        <dropColumn columnName="total_price" tableName="orders"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-column-vehicle-rule-id">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="contract_rules" columnName="vehicle_rule_id"/>
+        </preConditions>
+        <dropColumn columnName="vehicle_rule_id" tableName="contract_rules"/>
+    </changeSet>
+
+    <!-- ========================================
+         PHASE 5: Drop Indexes
+         ======================================== -->
+
+    <changeSet author="liquibase-generated" id="drop-index-issues-trip-status">
+        <preConditions onFail="MARK_RAN">
+            <indexExists indexName="idx_issues_trip_status_at_report"/>
+        </preConditions>
+        <dropIndex indexName="idx_issues_trip_status_at_report" tableName="issues"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-index-seals-seal-code">
+        <preConditions onFail="MARK_RAN">
+            <indexExists indexName="idx_order_seals_seal_code"/>
+        </preConditions>
+        <dropIndex indexName="idx_order_seals_seal_code" tableName="seals"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-index-packing-proof-vehicle">
+        <preConditions onFail="MARK_RAN">
+            <indexExists indexName="idx_packing_proof_vehicle_assignment"/>
+        </preConditions>
+        <dropIndex indexName="idx_packing_proof_vehicle_assignment" tableName="packing_proof_images"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-index-penalty-driver">
+        <preConditions onFail="MARK_RAN">
+            <indexExists indexName="idx_penalty_history_driver_id"/>
+        </preConditions>
+        <dropIndex indexName="idx_penalty_history_driver_id" tableName="penalty_history"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-index-penalty-date">
+        <preConditions onFail="MARK_RAN">
+            <indexExists indexName="idx_penalty_history_penalty_date"/>
+        </preConditions>
+        <dropIndex indexName="idx_penalty_history_penalty_date" tableName="penalty_history"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-index-penalty-vehicle">
+        <preConditions onFail="MARK_RAN">
+            <indexExists indexName="idx_penalty_history_vehicle_assignment_id"/>
+        </preConditions>
+        <dropIndex indexName="idx_penalty_history_vehicle_assignment_id" tableName="penalty_history"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-index-transaction-issue">
+        <preConditions onFail="MARK_RAN">
+            <indexExists indexName="idx_transaction_issue_id"/>
+        </preConditions>
+        <dropIndex indexName="idx_transaction_issue_id" tableName="transaction"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="drop-index-vehicle-maintenance">
+        <preConditions onFail="MARK_RAN">
+            <indexExists indexName="idx_vehicle_maintenance_status"/>
+        </preConditions>
+        <dropIndex indexName="idx_vehicle_maintenance_status" tableName="vehicle_maintenance"/>
+    </changeSet>
+
+    <!-- ========================================
+         PHASE 6: Add new Foreign Keys
+         ======================================== -->
+
+    <changeSet author="liquibase-generated" id="add-fk-issues-return-journey">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <foreignKeyConstraintExists foreignKeyName="fk9i550gtrldhvv8x8sj6irfm6g"/>
+            </not>
+        </preConditions>
+        <addForeignKeyConstraint 
+            baseColumnNames="return_journey_id" 
+            baseTableName="issues" 
+            constraintName="fk9i550gtrldhvv8x8sj6irfm6g" 
+            onDelete="NO ACTION" 
+            onUpdate="NO ACTION" 
+            referencedColumnNames="id" 
+            referencedTableName="journey_history"/>
+    </changeSet>
+
+    <changeSet author="liquibase-generated" id="add-fk-packing-proof-vehicle">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <foreignKeyConstraintExists foreignKeyName="fkopr088kl99xifo5sy2glwgw6c"/>
+            </not>
+        </preConditions>
+        <addForeignKeyConstraint 
+            baseColumnNames="vehicle_assignment_id" 
+            baseTableName="packing_proof_images" 
+            constraintName="fkopr088kl99xifo5sy2glwgw6c" 
+            onDelete="NO ACTION" 
+            onUpdate="NO ACTION" 
+            referencedColumnNames="id" 
+            referencedTableName="vehicle_assignments"/>
+    </changeSet>
+
+</databaseChangeLog>

@@ -32,22 +32,14 @@ public class PenaltyHistoryController {
         return ResponseEntity.ok(ApiResponse.ok(service.getById(id)));
     }
 
-    @PostMapping
-    public ResponseEntity<ApiResponse<PenaltyHistoryResponse>> create(
-            @RequestBody @Valid PenaltyHistoryRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(service.create(req)));
+    
+    /**
+     * Get predefined traffic violation reasons for driver penalty reporting
+     * This endpoint is public as it provides static configuration data
+     */
+    @GetMapping("/traffic-violation-reasons")
+    public ResponseEntity<ApiResponse<List<String>>> getTrafficViolationReasons() {
+        List<String> reasons = service.getTrafficViolationReasons();
+        return ResponseEntity.ok(ApiResponse.ok(reasons));
     }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<PenaltyHistoryResponse>> update(
-            @PathVariable UUID id,
-            @RequestBody @Valid PenaltyHistoryRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(service.update(id, req)));
-    }
-
-//    @DeleteMapping("/{id}")
-//    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
-//        service.delete(id);
-//        return ResponseEntity.ok(ApiResponse.ok());
-//    }
 }

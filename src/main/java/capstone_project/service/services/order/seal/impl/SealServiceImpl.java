@@ -131,51 +131,25 @@ public class SealServiceImpl implements SealService {
             if (orderDetails != null && !orderDetails.isEmpty()) {
                 var order = orderDetails.get(0).getOrderEntity();
                 var customer = order.getSender();
-                
-                // Build package list for email
-                List<String> packageList = orderDetails.stream()
-                    .map(od -> String.format("%s (%s)", od.getTrackingCode(), od.getDescription()))
-                    .collect(java.util.stream.Collectors.toList());
-                
-                if (customer != null) {
+
+                if (customer != null && customer.getUser() != null) {
+                    // Use USER ID as notification userId (khớp với các flow khác)
+                    UUID userId = customer.getUser().getId();
+
                     CreateNotificationRequest sealNotification = NotificationBuilder.buildSealAssigned(
-                        customer.getId(),
+                        userId,
                         order.getOrderCode(),
                         savedSeal.getSealCode(),
                         savedSeal.getDescription(),
                         vehicleAssignment.getTrackingCode(),
+                        imageUrl,
                         orderDetails,
                         order.getId(),
                         vehicleAssignment.getId()
                     );
-                    
-                    // Add package list to metadata
-                    Map<String, Object> metadata = new java.util.HashMap<>();
-                    metadata.put("orderCode", order.getOrderCode());
-                    metadata.put("sealCode", savedSeal.getSealCode());
-                    metadata.put("sealDescription", savedSeal.getDescription());
-                    metadata.put("vehicleTrackingCode", vehicleAssignment.getTrackingCode());
-                    metadata.put("packageList", packageList);
-                    
-                    // Update notification with package list metadata
-                    sealNotification = CreateNotificationRequest.builder()
-                        .userId(sealNotification.getUserId())
-                        .recipientRole(sealNotification.getRecipientRole())
-                        .title(sealNotification.getTitle())
-                        .description(String.format(
-                            "Seal %s đã được gán cho chuyến xe %s. Các kiện hàng sau đang được giao đến điểm giao hàng: %s. Mã seal này sẽ được sử dụng để đảm bảo an toàn cho hàng hóa của bạn.",
-                            savedSeal.getSealCode(),
-                            vehicleAssignment.getTrackingCode(),
-                            String.join(", ", packageList)
-                        ))
-                        .notificationType(sealNotification.getNotificationType())
-                        .relatedOrderId(sealNotification.getRelatedOrderId())
-                        .relatedVehicleAssignmentId(sealNotification.getRelatedVehicleAssignmentId())
-                        .metadata(metadata)
-                        .build();
-                    
+
                     notificationService.createNotification(sealNotification);
-                    log.info("📧 Customer initial seal attachment notification created with package list and email sent");
+                    log.info("📧 Customer initial seal attachment notification created with seal image and package details");
                 }
             }
         } catch (Exception e) {

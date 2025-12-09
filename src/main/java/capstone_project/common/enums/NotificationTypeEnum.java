@@ -50,6 +50,10 @@ public enum NotificationTypeEnum {
     STAFF_RETURN_PAYMENT,       // Cước trả hàng đã thanh toán
     STAFF_ORDER_CANCELLED,      // Đơn/kiện hàng bị hủy
     STAFF_PAYMENT_REMINDER,     // Nhắc nhở liên hệ khách thanh toán
+    STAFF_DELIVERY_COMPLETED,   // Giao hàng hoàn tất (Staff, no email)
+    STAFF_RETURN_COMPLETED,     // Trả hàng hoàn tất (Staff, no email)
+    STAFF_RETURN_IN_PROGRESS,   // Đang trả hàng (Staff, no email)
+    CUSTOMER_RETURN_IN_PROGRESS,   // Bắt đầu trả hàng (customer đã thanh toán)
 
     // ============= STAFF NOTIFICATIONS - ISSUES =============
     NEW_ISSUE_REPORTED,         // Có sự cố mới cần xử lý
@@ -64,7 +68,8 @@ public enum NotificationTypeEnum {
     PAYMENT_RECEIVED,           // Khách đã thanh toán đủ
     RETURN_PAYMENT_SUCCESS,     // Thanh toán cước trả hàng thành công
     DAMAGE_RESOLVED,            // Sự cố hư hỏng đã giải quyết
-    ORDER_REJECTION_RESOLVED;   // Sự cố khách từ chối đã giải quyết
+    ORDER_REJECTION_RESOLVED,   // Sự cố khách từ chối đã giải quyết
+    DRIVER_CREATED;             // Tài khoản tài xế được tạo - gửi thông tin đăng nhập (Email: YES)
 
     // Vietnamese translation method
     public String getVietnameseLabel() {
@@ -91,6 +96,7 @@ public enum NotificationTypeEnum {
             case RETURN_COMPLETED: return "Trả hàng thành công";
             case RETURN_PAYMENT_REQUIRED: return "Cần thanh toán cước trả";
             case COMPENSATION_PROCESSED: return "Đã xử lý bồi thường";
+            case CUSTOMER_RETURN_IN_PROGRESS: return "Đang trả hàng";
             
             // Customer notifications - Issues
             case ISSUE_REPORTED: return "Đã báo cáo sự cố";
@@ -118,6 +124,9 @@ public enum NotificationTypeEnum {
             case STAFF_RETURN_PAYMENT: return "Đã thanh toán cước trả";
             case STAFF_ORDER_CANCELLED: return "Đơn hàng bị hủy";
             case STAFF_PAYMENT_REMINDER: return "Nhắc nhở thanh toán";
+            case STAFF_DELIVERY_COMPLETED: return "Đã giao hàng";
+            case STAFF_RETURN_COMPLETED: return "Đã trả hàng";
+            case STAFF_RETURN_IN_PROGRESS: return "Đang trả hàng";
             case NEW_ISSUE_REPORTED: return "Sự cố mới";
             case ISSUE_ESCALATED: return "Sự cố khẩn cấp";
             case VEHICLE_MAINTENANCE_DUE: return "Đến hạn bảo trì";
@@ -129,6 +138,7 @@ public enum NotificationTypeEnum {
             case RETURN_PAYMENT_SUCCESS: return "Thanh toán cước trả thành công";
             case DAMAGE_RESOLVED: return "Đã giải quyết hư hỏng";
             case ORDER_REJECTION_RESOLVED: return "Đã giải quyết từ chối";
+            case DRIVER_CREATED: return "Tài khoản được tạo";
             
             default: return "Thông báo";
         }

@@ -15,6 +15,9 @@ import java.util.Map;
 @AllArgsConstructor
 public class AdminDashboardResponse {
     
+    // AI Summary
+    private String aiSummary;
+    
     // KPI Cards
     private KpiSummary kpiSummary;
     
@@ -31,12 +34,16 @@ public class AdminDashboardResponse {
     // Top Performers
     private List<TopPerformer> topCustomers;
     private List<TopPerformer> topDrivers;
+    private List<TopPerformer> topStaff;
     
     // Fleet Health
     private FleetHealthSummary fleetHealth;
     
     // Order Status Distribution
     private Map<String, Long> orderStatusDistribution;
+    
+    // User Registration Time Series
+    private RegistrationData registrationData;
     
     @Data
     @Builder
@@ -131,5 +138,15 @@ public class AdminDashboardResponse {
         private String maintenanceType;
         private String dueDate;
         private boolean isOverdue;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RegistrationData {
+        private List<TrendDataPoint> customerRegistrations;
+        private List<TrendDataPoint> staffRegistrations;
+        private List<TrendDataPoint> driverRegistrations;
     }
 }

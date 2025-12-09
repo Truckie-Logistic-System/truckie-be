@@ -41,6 +41,7 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
     private final OrderStatusWebSocketService orderStatusWebSocketService;
     private final NotificationService notificationService;
     private final UserEntityService userEntityService;
+    private final capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService vehicleAssignmentEntityService;
     
     @PersistenceContext
     private EntityManager entityManager;
@@ -123,6 +124,15 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
         // Save only the updated OrderDetails
         if (!eligibleOrderDetails.isEmpty()) {
             orderDetailEntityService.saveAllOrderDetailEntities(eligibleOrderDetails);
+        }
+        
+        // 🔧 NEW: Send per-trip notifications BEFORE order-level aggregation
+        // This ensures each trip gets its own notification with correct packages
+        try {
+            sendTripStatusNotifications(vehicleAssignmentId, newStatus, eligibleOrderDetails);
+        } catch (Exception e) {
+            log.error("❌ Failed to send trip status notifications: {}", e.getMessage(), e);
+            // Don't fail the main operation
         }
         
         // Auto-update Order Status based on all OrderDetails
@@ -219,9 +229,201 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
      * Used by external services when they directly update OrderDetail status
      */
     @Override
+    @Transactional
     public void triggerOrderStatusUpdate(UUID orderId) {
         
         updateOrderStatusBasedOnDetails(orderId);
+    }
+    
+    /**
+     * 🔧 NEW: Send notifications for a specific trip (vehicleAssignment)
+     * This ensures each trip gets its own notification with the correct packages
+     * 
+     * @param vehicleAssignmentId The vehicle assignment (trip) ID
+     * @param newStatus The new status just set for this trip's packages
+     * @param updatedDetails The OrderDetails that were just updated
+     */
+    private void sendTripStatusNotifications(
+        UUID vehicleAssignmentId, 
+        OrderDetailStatusEnum newStatus, 
+        List<OrderDetailEntity> updatedDetails
+    ) {
+        if (updatedDetails.isEmpty()) {
+            return;
+        }
+        
+        // Get vehicle assignment for trip info
+        var vehicleAssignment = vehicleAssignmentEntityService.findById(vehicleAssignmentId)
+            .orElse(null);
+        if (vehicleAssignment == null) {
+            log.warn("⚠️ VehicleAssignment not found for ID: {}", vehicleAssignmentId);
+            return;
+        }
+        
+        // Get order from first detail
+        var order = updatedDetails.get(0).getOrderEntity();
+        if (order == null || order.getSender() == null || order.getSender().getUser() == null) {
+            log.warn("⚠️ Order or customer not found for trip notifications");
+            return;
+        }
+        
+        // Get trip context (vehicle, drivers, tracking code)
+        String vehicleAssignmentTrackingCode = vehicleAssignment.getTrackingCode();
+        String vehiclePlate = vehicleAssignment.getVehicleEntity() != null 
+            ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "";
+        String vehicleTypeDescription = "N/A";
+        if (vehicleAssignment.getVehicleEntity() != null && 
+            vehicleAssignment.getVehicleEntity().getVehicleTypeEntity() != null) {
+            vehicleTypeDescription = vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() != null 
+                ? vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() 
+                : vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getVehicleTypeName();
+        }
+        
+        String driver1Name = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
+            ? vehicleAssignment.getDriver1().getUser().getFullName() : "Tài xế";
+        String driver1Phone = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
+            ? vehicleAssignment.getDriver1().getUser().getPhoneNumber() : "";
+        
+        // Get category description
+        String categoryDescription = "Hàng hóa";
+        if (order.getCategory() != null && order.getCategory().getDescription() != null) {
+            categoryDescription = order.getCategory().getDescription();
+        } else if (order.getCategory() != null && order.getCategory().getCategoryName() != null) {
+            categoryDescription = order.getCategory().getCategoryName().name();
+        }
+        
+        // Filter packages by the new status for this notification
+        // This ensures we only show packages that match the notification event
+        List<OrderDetailEntity> packagesForNotification = updatedDetails.stream()
+            .filter(od -> newStatus.name().equals(od.getStatus()))
+            .toList();
+        
+        if (packagesForNotification.isEmpty()) {
+            log.warn("⚠️ No packages with status {} found for trip notification", newStatus);
+            return;
+        }
+        
+        // Send notification based on status
+        try {
+            switch (newStatus) {
+                case PICKING_UP -> {
+                    // Customer notification: Driver started picking up (Email: YES)
+                    notificationService.createNotification(NotificationBuilder.buildPickingUpStarted(
+                        order.getSender().getUser().getId(),
+                        order.getOrderCode(),
+                        driver1Name,
+                        driver1Phone,
+                        vehiclePlate,
+                        packagesForNotification,
+                        categoryDescription,
+                        vehicleTypeDescription,
+                        vehicleAssignmentTrackingCode,
+                        order.getId(),
+                        vehicleAssignment.getId()
+                    ));
+                    log.info("✅ Sent PICKING_UP notification for trip {} with {} packages", 
+                        vehicleAssignmentTrackingCode, packagesForNotification.size());
+                }
+                
+                case ON_DELIVERED -> {
+                    // Customer notification: Delivery started (packages sealed and on the way)
+                    String deliveryLocation = order.getDeliveryAddress() != null 
+                        ? order.getDeliveryAddress().getStreet() : "điểm giao hàng";
+                    
+                    notificationService.createNotification(NotificationBuilder.buildDeliveryStarted(
+                        order.getSender().getUser().getId(),
+                        order.getOrderCode(),
+                        driver1Name,
+                        vehiclePlate,
+                        packagesForNotification,
+                        categoryDescription,
+                        deliveryLocation,
+                        vehicleTypeDescription,
+                        vehicleAssignmentTrackingCode,
+                        order.getId(),
+                        vehicleAssignment.getId()
+                    ));
+                    log.info("✅ Sent ON_DELIVERED notification for trip {} with {} packages", 
+                        vehicleAssignmentTrackingCode, packagesForNotification.size());
+                }
+                
+                case ONGOING_DELIVERED -> {
+                    // Customer notification: Near delivery point
+                    String deliveryLocation = order.getDeliveryAddress() != null 
+                        ? order.getDeliveryAddress().getStreet() : "điểm giao hàng";
+                    
+                    notificationService.createNotification(NotificationBuilder.buildDeliveryInProgress(
+                        order.getSender().getUser().getId(),
+                        order.getOrderCode(),
+                        driver1Name,
+                        driver1Phone,
+                        packagesForNotification,
+                        categoryDescription,
+                        deliveryLocation,
+                        vehicleTypeDescription,
+                        vehicleAssignmentTrackingCode,
+                        order.getId(),
+                        vehicleAssignment.getId()
+                    ));
+                    log.info("✅ Sent ONGOING_DELIVERED notification for trip {} with {} packages", 
+                        vehicleAssignmentTrackingCode, packagesForNotification.size());
+                }
+                
+                case DELIVERED -> {
+                    // Customer notification: Trip packages delivered successfully
+                    String deliveryLocation = order.getDeliveryAddress() != null 
+                        ? order.getDeliveryAddress().getStreet() : "điểm giao hàng";
+                    String receiverName = order.getReceiverName() != null 
+                        ? order.getReceiverName() : "người nhận";
+                    
+                    // Get all order details to check if this is partial or full delivery
+                    var allOrderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(order.getId());
+                    int totalPackageCount = allOrderDetails.size();
+                    boolean isFullDelivery = allOrderDetails.stream()
+                        .allMatch(od -> "DELIVERED".equals(od.getStatus()));
+                    
+                    notificationService.createNotification(NotificationBuilder.buildDeliveryCompleted(
+                        order.getSender().getUser().getId(),
+                        order.getOrderCode(),
+                        packagesForNotification.size(), // delivered count for THIS trip
+                        totalPackageCount, // total packages in order
+                        deliveryLocation,
+                        receiverName,
+                        packagesForNotification, // only packages from THIS trip
+                        order.getId(),
+                        packagesForNotification.stream().map(OrderDetailEntity::getId).toList(),
+                        vehicleAssignment.getId(),
+                        isFullDelivery
+                    ));
+                    
+                    // Staff notification: Delivery completed (NO EMAIL)
+                    CreateNotificationRequest staffDeliveryTemplate = NotificationBuilder.buildStaffDeliveryCompleted(
+                        null, // Will be set for each staff user in sendStaffNotification
+                        order.getOrderCode(),
+                        order.getSender().getUser().getFullName(),
+                        packagesForNotification.size(), // delivered count for THIS trip
+                        totalPackageCount, // total packages in order
+                        packagesForNotification, // only packages from THIS trip
+                        order.getId(),
+                        packagesForNotification.stream().map(OrderDetailEntity::getId).toList()
+                    );
+                    sendStaffNotification(staffDeliveryTemplate);
+                    
+                    log.info("✅ Sent DELIVERED notification for trip {} with {} packages (full={}) ", 
+                        vehicleAssignmentTrackingCode, packagesForNotification.size(), isFullDelivery);
+                }
+                
+                // Note: RETURNING and RETURNED status are typically issue-driven (return shipping)
+                // and notifications are sent by IssueServiceImpl, not per-trip status changes
+                
+                default -> {
+                    // No notification for other statuses at trip level
+                    log.debug("No trip-level notification for status: {}", newStatus);
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to send trip notification for status {}: {}", newStatus, e.getMessage(), e);
+        }
     }
     
     /**
@@ -273,6 +475,15 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
             order.setStatus(newOrderStatus.name());
             orderEntityService.save(order);
             
+            // Special case for ON_PLANNING: Update all order details to ON_PLANNING as well
+            // This ensures consistency when order status is set to ON_PLANNING
+            if (newOrderStatus == OrderStatusEnum.ON_PLANNING) {
+                log.info("🔧 Updating all order details to ON_PLANNING for order {}", orderId);
+                allDetails.forEach(detail -> detail.setStatus(OrderDetailStatusEnum.ON_PLANNING.name()));
+                orderDetailEntityService.saveAllOrderDetailEntities(allDetails);
+                log.info("✅ Updated {} order details to ON_PLANNING for order {}", allDetails.size(), orderId);
+            }
+            
             // Send WebSocket notification for status change (event-based, sent AFTER transaction commits)
             // This ensures staff/customer receives the updated status, not the stale one
             orderStatusWebSocketService.sendOrderStatusChange(
@@ -293,6 +504,20 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
                 var firstDetail = allDetails.get(0);
                 var vehicleAssignment = firstDetail.getVehicleAssignmentEntity();
                 
+                // 🔧 MULTI-TRIP FIX: Get only order details for this specific vehicle assignment
+                // This ensures notifications only show packages for the current trip, not all packages in the order
+                final var currentAssignmentId = vehicleAssignment != null ? vehicleAssignment.getId() : null;
+                List<OrderDetailEntity> tripSpecificDetails = currentAssignmentId != null
+                    ? allDetails.stream()
+                        .filter(od -> od.getVehicleAssignmentEntity() != null 
+                            && od.getVehicleAssignmentEntity().getId().equals(currentAssignmentId))
+                        .toList()
+                    : allDetails;
+                
+                // Get tracking code for vehicle assignment (not UUID)
+                String vehicleAssignmentTrackingCode = vehicleAssignment != null 
+                    ? vehicleAssignment.getTrackingCode() : null;
+                
                 switch (newOrderStatus) {
                     case ON_PLANNING:
                         // Staff notification: Deposit received, ready for planning
@@ -306,132 +531,21 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
                         ));
                         break;
                         
+                    // ⚠️ COMMENTED OUT: These notifications are now handled per-trip in sendTripStatusNotifications()
+                    // This prevents duplicate notifications and ensures correct per-assignment package filtering
+                    /*
                     case PICKING_UP:
-                        // Customer notification: Driver started picking up (Email: YES - for live tracking)
-                        if (order.getSender() != null && order.getSender().getUser() != null && vehicleAssignment != null) {
-                            String driverName = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
-                                ? vehicleAssignment.getDriver1().getUser().getFullName() : "Tài xế";
-                            String driverPhone = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
-                                ? vehicleAssignment.getDriver1().getUser().getPhoneNumber() : "";
-                            String vehiclePlate = vehicleAssignment.getVehicleEntity() != null 
-                                ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "";
-                            
-                            // Get category description
-                            String categoryDescription = "Hàng hóa";
-                            if (order.getCategory() != null && order.getCategory().getDescription() != null) {
-                                categoryDescription = order.getCategory().getDescription();
-                            } else if (order.getCategory() != null && order.getCategory().getCategoryName() != null) {
-                                categoryDescription = order.getCategory().getCategoryName().name();
-                            }
-                            
-                            // Get vehicle type description
-                            String vehicleTypeDescription = "N/A";
-                            if (vehicleAssignment.getVehicleEntity() != null && 
-                                vehicleAssignment.getVehicleEntity().getVehicleTypeEntity() != null) {
-                                vehicleTypeDescription = vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() != null 
-                                    ? vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() 
-                                    : vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getVehicleTypeName();
-                            }
-                                
-                            notificationService.createNotification(NotificationBuilder.buildPickingUpStarted(
-                                order.getSender().getUser().getId(),
-                                order.getOrderCode(),
-                                driverName,
-                                driverPhone,
-                                vehiclePlate,
-                                allDetails,
-                                categoryDescription,
-                                vehicleTypeDescription,
-                                order.getId(),
-                                vehicleAssignment.getId()
-                            ));
-                        }
+                        // NOW HANDLED IN sendTripStatusNotifications() - per-trip with correct packages
                         break;
                         
                     case ON_DELIVERED:
-                        // Customer notification: Delivery started
-                        if (order.getSender() != null && order.getSender().getUser() != null && vehicleAssignment != null) {
-                            String driverName = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
-                                ? vehicleAssignment.getDriver1().getUser().getFullName() : "Tài xế";
-                            String vehiclePlate = vehicleAssignment.getVehicleEntity() != null 
-                                ? vehicleAssignment.getVehicleEntity().getLicensePlateNumber() : "";
-                            String deliveryLocation = order.getDeliveryAddress() != null 
-                                ? order.getDeliveryAddress().getStreet() : "điểm giao hàng";
-                            
-                            // Get category description
-                            String categoryDescription = "Hàng hóa";
-                            if (order.getCategory() != null && order.getCategory().getDescription() != null) {
-                                categoryDescription = order.getCategory().getDescription();
-                            } else if (order.getCategory() != null && order.getCategory().getCategoryName() != null) {
-                                categoryDescription = order.getCategory().getCategoryName().name();
-                            }
-                            
-                            // Get vehicle type description
-                            String vehicleTypeDescription = "N/A";
-                            if (vehicleAssignment.getVehicleEntity() != null && 
-                                vehicleAssignment.getVehicleEntity().getVehicleTypeEntity() != null) {
-                                vehicleTypeDescription = vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() != null 
-                                    ? vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() 
-                                    : vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getVehicleTypeName();
-                            }
-                                
-                            notificationService.createNotification(NotificationBuilder.buildDeliveryStarted(
-                                order.getSender().getUser().getId(),
-                                order.getOrderCode(),
-                                driverName,
-                                vehiclePlate,
-                                allDetails,
-                                categoryDescription,
-                                deliveryLocation,
-                                vehicleTypeDescription,
-                                order.getId(),
-                                vehicleAssignment.getId()
-                            ));
-                        }
+                        // NOW HANDLED IN sendTripStatusNotifications() - per-trip with correct packages
                         break;
                         
-                    case ONGOING_DELIVERED:
-                        // Customer notification: Near delivery point
-                        if (order.getSender() != null && order.getSender().getUser() != null && vehicleAssignment != null) {
-                            String driverName = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
-                                ? vehicleAssignment.getDriver1().getUser().getFullName() : "Tài xế";
-                            String driverPhone = vehicleAssignment.getDriver1() != null && vehicleAssignment.getDriver1().getUser() != null 
-                                ? vehicleAssignment.getDriver1().getUser().getPhoneNumber() : "";
-                            String deliveryLocation = order.getDeliveryAddress() != null 
-                                ? order.getDeliveryAddress().getStreet() : "điểm giao hàng";
-                            
-                            // Get category description
-                            String categoryDescription = "Hàng hóa";
-                            if (order.getCategory() != null && order.getCategory().getDescription() != null) {
-                                categoryDescription = order.getCategory().getDescription();
-                            } else if (order.getCategory() != null && order.getCategory().getCategoryName() != null) {
-                                categoryDescription = order.getCategory().getCategoryName().name();
-                            }
-                            
-                            // Get vehicle type description
-                            String vehicleTypeDescription = "N/A";
-                            if (vehicleAssignment.getVehicleEntity() != null && 
-                                vehicleAssignment.getVehicleEntity().getVehicleTypeEntity() != null) {
-                                vehicleTypeDescription = vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() != null 
-                                    ? vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getDescription() 
-                                    : vehicleAssignment.getVehicleEntity().getVehicleTypeEntity().getVehicleTypeName();
-                            }
-                                
-                            notificationService.createNotification(NotificationBuilder.buildDeliveryInProgress(
-                                order.getSender().getUser().getId(),
-                                order.getOrderCode(),
-                                driverName,
-                                driverPhone,
-                                allDetails,
-                                categoryDescription,
-                                deliveryLocation,
-                                vehicleTypeDescription,
-                                order.getId(),
-                                vehicleAssignment.getId()
-                            ));
-                        }
+                        // NOW HANDLED IN sendTripStatusNotifications() - per-trip with correct packages
                         break;
-                        
+                    */
+                    
                     case DELIVERED:
                         // Customer notification: All packages delivered
                         if (order.getSender() != null && order.getSender().getUser() != null) {
@@ -526,200 +640,203 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
     }
     
     /**
-     * Determine Order Status for Multi-Trip Orders
-     * Strategy: Order Status reflects OVERALL/HIGH-LEVEL progress across ALL OrderDetails
+     * ═══════════════════════════════════════════════════════════════════════════
+     * MULTI-TRIP ORDER STATUS AGGREGATION
+     * ═══════════════════════════════════════════════════════════════════════════
      * 
-     * ═══════════════════════════════════════════════════════════════
-     * COMPREHENSIVE PRIORITY LOGIC (Highest to Lowest)
-     * ═══════════════════════════════════════════════════════════════
+     * Strategy: Order Status reflects OVERALL progress across ALL OrderDetails
+     * with proper priority handling for problem states and multi-trip scenarios.
      * 
-     * Priority 1: COMPENSATION (Terminal - ANY)
-     *   - If ANY OrderDetail = COMPENSATION → Order = COMPENSATION
-     *   - Reason: Highest severity, terminal state
-     *   - Example: 1 COMPENSATION + 2 DELIVERED → Order COMPENSATION
+     * ╔═══════════════════════════════════════════════════════════════════════════╗
+     * ║  PRIORITY MATRIX (Highest to Lowest)                                      ║
+     * ╠═══════════════════════════════════════════════════════════════════════════╣
+     * ║  Priority │ Status           │ Condition       │ Reason                   ║
+     * ╠═══════════════════════════════════════════════════════════════════════════╣
+     * ║  1 (HIGH) │ COMPENSATION     │ ANY             │ Bồi thường đã xử lý      ║
+     * ║  2        │ IN_TROUBLES      │ ANY             │ Có issue cần attention   ║
+     * ║  3        │ CANCELLED        │ ALL             │ Toàn bộ packages đã hủy  ║
+     * ║  4        │ RETURNING        │ ALL active      │ Đang trả toàn bộ hàng    ║
+     * ║  5        │ RETURNED         │ ALL active      │ Đã trả toàn bộ hàng      ║
+     * ║  6        │ DELIVERED        │ ALL completable │ Tất cả đã giao xong      ║
+     * ║  7        │ ONGOING_DELIVERED│ SOME delivered  │ Đang giao, chưa xong hết ║
+     * ║  8 (LOW)  │ Progressive MAX  │ In-progress     │ Theo tiến độ xa nhất     ║
+     * ╚═══════════════════════════════════════════════════════════════════════════╝
      * 
-     * Priority 2: IN_TROUBLES (Active Problem - ANY)
-     *   - If ANY OrderDetail = IN_TROUBLES → Order = IN_TROUBLES
-     *   - Reason: Active problem requiring attention
-     *   - Example: 1 IN_TROUBLES + 2 SUCCESSFUL → Order IN_TROUBLES
+     * ═══════════════════════════════════════════════════════════════════════════
+     * KEY BUSINESS RULES
+     * ═══════════════════════════════════════════════════════════════════════════
      * 
-     * Priority 3: CANCELLED (Terminal - ALL or PARTIAL)
-     *   - If ALL OrderDetails = CANCELLED → Order = CANCELLED
-     *   - If SOME CANCELLED + SOME others → Ignore CANCELLED, use max of non-cancelled
-     *   - Reason: If all cancelled, order is cancelled; if partial, continue with active packages
-     *   - Example 1: ALL CANCELLED → Order CANCELLED
-     *   - Example 2: 2 CANCELLED + 3 DELIVERED → Order DELIVERED (ignore cancelled)
+     * 1. COMPENSATION (ANY): If ANY package has compensation → Order = COMPENSATION
+     *    - Highest priority as it indicates financial resolution
+     *    - Example: 1 COMPENSATION + 2 DELIVERED → Order COMPENSATION
      * 
-     * Priority 4: RETURNING/RETURNED (Return Flow - ALL)
-     *   - If ALL OrderDetails = RETURNING → Order = RETURNING
-     *   - If ALL OrderDetails = RETURNED → Order = RETURNED
-     *   - If SOME RETURNED + SOME others → Use max of non-returned
-     *   - Reason: Return is complete flow, not partial state
-     *   - Example: 2 RETURNED + 1 DELIVERED → Order DELIVERED
+     * 2. IN_TROUBLES (ANY): If ANY package has issue → Order = IN_TROUBLES
+     *    - Signals staff attention needed, blocks order completion
+     *    - Live tracking still works for other trips
+     *    - Example: 1 IN_TROUBLES + 2 DELIVERED → Order IN_TROUBLES
      * 
-     * Priority 5: DELIVERED (All Delivered → Order DELIVERED)
-     *   - If ALL OrderDetails = DELIVERED → Order = DELIVERED
-     *   - If SOME DELIVERED + SOME ONGOING_DELIVERED → Order = ONGOING_DELIVERED (wait)
-     *   - Reason: Must wait for ALL trips to complete delivery before Order = DELIVERED
-     *   - Example 1: ALL DELIVERED → Order DELIVERED
-     *   - Example 2: 1 DELIVERED + 2 ONGOING_DELIVERED → Order ONGOING_DELIVERED (wait)
-     *   - Order → SUCCESSFUL only after driver uploads odometer end (manual update)
+     * 3. CANCELLED (ALL): Only if ALL packages cancelled → Order = CANCELLED
+     *    - Partial cancellation ignored, continue with active packages
+     *    - Example: 2 CANCELLED + 1 DELIVERED → Order DELIVERED
      * 
-     * Priority 7: Progressive States (Use MAX)
-     *   - States: PENDING, ON_PLANNING, ASSIGNED_TO_DRIVER, PICKING_UP, ON_DELIVERED, ONGOING_DELIVERED
-     *   - Use furthest progress (MAX ordinal)
-     *   - Reason: Show real-time progress as it happens
-     *   - Example: 2 PICKING_UP + 1 ON_DELIVERED → Order ON_DELIVERED
+     * 4. RETURNED/RETURNING (ALL active): Complete return flow
+     *    - ALL RETURNING → Order RETURNING
+     *    - ALL RETURNED → Order RETURNED  
+     *    - SOME RETURNED + SOME DELIVERED → Order DELIVERED (both complete states)
      * 
-     * ═══════════════════════════════════════════════════════════════
-     * EDGE CASES HANDLED
-     * ═══════════════════════════════════════════════════════════════
+     * 5. DELIVERED (ALL completable): All deliverable packages delivered
+     *    - Must wait for ALL trips before Order = DELIVERED
+     *    - Order → SUCCESSFUL only after odometer end upload (manual)
      * 
-     * Case 1: All packages same status
-     *   → Order = that status
+     * 6. ONGOING_DELIVERED: Partial delivery progress
+     *    - SOME packages delivered but not all
+     *    - Example: 1 DELIVERED + 1 PICKING_UP → Order ONGOING_DELIVERED
      * 
-     * Case 2: Mix of terminal and active states
-     *   → Terminal states (COMPENSATION, CANCELLED) take priority
+     * 7. Progressive MAX: Furthest progress for in-flight states
+     *    - Example: 2 PICKING_UP + 1 ON_DELIVERED → Order ON_DELIVERED
      * 
-     * Case 3: All packages delivered
-     *   → ALL DELIVERED → Order DELIVERED (wait for odometer)
-     *   → SOME DELIVERED → Order ONGOING_DELIVERED (wait for remaining trips)
-     *   → Order SUCCESSFUL only after odometer end upload
+     * ═══════════════════════════════════════════════════════════════════════════
+     * MULTI-TRIP SCENARIOS
+     * ═══════════════════════════════════════════════════════════════════════════
      * 
-     * Case 4: Mix of problem states
-     *   → ANY IN_TROUBLES → Order IN_TROUBLES
+     * Scenario 1: Trip1=PICKING_UP, Trip2=DELIVERED
+     *   → Order = ONGOING_DELIVERED (wait for Trip1)
      * 
-     * Case 5: Partial cancellation (rejection timeout)
-     *   → Ignore CANCELLED, use max of active packages
+     * Scenario 2: Trip1=PICKING_UP, Trip2=[IN_TROUBLES, RETURNED, DELIVERED]
+     *   → Order = IN_TROUBLES (needs attention, live tracking still works)
      * 
-     * Case 6: Partial return
-     *   → If not all returned, use max of non-returned
+     * Scenario 3: Trip1=DELIVERED, Trip2=[RETURNED, DELIVERED]
+     *   → Order = DELIVERED (all packages in complete state)
      * 
-     * Case 7: Empty order
-     *   → Return PENDING (should never happen)
+     * Scenario 4: All trips DELIVERED
+     *   → Order = DELIVERED (wait for odometer upload → SUCCESSFUL)
      */
     private OrderDetailStatusEnum determineOrderStatusForMultiTrip(List<OrderDetailStatusEnum> statuses) {
+        if (statuses == null || statuses.isEmpty()) {
+            log.warn("⚠️ Empty statuses list, returning PENDING");
+            return OrderDetailStatusEnum.PENDING;
+        }
+        
+        final int totalCount = statuses.size();
+        
         // ═══════════════════════════════════════════════════════════════
-        // PRIORITY 1: COMPENSATION (Terminal state - ANY)
+        // Count all status types in a single pass for efficiency
         // ═══════════════════════════════════════════════════════════════
-        // If ANY OrderDetail has COMPENSATION → Order = COMPENSATION
-        // This is highest priority as it represents critical failure
-        if (statuses.stream().anyMatch(s -> s == OrderDetailStatusEnum.COMPENSATION)) {
-            long compensationCount = statuses.stream().filter(s -> s == OrderDetailStatusEnum.COMPENSATION).count();
-            
+        long compensationCount = 0;
+        long inTroublesCount = 0;
+        long cancelledCount = 0;
+        long returningCount = 0;
+        long returnedCount = 0;
+        long deliveredCount = 0;
+        
+        for (OrderDetailStatusEnum status : statuses) {
+            switch (status) {
+                case COMPENSATION -> compensationCount++;
+                case IN_TROUBLES -> inTroublesCount++;
+                case CANCELLED -> cancelledCount++;
+                case RETURNING -> returningCount++;
+                case RETURNED -> returnedCount++;
+                case DELIVERED -> deliveredCount++;
+                default -> {} // Progressive states handled later
+            }
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // PRIORITY 1: COMPENSATION (Terminal - ANY)
+        // ═══════════════════════════════════════════════════════════════
+        // If ANY package has COMPENSATION → Order = COMPENSATION
+        // Highest priority as it represents financial settlement
+        if (compensationCount > 0) {
+            log.debug("📊 Order status = COMPENSATION ({}/{} packages)", compensationCount, totalCount);
             return OrderDetailStatusEnum.COMPENSATION;
         }
         
         // ═══════════════════════════════════════════════════════════════
-        // PRIORITY 2: IN_TROUBLES (Active problem - ANY)
+        // PRIORITY 2: IN_TROUBLES (Active Problem - ANY)
         // ═══════════════════════════════════════════════════════════════
-        // If ANY OrderDetail is IN_TROUBLES → Order = IN_TROUBLES
-        // This takes priority over success states because it requires immediate attention
-        // Example: 1 IN_TROUBLES + 2 SUCCESSFUL → Order IN_TROUBLES
-        boolean hasInTroubles = statuses.stream()
-            .anyMatch(s -> s == OrderDetailStatusEnum.IN_TROUBLES);
-        if (hasInTroubles) {
-            long troubleCount = statuses.stream().filter(s -> s == OrderDetailStatusEnum.IN_TROUBLES).count();
-            
+        // If ANY package has IN_TROUBLES → Order = IN_TROUBLES
+        // This signals staff attention is needed
+        // Live tracking still works for other trips (order is still "active")
+        if (inTroublesCount > 0) {
+            log.debug("📊 Order status = IN_TROUBLES ({}/{} packages)", inTroublesCount, totalCount);
             return OrderDetailStatusEnum.IN_TROUBLES;
         }
         
         // ═══════════════════════════════════════════════════════════════
-        // PRIORITY 3: CANCELLED (Terminal - ALL or PARTIAL)
+        // PRIORITY 3: CANCELLED (Terminal - ALL only)
         // ═══════════════════════════════════════════════════════════════
-        // Check if ANY OrderDetails are CANCELLED
-        long cancelledCount = statuses.stream().filter(s -> s == OrderDetailStatusEnum.CANCELLED).count();
-        
-        if (cancelledCount > 0) {
-            // Case A: ALL OrderDetails are CANCELLED → Order = CANCELLED
-            if (cancelledCount == statuses.size()) {
-                
-                return OrderDetailStatusEnum.CANCELLED;
-            }
-            
-            // Case B: SOME CANCELLED but not all → Ignore cancelled, use max of non-cancelled
-            // This handles rejection timeout: some packages cancelled, others delivered successfully
-            List<OrderDetailStatusEnum> nonCancelledStatuses = statuses.stream()
-                .filter(s -> s != OrderDetailStatusEnum.CANCELLED)
-                .toList();
-            
-            if (!nonCancelledStatuses.isEmpty()) {
-                OrderDetailStatusEnum maxNonCancelled = nonCancelledStatuses.stream()
-                    .max(Comparator.comparingInt(Enum::ordinal))
-                    .orElse(OrderDetailStatusEnum.CANCELLED);
-                
-                // Continue to process non-cancelled statuses in next priorities
-                // Replace statuses list with non-cancelled for further processing
-                statuses = nonCancelledStatuses;
-            }
+        // Only if ALL packages cancelled → Order = CANCELLED
+        // Partial cancellation: ignore cancelled, continue with active packages
+        if (cancelledCount == totalCount) {
+            log.debug("📊 Order status = CANCELLED (all {} packages)", totalCount);
+            return OrderDetailStatusEnum.CANCELLED;
         }
         
-        // ═══════════════════════════════════════════════════════════════
-        // PRIORITY 4: RETURNING/RETURNED (Return flow - ALL)
-        // ═══════════════════════════════════════════════════════════════
+        // Calculate active package count (excluding cancelled)
+        final long activeCount = totalCount - cancelledCount;
         
-        // Case A: ALL OrderDetails are RETURNING → Order = RETURNING
-        long returningCount = statuses.stream().filter(s -> s == OrderDetailStatusEnum.RETURNING).count();
-        if (returningCount == statuses.size()) {
-            
+        // ═══════════════════════════════════════════════════════════════
+        // PRIORITY 4: RETURNING (ALL active packages returning)
+        // ═══════════════════════════════════════════════════════════════
+        if (returningCount == activeCount && activeCount > 0) {
+            log.debug("📊 Order status = RETURNING (all {} active packages)", activeCount);
             return OrderDetailStatusEnum.RETURNING;
         }
         
-        // Case B: ALL OrderDetails are RETURNED → Order = RETURNED
-        long returnedCount = statuses.stream().filter(s -> s == OrderDetailStatusEnum.RETURNED).count();
-        if (returnedCount == statuses.size()) {
-            
+        // ═══════════════════════════════════════════════════════════════
+        // PRIORITY 5: RETURNED (ALL active packages returned)
+        // ═══════════════════════════════════════════════════════════════
+        if (returnedCount == activeCount && activeCount > 0) {
+            log.debug("📊 Order status = RETURNED (all {} active packages)", activeCount);
             return OrderDetailStatusEnum.RETURNED;
         }
         
-        // Case C: SOME RETURNED but not all → Use max of non-returned
-        // This handles partial return: some packages returned, others delivered
-        if (returnedCount > 0) {
-            List<OrderDetailStatusEnum> nonReturnedStatuses = statuses.stream()
-                .filter(s -> s != OrderDetailStatusEnum.RETURNED)
-                .toList();
-            
-            if (!nonReturnedStatuses.isEmpty()) {
-                OrderDetailStatusEnum maxNonReturned = nonReturnedStatuses.stream()
-                    .max(Comparator.comparingInt(Enum::ordinal))
-                    .orElse(OrderDetailStatusEnum.RETURNED);
-                
-                return maxNonReturned;
-            }
-        }
-        
         // ═══════════════════════════════════════════════════════════════
-        // PRIORITY 5: DELIVERED (All delivered → Order DELIVERED)
+        // PRIORITY 6: DELIVERED (ALL completable packages delivered)
         // ═══════════════════════════════════════════════════════════════
-        // Must wait for ALL OrderDetails to be DELIVERED before Order = DELIVERED
-        // Rationale: All trips must complete delivery before order is delivered
-        // Order → SUCCESSFUL only when driver uploads odometer end (manual update in VehicleFuelConsumptionServiceImpl)
-        long deliveredCount = statuses.stream().filter(s -> s == OrderDetailStatusEnum.DELIVERED).count();
+        // Completable = not cancelled, not in return flow
+        // If mix of RETURNED + DELIVERED → both are "complete" states
+        // Order = DELIVERED means all packages reached a terminal success state
+        long completedCount = deliveredCount + returnedCount;
         
-        // Case A: ALL OrderDetails are DELIVERED → Order = DELIVERED
-        if (deliveredCount == statuses.size()) {
+        if (completedCount == activeCount && deliveredCount > 0) {
+            log.debug("📊 Order status = DELIVERED ({} delivered + {} returned out of {} active)", 
+                deliveredCount, returnedCount, activeCount);
             return OrderDetailStatusEnum.DELIVERED;
         }
         
-        // Case B: SOME DELIVERED but not all → Order = ONGOING_DELIVERED (wait for remaining trips)
-        // This prevents premature "delivered" status when some packages still in transit
-        if (deliveredCount > 0) {
+        // Special case: ALL active are RETURNED (no DELIVERED) - handled in Priority 5
+        // This handles: 1 CANCELLED + 2 RETURNED → Order RETURNED
+        if (returnedCount == activeCount && activeCount > 0) {
+            log.debug("📊 Order status = RETURNED (all {} active packages)", activeCount);
+            return OrderDetailStatusEnum.RETURNED;
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // PRIORITY 7: ONGOING_DELIVERED (Partial delivery in progress)
+        // ═══════════════════════════════════════════════════════════════
+        // SOME packages delivered/returned but not all
+        // Indicates delivery is in progress, waiting for other trips
+        if (deliveredCount > 0 || returnedCount > 0) {
+            log.debug("📊 Order status = ONGOING_DELIVERED ({} delivered + {} returned, {} still in progress)", 
+                deliveredCount, returnedCount, activeCount - completedCount);
             return OrderDetailStatusEnum.ONGOING_DELIVERED;
         }
         
         // ═══════════════════════════════════════════════════════════════
-        // PRIORITY 7: PROGRESSIVE STATES (Use MAX)
+        // PRIORITY 8: PROGRESSIVE STATES (Use MAX ordinal)
         // ═══════════════════════════════════════════════════════════════
-        // For progressive states (PENDING, ON_PLANNING, ASSIGNED_TO_DRIVER, 
-        // PICKING_UP, ON_DELIVERED, ONGOING_DELIVERED), use the furthest progress
-        // This allows real-time tracking as order progresses
-        // Example: 2 PICKING_UP + 1 ON_DELIVERED → Order ON_DELIVERED
-        OrderDetailStatusEnum maxStatus = statuses.stream()
-            .filter(s -> s.ordinal() < OrderDetailStatusEnum.DELIVERED.ordinal())
+        // For in-progress states, show furthest progress across all trips
+        // Progressive states: PENDING(0), ON_PLANNING(1), ASSIGNED_TO_DRIVER(2), 
+        //                     PICKING_UP(3), ON_DELIVERED(4), ONGOING_DELIVERED(5)
+        OrderDetailStatusEnum maxProgressiveStatus = statuses.stream()
+            .filter(s -> s != OrderDetailStatusEnum.CANCELLED) // Ignore cancelled packages
+            .filter(s -> s.ordinal() <= OrderDetailStatusEnum.ONGOING_DELIVERED.ordinal()) // Only progressive states
             .max(Comparator.comparingInt(Enum::ordinal))
             .orElse(OrderDetailStatusEnum.PENDING);
-
-        return maxStatus;
+        
+        log.debug("📊 Order status = {} (progressive max)", maxProgressiveStatus);
+        return maxProgressiveStatus;
     }
     
     /**

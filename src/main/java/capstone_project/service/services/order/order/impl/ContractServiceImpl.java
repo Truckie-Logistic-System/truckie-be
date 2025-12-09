@@ -372,8 +372,22 @@ public class ContractServiceImpl implements ContractService {
 
             contractRuleEntityService.save(contractRule);
         }
+        
+        OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
         order.setStatus(OrderStatusEnum.PROCESSING.name());
         orderEntityService.save(order);
+        
+        // Send WebSocket notification for status change
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                order.getId(),
+                order.getOrderCode(),
+                previousStatus,
+                OrderStatusEnum.PROCESSING
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
+        }
 
         PriceCalculationResponse totalPriceResponse = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
 

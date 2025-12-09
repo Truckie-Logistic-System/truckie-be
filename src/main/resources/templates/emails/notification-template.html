@@ -420,7 +420,7 @@
                     </div>
                     
                     <!-- Additional Info -->
-                    <div th:if="${metadata['issueCode'] != null or metadata['sealCode'] != null or metadata['vehicleTrackingCode'] != null}" style="margin-top: 15px;">
+                    <div th:if="${metadata['issueCode'] != null or metadata['sealCode'] != null or metadata['vehicleAssignmentTrackingCode'] != null}" style="margin-top: 15px;">
                         <table class="package-table">
                             <thead>
                                 <tr>
@@ -435,8 +435,8 @@
                                     <td th:unless="${metadata['issueCode']}">-</td>
                                     <td th:if="${metadata['sealCode']}" th:text="${metadata['sealCode']}">SEAL-001</td>
                                     <td th:unless="${metadata['sealCode']}">-</td>
-                                    <td th:if="${metadata['vehicleTrackingCode']}" th:text="${metadata['vehicleTrackingCode']}">VA-001</td>
-                                    <td th:unless="${metadata['vehicleTrackingCode']}">-</td>
+                                    <td th:if="${metadata['vehicleAssignmentTrackingCode']}" th:text="${metadata['vehicleAssignmentTrackingCode']}">TRIP_20251206...</td>
+                                    <td th:unless="${metadata['vehicleAssignmentTrackingCode']}">-</td>
                                 </tr>
                             </tbody>
                         </table>

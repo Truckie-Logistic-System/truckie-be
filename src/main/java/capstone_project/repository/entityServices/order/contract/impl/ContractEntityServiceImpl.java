@@ -26,6 +26,11 @@ public class ContractEntityServiceImpl implements ContractEntityService {
     public Optional<ContractEntity> findEntityById(UUID uuid) {
         return contractRepository.findById(uuid);
     }
+    
+    @Override
+    public Optional<ContractEntity> findByIdWithOrderAndSender(UUID contractId) {
+        return contractRepository.findByIdWithOrderAndSender(contractId);
+    }
 
     @Override
     public List<ContractEntity> findAll() {

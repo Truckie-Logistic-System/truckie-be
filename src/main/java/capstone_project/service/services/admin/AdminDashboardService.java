@@ -1,6 +1,7 @@
 package capstone_project.service.services.admin;
 
 import capstone_project.dtos.response.admin.AdminDashboardSummaryResponse;
+import capstone_project.dtos.response.admin.FleetStatsResponse;
 import capstone_project.dtos.response.admin.RegistrationTimeSeriesResponse;
 import capstone_project.dtos.response.admin.TopDriverResponse;
 import capstone_project.dtos.response.admin.TopStaffResponse;

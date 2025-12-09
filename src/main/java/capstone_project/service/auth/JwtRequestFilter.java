@@ -103,9 +103,20 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 
                 // SECURITY: Validate user status from token claims
                 String tokenStatus = JWTUtil.extractStatus(jwt);
-                if ("INACTIVE".equals(tokenStatus) || "BANNED".equals(tokenStatus)) {
-                    log.warn("[JwtRequestFilter] ❌ User account is {}: {}", tokenStatus, username);
-                    handleErrorResponse(response, "Account is " + tokenStatus.toLowerCase(), HttpStatus.FORBIDDEN.value());
+                String tokenRole = JWTUtil.extractRole(jwt);
+                
+                // Block BANNED users completely
+                if ("BANNED".equals(tokenStatus)) {
+                    log.warn("[JwtRequestFilter] ❌ User account is BANNED: {}", username);
+                    handleErrorResponse(response, "Account is banned", HttpStatus.FORBIDDEN.value());
+                    return;
+                }
+                
+                // Allow INACTIVE DRIVERS to pass through for onboarding
+                // DriverOnboardingFilter will restrict them to onboarding endpoints only
+                if ("INACTIVE".equals(tokenStatus) && !"DRIVER".equals(tokenRole)) {
+                    log.warn("[JwtRequestFilter] ❌ Non-driver user account is INACTIVE: {}", username);
+                    handleErrorResponse(response, "Account is inactive", HttpStatus.FORBIDDEN.value());
                     return;
                 }
                 

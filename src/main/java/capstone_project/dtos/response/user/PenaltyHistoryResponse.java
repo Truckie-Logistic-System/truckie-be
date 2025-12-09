@@ -13,6 +13,12 @@ public class PenaltyHistoryResponse {
     private String violationType;
     private LocalDate penaltyDate;
     private String trafficViolationRecordImageUrl;
+
+    // Driver being penalized
     private UUID driverId;
+    private DriverSummary driverSummary;
+
+    // Vehicle assignment info
     private UUID vehicleAssignmentId;
+    private VehicleAssignmentSummary vehicleAssignment;
 }

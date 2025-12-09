@@ -46,8 +46,19 @@ public class OffRouteRunawayDetailResponse {
     private List<PackageInfo> packages;
     private BigDecimal totalDeclaredValue;
     
+    // Transport fee and legal limit for compensation suggestions
+    private BigDecimal transportFee;
+    private BigDecimal legalLimit;
+    
+    // Policy note and suggested compensation amount (for staff reference)
+    private String compensationPolicyNote;
+    private BigDecimal suggestedCompensation;
+    
     // Refund info (if processed)
     private GetRefundResponse refund;
+    
+    // Assessment data (if exists)
+    private OffRouteAssessment assessment;
     
     @Data
     @Builder
@@ -76,5 +87,21 @@ public class OffRouteRunawayDetailResponse {
         private String unit;
         private BigDecimal declaredValue;
         private String status;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class OffRouteAssessment {
+        private UUID id;
+        private Boolean hasDocuments;
+        private BigDecimal documentValue;
+        private BigDecimal estimatedMarketValue;
+        private BigDecimal assessmentRate;
+        private BigDecimal compensationByPolicy;
+        private BigDecimal finalCompensation;
+        private String adjustReason;
+        private String handlerNotes;
     }
 }

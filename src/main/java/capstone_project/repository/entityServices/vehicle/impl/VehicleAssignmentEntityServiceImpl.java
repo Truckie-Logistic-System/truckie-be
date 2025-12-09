@@ -143,4 +143,9 @@ public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEnti
     public boolean existsAssignmentForDriverOnDate(UUID driverId, LocalDate tripDate) {
         return vehicleAssignmentRepository.existsAssignmentForDriverOnDate(driverId, tripDate);
     }
+    
+    @Override
+    public Optional<VehicleAssignmentEntity> findByTrackingCode(String trackingCode) {
+        return vehicleAssignmentRepository.findByTrackingCode(trackingCode);
+    }
 }

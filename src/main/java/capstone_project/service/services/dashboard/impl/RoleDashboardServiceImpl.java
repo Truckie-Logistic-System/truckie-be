@@ -60,6 +60,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
     private final GeminiService geminiService;
     private final IssueRepository issueRepository;
     private final PenaltyHistoryRepository penaltyHistoryRepository;
+    private final capstone_project.repository.repositories.auth.UserRepository userRepository;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter DEADLINE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
@@ -144,7 +145,23 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         // Fleet health
         AdminDashboardResponse.FleetHealthSummary fleetHealth = buildFleetHealth(allVehicles, allMaintenances);
         
+        // Top staff
+        List<AdminDashboardResponse.TopPerformer> topStaff = buildTopStaff(filteredIssues);
+        
+        // Registration data (customer, staff, driver time series)
+        AdminDashboardResponse.RegistrationData registrationData = buildRegistrationData(startDate, endDate, filter);
+        
+        // AI Summary
+        String aiSummary = "";
+        try {
+            aiSummary = generateAdminAiSummary(kpiSummary, deliveryPerformance, issueRefundSummary, fleetHealth, filter);
+        } catch (Exception e) {
+            log.warn("Failed to generate AI summary: {}", e.getMessage());
+            aiSummary = buildFallbackAdminSummary(kpiSummary, deliveryPerformance, issueRefundSummary, fleetHealth, filter);
+        }
+        
         return AdminDashboardResponse.builder()
+                .aiSummary(aiSummary)
                 .kpiSummary(kpiSummary)
                 .orderTrend(orderTrend)
                 .revenueTrend(revenueTrend)
@@ -152,8 +169,10 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                 .issueRefundSummary(issueRefundSummary)
                 .topCustomers(topCustomers)
                 .topDrivers(topDrivers)
+                .topStaff(topStaff)
                 .fleetHealth(fleetHealth)
                 .orderStatusDistribution(orderStatusDistribution)
+                .registrationData(registrationData)
                 .build();
     }
 
@@ -2556,8 +2575,25 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
             allOrderDetails.addAll(assignmentOrderDetails);
         }
         
-        // Sort by creation date and limit to 5
-        return allOrderDetails.stream()
+        // Deduplicate by Order ID - keep the most recent order detail for each order
+        Map<UUID, OrderDetailEntity> mostRecentOrderDetails = new HashMap<>();
+        for (OrderDetailEntity orderDetail : allOrderDetails) {
+            OrderEntity order = orderDetail.getOrderEntity();
+            if (order != null) {
+                UUID orderId = order.getId();
+                OrderDetailEntity existing = mostRecentOrderDetails.get(orderId);
+                
+                // Keep the most recent order detail for this order
+                if (existing == null || 
+                    (orderDetail.getCreatedAt() != null && existing.getCreatedAt() != null && 
+                     orderDetail.getCreatedAt().isAfter(existing.getCreatedAt()))) {
+                    mostRecentOrderDetails.put(orderId, orderDetail);
+                }
+            }
+        }
+        
+        // Sort deduplicated order details by creation date and limit to 5
+        return mostRecentOrderDetails.values().stream()
                 .sorted((a, b) -> {
                     if (a.getCreatedAt() == null) return 1;
                     if (b.getCreatedAt() == null) return -1;
@@ -2583,5 +2619,109 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+    
+    // ==================== Admin Dashboard Additional Helpers ====================
+    
+    private List<AdminDashboardResponse.TopPerformer> buildTopStaff(List<IssueEntity> issues) {
+        // Group issues by staff and count resolved issues
+        Map<UUID, Long> resolvedByStaff = issues.stream()
+                .filter(i -> i.getStaff() != null && "RESOLVED".equals(i.getStatus()))
+                .collect(Collectors.groupingBy(
+                        i -> i.getStaff().getId(),
+                        Collectors.counting()
+                ));
+        
+        // Build top staff list
+        return resolvedByStaff.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .limit(5)
+                .map(entry -> {
+                    try {
+                        capstone_project.entity.auth.UserEntity staff = userRepository.findById(entry.getKey()).orElse(null);
+                        if (staff != null) {
+                            return AdminDashboardResponse.TopPerformer.builder()
+                                    .id(staff.getId().toString())
+                                    .name(staff.getFullName())
+                                    .orderCount(entry.getValue())
+                                    .rank(0) // Will be set after sorting
+                                    .build();
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to get staff info: {}", e.getMessage());
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+    
+    private AdminDashboardResponse.RegistrationData buildRegistrationData(
+            LocalDateTime startDate, LocalDateTime endDate, DashboardFilterRequest filter) {
+        
+        // Get customer registrations
+        List<capstone_project.entity.auth.UserEntity> customers = userRepository.findByRoleAndCreatedAtBetween("CUSTOMER", startDate, endDate);
+        List<AdminDashboardResponse.TrendDataPoint> customerRegistrations = buildUserRegistrationTrend(customers, startDate, endDate, filter);
+        
+        // Get staff registrations
+        List<capstone_project.entity.auth.UserEntity> staff = userRepository.findByRoleAndCreatedAtBetween("STAFF", startDate, endDate);
+        List<AdminDashboardResponse.TrendDataPoint> staffRegistrations = buildUserRegistrationTrend(staff, startDate, endDate, filter);
+        
+        // Get driver registrations
+        List<capstone_project.entity.auth.UserEntity> drivers = userRepository.findByRoleAndCreatedAtBetween("DRIVER", startDate, endDate);
+        List<AdminDashboardResponse.TrendDataPoint> driverRegistrations = buildUserRegistrationTrend(drivers, startDate, endDate, filter);
+        
+        return AdminDashboardResponse.RegistrationData.builder()
+                .customerRegistrations(customerRegistrations)
+                .staffRegistrations(staffRegistrations)
+                .driverRegistrations(driverRegistrations)
+                .build();
+    }
+    
+    private List<AdminDashboardResponse.TrendDataPoint> buildUserRegistrationTrend(
+            List<capstone_project.entity.auth.UserEntity> users, 
+            LocalDateTime startDate, 
+            LocalDateTime endDate, 
+            DashboardFilterRequest filter) {
+        
+        // Group users by period
+        Map<String, List<capstone_project.entity.auth.UserEntity>> groupedByPeriod = users.stream()
+                .collect(Collectors.groupingBy(u -> getPeriodLabel(u.getCreatedAt(), filter)));
+        
+        // Build trend points
+        return groupedByPeriod.entrySet().stream()
+                .map(entry -> AdminDashboardResponse.TrendDataPoint.builder()
+                        .label(entry.getKey())
+                        .count(entry.getValue().size())
+                        .amount(BigDecimal.ZERO)
+                        .build())
+                .sorted((a, b) -> a.getLabel().compareTo(b.getLabel()))
+                .collect(Collectors.toList());
+    }
+    
+    private String buildFallbackAdminSummary(
+            AdminDashboardResponse.KpiSummary kpi,
+            AdminDashboardResponse.DeliveryPerformance delivery,
+            AdminDashboardResponse.IssueRefundSummary issues,
+            AdminDashboardResponse.FleetHealthSummary fleet,
+            DashboardFilterRequest filter) {
+        
+        String periodLabel = getPeriodLabel(filter);
+        StringBuilder fallback = new StringBuilder();
+        
+        fallback.append(String.format("Trong %s, hệ thống có **%d đơn hàng** với **%d kiện hàng**, ", 
+                periodLabel, kpi.getTotalOrders(), kpi.getTotalOrderDetails()));
+        fallback.append(String.format("doanh thu đạt **%s VNĐ**. ", formatCurrency(kpi.getTotalRevenue())));
+        fallback.append(String.format("Tỷ lệ giao hàng đúng hẹn: **%.1f%%**. ", delivery.getOnTimePercentage()));
+        
+        if (issues.getOpenIssues() > 0) {
+            fallback.append(String.format("Có **%d sự cố** đang mở cần xử lý. ", issues.getOpenIssues()));
+        }
+        
+        if (fleet.getOverdueMaintenanceVehicles() > 0) {
+            fallback.append(String.format("**%d xe** đã quá hạn bảo dưỡng. ", fleet.getOverdueMaintenanceVehicles()));
+        }
+        
+        return fallback.toString();
     }
 }

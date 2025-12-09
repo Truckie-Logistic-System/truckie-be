@@ -34,6 +34,8 @@ public abstract class VehicleAssignmentMapper {
     public abstract void toEntity(UpdateVehicleAssignmentRequest req,
                                   @MappingTarget VehicleAssignmentEntity entity);
 
+    @Mapping(target = "id", source = "id")
+    @Mapping(target = "trackingCode", source = "trackingCode")
     @Mapping(target = "vehicleId", source = "vehicleEntity.id")
     @Mapping(target = "driver_id_1",  source = "driver1.id")
     @Mapping(target = "driver_id_2",  source = "driver2.id")

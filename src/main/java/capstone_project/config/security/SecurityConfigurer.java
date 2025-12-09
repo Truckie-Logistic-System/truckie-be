@@ -92,6 +92,9 @@ public class SecurityConfigurer {
     @Value("${issue-image.api.base-path}")
     private String issueImageBasePath;
 
+    @Value("${damage-resolution.api.base-path}")
+    private String damageResolutionBasePath;
+
     @Value("${distance.api.base-path}")
     private String distanceBasePath;
 
@@ -316,6 +319,9 @@ public class SecurityConfigurer {
                         .requestMatchers(issueTypeBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(issueBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(issueImageBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+                        
+                        // ================= DAMAGE RESOLUTION =================
+                        .requestMatchers(damageResolutionBasePath + "/**").hasAnyAuthority("ADMIN","STAFF")
 
                         // ================= PHOTO COMPLETION =================
                         .requestMatchers(photoCompletionBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
