@@ -64,6 +64,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final VehicleTypeEntityService vehicleTypeEntityService;
     private final DriverEntityService driverEntityService;
     private final VehicleEntityService vehicleEntityService;
+    private final capstone_project.repository.entityServices.device.DeviceEntityService deviceEntityService;
     private final OrderEntityService orderEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
     private final ContractEntityService contractEntityService;
@@ -1011,6 +1012,25 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 );
             }
 
+            // Kiểm tra xe có hết hạn đăng kiểm không
+            LocalDate today = LocalDate.now();
+            if (vehicle.getInspectionExpiryDate() != null && vehicle.getInspectionExpiryDate().isBefore(today)) {
+                throw new BadRequestException(
+                        "Xe " + vehicle.getLicensePlateNumber() + " đã hết hạn đăng kiểm ngày " + 
+                        vehicle.getInspectionExpiryDate() + ". Vui lòng gia hạn đăng kiểm trước khi phân công.",
+                        VEHICLE_NOT_AVAILABLE
+                );
+            }
+
+            // Kiểm tra xe có hết hạn bảo hiểm không
+            if (vehicle.getInsuranceExpiryDate() != null && vehicle.getInsuranceExpiryDate().isBefore(today)) {
+                throw new BadRequestException(
+                        "Xe " + vehicle.getLicensePlateNumber() + " đã hết hạn bảo hiểm ngày " + 
+                        vehicle.getInsuranceExpiryDate() + ". Vui lòng gia hạn bảo hiểm trước khi phân công.",
+                        VEHICLE_NOT_AVAILABLE
+                );
+            }
+
             // Kiểm tra tài xế có tồn tại không
             DriverEntity driver1 = driverEntityService.findEntityById(groupAssignment.driverId_1())
                     .orElseThrow(() -> new NotFoundException(
@@ -1048,6 +1068,19 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             assignment.setStatus(CommonStatusEnum.ACTIVE.name());
             assignment.setTrackingCode(generateCode(prefixVehicleAssignmentCode));
 
+            // Query all devices attached to this vehicle and save device IDs
+            List<capstone_project.entity.device.DeviceEntity> devices = deviceEntityService.findByVehicleId(vehicle.getId());
+            if (!devices.isEmpty()) {
+                String deviceIds = devices.stream()
+                        .map(d -> d.getId().toString())
+                        .collect(Collectors.joining(","));
+                assignment.setDeviceIds(deviceIds);
+                log.info("✅ [createGroupedAssignments] Found {} devices for vehicle {}: {}", 
+                        devices.size(), vehicle.getLicensePlateNumber(), deviceIds);
+            } else {
+                log.warn("⚠️ [createGroupedAssignments] No devices found for vehicle {}", vehicle.getLicensePlateNumber());
+            }
+            
             // Lưu assignment
             VehicleAssignmentEntity savedAssignment = entityService.save(assignment);
 
@@ -1459,6 +1492,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         // B8-B9: Final variables for lambda
         final LocalDate finalTripDateForReservation = tripDate;
         final UUID finalOrderId = orderId;
+        final LocalDate today = LocalDate.now();
 
         // Lấy danh sách xe phù hợp với loại xe từ rule
         VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(sizeRule.getVehicleTypeEntity().getVehicleTypeName());
@@ -1469,6 +1503,10 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 // B8-B9: Exclude vehicles with RESERVED reservation on tripDate (except for this order)
                 .filter(v -> !vehicleReservationEntityService.existsReservedByVehicleAndDateExcludingOrder(
                         v.getId(), finalTripDateForReservation, finalOrderId))
+                // Exclude vehicles with expired inspection (đăng kiểm hết hạn)
+                .filter(v -> v.getInspectionExpiryDate() == null || !v.getInspectionExpiryDate().isBefore(today))
+                // Exclude vehicles with expired insurance (bảo hiểm hết hạn)
+                .filter(v -> v.getInsuranceExpiryDate() == null || !v.getInsuranceExpiryDate().isBefore(today))
                 .toList();
 
         // B3: Filter drivers by tripDate - 1 driver per trip per day (hard constraint)

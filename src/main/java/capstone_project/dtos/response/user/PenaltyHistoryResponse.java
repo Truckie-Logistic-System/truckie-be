@@ -3,6 +3,7 @@ package capstone_project.dtos.response.user;
 import lombok.Builder;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -21,4 +22,8 @@ public class PenaltyHistoryResponse {
     // Vehicle assignment info
     private UUID vehicleAssignmentId;
     private VehicleAssignmentSummary vehicleAssignment;
+    
+    // Location from related Issue (issueCategory = PENALTY)
+    private BigDecimal violationLatitude;
+    private BigDecimal violationLongitude;
 }

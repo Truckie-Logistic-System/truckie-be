@@ -168,19 +168,45 @@
 ## 🔒 Quy trình Vận hành và Niêm phong (Seal)
 
 ### Quy trình tại điểm xuất phát:
-- **Trước khi khởi hành**, Tài xế phải thực hiện checklist kiểm tra phương tiện và hàng hóa
-- Tài xế phải quay video/chụp ảnh công tơ mét (ODO) trước và sau chuyến đi để đối soát nhiên liệu và chống gian lận
+
+**Bước 1: Kiểm tra Checklist**
+- Tài xế thực hiện **checklist kiểm tra phương tiện** (lốp, phanh, đèn, dầu...)
+- Kiểm tra **tình trạng thùng xe/container**
+
+**Bước 2: Chụp ảnh Công tơ mét (ODO)**
+- Tài xế **quay video/chụp ảnh ODO TRƯỚC** khi khởi hành
+- Mục đích: Đối soát nhiên liệu, chống gian lận
+- **LƯU Ý**: Phải chụp ảnh ODO SAU khi hoàn tất chuyến đi
+
+**Bước 3: Xếp hàng và Kiểm tra**
+- Tài xế kiểm tra hàng hóa cùng Khách hàng/Người gửi
+- Chụp ảnh hàng hóa TRƯỚC KHI xếp lên xe
+- Xác nhận số lượng kiện, trọng lượng
+
+**Bước 4: Niêm phong (Seal)**
 - **Thùng xe tải/Container phải được niêm phong (Seal)** sau khi xếp hàng xong
-- **Trước khi giao**, Tài xế phải chụp ảnh Container/Thùng xe còn nguyên Niêm phong và cập nhật lên hệ thống
-- **Thông báo Seal**: Ngay khi Tài xế cập nhật trạng thái niêm phong, hệ thống tự động gửi Email chứa Mã Seal và Ảnh chụp cho Khách hàng (Người gửi)
-- Người gửi có trách nhiệm thông báo mã này cho Người nhận để đối chiếu khi nhận hàng
-- **Tài xế tuyệt đối không được tự ý thay đổi hoặc phá Seal** nếu không có sự cho phép từ Nhân viên điều phối (Staff)
+- Tài xế chụp ảnh Seal và cập nhật lên hệ thống
+- **Tài xế TUYỆT ĐỐI KHÔNG được tự ý thay đổi hoặc phá Seal** nếu không có sự cho phép từ Staff
+
+**Bước 5: Thông báo Seal TỰ động ✅**
+- **NGAY KHI** Tài xế cập nhật trạng thái niêm phong
+- Hệ thống **TỰ ĐỘNG GỬI EMAIL** cho Khách hàng (Người gửi) chứa:
+  - **Mã Seal** (để đối chiếu)
+  - **Ảnh chụp Seal** (bằng chứng)
+- **TRÁCH NHIỆM CỦA KHÁCH HÀNG**: Thông báo mã Seal cho Người nhận để đối chiếu khi nhận hàng
 
 ### Giám sát hành trình (GPS):
-- Khách hàng đồng ý cho phép hệ thống thu thập dữ liệu vị trí xe tải theo thời gian thực trong suốt quá trình thực hiện đơn hàng
-- **Tín hiệu GPS được cập nhật định kỳ tối thiểu mỗi 60 giây**
-- Nếu mất tín hiệu quá 2 phút, hệ thống sẽ phát cảnh báo an ninh (Tuân thủ Nghị định 10/2020/NĐ-CP)
-- **Tài xế không được tự ý thay đổi tuyến đường** đã được chỉ định. Mọi sự thay đổi tuyến đường phải được sự chấp thuận của hệ thống
+
+**Cấu hình GPS Real-time**:
+- Khách hàng đồng ý cho phép hệ thống thu thập dữ liệu vị trí theo thời gian thực
+- **Tín hiệu GPS cập nhật định kỳ tối thiểu mỗi 60 GIÂY (1 phút)**
+- **Cảnh báo an ninh**: Nếu mất tín hiệu quá **2 PHÚT** → Hệ thống phát cảnh báo
+- Tuân thủ Nghị định 10/2020/NĐ-CP
+
+**Quy định về Tuyến đường**:
+- **Tài xế KHÔNG được tự ý thay đổi tuyến đường** đã chỉ định
+- Mọi sự thay đổi tuyến phải được **Staff chấp thuận** qua hệ thống
+- Vi phạm → Xử lý kỷ luật
 
 ---
 
@@ -206,10 +232,34 @@
 ## 📦 Xác nhận Giao hàng (POD) và Trả hàng
 
 ### Xác nhận Giao hàng (POD)
+
 Việc giao nhận phải tuân thủ nghiêm ngặt các bước sau:
-- **Xác thực**: Hệ thống yêu cầu xác thực 2 yếu tố (Tài xế & Phương tiện) tại điểm giao nhận. Cấm giao hàng nếu không có xác thực hợp lệ trên App
-- **Kiểm tra**: Người nhận hàng có trách nhiệm kiểm tra tình trạng Niêm phong (Seal), số lượng kiện hàng và ký xác nhận (E-signature)
-- **Hoàn tất**: Đơn hàng chỉ được xem là Hoàn tất khi có ảnh chụp bằng chứng giao hàng (Proof of Delivery) và dữ liệu định vị tại điểm giao
+
+**Bước 1: Xác thực 2 yếu tố**
+- Hệ thống yêu cầu xác thực:
+  - Tài xế (đăng nhập App)
+  - Phương tiện (GPS khớp vị trí)
+- **CẤM GIAO HÀNG** nếu không có xác thực hợp lệ trên App
+
+**Bước 2: Kiểm tra Seal**
+- Người nhận kiểm tra **tình trạng Niêm phong (Seal)**
+- Đối chiếu **Mã Seal** với Email đã nhận
+- **Nếu Seal bị hư hỏng/sai mã** → Từ chối nhận và báo ngay cho Staff
+
+**Bước 3: Kiểm tra Hàng hóa**
+- Kiểm tra **số lượng kiện hàng**
+- Kiểm tra **tình trạng bên ngoài** (có hư hại không?)
+- **Nếu phát hiện hư hỏng** → **TỪ CHỐI KÝ NHẬN** và báo ngay
+
+**Bước 4: Ký xác nhận**
+- Người nhận ký xác nhận (ký giấy hoặc ký điện tử trên App)
+- Tài xế chụp ảnh **Proof of Delivery (POD)**
+
+**Bước 5: Hoàn tất Đơn hàng**
+- Đơn hàng chỉ được xem là **HOÀN TẤT** khi có:
+  - Ảnh chụp bằng chứng giao hàng (POD)
+  - Dữ liệu định vị tại điểm giao
+  - Chữ ký xác nhận của Người nhận
 
 ### Quy trình Trả hàng (Return Policy)
 Trong trường hợp giao hàng thất bại (do Người nhận từ chối nhận, không liên lạc được, hoặc địa chỉ không chính xác):

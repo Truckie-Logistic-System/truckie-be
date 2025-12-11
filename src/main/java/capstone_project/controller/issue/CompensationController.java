@@ -1,13 +1,16 @@
 package capstone_project.controller.issue;
 
 import capstone_project.dtos.request.issue.CompensationAssessmentRequest;
+import capstone_project.dtos.response.issue.CompensationAssessmentListResponse;
 import capstone_project.dtos.response.issue.CompensationDetailResponse;
+import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.service.CompensationService;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,6 +28,16 @@ public class CompensationController {
 
     private final CompensationService compensationService;
     private final CloudinaryService cloudinaryService;
+
+    /**
+     * Get all compensation assessments for staff (sorted by createdAt DESC)
+     */
+    @GetMapping("/staff/list")
+    @PreAuthorize("hasAnyAuthority('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<CompensationAssessmentListResponse>>> getAllCompensationAssessments() {
+        List<CompensationAssessmentListResponse> result = compensationService.getAllCompensationAssessments();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 
     /**
      * Get compensation detail for an issue

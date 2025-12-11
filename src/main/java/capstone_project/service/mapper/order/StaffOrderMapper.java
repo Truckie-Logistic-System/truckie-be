@@ -59,6 +59,7 @@ public class StaffOrderMapper {
     private final PhotoCompletionService photoCompletionService;
     private final ContractSettingEntityService contractSettingEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
+    private final capstone_project.repository.entityServices.device.DeviceEntityService deviceEntityService;
 
     /**
      * Translate status to Vietnamese
@@ -321,6 +322,9 @@ public class StaffOrderMapper {
                 ))
                 .collect(Collectors.toList());
         
+        // Get device info from device_ids field
+        List<StaffVehicleAssignmentFullResponse.DeviceInfo> devices = getDeviceInfoFromAssignment(entity);
+        
         return new StaffVehicleAssignmentFullResponse(
                 baseResponse.id(),
                 baseResponse.vehicle(),
@@ -336,7 +340,8 @@ public class StaffOrderMapper {
                 baseResponse.photoCompletions(),
                 baseResponse.issues(),
                 translatedOrderDetails,
-                translatedOrderInfo
+                translatedOrderInfo,
+                devices
         );
     }
     
@@ -892,6 +897,49 @@ public class StaffOrderMapper {
             log.warn("Error calculating deposit amount: {}", e.getMessage());
             // Default to 30% on error using unified pricing
             return PricingUtils.calculateRoundedDeposit(baseAmount, new BigDecimal("30"));
+        }
+    }
+    
+    /**
+     * Get device info from vehicle assignment's device_ids field
+     */
+    private List<StaffVehicleAssignmentFullResponse.DeviceInfo> getDeviceInfoFromAssignment(VehicleAssignmentEntity entity) {
+        if (entity == null || entity.getDeviceIds() == null || entity.getDeviceIds().trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        try {
+            // Parse comma-separated device IDs
+            String[] deviceIdStrings = entity.getDeviceIds().split(",");
+            List<StaffVehicleAssignmentFullResponse.DeviceInfo> deviceInfoList = new ArrayList<>();
+            
+            for (String deviceIdStr : deviceIdStrings) {
+                try {
+                    UUID deviceId = UUID.fromString(deviceIdStr.trim());
+                    deviceEntityService.findEntityById(deviceId).ifPresent(device -> {
+                        String deviceTypeName = device.getDeviceTypeEntity() != null 
+                                ? device.getDeviceTypeEntity().getDeviceTypeName() 
+                                : null;
+                        
+                        deviceInfoList.add(new StaffVehicleAssignmentFullResponse.DeviceInfo(
+                                device.getId(),
+                                device.getDeviceCode(),
+                                device.getManufacturer(),
+                                device.getModel(),
+                                device.getIpAddress(),
+                                device.getFirmwareVersion(),
+                                deviceTypeName
+                        ));
+                    });
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid device ID format in assignment {}: {}", entity.getId(), deviceIdStr);
+                }
+            }
+            
+            return deviceInfoList;
+        } catch (Exception e) {
+            log.error("Error getting device info for assignment {}: {}", entity.getId(), e.getMessage());
+            return Collections.emptyList();
         }
     }
 }

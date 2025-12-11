@@ -125,42 +125,49 @@ tasks.withType<Test> {
 
 // Liquibase configuration
 liquibase {
+    // Main activity: apply all changelogs to main database
     activities.register("main") {
         arguments = mapOf(
-            "changeLogFile" to "src/main/resources/db/changelog/db.changelog-master.xml",
+            "changelogFile" to "db/changelog/db.changelog-master.xml",
             "url" to "jdbc:postgresql://localhost:5432/capstone-project",
             "username" to "postgres",
             "password" to "postgres",
-            "driver" to "org.postgresql.Driver"
+            "driver" to "org.postgresql.Driver",
+            "searchPath" to "src/main/resources"
         )
     }
-    
+
+    // Baseline: dùng cho generate baseline changelog từ schema hiện tại
     activities.register("generateBaseline") {
         arguments = mapOf(
-            "changelogFile" to "src/main/resources/db/changelog/baseline/db.changelog-baseline.xml",
+            "changelogFile" to "db/changelog/baseline/db.changelog-baseline.xml",
             "url" to "jdbc:postgresql://localhost:5432/capstone-project",
             "username" to "postgres",
             "password" to "postgres",
-            "driver" to "org.postgresql.Driver"
+            "driver" to "org.postgresql.Driver",
+            "searchPath" to "src/main/resources"
         )
     }
-    
+
+    // Diff: generate file db/changelog/diff/db.changelog-diff.xml giữa reference DB và target DB
     activities.register("generateDiff") {
         arguments = mapOf(
-            "changeLogFile" to "src/main/resources/db/changelog/diff/db.changelog-diff.xml",
+            "changelogFile" to "db/changelog/diff/db.changelog-diff.xml",
             "url" to "jdbc:postgresql://localhost:5432/capstone-project",
             "username" to "postgres",
             "password" to "postgres",
             "referenceUrl" to "jdbc:postgresql://localhost:5432/capstone_reference",
             "referenceUsername" to "postgres",
             "referencePassword" to "postgres",
-            "driver" to "org.postgresql.Driver"
+            "driver" to "org.postgresql.Driver",
+            "searchPath" to "src/main/resources"
         )
     }
-    
+
+    // Test migration: apply master changelog lên test database
     activities.register("testMigration") {
         arguments = mapOf(
-            "changelogFile" to "src/main/resources/db/changelog/db.changelog-master.xml",
+            "changelogFile" to "db/changelog/db.changelog-master.xml",
             "url" to "jdbc:postgresql://localhost:5432/capstone_test",
             "username" to "postgres",
             "password" to "postgres",
@@ -168,7 +175,7 @@ liquibase {
             "searchPath" to "src/main/resources"
         )
     }
-    
+
     runList = "main"
 }
 

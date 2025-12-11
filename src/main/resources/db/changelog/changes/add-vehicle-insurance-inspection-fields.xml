@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Add vehicle inspection and insurance tracking fields -->
+    <changeSet id="add-vehicle-insurance-inspection-fields" author="system">
+        <sql>
+            ALTER TABLE public.vehicles 
+            ADD COLUMN last_inspection_date DATE,
+            ADD COLUMN inspection_expiry_date DATE,
+            ADD COLUMN insurance_expiry_date DATE,
+            ADD COLUMN insurance_policy_number VARCHAR(50),
+            ADD COLUMN last_maintenance_date DATE;
+        </sql>
+        <rollback>
+            ALTER TABLE public.vehicles 
+            DROP COLUMN IF EXISTS last_inspection_date,
+            DROP COLUMN IF EXISTS inspection_expiry_date,
+            DROP COLUMN IF EXISTS insurance_expiry_date,
+            DROP COLUMN IF EXISTS insurance_policy_number,
+            DROP COLUMN IF EXISTS last_maintenance_date;
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

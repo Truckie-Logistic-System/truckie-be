@@ -10,6 +10,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionCreateRequest;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionEndReadingRequest;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionInvoiceRequest;
+import capstone_project.dtos.response.vehicle.VehicleFuelConsumptionListResponse;
 import capstone_project.dtos.response.vehicle.VehicleFuelConsumptionResponse;
 import capstone_project.entity.order.order.VehicleFuelConsumptionEntity;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
@@ -35,7 +36,16 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.entity.vehicle.VehicleEntity;
+import capstone_project.entity.user.driver.DriverEntity;
+import capstone_project.entity.auth.UserEntity;
+import capstone_project.entity.order.order.FuelTypeEntity;
 
 @Service
 @Slf4j
@@ -54,6 +64,74 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private final OrderStatusWebSocketService orderStatusWebSocketService;
     private final JourneyHistoryEntityService journeyHistoryEntityService;
     private final capstone_project.repository.entityServices.vehicle.VehicleEntityService vehicleEntityService;
+
+    @Override
+    public List<VehicleFuelConsumptionListResponse> getAllVehicleFuelConsumptions() {
+        List<VehicleFuelConsumptionEntity> entities = vehicleFuelConsumptionEntityService.findAll();
+        
+        // Sort by createdAt DESC (newest first)
+        entities.sort(Comparator.comparing(
+                VehicleFuelConsumptionEntity::getCreatedAt,
+                Comparator.nullsLast(Comparator.reverseOrder())
+        ));
+        
+        return entities.stream()
+                .map(this::mapToListResponse)
+                .collect(Collectors.toList());
+    }
+    
+    private VehicleFuelConsumptionListResponse mapToListResponse(VehicleFuelConsumptionEntity entity) {
+        VehicleAssignmentEntity va = entity.getVehicleAssignmentEntity();
+        
+        // Get vehicle info safely
+        VehicleEntity vehicle = va != null ? va.getVehicleEntity() : null;
+        
+        // Get driver info safely
+        String driverName = null;
+        String driverPhone = null;
+        UUID driverId = null;
+        if (va != null && va.getDriver1() != null) {
+            DriverEntity driver = va.getDriver1();
+            driverId = driver.getId();
+            UserEntity driverUser = driver.getUser();
+            if (driverUser != null) {
+                driverName = driverUser.getFullName();
+                driverPhone = driverUser.getPhoneNumber();
+            }
+        }
+        
+        return VehicleFuelConsumptionListResponse.builder()
+                .id(entity.getId())
+                .fuelVolumeLiters(entity.getFuelVolume())
+                .odometerAtStartUrl(entity.getOdometerAtStartUrl())
+                .odometerAtEndUrl(entity.getOdometerAtEndUrl())
+                .companyInvoiceImageUrl(entity.getCompanyInvoiceImageUrl())
+                .odometerStartKm(entity.getOdometerReadingAtStart())
+                .odometerEndKm(entity.getOdometerReadingAtEnd())
+                .distanceTraveledKm(entity.getDistanceTraveled())
+                .dateRecorded(entity.getDateRecorded())
+                .notes(entity.getNotes())
+                .createdAt(entity.getCreatedAt())
+                .vehicleAssignment(va != null ? VehicleFuelConsumptionListResponse.VehicleAssignmentInfo.builder()
+                        .id(va.getId())
+                        .trackingCode(va.getTrackingCode())
+                        .status(va.getStatus())
+                        .build() : null)
+                .vehicle(vehicle != null ? VehicleFuelConsumptionListResponse.VehicleInfo.builder()
+                        .id(vehicle.getId())
+                        .licensePlateNumber(vehicle.getLicensePlateNumber())
+                        .vehicleType(vehicle.getVehicleTypeEntity() != null ? vehicle.getVehicleTypeEntity().getVehicleTypeName() : null)
+                        .brand(vehicle.getManufacturer())
+                        .model(vehicle.getModel())
+                        .build() : null)
+                .driver(driverId != null ? VehicleFuelConsumptionListResponse.DriverInfo.builder()
+                        .id(driverId)
+                        .fullName(driverName)
+                        .phoneNumber(driverPhone)
+                        .build() : null)
+                .fuelType(null) // FuelType relationship not in entity, can be added later
+                .build();
+    }
 
     @Override
     @Transactional

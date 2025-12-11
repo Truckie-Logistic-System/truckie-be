@@ -40,4 +40,9 @@ public class DeviceEntityServiceImpl implements DeviceEntityService {
     public Optional<DeviceEntity> findByDeviceTypeAndVehicle(UUID deviceTypeId, UUID vehicleId) {
         return deviceRepository.findDeviceEntityByDeviceTypeEntityIdAndVehicleEntityId(deviceTypeId, vehicleId);
     }
+    
+    @Override
+    public List<DeviceEntity> findByVehicleId(UUID vehicleId) {
+        return deviceRepository.findDeviceEntitiesByVehicleEntityId(vehicleId);
+    }
 }

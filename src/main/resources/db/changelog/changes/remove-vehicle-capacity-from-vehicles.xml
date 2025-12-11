@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="remove-vehicle-capacity-column-from-vehicles" author="system">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="vehicles" columnName="capacity"/>
+        </preConditions>
+
+        <dropColumn tableName="vehicles" columnName="capacity"/>
+
+        <rollback>
+            <addColumn tableName="vehicles">
+                <column name="capacity" type="DECIMAL(19,2)"/>
+            </addColumn>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

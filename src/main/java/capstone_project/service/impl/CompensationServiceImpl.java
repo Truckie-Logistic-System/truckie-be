@@ -1,6 +1,7 @@
 package capstone_project.service.impl;
 
 import capstone_project.dtos.request.issue.CompensationAssessmentRequest;
+import capstone_project.dtos.response.issue.CompensationAssessmentListResponse;
 import capstone_project.dtos.response.issue.CompensationDetailResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.issue.IssueCompensationAssessmentEntity;
@@ -52,6 +53,58 @@ public class CompensationServiceImpl implements CompensationService {
     
     private static final BigDecimal TEN = BigDecimal.valueOf(10);
     
+    @Override
+    public List<CompensationAssessmentListResponse> getAllCompensationAssessments() {
+        List<IssueCompensationAssessmentEntity> assessments = assessmentRepository.findAll();
+        
+        // Sort by createdAt DESC
+        assessments.sort((a, b) -> {
+            if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
+            if (a.getCreatedAt() == null) return 1;
+            if (b.getCreatedAt() == null) return -1;
+            return b.getCreatedAt().compareTo(a.getCreatedAt());
+        });
+        
+        return assessments.stream()
+                .map(this::mapToListResponse)
+                .collect(Collectors.toList());
+    }
+    
+    private CompensationAssessmentListResponse mapToListResponse(IssueCompensationAssessmentEntity assessment) {
+        IssueEntity issue = assessment.getIssue();
+        UserEntity createdBy = assessment.getCreatedBy();
+        
+        return CompensationAssessmentListResponse.builder()
+                .id(assessment.getId())
+                .issueType(assessment.getIssueType())
+                .hasDocuments(assessment.getHasDocuments())
+                .documentValue(assessment.getDocumentValue())
+                .estimatedMarketValue(assessment.getEstimatedMarketValue())
+                .assessmentRate(assessment.getAssessmentRate())
+                .compensationByPolicy(assessment.getCompensationByPolicy())
+                .finalCompensation(assessment.getFinalCompensation())
+                .fraudDetected(assessment.getFraudDetected())
+                .fraudReason(assessment.getFraudReason())
+                .createdAt(assessment.getCreatedAt())
+                .updatedAt(assessment.getUpdatedAt())
+                .issue(issue != null ? CompensationAssessmentListResponse.IssueInfo.builder()
+                        .id(issue.getId())
+                        .issueTypeName(issue.getIssueTypeEntity() != null ? 
+                                issue.getIssueTypeEntity().getIssueTypeName() : null)
+                        .issueCategory(issue.getIssueTypeEntity() != null ? 
+                                issue.getIssueTypeEntity().getIssueCategory() : null)
+                        .status(issue.getStatus())
+                        .description(issue.getDescription())
+                        .reportedAt(issue.getReportedAt())
+                        .resolvedAt(issue.getResolvedAt())
+                        .build() : null)
+                .createdByStaff(createdBy != null ? CompensationAssessmentListResponse.StaffInfo.builder()
+                        .id(createdBy.getId())
+                        .fullName(createdBy.getFullName())
+                        .email(createdBy.getEmail())
+                        .build() : null)
+                .build();
+    }
     
     @Override
     public CompensationDetailResponse getCompensationDetail(UUID issueId) {

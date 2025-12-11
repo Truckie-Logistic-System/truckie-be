@@ -176,6 +176,8 @@ public class RoleDashboardController {
         try {
             timeRange = DashboardFilterRequest.TimeRange.valueOf(range.toUpperCase());
         } catch (IllegalArgumentException e) {
+            // Default to MONTH if client sends invalid range (e.g. legacy TODAY)
+            log.warn("[DashboardFilter] Invalid range '{}', falling back to MONTH", range);
             timeRange = DashboardFilterRequest.TimeRange.MONTH;
         }
 
@@ -191,14 +193,26 @@ public class RoleDashboardController {
                     to = LocalDateTime.parse(toDate);
                 }
             } catch (Exception e) {
-                log.warn("Failed to parse custom dates: fromDate={}, toDate={}", fromDate, toDate);
+                log.warn("[DashboardFilter] Failed to parse custom dates: fromDate={}, toDate={}", fromDate, toDate);
             }
         }
 
-        return DashboardFilterRequest.builder()
+        DashboardFilterRequest filter = DashboardFilterRequest.builder()
                 .range(timeRange)
                 .fromDate(from)
                 .toDate(to)
                 .build();
+
+        // Debug log to verify WEEK/TODAY behavior
+        try {
+            LocalDateTime start = filter.getStartDate();
+            LocalDateTime end = filter.getEndDate();
+            log.info("[DashboardFilter] rawRange='{}', resolvedRange={}, fromDate={}, toDate={}, startDate={}, endDate={}",
+                    range, timeRange, fromDate, toDate, start, end);
+        } catch (Exception e) {
+            log.warn("[DashboardFilter] Failed to compute start/end for filter: range={}, fromDate={}, toDate={}", range, fromDate, toDate, e);
+        }
+
+        return filter;
     }
 }

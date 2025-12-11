@@ -40,6 +40,8 @@ public interface PenaltyHistoryMapper {
     // VehicleAssignmentEntity ➜ VehicleAssignmentSummary
     @Mapping(source="vehicleEntity.licensePlateNumber", target="vehiclePlateNumber")
     @Mapping(source="vehicleEntity.vehicleTypeEntity.description", target="vehicleTypeDescription")
+    @Mapping(source="vehicleEntity.manufacturer", target="vehicleBrand")
+    @Mapping(source="vehicleEntity.model", target="vehicleModel")
     @Mapping(source="driver1", target="driver1Id", qualifiedByName = "driverToId")
     @Mapping(source="driver1", target="driver1Name", qualifiedByName = "driverToName")
     @Mapping(source="driver1", target="driver1Phone", qualifiedByName = "driverToPhone")

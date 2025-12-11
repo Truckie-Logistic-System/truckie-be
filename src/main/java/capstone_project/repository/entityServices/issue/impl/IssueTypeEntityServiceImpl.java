@@ -40,4 +40,9 @@ public class IssueTypeEntityServiceImpl implements IssueTypeEntityService {
     public IssueTypeEntity findByIssueTypeName(String name) {
         return issueTypeRepository.findByIssueTypeName(name);
     }
+    
+    @Override
+    public IssueTypeEntity findByIssueCategory(String issueCategory) {
+        return issueTypeRepository.findByIssueCategory(issueCategory);
+    }
 }

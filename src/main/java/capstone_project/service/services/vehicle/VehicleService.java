@@ -34,4 +34,14 @@ public interface VehicleService {
     int updateVehicleLocationsInBatch(BatchUpdateLocationRequest batchRequest);
 
     List<VehicleResponse> generateBulkVehicles(Integer count);
+    
+    /**
+     * Get count of vehicles by status
+     */
+    long countVehiclesByStatus(String status);
+    
+    /**
+     * Get count of vehicles by vehicle type
+     */
+    long countVehiclesByType(UUID vehicleTypeId);
 }

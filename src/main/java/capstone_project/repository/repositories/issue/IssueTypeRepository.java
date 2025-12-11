@@ -9,4 +9,6 @@ public interface IssueTypeRepository extends BaseRepository<IssueTypeEntity> {
     List<IssueTypeEntity> findByIssueTypeNameContaining(String name);
 
     IssueTypeEntity findByIssueTypeName(String name);
+    
+    IssueTypeEntity findByIssueCategory(String issueCategory);
 }

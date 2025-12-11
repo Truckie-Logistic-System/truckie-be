@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="add-device-ids-column-to-vehicle-assignments" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="vehicle_assignments" columnName="device_ids"/>
+            </not>
+        </preConditions>
+        
+        <addColumn tableName="vehicle_assignments">
+            <column name="device_ids" type="TEXT">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <rollback>
+            <dropColumn tableName="vehicle_assignments" columnName="device_ids"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="add-comment-device-ids-column" author="system">
+        <setColumnRemarks tableName="vehicle_assignments" 
+                         columnName="device_ids" 
+                         remarks="Comma-separated device IDs attached to this vehicle assignment"/>
+    </changeSet>
+
+</databaseChangeLog>

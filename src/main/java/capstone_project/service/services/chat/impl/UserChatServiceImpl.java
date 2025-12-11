@@ -903,7 +903,6 @@ public class UserChatServiceImpl implements UserChatService {
                     .model(vehicle.getModel())
                     .manufacturer(vehicle.getManufacturer())
                     .year(vehicle.getYear())
-                    .capacity(vehicle.getCapacity())
                     .status(vehicle.getStatus())
                     .vehicleTypeName(vehicle.getVehicleTypeEntity() != null ? 
                             vehicle.getVehicleTypeEntity().getVehicleTypeName() : null)

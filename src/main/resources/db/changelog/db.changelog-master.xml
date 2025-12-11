@@ -16,10 +16,31 @@
         - Risky changes: Drop tables/columns (data đã archive)
     -->
 
-    <!-- STEP 1: Safe changes - Archive data và add constraints -->
-    <include file="db/changelog/diff/db.changelog-diff-safe.xml"/>
+    <!-- STEP 1: Feature changes - Add device_ids to vehicle_assignments -->
+    <include file="db/changelog/changes/add-device-ids-to-vehicle-assignments.xml"/>
 
-    <!-- STEP 2: Risky changes - Drop tables/columns (data đã archive) -->
-    <include file="db/changelog/diff/db.changelog-diff-risky.xml"/>
+    <!-- STEP 2: Cleanup changes - Remove vehicle_capacity from device_types -->
+    <include file="db/changelog/changes/remove-vehicle-capacity-from-device-types.xml"/>
+
+    <!-- STEP 3: Cleanup changes - Remove capacity from vehicles table -->
+    <include file="db/changelog/changes/remove-vehicle-capacity-from-vehicles.xml"/>
+
+    <!-- STEP 4: Add vehicle inspection and insurance tracking fields -->
+    <include file="db/changelog/changes/add-vehicle-insurance-inspection-fields.xml"/>
+
+    <!-- STEP 5: Add missing next_maintenance_date column -->
+    <include file="db/changelog/changes/add-next-maintenance-date-to-vehicles.xml"/>
+
+    <!-- STEP 6: Rename vehicle_maintenance to vehicle_service_record -->
+    <include file="db/migration/V2025031111__Rename_vehicle_maintenance_to_vehicle_service_record.sql"/>
+
+    <!-- STEP 7: Cleanup maintenance_types table and sync DB with code -->
+    <include file="db/migration/V2025121101__Cleanup_maintenance_types_table.sql"/>
+
+    <!-- STEP 8: Sync vehicle_service_record table with entity (rename columns, drop unused) -->
+    <include file="db/migration/V2025121102__Sync_vehicle_service_record_with_entity.sql"/>
+
+    <!-- STEP 9: Add back is_demo_data column (part of BaseEntity) -->
+    <include file="db/migration/V2025121103__Add_back_is_demo_data_column.sql"/>
 
 </databaseChangeLog>

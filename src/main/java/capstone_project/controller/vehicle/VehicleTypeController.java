@@ -49,4 +49,10 @@ public class VehicleTypeController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @PostMapping("/assign-default-fuel-types")
+    public ResponseEntity<ApiResponse<List<VehicleTypeResponse>>> assignDefaultFuelTypesForTruckRange() {
+        final var result = vehicleTypeService.assignDefaultFuelTypesForTruckRange();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }
