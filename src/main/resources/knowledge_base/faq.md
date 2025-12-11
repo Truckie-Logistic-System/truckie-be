@@ -286,6 +286,63 @@ A: Theo Điều 7.4 (Bất khả kháng) và Điều 2.4 (Đóng gói):
 
 ✅ **MIỄN TRỪ** (Điều 351 Bộ luật Dân sự 2015): Trong trường hợp bất khả kháng, hai bên có thể thỏa thuận thay đổi lịch giao hàng nếu thông báo trước 02 ngày.
 
+## 🔒 Về Niêm phong (Seal) và GPS
+
+**Q: Seal (Niêm phong) là gì và tại sao quan trọng?**
+
+A: Seal là **niêm phong bảo mật** dùng để đóng thùng xe/container:
+- **Mục đích**: Đảm bảo hàng hóa không bị mở trộm hay can thiệp trái phép
+- **Thời điểm**: Sau khi xếp hàng xong tại điểm xuất phát
+- **Kiểm tra**: Người nhận kiểm tra seal còn nguyên vẹn trước khi nhận hàng
+- **Cảnh báo**: Nếu seal bị hư hỏng → có thể hàng đã bị mở trộm
+
+**Q: Tôi có nhận được mã Seal không?**
+
+A: **CÓ - TỰ ĐỘNG**:
+- Ngay khi Tài xế cập nhật trạng thái niêm phong lên hệ thống
+- Hệ thống **tự động gửi Email** chứa:
+  - **Mã Seal** (để đối chiếu)
+  - **Ảnh chụp Seal** (bằng chứng)
+- Bạn nên **thông báo mã Seal** cho Người nhận để họ đối chiếu khi nhận hàng
+
+**Q: GPS theo dõi như thế nào?**
+
+A: Hệ thống GPS theo dõi **REAL-TIME** trong suốt quá trình vận chuyển:
+- **Tần suất cập nhật**: Mỗi **60 giây** (1 phút)
+- **Cảnh báo an ninh**: Nếu mất tín hiệu quá **2 phút** → Hệ thống phát cảnh báo
+- **Giám sát 24/7**: Bạn có thể xem vị trí xe bất cứ lúc nào
+- **Chống gian lận**: Tài xế không được tự ý thay đổi tuyến đường
+
+**Q: Tài xế có thể phá Seal không?**
+
+A: **TUYỆT ĐỐI KHÔNG** - trừ khi có sự cho phép từ Staff:
+- Tài xế **KHÔNG ĐƯỢC** tự ý thay đổi hoặc phá Seal
+- Mọi thay đổi phải được **Staff chấp thuận** qua hệ thống
+- Vi phạm → Xử lý kỷ luật nghiêm khắc
+
+---
+
+## 💰 Về Phí Phạt và Hủy Đơn
+
+**Q: Tôi có bị phạt nếu hủy đơn sau khi xe đã xuất phát không?**
+
+A: **CÓ - Giữ lại 100% cước phí đã thanh toán**:
+
+**Các trường hợp áp dụng**:
+1. **Hủy sau xuất phát**: Xe đã lăn bánh hoặc đã đến điểm lấy hàng
+2. **Sai trọng lượng**: Vượt quá tải trọng cho phép HOẶC sai lệch >5% so với khai báo
+3. **Sai quy cách đóng gói**: Hàng dễ vỡ không đóng gói chuẩn (thiếu xốp, nhãn cảnh báo)
+4. **Hàng cấm**: Phát hiện hàng cấm vận chuyển hoặc không có hóa đơn
+
+**Cơ chế xử lý**:
+- Bên Vận Chuyển **giữ lại 100%** số tiền đã thanh toán (Cọc + Thanh toán đầy đủ)
+- **KHÔNG** thu thêm khoản phạt nào khác
+- Khoản tiền coi là phí bồi hoàn chi phí vận hành và phạt vi phạm hợp đồng
+
+⚠️ **LƯU Ý**: Đây là chính sách **TẠI CHỖ** (không thu thêm sau), để đảm bảo công bằng và minh bạch.
+
+---
+
 ## 📦 Về Hàng Hóa
 
 **Q: Trọng lượng hàng hóa tối thiểu và tối đa là bao nhiêu?**
@@ -326,9 +383,13 @@ A: **Theo điều khoản và điều kiện dịch vụ**, trọng lượng v�
 
 A: 
 - **Hàng thông thường**: Thùng carton chắc chắn, băng keo dán kín
-- **Hàng dễ vỡ**: Xốp bọc, đệm giấy/mút, ghi "DỄ VỠ"
+- **Hàng dễ vỡ**: 
+  - ✅ **BẮT BUỘC**: Xốp bọc, đệm giấy/mút, kiện gỗ (nếu cần)
+  - ✅ **BẮT BUỘC**: Ghi rõ nhãn "DỄ VỠ" và "CẢNH BÁO"
+  - ⚠️ **KHÔNG đóng gói đúng cách** → Bị giữ lại 100% cước phí (Phí phạt tại chỗ)
 - **Hàng nguy hiểm**: Tuân thủ quy định đóng gói hóa chất, ghi rõ nhãn
-- **Thực phẩm**: Hộp xốp, túi bảo quản lạnh (nếu cần)
+
+⚠️ **QUAN TRỌNG**: Bên Vận Chuyển có quyền yêu cầu mở kiện hàng để kiểm tra. Nếu khách hàng từ chối → Tài xế có quyền từ chối vận chuyển và hủy đơn.
 
 ## 🔄 Về Đổi/Trả Hàng
 

@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -36,9 +37,6 @@ public class VehicleEntity extends BaseEntity {
     @Column(name = "year")
     private Integer year;
 
-    @Column(name = "capacity")
-    private BigDecimal capacity;
-
     @Size(max = 20)
     @Column(name = "status", length = 20)
     private String status;
@@ -56,4 +54,29 @@ public class VehicleEntity extends BaseEntity {
     @JoinColumn(name = "vehicle_type_id")
     private VehicleTypeEntity vehicleTypeEntity;
 
-}  
+    // ========== Đăng kiểm (Inspection) ==========
+
+    @Column(name = "last_inspection_date")
+    private LocalDate lastInspectionDate;
+
+    @Column(name = "inspection_expiry_date")
+    private LocalDate inspectionExpiryDate;
+
+    // ========== Bảo hiểm (Insurance) ==========
+
+    @Column(name = "insurance_expiry_date")
+    private LocalDate insuranceExpiryDate;
+
+    @Size(max = 50)
+    @Column(name = "insurance_policy_number", length = 50)
+    private String insurancePolicyNumber;
+
+    // ========== Bảo trì (Maintenance) ==========
+
+    @Column(name = "last_maintenance_date")
+    private LocalDate lastMaintenanceDate;
+
+    @Column(name = "next_maintenance_date")
+    private LocalDate nextMaintenanceDate;
+
+}

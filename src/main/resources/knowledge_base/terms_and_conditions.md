@@ -69,55 +69,130 @@ Dịch vụ vận chuyển được thực hiện dựa trên các quy định p
 ## 🛡️ BẢO HIỂM VÀ BỒI THƯỜNG
 
 ### Bảo hiểm hàng hóa (Tùy chọn)
-- Phí bảo hiểm: 0.088% - 0.165% giá trị khai báo (đã bao gồm VAT)
-- Điều kiện bồi thường: Có chứng từ hợp lệ (hóa đơn VAT, hợp đồng mua bán)
-- Mức bồi thường: Tỷ lệ hư hại × Giá trị khai báo
+- **Phí bảo hiểm** (Đã bao gồm VAT 10%):
+  - Hàng thông thường: 0.08% × Giá trị khai báo (chưa VAT) = **0.088%** (có VAT)
+  - Hàng dễ vỡ/Rủi ro cao: 0.15% × Giá trị khai báo (chưa VAT) = **0.165%** (có VAT)
+- **LƯU Ý**: Bên Vận Chuyển chỉ **THU HỘ** phí bảo hiểm cho Công ty Bảo hiểm đối tác
 
-### Giới hạn pháp lý (Không mua bảo hiểm)
-- Mức bồi thường tối đa: 10 lần cước phí vận chuyển
-- Áp dụng khi không có bảo hiểm hoặc không đủ chứng từ
+### BỐN KỊCH BẢN BỒI THƯỜNG
+
+**✅ Kịch bản 1: CÓ Bảo hiểm + CÓ Chứng từ (TỐT NHẤT)**
+- Bồi thường = Tỷ lệ hư hại × Giá trị Khai báo
+- KHÔNG giới hạn theo cước phí
+- Ví dụ: Hàng 100 triệu, hư 40% → Bồi thường **40 triệu VNĐ**
+
+**⚠️ Kịch bản 2: CÓ Bảo hiểm + KHÔNG CÓ Chứng từ**
+- Bảo hiểm bị **VÔ HIỆU HÓA**
+- Áp dụng giới hạn pháp lý: MIN(Thiệt hại ước tính, **10 × Cước phí**)
+- Ví dụ: Hàng 100 triệu, cước 500k → Bồi thường tối đa **5 triệu VNĐ**
+
+**⚠️ Kịch bản 3: KHÔNG CÓ Bảo hiểm + CÓ Chứng từ**
+- Bồi thường = MIN(Thiệt hại theo chứng từ, **10 × Cước phí**)
+- Chứng từ chỉ xác định thiệt hại, KHÔNG tăng giới hạn
+
+**❌ Kịch bản 4: KHÔNG CÓ Bảo hiểm + KHÔNG CÓ Chứng từ (RỦI RO CAO NHẤT)**
+- Bồi thường = MIN(Thiệt hại ước tính theo thị trường, **10 × Cước phí**)
+
+### Nguyên tắc Hoàn trả Cước phí (Pro-rata)
+- **Hư hỏng toàn bộ**: Hoàn 100% cước phí
+- **Hư hỏng một phần**: Hoàn cước phí tương ứng theo tỷ lệ (trọng lượng/kích thước) phần hàng bị hư
 
 ### Quy trình khiếu nại
-- Báo cáo sự cố ngay tại thời điểm nhận hàng
+- Báo cáo sự cố **NGAY TẠI CHỖ** khi nhận hàng
+- TỪ CHỐI ký nhận nếu phát hiện hư hỏng
 - Cung cấp đầy đủ chứng từ trong vòng 7 ngày
+- **Thời hiệu khiếu nại**: Tối đa **03 tháng** (Điều 318 Luật Thương mại 2005)
 - Thời gian xử lý bồi thường: 7-14 ngày
+
+### Quyền Định đoạt Hàng hóa Hư hại (Salvage Rights)
+
+**Khi Bên Vận Chuyển bồi thường 100% giá trị hàng hóa**:
+- Quyền sở hữu hàng hư hỏng **chuyển sang** Bên Vận Chuyển
+- Bên Vận Chuyển có quyền **thanh lý để thu hồi chi phí**
+- Hàng hóa trở thành tài sản của Bên Vận Chuyển
+
+**Nếu Khách hàng muốn nhận lại hàng hư hỏng**:
+- Phải yêu cầu trong vòng **7 ngày** kể từ ngày lập biên bản
+- Sau 7 ngày: Bên Vận Chuyển có quyền **tiêu hủy hoặc thanh lý**
+- Chi phí lưu kho: Khách hàng chịu nếu muốn giữ hàng quá 7 ngày
 
 ---
 
-## 🚛 QUY TRÌNH VẬN HÀNH
+## 🚛 QUY TRÌNH VẬN HÀNH VÀ NIÊM PHONG (SEAL)
 
-### Lấy hàng
-- Tài xế phải kiểm tra hàng hóa cùng Khách hàng
-- Niêm phong seal sau khi xếp hàng xong
-- Chụp ảnh bằng chứng trước khi khởi hành
+### Quy trình tại điểm xuất phát:
+- Trước khi khởi hành, Tài xế thực hiện **checklist kiểm tra** phương tiện và hàng hóa
+- Tài xế quay video/chụp ảnh **công tơ mét (ODO)** trước và sau chuyến đi
+- **Thùng xe/Container phải được niêm phong (Seal)** sau khi xếp hàng xong
+- Tài xế chụp ảnh Seal và cập nhật lên hệ thống
+- **Thông báo Seal tự động**: Hệ thống gửi Email chứa **Mã Seal và Ảnh chụp** cho Khách hàng (Người gửi)
+- Người gửi thông báo mã Seal cho Người nhận để đối chiếu khi nhận hàng
+- **Tài xế TUYỆT ĐỐI KHÔNG được tự ý thay đổi hoặc phá Seal** nếu không có sự cho phép từ Staff
 
-### Vận chuyển
-- Giám sát GPS 24/7
-- Cập nhật vị trí mỗi 60 giây
-- Cấm tự ý thay đổi tuyến đường
+### Giám sát hành trình (GPS):
+- Khách hàng đồng ý cho phép hệ thống thu thập dữ liệu vị trí theo thời gian thực
+- **Tín hiệu GPS cập nhật định kỳ tối thiểu mỗi 60 giây**
+- **Cảnh báo an ninh**: Nếu mất tín hiệu quá **2 phút**
+- **Tài xế không được tự ý thay đổi tuyến đường** đã chỉ định
+- Mọi thay đổi tuyến đường phải được chấp thuận của hệ thống
 
 ### Giao hàng
-- Kiểm tra seal trước khi mở hàng
-- Người nhận ký xác nhận tình trạng hàng hóa
-- Chụp ảnh bằng chứng giao hàng
+- Kiểm tra **tình trạng Niêm phong (Seal)** trước khi mở hàng
+- Người nhận kiểm tra số lượng kiện hàng
+- Ký xác nhận (ký giấy hoặc ký điện tử)
+- **Đơn hàng chỉ Hoàn tất** khi có:
+  - Ảnh chụp bằng chứng giao hàng (Proof of Delivery)
+  - Dữ liệu định vị tại điểm giao
 
 ---
 
 ## 📦 TRẢ HÀNG VÀ XỬ LÝ HÀNG HÓA
 
-### Trường hợp trả hàng
-- Giao hàng thất bại do người nhận từ chối
+### Quy trình Trả hàng (Return Policy)
+
+**Trường hợp kích hoạt**:
+- Người nhận từ chối nhận hàng
 - Không liên lạc được với người nhận
 - Địa chỉ không chính xác
 
-### Quy định về phí trả hàng
-- Khách hàng thanh toán 100% cước phí chiều về
-- Quá hạn 30 phút không thanh toán: Bên Vận Chuyển có quyền xử lý hàng hóa
+**Bước 1: Kích hoạt quy trình hoàn trả**
+- Lái xe báo ngay cho nhân viên với **lý do cụ thể**
+- Hệ thống ghi nhận log lý do trả hàng
+- Quy trình hoàn trả hàng về điểm xuất phát được kích hoạt
 
-### Quyền định đoạt hàng hóa
-- Theo Điều 350 Bộ luật Dân sự 2015
-- Bên Vận Chuyển được quyền thanh lý hàng hóa để bù đắp chi phí
-- Miễn trừ trách nhiệm bảo quản hàng hóa trong trường hợp này
+**Bước 2: Thanh toán cước phí chiều về**
+- Khách hàng (Bên gửi) **BẮT BUỘC thanh toán 100% cước phí vận chuyển chiều về**
+- Nhân viên gửi yêu cầu thanh toán qua hệ thống
+- **Thời hạn thanh toán: 30 PHÚT** kể từ lúc gửi yêu cầu
+
+**Bước 3: Quyền định đoạt hàng hóa (Điều 350 Bộ luật Dân sự 2015)**
+
+**Nếu Khách hàng KHÔNG thanh toán trong 30 phút**:
+- Bên Vận Chuyển có quyền **HỦY việc trả hàng**
+- Bên Vận Chuyển có quyền:
+  - **Từ chối vận chuyển** hàng quay lại
+  - **Để lại hàng hóa tại địa điểm giao** HOẶC **đưa về kho thanh lý** bù đắp chi phí
+  - **Miễn trừ hoàn toàn trách nhiệm bảo quản** đối với lô hàng này
+
+**Ví dụ thực tế**:
+- Cước phí chiều về: 800.000 VNĐ
+- Thời hạn thanh toán: 30 phút
+- Nếu không thanh toán → Hàng bị giữ lại tại điểm giao hoặc đưa về kho thanh lý
+
+---
+
+## 💰 CHÍNH SÁCH PHÍ PHẠT VÀ TỪ CHỐI PHỤC VỤ (TẠI CHỖ)
+
+### Các trường hợp áp dụng:
+- **Hủy sau khi xuất phát**: Xe đã lăn bánh hoặc đã đến điểm lấy hàng
+- **Sai lệch trọng lượng**: Vượt quá tải trọng cho phép HOẶC vượt quá 5% so với khai báo
+- **Sai quy cách đóng gói**: Hàng dễ vỡ không đóng gói chuẩn (thiếu xốp, kiện gỗ, nhãn cảnh báo)
+- **Hàng cấm**: Phát hiện hàng thuộc danh mục cấm vận chuyển hoặc không có hóa đơn chứng từ
+
+### Cơ chế xử lý tài chính:
+- **Giữ lại 100% cước phí**: Toàn bộ số tiền đã thanh toán (Tiền Cọc + Khoản thanh toán còn lại)
+- **Nguyên tắc**: KHÔNG thu thêm khoản phạt nào khác
+- Khoản tiền được coi là phí bồi hoàn chi phí vận hành và phạt vi phạm hợp đồng
 
 ---
 

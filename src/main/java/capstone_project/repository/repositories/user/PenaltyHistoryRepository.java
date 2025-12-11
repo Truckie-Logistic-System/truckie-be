@@ -41,4 +41,20 @@ public interface PenaltyHistoryRepository
         WHERE ph.id = :id
         """)
     Optional<PenaltyHistoryEntity> findDetailById(@Param("id") UUID id);
+
+    @Query("""
+        SELECT ph FROM PenaltyHistoryEntity ph
+        JOIN FETCH ph.vehicleAssignmentEntity va
+        LEFT JOIN FETCH va.vehicleEntity v
+        LEFT JOIN FETCH v.vehicleTypeEntity
+        LEFT JOIN FETCH va.driver1 d1
+        LEFT JOIN FETCH d1.user u1
+        LEFT JOIN FETCH va.driver2 d2
+        LEFT JOIN FETCH d2.user u2
+        LEFT JOIN FETCH ph.issueBy issueBy
+        LEFT JOIN FETCH issueBy.user issueByUser
+        WHERE v.id = :vehicleId
+        ORDER BY ph.penaltyDate DESC
+        """)
+    List<PenaltyHistoryEntity> findByVehicleId(@Param("vehicleId") UUID vehicleId);
 }

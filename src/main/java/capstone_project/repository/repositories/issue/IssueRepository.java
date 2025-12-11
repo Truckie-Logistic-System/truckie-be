@@ -113,4 +113,14 @@ public interface IssueRepository extends BaseRepository<IssueEntity> {
            "WHERE (i.vehicleAssignmentEntity.driver1.id = :driverId OR i.vehicleAssignmentEntity.driver2.id = :driverId) " +
            "AND i.reportedAt BETWEEN :startDate AND :endDate")
     Long countByDriverIdAndReportedAtBetween(@Param("driverId") UUID driverId, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    
+    /**
+     * Find penalty issue by vehicle assignment ID
+     * Used to get location for penalty history
+     */
+    @Query("SELECT i FROM IssueEntity i " +
+           "JOIN FETCH i.issueTypeEntity it " +
+           "WHERE i.vehicleAssignmentEntity.id = :vehicleAssignmentId " +
+           "AND it.issueCategory = 'PENALTY'")
+    Optional<IssueEntity> findPenaltyIssueByVehicleAssignment(@Param("vehicleAssignmentId") UUID vehicleAssignmentId);
 }

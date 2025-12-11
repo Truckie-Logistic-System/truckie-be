@@ -35,7 +35,7 @@ public class DashboardFilterRequest {
         
         LocalDateTime now = LocalDateTime.now();
         return switch (range) {
-            case WEEK -> now.minusDays(7).toLocalDate().atStartOfDay();
+            case WEEK -> now.minusDays(6).toLocalDate().atStartOfDay(); // 7 days including today
             case MONTH -> now.minusMonths(1).toLocalDate().atStartOfDay();
             case YEAR -> now.minusYears(1).toLocalDate().atStartOfDay();
             case CUSTOM -> fromDate != null ? fromDate : now.minusMonths(1).toLocalDate().atStartOfDay();

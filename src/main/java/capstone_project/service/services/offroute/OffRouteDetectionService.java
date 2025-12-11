@@ -1,16 +1,23 @@
 package capstone_project.service.services.offroute;
 
 import capstone_project.dtos.response.offroute.OffRouteEventDetailResponse;
+import capstone_project.dtos.response.offroute.OffRouteEventListResponse;
 import capstone_project.dtos.response.offroute.OffRouteWarningPayload;
 import capstone_project.entity.offroute.OffRouteEventEntity;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * Service interface for off-route detection and management
  */
 public interface OffRouteDetectionService {
+    
+    /**
+     * Get all off-route events for staff (sorted by createdAt DESC)
+     */
+    List<OffRouteEventListResponse> getAllOffRouteEvents();
 
     /**
      * Process a location update for off-route detection

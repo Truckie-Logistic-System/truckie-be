@@ -19,11 +19,13 @@ public interface DeviceMapper {
 
     @Mapping(target = "deviceTypeEntity", source = "deviceTypeId", qualifiedByName = "deviceTypeFromId")
     @Mapping(target = "vehicleEntity", source = "vehicleId", qualifiedByName = "vehicleFromId")
+    @Mapping(target = "installedAt", expression = "java(deviceRequest.installedAt() != null ? deviceRequest.installedAt().atStartOfDay() : null)")
     DeviceEntity mapRequestToEntity(final DeviceRequest deviceRequest);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "deviceTypeEntity", source = "deviceTypeId", qualifiedByName = "deviceTypeFromId")
     @Mapping(target = "vehicleEntity", source = "vehicleId", qualifiedByName = "vehicleFromId")
+    @Mapping(target = "installedAt", expression = "java(request.installedAt() != null ? request.installedAt().atStartOfDay() : entity.getInstalledAt())")
     void toDeviceEntity(UpdateDeviceRequest request, @MappingTarget DeviceEntity entity);
 
     @Named("deviceTypeFromId")

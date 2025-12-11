@@ -258,4 +258,17 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
      * @return Optional containing the vehicle assignment if found, or empty if not found
      */
     Optional<VehicleAssignmentEntity> findByTrackingCode(String trackingCode);
+    
+    /**
+     * Get top N drivers for a vehicle (as driver1) ordered by trip count
+     */
+    @Query("""
+        SELECT va.driver1.id, va.driver1.user.fullName, va.driver1.user.phoneNumber, va.driver1.status, COUNT(va.id) as tripCount
+        FROM VehicleAssignmentEntity va
+        WHERE va.vehicleEntity.id = :vehicleId
+        AND va.driver1 IS NOT NULL
+        GROUP BY va.driver1.id, va.driver1.user.fullName, va.driver1.user.phoneNumber, va.driver1.status
+        ORDER BY tripCount DESC
+        """)
+    List<Object[]> findTopDriversForVehicle(@Param("vehicleId") UUID vehicleId);
 }

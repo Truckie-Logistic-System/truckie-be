@@ -14,6 +14,9 @@ public class VehicleAssignmentSummary {
     private String status;
     private String vehiclePlateNumber;
     private String vehicleTypeDescription;
+    private String vehicleName;
+    private String vehicleBrand;
+    private String vehicleModel;
     
     private UUID driver1Id;
     private String driver1Name;

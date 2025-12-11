@@ -40,4 +40,7 @@ public class VehicleAssignmentEntity extends BaseEntity {
     @JoinColumn(name = "driver_id_2")
     private DriverEntity driver2;
 
+    @Column(name = "device_ids", length = Integer.MAX_VALUE)
+    private String deviceIds;  // Comma-separated device IDs
+
 }

@@ -1,11 +1,19 @@
 package capstone_project.service;
 
 import capstone_project.dtos.request.issue.CompensationAssessmentRequest;
+import capstone_project.dtos.response.issue.CompensationAssessmentListResponse;
 import capstone_project.dtos.response.issue.CompensationDetailResponse;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface CompensationService {
+    
+    /**
+     * Get all compensation assessments for staff (sorted by createdAt DESC)
+     * @return List of CompensationAssessmentListResponse
+     */
+    List<CompensationAssessmentListResponse> getAllCompensationAssessments();
     
     /**
      * Get compensation detail for an issue

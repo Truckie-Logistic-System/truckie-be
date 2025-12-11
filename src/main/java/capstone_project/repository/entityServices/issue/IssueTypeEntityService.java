@@ -10,4 +10,6 @@ public interface IssueTypeEntityService extends BaseEntityService<IssueTypeEntit
     List<IssueTypeEntity> findByIssueTypeNameContaining(String name);
 
     IssueTypeEntity findByIssueTypeName(String name);
+    
+    IssueTypeEntity findByIssueCategory(String issueCategory);
 }

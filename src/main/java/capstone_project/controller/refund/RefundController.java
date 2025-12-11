@@ -3,6 +3,7 @@ package capstone_project.controller.refund;
 import capstone_project.dtos.request.refund.ProcessRefundRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.refund.GetRefundResponse;
+import capstone_project.dtos.response.refund.StaffRefundResponse;
 import capstone_project.service.services.refund.RefundService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -60,6 +62,28 @@ public class RefundController {
     @GetMapping("/issue/{issueId}")
     public ResponseEntity<ApiResponse<GetRefundResponse>> getRefundByIssueId(@PathVariable("issueId") UUID issueId) {
         final var result = refundService.getRefundByIssueId(issueId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Get all refunds for staff management
+     * Returns list sorted by newest first (createdAt DESC)
+     */
+    @GetMapping("/staff/list")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<StaffRefundResponse>>> getAllRefundsForStaff() {
+        final var result = refundService.getAllRefundsForStaff();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Get refund detail for staff with full information
+     * Includes issue, order, vehicle assignment, and transaction details
+     */
+    @GetMapping("/staff/{refundId}")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<StaffRefundResponse>> getRefundDetailForStaff(@PathVariable UUID refundId) {
+        final var result = refundService.getRefundDetailForStaff(refundId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }

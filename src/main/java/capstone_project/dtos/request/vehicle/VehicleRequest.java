@@ -1,10 +1,8 @@
 package capstone_project.dtos.request.vehicle;
 
 import capstone_project.common.enums.VehicleStatusEnum;
-import capstone_project.common.enums.VehicleTypeEnum;
 import capstone_project.common.enums.enumValidator.EnumValidator;
 import jakarta.validation.constraints.*;
-import java.math.BigDecimal;
 
 public record VehicleRequest(
         @NotBlank(message = "License plate number is required")
@@ -19,10 +17,6 @@ public record VehicleRequest(
         @NotNull(message = "Year is required")
         @Min(value = 1900, message = "Year must be valid")
         Integer year,
-
-        @NotNull(message = "Capacity is required")
-        @DecimalMin(value = "0.0", inclusive = true, message = "Capacity must be >= 0")
-        BigDecimal capacity,
 
         @NotBlank(message = "Status is required")
         @EnumValidator(enumClass = VehicleStatusEnum.class, message = "Invalid status for vehicle")

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -126,4 +127,66 @@ public interface VehicleRepository extends BaseRepository<VehicleEntity> {
             @Param("id4") UUID id4, @Param("lat4") BigDecimal lat4, @Param("lng4") BigDecimal lng4,
             @Param("id5") UUID id5, @Param("lat5") BigDecimal lat5, @Param("lng5") BigDecimal lng5,
             @Param("lastUpdated") LocalDateTime lastUpdated);
+    
+    /**
+     * Count vehicles by vehicle type ID
+     */
+    long countByVehicleTypeEntityId(UUID vehicleTypeId);
+    
+    /**
+     * Count vehicles by status
+     */
+    long countByStatus(String status);
+
+    /**
+     * Tìm xe có đăng kiểm hết hạn (inspectionExpiryDate < today)
+     */
+    @Query("SELECT v FROM VehicleEntity v WHERE v.inspectionExpiryDate IS NOT NULL AND v.inspectionExpiryDate < :today")
+    List<VehicleEntity> findVehiclesWithExpiredInspection(@Param("today") LocalDate today);
+
+    /**
+     * Tìm xe có bảo hiểm hết hạn (insuranceExpiryDate < today)
+     */
+    @Query("SELECT v FROM VehicleEntity v WHERE v.insuranceExpiryDate IS NOT NULL AND v.insuranceExpiryDate < :today")
+    List<VehicleEntity> findVehiclesWithExpiredInsurance(@Param("today") LocalDate today);
+
+    /**
+     * Tìm xe có đăng kiểm sắp hết hạn (trong vòng N ngày)
+     */
+    @Query("SELECT v FROM VehicleEntity v WHERE v.inspectionExpiryDate IS NOT NULL " +
+           "AND v.inspectionExpiryDate >= :today AND v.inspectionExpiryDate <= :warningDate")
+    List<VehicleEntity> findVehiclesWithInspectionExpiringSoon(
+            @Param("today") LocalDate today, @Param("warningDate") LocalDate warningDate);
+
+    /**
+     * Tìm xe có bảo hiểm sắp hết hạn (trong vòng N ngày)
+     */
+    @Query("SELECT v FROM VehicleEntity v WHERE v.insuranceExpiryDate IS NOT NULL " +
+           "AND v.insuranceExpiryDate >= :today AND v.insuranceExpiryDate <= :warningDate")
+    List<VehicleEntity> findVehiclesWithInsuranceExpiringSoon(
+            @Param("today") LocalDate today, @Param("warningDate") LocalDate warningDate);
+
+    /**
+     * Tìm xe có bảo trì sắp đến hạn (trong vòng N ngày)
+     */
+    @Query("SELECT v FROM VehicleEntity v WHERE v.nextMaintenanceDate IS NOT NULL " +
+           "AND v.nextMaintenanceDate >= :today AND v.nextMaintenanceDate <= :warningDate")
+    List<VehicleEntity> findVehiclesWithMaintenanceDueSoon(
+            @Param("today") LocalDate today, @Param("warningDate") LocalDate warningDate);
+
+    /**
+     * Tìm xe ACTIVE và có đăng kiểm + bảo hiểm còn hạn (dùng cho gợi ý phân công)
+     */
+    @Query("SELECT v FROM VehicleEntity v WHERE v.status = 'ACTIVE' " +
+           "AND (v.inspectionExpiryDate IS NULL OR v.inspectionExpiryDate >= :today) " +
+           "AND (v.insuranceExpiryDate IS NULL OR v.insuranceExpiryDate >= :today)")
+    List<VehicleEntity> findAvailableVehiclesForAssignment(@Param("today") LocalDate today);
+
+    /**
+     * Batch update status cho nhiều xe
+     */
+    @Modifying
+    @Transactional
+    @Query("UPDATE VehicleEntity v SET v.status = :status WHERE v.id IN :vehicleIds")
+    int updateStatusForVehicles(@Param("vehicleIds") List<UUID> vehicleIds, @Param("status") String status);
 }

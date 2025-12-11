@@ -90,9 +90,11 @@ Hệ thống tự động chọn xe nhỏ nhất đủ chở để tối ưu chi
 
 **Phí BH = Giá trị Khai báo × Tỷ lệ BH × (1 + 10% VAT)**
 
+**LƯU Ý**: Bên Vận Chuyển chỉ **THU HỘ** phí bảo hiểm cho Công ty Bảo hiểm đối tác, không tự ý định đoạt mức phí hay thuế suất.
+
 ### Tỷ Lệ Phí Bảo Hiểm
 
-| Loại Hàng | Tỷ lệ (chưa VAT) | Tỷ lệ (có VAT) | Ví dụ (100 triệu VNĐ) |
+| Loại Hàng | Tỷ lệ (chưa VAT) | Tỷ lệ (có VAT 10%) | Ví dụ (100 triệu VNĐ) |
 |-----------|------------------|----------------|----------------------|
 | **Hàng thông thường** | 0.08% | 0.088% | 88.000 VNĐ |
 | **Hàng dễ vỡ/Rủi ro cao** | 0.15% | 0.165% | 165.000 VNĐ |
@@ -106,14 +108,24 @@ Hệ thống tự động chọn xe nhỏ nhất đủ chở để tối ưu chi
 3. VAT = 300.000 × 10% = **30.000 VNĐ**
 4. **Tổng phí BH = 330.000 VNĐ** (hoặc 200.000.000 × 0.165%)
 
-### Quyền Lợi Khi Mua Bảo Hiểm
+### BỐN KỊCH BẢN BỒI THƯỜNG
 
-✅ **CÓ MUA BẢO HIỂM + CÓ CHỨNG TỪ**:
+**✅ Kịch bản 1: CÓ Bảo hiểm + CÓ Chứng từ (TỐT NHẤT)**
 - Bồi thường = Tỷ lệ hư hại × Giá trị Khai báo
+- KHÔNG giới hạn theo cước phí
 - **Ví dụ**: Hàng 100 triệu, hư 50% → Bồi thường **50 triệu VNĐ**
 
-❌ **KHÔNG MUA BẢO HIỂM** (hoặc không có chứng từ):
-- Bồi thường tối đa = **10 × Cước phí vận chuyển**
+**⚠️ Kịch bản 2: CÓ Bảo hiểm + KHÔNG CÓ Chứng từ**
+- Bảo hiểm bị **VÔ HIỆU HÓA**
+- Bồi thường tối đa = **10 × Cước phí**
+- **Ví dụ**: Hàng 100 triệu, cước 500k → Bồi thường tối đa **5 triệu VNĐ**
+
+**⚠️ Kịch bản 3: KHÔNG CÓ Bảo hiểm + CÓ Chứng từ**
+- Bồi thường = MIN(Thiệt hại theo chứng từ, **10 × Cước phí**)
+- Chứng từ chỉ xác định thiệt hại, KHÔNG tăng giới hạn
+
+**❌ Kịch bản 4: KHÔNG CÓ Bảo hiểm + KHÔNG CÓ Chứng từ (RỦI RO CAO NHẤT)**
+- Bồi thường = MIN(Thiệt hại ước tính theo thị trường, **10 × Cước phí**)
 - **Ví dụ**: Cước 500.000 VNĐ → Bồi thường tối đa **5 triệu VNĐ** (dù hàng 100 triệu)
 
 ⚠️ **QUAN TRỌNG**: Khách hàng **BẮT BUỘC** cung cấp **Hóa đơn VAT, chứng từ mua bán** chứng minh giá trị hàng khi xảy ra sự cố. Nếu không → Bảo hiểm bị **VÔ HIỆU HÓA**.

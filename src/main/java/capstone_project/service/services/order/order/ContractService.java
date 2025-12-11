@@ -8,6 +8,7 @@ import capstone_project.dtos.response.order.contract.BothOptimalAndRealisticAssi
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
+import capstone_project.dtos.response.order.contract.StaffContractResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.user.address.AddressEntity;
 
@@ -55,4 +56,16 @@ public interface ContractService {
     void deleteContractByOrderId(UUID orderId);
 
     List<ContractRuleAssignResponse> assignVehiclesWithAvailability(UUID orderId);
+
+    /**
+     * Get all contracts with full details for staff management
+     * Includes order info, staff info, transactions, computed values
+     */
+    List<StaffContractResponse> getAllContractsForStaff();
+
+    /**
+     * Get contract detail with full information for staff
+     * Includes order info, staff info, transactions, computed values
+     */
+    StaffContractResponse getContractDetailForStaff(UUID contractId);
 }

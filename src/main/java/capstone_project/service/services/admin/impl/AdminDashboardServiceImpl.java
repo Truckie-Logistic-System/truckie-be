@@ -14,7 +14,7 @@ import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
 import capstone_project.repository.repositories.device.DeviceRepository;
 import capstone_project.repository.repositories.vehicle.VehicleRepository;
 import capstone_project.repository.repositories.vehicle.VehicleAssignmentRepository;
-import capstone_project.repository.repositories.vehicle.VehicleMaintenanceRepository;
+import capstone_project.repository.repositories.vehicle.VehicleServiceRecordRepository;
 import capstone_project.service.services.admin.AdminDashboardService;
 import capstone_project.service.services.ai.GeminiService;
 import capstone_project.service.services.ai.GeminiService.ChatMessage;
@@ -43,7 +43,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private final VehicleAssignmentRepository vehicleAssignmentRepository;
     private final VehicleRepository vehicleRepository;
     private final DeviceRepository deviceRepository;
-    private final VehicleMaintenanceRepository vehicleMaintenanceRepository;
+    private final VehicleServiceRecordRepository vehicleServiceRecordRepository;
     private final PenaltyHistoryRepository penaltyHistoryRepository;
     private final GeminiService geminiService;
 

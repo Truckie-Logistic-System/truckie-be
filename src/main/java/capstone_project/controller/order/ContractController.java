@@ -8,6 +8,7 @@ import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.contract.BothOptimalAndRealisticAssignVehiclesResponse;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
+import capstone_project.dtos.response.order.contract.StaffContractResponse;
 import capstone_project.service.services.order.order.ContractService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -115,6 +116,28 @@ public class ContractController {
     @PostMapping("/generate-and-save-pdf")
     public ResponseEntity<ApiResponse<ContractResponse>> generateAndSavePdf(@RequestBody @Valid GenerateContractPdfRequest request) {
         final var result = contractService.generateAndSaveContractPdf(request);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Get all contracts with full details for staff management
+     * Returns order info, staff info, computed values (effectiveValue, paidAmount, remainingAmount)
+     */
+    @GetMapping("/staff/list")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<StaffContractResponse>>> getAllContractsForStaff() {
+        final var result = contractService.getAllContractsForStaff();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Get contract detail with full information for staff
+     * Includes order info, staff info, transactions, computed values
+     */
+    @GetMapping("/staff/{id}")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<StaffContractResponse>> getContractDetailForStaff(@PathVariable UUID id) {
+        final var result = contractService.getContractDetailForStaff(id);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 

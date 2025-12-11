@@ -8,7 +8,7 @@ import java.util.UUID;
 /**
  * Full vehicle assignment response with all related data for staff detail page
  * Includes: vehicle, drivers, penalties, fuel consumption, seals, journey histories, 
- * photo completions, issues, order details, and order info
+ * photo completions, issues, order details, order info, and devices
  */
 public record StaffVehicleAssignmentFullResponse(
     UUID id,
@@ -25,5 +25,16 @@ public record StaffVehicleAssignmentFullResponse(
     List<String> photoCompletions,
     List<SimpleIssueResponse> issues,
     List<StaffOrderDetailResponse> orderDetails,
-    SimpleOrderInfo order
-) {}
+    SimpleOrderInfo order,
+    List<DeviceInfo> devices
+) {
+    public record DeviceInfo(
+        UUID id,
+        String deviceCode,
+        String manufacturer,
+        String model,
+        String ipAddress,
+        String firmwareVersion,
+        String deviceTypeName
+    ) {}
+}

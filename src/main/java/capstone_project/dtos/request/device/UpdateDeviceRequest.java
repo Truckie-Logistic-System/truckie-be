@@ -3,7 +3,7 @@ package capstone_project.dtos.request.device;
 import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.enumValidator.EnumValidator;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 public record UpdateDeviceRequest(
         String deviceCode,
@@ -14,7 +14,7 @@ public record UpdateDeviceRequest(
         String status,
         String ipAddress,
         String firmwareVersion,
-        LocalDateTime installedAt,
+        LocalDate installedAt,
 
         String deviceTypeId,
         String vehicleId

@@ -15,6 +15,7 @@ import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
 import capstone_project.dtos.request.order.contract.GenerateContractPdfRequest;
 import capstone_project.dtos.response.order.contract.*;
 import capstone_project.entity.auth.UserEntity;
+import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
 import capstone_project.entity.order.order.CategoryPricingDetailEntity;
@@ -24,7 +25,6 @@ import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.pricing.BasingPriceEntity;
 import capstone_project.entity.pricing.DistanceRuleEntity;
 import capstone_project.entity.pricing.SizeRuleEntity;
-import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.repository.entityServices.auth.impl.UserEntityServiceImpl;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractRuleEntityService;
@@ -39,6 +39,8 @@ import capstone_project.repository.repositories.order.order.OrderRepository;
 import capstone_project.repository.repositories.order.contract.ContractRuleRepository;
 import capstone_project.repository.repositories.user.DriverRepository;
 import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
+import capstone_project.repository.entityServices.order.transaction.TransactionEntityService;
+import capstone_project.entity.order.transaction.TransactionEntity;
 import capstone_project.service.services.vehicle.VehicleReservationService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.repository.repositories.vehicle.VehicleAssignmentRepository;
@@ -91,6 +93,7 @@ public class ContractServiceImpl implements ContractService {
     private final capstone_project.repository.entityServices.auth.UserEntityService userEntityService; // For staff notifications
     private final VehicleReservationService vehicleReservationService;
     private final VehicleAssignmentRepository vehicleAssignmentRepository;
+    private final TransactionEntityService transactionEntityService;
     
     private capstone_project.service.services.pdf.PdfGenerationService pdfGenerationService;
 
@@ -123,7 +126,8 @@ public class ContractServiceImpl implements ContractService {
             UserEntityServiceImpl userEntityServiceImpl,
             capstone_project.repository.entityServices.auth.UserEntityService userEntityService,
             VehicleReservationService vehicleReservationService,
-            VehicleAssignmentRepository vehicleAssignmentRepository
+            VehicleAssignmentRepository vehicleAssignmentRepository,
+            TransactionEntityService transactionEntityService
     ) {
         this.contractEntityService = contractEntityService;
         this.contractRuleEntityService = contractRuleEntityService;
@@ -148,6 +152,7 @@ public class ContractServiceImpl implements ContractService {
         this.userEntityService = userEntityService;
         this.vehicleReservationService = vehicleReservationService;
         this.vehicleAssignmentRepository = vehicleAssignmentRepository;
+        this.transactionEntityService = transactionEntityService;
     }
 
     @Autowired
@@ -1552,5 +1557,143 @@ public class ContractServiceImpl implements ContractService {
         
         // Set deadline using configurable days before pickup
         contract.setFullPaymentDeadline(earliestPickupTime.minusDays(contractSetting.fullPaymentDaysBeforePickup()));
+    }
+
+    @Override
+    public List<StaffContractResponse> getAllContractsForStaff() {
+        List<ContractEntity> contracts = contractEntityService.findAll();
+
+        // Sort by createdAt DESC to show newest contracts first
+        return contracts.stream()
+                .sorted(Comparator.comparing(ContractEntity::getCreatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(this::mapToStaffContractResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public StaffContractResponse getContractDetailForStaff(UUID contractId) {
+        ContractEntity contract = contractEntityService.findEntityById(contractId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Contract not found: " + contractId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        return mapToStaffContractResponseWithTransactions(contract);
+    }
+
+    /**
+     * Map ContractEntity to StaffContractResponse (for list view - without transactions)
+     */
+    private StaffContractResponse mapToStaffContractResponse(ContractEntity contract) {
+        OrderEntity order = contract.getOrderEntity();
+        UserEntity staff = contract.getStaff();
+        
+        // Calculate effective value (adjustedValue if > 0, else totalValue)
+        BigDecimal effectiveValue = (contract.getAdjustedValue() != null && 
+                contract.getAdjustedValue().compareTo(BigDecimal.ZERO) > 0) 
+                ? contract.getAdjustedValue() 
+                : contract.getTotalValue();
+        
+        // Get paid amount
+        BigDecimal paidAmount = transactionEntityService.sumPaidAmountByContractId(contract.getId());
+        if (paidAmount == null) paidAmount = BigDecimal.ZERO;
+        
+        // Calculate remaining
+        BigDecimal remaining = effectiveValue != null ? effectiveValue.subtract(paidAmount) : BigDecimal.ZERO;
+        if (remaining.compareTo(BigDecimal.ZERO) < 0) remaining = BigDecimal.ZERO;
+        
+        // Get sender info from CustomerEntity -> UserEntity
+        String senderName = null;
+        String senderPhone = null;
+        if (order != null && order.getSender() != null && order.getSender().getUser() != null) {
+            senderName = order.getSender().getUser().getFullName();
+            senderPhone = order.getSender().getUser().getPhoneNumber();
+        }
+        
+        return StaffContractResponse.builder()
+                .id(contract.getId())
+                .contractName(contract.getContractName())
+                .status(contract.getStatus())
+                .description(contract.getDescription())
+                .attachFileUrl(contract.getAttachFileUrl())
+                .createdAt(contract.getCreatedAt())
+                .effectiveDate(contract.getEffectiveDate())
+                .expirationDate(contract.getExpirationDate())
+                .signingDeadline(contract.getSigningDeadline())
+                .depositPaymentDeadline(contract.getDepositPaymentDeadline())
+                .fullPaymentDeadline(contract.getFullPaymentDeadline())
+                .totalValue(contract.getTotalValue())
+                .adjustedValue(contract.getAdjustedValue())
+                .effectiveValue(effectiveValue)
+                .paidAmount(paidAmount)
+                .remainingAmount(remaining)
+                .order(order != null ? StaffContractResponse.OrderInfo.builder()
+                        .id(order.getId())
+                        .orderCode(order.getOrderCode())
+                        .status(order.getStatus())
+                        .senderName(senderName)
+                        .senderPhone(senderPhone)
+                        .receiverName(order.getReceiverName())
+                        .receiverPhone(order.getReceiverPhone())
+                        .pickupAddress(order.getPickupAddress() != null ? buildAddressString(order.getPickupAddress()) : null)
+                        .deliveryAddress(order.getDeliveryAddress() != null ? buildAddressString(order.getDeliveryAddress()) : null)
+                        .createdAt(order.getCreatedAt())
+                        .build() : null)
+                .staff(staff != null ? StaffContractResponse.StaffInfo.builder()
+                        .id(staff.getId())
+                        .fullName(staff.getFullName())
+                        .email(staff.getEmail())
+                        .phoneNumber(staff.getPhoneNumber())
+                        .build() : null)
+                .build();
+    }
+
+    /**
+     * Map ContractEntity to StaffContractResponse with transactions (for detail view)
+     */
+    private StaffContractResponse mapToStaffContractResponseWithTransactions(ContractEntity contract) {
+        StaffContractResponse response = mapToStaffContractResponse(contract);
+        
+        // Get transactions
+        List<TransactionEntity> transactions = transactionEntityService.findByContractId(contract.getId());
+        
+        List<StaffContractResponse.TransactionInfo> transactionInfos = transactions.stream()
+                .map(tx -> StaffContractResponse.TransactionInfo.builder()
+                        .id(tx.getId())
+                        .transactionType(tx.getTransactionType())
+                        .amount(tx.getAmount())
+                        .status(tx.getStatus())
+                        .paymentProvider(tx.getPaymentProvider())
+                        .currencyCode(tx.getCurrencyCode())
+                        .paymentDate(tx.getPaymentDate())
+                        .createdAt(tx.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+        
+        response.setTransactions(transactionInfos);
+        
+        return response;
+    }
+
+    /**
+     * Build full address string from AddressEntity fields
+     */
+    private String buildAddressString(AddressEntity address) {
+        if (address == null) return null;
+        
+        StringBuilder sb = new StringBuilder();
+        if (address.getStreet() != null && !address.getStreet().isEmpty()) {
+            sb.append(address.getStreet());
+        }
+        if (address.getWard() != null && !address.getWard().isEmpty()) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(address.getWard());
+        }
+        if (address.getProvince() != null && !address.getProvince().isEmpty()) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(address.getProvince());
+        }
+        return sb.length() > 0 ? sb.toString() : null;
     }
 }

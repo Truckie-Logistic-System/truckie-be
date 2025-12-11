@@ -39,6 +39,18 @@ public class AdminDashboardResponse {
     // Fleet Health
     private FleetHealthSummary fleetHealth;
     
+    // Device Statistics
+    private DeviceStatistics deviceStatistics;
+    
+    // Fuel Consumption Statistics
+    private FuelConsumptionStatistics fuelConsumptionStatistics;
+    
+    // Penalties Statistics
+    private PenaltiesStatistics penaltiesStatistics;
+    
+    // Vehicles Due for Inspection/Maintenance
+    private List<VehicleInspectionAlert> vehicleInspectionAlerts;
+    
     // Order Status Distribution
     private Map<String, Long> orderStatusDistribution;
     
@@ -121,6 +133,7 @@ public class AdminDashboardResponse {
     public static class FleetHealthSummary {
         private long totalVehicles;
         private long activeVehicles;
+        private long inUseVehicles;
         private long inMaintenanceVehicles;
         private long pendingMaintenanceVehicles;
         private long overdueMaintenanceVehicles;
@@ -148,5 +161,53 @@ public class AdminDashboardResponse {
         private List<TrendDataPoint> customerRegistrations;
         private List<TrendDataPoint> staffRegistrations;
         private List<TrendDataPoint> driverRegistrations;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DeviceStatistics {
+        private long totalDevices;
+        private long activeDevices;
+        private long inactiveDevices;
+        private long assignedDevices;
+        private Double deltaPercent;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FuelConsumptionStatistics {
+        private BigDecimal totalFuelConsumed;
+        private BigDecimal averageFuelConsumption;
+        private Double deltaPercent;
+        private List<TrendDataPoint> fuelConsumptionTrend;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PenaltiesStatistics {
+        private long totalPenalties;
+        private long unresolvedPenalties;
+        private Double deltaPercent;
+        private List<TrendDataPoint> penaltiesTrend;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class VehicleInspectionAlert {
+        private String vehicleId;
+        private String licensePlate;
+        private String alertType;
+        private String dueDate;
+        private int daysUntilDue;
+        private boolean isOverdue;
+        private String description;
     }
 }

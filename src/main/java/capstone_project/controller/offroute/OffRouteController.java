@@ -2,7 +2,9 @@ package capstone_project.controller.offroute;
 
 import capstone_project.dtos.request.offroute.ConfirmOffRouteSafeRequest;
 import capstone_project.dtos.request.offroute.CreateOffRouteIssueRequest;
+import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.offroute.OffRouteEventDetailResponse;
+import capstone_project.dtos.response.offroute.OffRouteEventListResponse;
 import capstone_project.entity.offroute.OffRouteEventEntity;
 import capstone_project.repository.entityServices.offroute.OffRouteEventEntityService;
 import capstone_project.service.services.offroute.OffRouteDetectionService;
@@ -29,6 +31,17 @@ public class OffRouteController {
     private final OffRouteDetectionService offRouteDetectionService;
     private final OffRouteEventEntityService offRouteEventEntityService;
     private final UserContextUtils userContextUtils;
+
+    /**
+     * Get all off-route events for staff (sorted by createdAt DESC)
+     */
+    @GetMapping("/staff/list")
+    @PreAuthorize("hasAnyAuthority('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<OffRouteEventListResponse>>> getAllOffRouteEvents() {
+        log.info("[OffRouteController] Getting all off-route events for staff");
+        List<OffRouteEventListResponse> result = offRouteDetectionService.getAllOffRouteEvents();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 
     /**
      * Get full details of an off-route event for staff modal

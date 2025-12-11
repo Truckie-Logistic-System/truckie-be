@@ -10,4 +10,6 @@ public interface DeviceEntityService extends BaseEntityService<DeviceEntity, UUI
     Optional<DeviceEntity> findByDeviceCode(String deviceCode);
 
     Optional<DeviceEntity> findByDeviceTypeAndVehicle(UUID deviceTypeId, UUID vehicleId);
+    
+    java.util.List<DeviceEntity> findByVehicleId(UUID vehicleId);
 }
