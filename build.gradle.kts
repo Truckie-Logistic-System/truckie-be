@@ -17,6 +17,11 @@ java {
     }
 }
 
+// Configure jar file name for Railway deployment
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+    archiveFileName.set("app.jar")
+}
+
 repositories {
     mavenCentral()
 }

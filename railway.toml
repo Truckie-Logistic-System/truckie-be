@@ -1,8 +1,8 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "./gradlew clean build -x test"
+buildCommand = "./gradlew clean bootJar -x test"
 
 [deploy]
-startCommand = "java -Xmx400m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -jar build/libs/capstone-project-0.0.1-SNAPSHOT.jar --spring.profiles.active=railway"
+startCommand = "java -Xmx400m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -jar build/libs/app.jar --spring.profiles.active=railway"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
