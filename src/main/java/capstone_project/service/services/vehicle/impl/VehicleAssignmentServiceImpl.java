@@ -171,10 +171,11 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     @Override
     public VehicleAssignmentResponse createAssignment(VehicleAssignmentRequest req) {
 
-        vehicleEntityService.findByVehicleId(UUID.fromString(req.vehicleId())).orElseThrow(() -> new NotFoundException(
-                ErrorEnum.VEHICLE_NOT_FOUND.getMessage(),
-                ErrorEnum.VEHICLE_NOT_FOUND.getErrorCode()
-        ));
+        VehicleEntity vehicle = vehicleEntityService.findByVehicleId(UUID.fromString(req.vehicleId()))
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.VEHICLE_NOT_FOUND.getMessage(),
+                        ErrorEnum.VEHICLE_NOT_FOUND.getErrorCode()
+                ));
 
         driverEntityService.findEntityById(UUID.fromString(req.driverId_1())).orElseThrow(() -> new NotFoundException(
                 "Driver 1 not found with DRIVER ID: " + req.driverId_1(),
@@ -186,7 +187,28 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 ErrorEnum.VEHICLE_NOT_FOUND.getErrorCode()
         ));
 
-        var saved = entityService.save(mapper.toEntity(req));
+        var assignment = mapper.toEntity(req);
+        var saved = entityService.save(assignment);
+        
+        // Tạo device assignment records cho xe này
+        List<capstone_project.entity.device.DeviceEntity> devices = deviceEntityService.findByVehicleId(vehicle.getId());
+        if (!devices.isEmpty()) {
+            Set<capstone_project.entity.vehicle.VehicleAssignmentDeviceEntity> assignmentDevices = new HashSet<>();
+            for (capstone_project.entity.device.DeviceEntity device : devices) {
+                capstone_project.entity.vehicle.VehicleAssignmentDeviceEntity assignmentDevice = 
+                    new capstone_project.entity.vehicle.VehicleAssignmentDeviceEntity();
+                assignmentDevice.setVehicleAssignment(saved);
+                assignmentDevice.setDevice(device);
+                assignmentDevices.add(assignmentDevice);
+            }
+            saved.getVehicleAssignmentDevices().addAll(assignmentDevices);
+            saved = entityService.save(saved);
+            
+            log.info("✅ [createAssignment] Created {} device assignments for vehicle {}", 
+                    devices.size(), vehicle.getLicensePlateNumber());
+        } else {
+            log.warn("⚠️ [createAssignment] No devices found for vehicle {}", vehicle.getLicensePlateNumber());
+        }
 
         return mapper.toResponse(saved);
     }
@@ -1091,20 +1113,32 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             assignment.setStatus(CommonStatusEnum.ACTIVE.name());
             assignment.setTrackingCode(generateCode(prefixVehicleAssignmentCode));
 
+            // Lưu assignment trước để có ID
+            VehicleAssignmentEntity savedAssignment = entityService.save(assignment);
+            
             // Query all devices attached to this vehicle and assign them to the assignment
             List<capstone_project.entity.device.DeviceEntity> devices = deviceEntityService.findByVehicleId(vehicle.getId());
             if (!devices.isEmpty()) {
-                // Use the new many-to-many relationship
-                assignment.getDevices().addAll(devices);
-                log.info("✅ [createGroupedAssignments] Found {} devices for vehicle {}: {}", 
+                // Tạo VehicleAssignmentDeviceEntity records cho mỗi device
+                Set<capstone_project.entity.vehicle.VehicleAssignmentDeviceEntity> assignmentDevices = new HashSet<>();
+                for (capstone_project.entity.device.DeviceEntity device : devices) {
+                    capstone_project.entity.vehicle.VehicleAssignmentDeviceEntity assignmentDevice = 
+                        new capstone_project.entity.vehicle.VehicleAssignmentDeviceEntity();
+                    assignmentDevice.setVehicleAssignment(savedAssignment);
+                    assignmentDevice.setDevice(device);
+                    assignmentDevices.add(assignmentDevice);
+                }
+                savedAssignment.getVehicleAssignmentDevices().addAll(assignmentDevices);
+                
+                // Lưu lại để persist device assignments
+                savedAssignment = entityService.save(savedAssignment);
+                
+                log.info("✅ [createGroupedAssignments] Created {} device assignments for vehicle {}: {}", 
                         devices.size(), vehicle.getLicensePlateNumber(), 
                         devices.stream().map(d -> d.getId().toString()).collect(Collectors.joining(",")));
             } else {
                 log.warn("⚠️ [createGroupedAssignments] No devices found for vehicle {}", vehicle.getLicensePlateNumber());
             }
-            
-            // Lưu assignment
-            VehicleAssignmentEntity savedAssignment = entityService.save(assignment);
 
             try {
                 createInitialJourneyForAssignment(savedAssignment, orderDetailIds, groupAssignment.routeInfo());
