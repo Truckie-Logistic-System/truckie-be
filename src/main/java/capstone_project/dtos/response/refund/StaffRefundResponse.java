@@ -64,8 +64,9 @@ public class StaffRefundResponse {
         private String status;
         private LocalDateTime reportedAt;
         private LocalDateTime resolvedAt;
-        private BigDecimal damageFinalCompensation;
-        private String damageCompensationStatus;
+        // Compensation data now from IssueCompensationAssessmentEntity
+        private BigDecimal finalCompensation;
+        private String compensationStatus;
     }
     
     @Data

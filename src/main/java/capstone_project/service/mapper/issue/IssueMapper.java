@@ -199,12 +199,16 @@ public interface IssueMapper {
     }
     
     // Map DAMAGE compensation details
+    // NOTE: Compensation data is now stored in IssueCompensationAssessmentEntity
+    // This method returns null - use CompensationService.getCompensationDetail() instead
     default capstone_project.dtos.response.issue.DamageCompensationResponse mapDamageCompensation(IssueEntity issue) {
-        // Only map for DAMAGE issues that have compensation data
-        if (issue.getIssueTypeEntity() == null || 
-            !capstone_project.common.enums.IssueCategoryEnum.DAMAGE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+        // Compensation data is now in IssueCompensationAssessmentEntity
+        // Use CompensationService.getCompensationDetail() for compensation details
+        if (issue.getCompensationAssessment() == null) {
             return null;
         }
+        
+        var assessment = issue.getCompensationAssessment();
         
         // Get hasInsurance from Order
         Boolean hasInsurance = false;
@@ -215,52 +219,29 @@ public interface IssueMapper {
             }
         }
         
-        // Determine case and labels
-        String caseLabel = null;
-        String caseDescription = null;
-        Boolean appliesLegalLimit = null;
-        
-        if (issue.getDamageCompensationCase() != null) {
-            try {
-                var compensationCase = capstone_project.common.enums.DamageCompensationCaseEnum.valueOf(issue.getDamageCompensationCase());
-                caseLabel = compensationCase.getLabel();
-                caseDescription = compensationCase.getDescription();
-                appliesLegalLimit = compensationCase.appliesLegalLimit();
-            } catch (IllegalArgumentException e) {
-                // Invalid case enum, ignore
-            }
-        }
-        
-        // Get status label
-        String statusLabel = null;
-        if (issue.getDamageCompensationStatus() != null) {
-            try {
-                var status = capstone_project.common.enums.DamageCompensationStatusEnum.valueOf(issue.getDamageCompensationStatus());
-                statusLabel = status.getLabel();
-            } catch (IllegalArgumentException e) {
-                // Invalid status enum, ignore
-            }
-        }
+        // Convert assessment rate to percent
+        java.math.BigDecimal assessmentPercent = assessment.getAssessmentRate() != null ?
+            assessment.getAssessmentRate().multiply(java.math.BigDecimal.valueOf(100)) : null;
         
         return new capstone_project.dtos.response.issue.DamageCompensationResponse(
-            issue.getDamageAssessmentPercent(),
+            assessmentPercent,
             hasInsurance,
-            issue.getDamageHasDocuments(),
-            issue.getDamageDeclaredValue(),
-            issue.getDamageEstimatedMarketValue(),
-            issue.getDamageFreightFee(),
-            issue.getDamageLegalLimit(),
-            issue.getDamageEstimatedLoss(),
-            issue.getDamagePolicyCompensation(),
-            issue.getDamageFinalCompensation(),
-            issue.getDamageCompensationCase(),
-            caseLabel,
-            caseDescription,
-            appliesLegalLimit,
-            issue.getDamageAdjustReason(),
-            issue.getDamageHandlerNote(),
-            issue.getDamageCompensationStatus(),
-            statusLabel
+            assessment.getHasDocuments(),
+            assessment.getDocumentValue(),
+            assessment.getEstimatedMarketValue(),
+            null, // freightFee - calculated dynamically
+            null, // legalLimit - calculated dynamically
+            null, // estimatedLoss - calculated dynamically
+            assessment.getCompensationByPolicy(),
+            assessment.getFinalCompensation(),
+            null, // compensationCase - derived from hasInsurance + hasDocuments
+            null, // caseLabel
+            null, // caseDescription
+            null, // appliesLegalLimit
+            assessment.getAdjustReason(),
+            assessment.getHandlerNotes(),
+            issue.getStatus(),
+            null // statusLabel
         );
     }
 
