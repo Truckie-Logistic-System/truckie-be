@@ -22,6 +22,8 @@ public record FullContractPDFResponse(
         GetOrderResponse orderInfo,
         PriceCalculationResponse priceDetails,
         List<ContractRuleAssignResponse> assignResult,
-        ContractSettingResponse contractSettings
+        ContractSettingResponse contractSettings,
+        // Custom deposit percent for this contract (overrides contractSettings.depositPercent if set)
+        BigDecimal customDepositPercent
 ) {
 }

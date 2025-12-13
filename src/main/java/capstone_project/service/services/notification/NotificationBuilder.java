@@ -1575,6 +1575,8 @@ public class NotificationBuilder {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("issueCode", issueCode);
         metadata.put("issueType", issueType);
+        metadata.put("issueTypeName", issueType); // For display in the email template
+        metadata.put("reportedAt", formatWithVietnamTimezone(LocalDateTime.now())); // Current time as report time
         metadata.put("orderCode", orderCode);
         metadata.put("driverName", driverName);
         metadata.put("driverPhone", driverPhone);

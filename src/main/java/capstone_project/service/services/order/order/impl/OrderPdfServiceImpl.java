@@ -178,6 +178,7 @@ public class OrderPdfServiceImpl implements OrderPdfService {
                 .assignResult(assignResult)
                 .distanceKm(distanceKm)
                 .contractSettings(setting.map(contractSettingMapper::toContractSettingResponse).orElse(null))
+                .customDepositPercent(contract.getCustomDepositPercent())
                 .build();
 
         return response;

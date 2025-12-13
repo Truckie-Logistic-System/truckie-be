@@ -71,20 +71,10 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
             );
         }
 
-        ContractSettingEntity setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc()
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage(),
-                        ErrorEnum.NOT_FOUND.getErrorCode()
-                ));
-
-        BigDecimal depositPercent = setting.getDepositPercent() != null ? setting.getDepositPercent() : BigDecimal.ZERO;
-        if (depositPercent.compareTo(BigDecimal.ZERO) <= 0 || depositPercent.compareTo(BigDecimal.valueOf(100)) > 0) {
-            log.error("Invalid deposit percent in contract settings: {}", depositPercent);
-            throw new BadRequestException(
-                    "Invalid deposit percent in contract settings",
-                    ErrorEnum.INVALID.getErrorCode()
-            );
-        }
+        // Get deposit percent: prioritize contract's custom value, fallback to global setting
+        BigDecimal depositPercent = getEffectiveDepositPercent(contractEntity);
+        log.info("📊 Stripe remaining payment - Using deposit percent: {}% (custom: {})", depositPercent, 
+            contractEntity.getCustomDepositPercent() != null ? "yes" : "no");
 
         BigDecimal depositAmount = totalValue.multiply(depositPercent)
                 .divide(BigDecimal.valueOf(100), RoundingMode.HALF_UP);
@@ -150,20 +140,10 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
             );
         }
 
-        ContractSettingEntity setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc()
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage(),
-                        ErrorEnum.NOT_FOUND.getErrorCode()
-                ));
-
-        BigDecimal depositPercent = setting.getDepositPercent() != null ? setting.getDepositPercent() : BigDecimal.ZERO;
-        if (depositPercent.compareTo(BigDecimal.ZERO) <= 0 || depositPercent.compareTo(BigDecimal.valueOf(100)) > 0) {
-            log.error("Invalid deposit percent in contract settings: {}", depositPercent);
-            throw new BadRequestException(
-                    "Invalid deposit percent in contract settings",
-                    ErrorEnum.INVALID.getErrorCode()
-            );
-        }
+        // Get deposit percent: prioritize contract's custom value, fallback to global setting
+        BigDecimal depositPercent = getEffectiveDepositPercent(contractEntity);
+        log.info("📊 Stripe deposit payment - Using deposit percent: {}% (custom: {})", depositPercent, 
+            contractEntity.getCustomDepositPercent() != null ? "yes" : "no");
 
         BigDecimal depositAmount = totalValue.multiply(depositPercent)
                 .divide(BigDecimal.valueOf(100), RoundingMode.HALF_UP);
@@ -445,5 +425,39 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 //        }
 
         return contractEntity;
+    }
+    
+    /**
+     * Get effective deposit percent for a contract.
+     * Prioritizes contract's custom deposit percent if set, otherwise falls back to global setting.
+     * 
+     * @param contractEntity The contract to get deposit percent for
+     * @return The effective deposit percent (0-100)
+     */
+    private BigDecimal getEffectiveDepositPercent(ContractEntity contractEntity) {
+        // First, check if contract has custom deposit percent
+        if (contractEntity.getCustomDepositPercent() != null 
+            && contractEntity.getCustomDepositPercent().compareTo(BigDecimal.ZERO) > 0
+            && contractEntity.getCustomDepositPercent().compareTo(BigDecimal.valueOf(100)) <= 0) {
+            return contractEntity.getCustomDepositPercent();
+        }
+        
+        // Fallback to global setting
+        ContractSettingEntity setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc()
+                .orElseThrow(() -> new NotFoundException(
+                        "Contract settings not found",
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        BigDecimal depositPercent = setting.getDepositPercent() != null ? setting.getDepositPercent() : BigDecimal.ZERO;
+        if (depositPercent.compareTo(BigDecimal.ZERO) <= 0 || depositPercent.compareTo(BigDecimal.valueOf(100)) > 0) {
+            log.error("Invalid deposit percent in contract settings: {}", depositPercent);
+            throw new BadRequestException(
+                    "Invalid deposit percent in contract settings",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+        
+        return depositPercent;
     }
 }

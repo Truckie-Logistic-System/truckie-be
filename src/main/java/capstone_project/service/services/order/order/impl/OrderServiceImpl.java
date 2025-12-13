@@ -832,20 +832,13 @@ public class OrderServiceImpl implements OrderService {
             
             double depositAmount = 0.0;
             try {
-                // Use the existing contractSetting variable from line 783
-                if (contractSetting == null) {
-                    throw new NotFoundException("Contract settings not found", ErrorEnum.NOT_FOUND.getErrorCode());
-                }
-                if (contractSetting != null && contractSetting.depositPercent() != null) {
-                    depositAmount = baseValue * contractSetting.depositPercent().doubleValue() / 100.0;
-                    log.info("🔍 Using contract setting deposit rate: {}% for base value: {}", 
-                        contractSetting.depositPercent(), baseValue);
-                } else {
-                    log.warn("Contract setting deposit percent is null, using 30% fallback");
-                    depositAmount = baseValue * 0.1;
-                }
+                // Prioritize contract's custom deposit percent, fallback to global setting
+                BigDecimal depositPercent = getEffectiveDepositPercent(contractEntity);
+                depositAmount = baseValue * depositPercent.doubleValue() / 100.0;
+                log.info("📊 Contract signed notification - Using deposit percent: {}% (custom: {})", 
+                    depositPercent, contractEntity.getCustomDepositPercent() != null ? "yes" : "no");
             } catch (Exception e) {
-                log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+                log.warn("Could not get deposit percent, using 10% default: {}", e.getMessage());
                 depositAmount = baseValue * 0.1;
             }
             
@@ -1655,5 +1648,34 @@ public class OrderServiceImpl implements OrderService {
             case RETURNING -> OrderDetailStatusEnum.RETURNING;
             case RETURNED -> OrderDetailStatusEnum.RETURNED;
         };
+    }
+    
+    /**
+     * Get effective deposit percent for a contract.
+     * Prioritizes contract's custom deposit percent if set, otherwise falls back to global setting.
+     * 
+     * @param contract The contract to get deposit percent for
+     * @return The effective deposit percent (0-100)
+     */
+    private BigDecimal getEffectiveDepositPercent(ContractEntity contract) {
+        // First, check if contract has custom deposit percent
+        if (contract.getCustomDepositPercent() != null 
+            && contract.getCustomDepositPercent().compareTo(BigDecimal.ZERO) > 0
+            && contract.getCustomDepositPercent().compareTo(BigDecimal.valueOf(100)) <= 0) {
+            return contract.getCustomDepositPercent();
+        }
+        
+        // Fallback to global setting
+        var contractSetting = contractSettingService.getLatestContractSetting();
+        if (contractSetting != null && contractSetting.depositPercent() != null) {
+            BigDecimal depositPercent = contractSetting.depositPercent();
+            if (depositPercent.compareTo(BigDecimal.ZERO) > 0 && depositPercent.compareTo(BigDecimal.valueOf(100)) <= 0) {
+                return depositPercent;
+            }
+        }
+        
+        // Default fallback
+        log.warn("No valid deposit percent found, using 10% default");
+        return BigDecimal.valueOf(10);
     }
 }

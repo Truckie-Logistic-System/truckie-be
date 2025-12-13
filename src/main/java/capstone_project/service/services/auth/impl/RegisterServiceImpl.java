@@ -569,11 +569,26 @@ public class RegisterServiceImpl implements RegisterService {
             );
         }
 
-        UserEntity user = userEntityService.getUserByUserName(changePasswordForForgetPassRequest.username())
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage(),
-                        ErrorEnum.NOT_FOUND.getErrorCode()
-                ));
+        // Support lookup by email when username is null (for forgot password flow)
+        UserEntity user;
+        if (changePasswordForForgetPassRequest.username() != null && !changePasswordForForgetPassRequest.username().isBlank()) {
+            user = userEntityService.getUserByUserName(changePasswordForForgetPassRequest.username())
+                    .orElseThrow(() -> new NotFoundException(
+                            ErrorEnum.NOT_FOUND.getMessage(),
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+        } else if (changePasswordForForgetPassRequest.email() != null && !changePasswordForForgetPassRequest.email().isBlank()) {
+            user = userEntityService.getUserByEmail(changePasswordForForgetPassRequest.email())
+                    .orElseThrow(() -> new NotFoundException(
+                            "Không tìm thấy tài khoản với email này",
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+        } else {
+            throw new BadRequestException(
+                    "Vui lòng cung cấp username hoặc email",
+                    ErrorEnum.NULL.getErrorCode()
+            );
+        }
 
         // IMPORTANT: Do not allow forget password for INACTIVE drivers.
         // First-time password change for drivers must go through the dedicated

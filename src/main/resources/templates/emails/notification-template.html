@@ -419,24 +419,60 @@
                         </table>
                     </div>
                     
-                    <!-- Additional Info -->
-                    <div th:if="${metadata['issueCode'] != null or metadata['sealCode'] != null or metadata['vehicleAssignmentTrackingCode'] != null}" style="margin-top: 15px;">
+                    <!-- Additional Info - Conditional display -->
+                    <div th:if="${metadata['issueCode'] != null}" style="margin-top: 15px;">
                         <table class="package-table">
                             <thead>
                                 <tr>
                                     <th style="width: 33.33%;">Mã sự cố</th>
-                                    <th style="width: 33.33%;">Mã seal</th>
-                                    <th style="width: 33.33%;">Mã chuyến xe</th>
+                                    <th style="width: 33.33%;">Loại sự cố</th>
+                                    <th style="width: 33.33%;">Thời gian báo cáo</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td th:if="${metadata['issueCode']}" th:text="${metadata['issueCode']}">ISS-001</td>
-                                    <td th:unless="${metadata['issueCode']}">-</td>
-                                    <td th:if="${metadata['sealCode']}" th:text="${metadata['sealCode']}">SEAL-001</td>
-                                    <td th:unless="${metadata['sealCode']}">-</td>
-                                    <td th:if="${metadata['vehicleAssignmentTrackingCode']}" th:text="${metadata['vehicleAssignmentTrackingCode']}">TRIP_20251206...</td>
-                                    <td th:unless="${metadata['vehicleAssignmentTrackingCode']}">-</td>
+                                    <td th:text="${metadata['issueCode']}" style="font-weight: 600; color: #dc2626;"></td>
+                                    <td th:text="${metadata['issueTypeName']}" style="font-weight: 600;"></td>
+                                    <td th:text="${metadata['reportedAt']}" style="font-weight: 600;"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div th:if="${metadata['vehicleAssignmentTrackingCode'] != null and metadata['issueCode'] == null}" style="margin-top: 15px;">
+                        <table class="package-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 33.33%;">Mã chuyến xe</th>
+                                    <th style="width: 33.33%;">Biển số xe</th>
+                                    <th style="width: 33.33%;">Tài xế</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td th:text="${metadata['vehicleAssignmentTrackingCode']}" style="font-weight: 600;"></td>
+                                    <td th:text="${metadata['vehiclePlate']}" style="font-weight: 600;"></td>
+                                    <td th:text="${metadata['driverName']}" style="font-weight: 600;"></td>
+                                </tr>
+                                <tr th:if="${metadata['driver2Name'] != null}">
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td th:text="${metadata['driver2Name']}" style="font-weight: 600;"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div th:if="${metadata['sealCode'] != null and metadata['issueCode'] == null and metadata['vehicleAssignmentTrackingCode'] == null}" style="margin-top: 15px;">
+                        <table class="package-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 100%;">Mã seal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td th:text="${metadata['sealCode']}" style="font-weight: 600;"></td>
                                 </tr>
                             </tbody>
                         </table>

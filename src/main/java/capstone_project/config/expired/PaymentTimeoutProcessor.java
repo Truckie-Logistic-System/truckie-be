@@ -21,11 +21,15 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 /**
@@ -47,6 +51,7 @@ public class PaymentTimeoutProcessor {
     private final JourneyHistoryEntityService journeyHistoryEntityService;
     private final OrderDetailStatusService orderDetailStatusService;
     private final ObjectProvider<OrderService> orderServiceProvider;
+    private final PlatformTransactionManager transactionManager;
     
     /**
      * Process payment timeout for an issue
@@ -66,13 +71,33 @@ public class PaymentTimeoutProcessor {
         }
         
         IssueEntity issue = issueOpt.get();
+
+        // ═══════════════════════════════════════════════════════════════
+        // SAFETY: If customer already PAID return shipping, never timeout
+        // (Issue may remain IN_PROGRESS until driver completes return flow)
+        // ═══════════════════════════════════════════════════════════════
+        try {
+            List<capstone_project.entity.order.transaction.TransactionEntity> issueTransactions =
+                    transactionEntityService.findByIssueId(issueId);
+
+            boolean hasPaid = issueTransactions.stream()
+                    .anyMatch(tx -> TransactionEnum.PAID.name().equals(tx.getStatus()));
+
+            if (hasPaid) {
+                log.info("✅ Skip timeout for issue {} because return shipping payment is already PAID", issueId);
+                return false;
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ Could not verify transaction status for issue {} before timeout check: {}", issueId, e.getMessage());
+        }
         
         // Only process if still IN_PROGRESS (not paid yet)
         if (!IssueEnum.IN_PROGRESS.name().equals(issue.getStatus())) {
             return false;
         }
         
-        LocalDateTime now = LocalDateTime.now();
+        // All time comparisons should follow Vietnam timezone
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
         
         // Verify deadline has actually passed (with 2s buffer for timing)
         if (issue.getPaymentDeadline() == null || issue.getPaymentDeadline().isAfter(now.minusSeconds(2))) {
@@ -84,17 +109,20 @@ public class PaymentTimeoutProcessor {
         // ═══════════════════════════════════════════════════════════════
         // STEP 1: Update Transaction to EXPIRED (if exists)
         // ═══════════════════════════════════════════════════════════════
-        var transactionOpt = transactionEntityService.findAll().stream()
-                .filter(tx -> issue.getId().equals(tx.getIssueId()))
-                .findFirst();
-        
-        if (transactionOpt.isPresent()) {
-            var transaction = transactionOpt.get();
-            if (TransactionEnum.PENDING.name().equals(transaction.getStatus())) {
-                transaction.setStatus(TransactionEnum.EXPIRED.name());
-                transactionEntityService.save(transaction);
+        try {
+            List<capstone_project.entity.order.transaction.TransactionEntity> issueTransactions =
+                    transactionEntityService.findByIssueId(issueId);
+
+            if (!issueTransactions.isEmpty()) {
+                issueTransactions.stream()
+                        .filter(tx -> TransactionEnum.PENDING.name().equals(tx.getStatus()))
+                        .forEach(tx -> {
+                            tx.setStatus(TransactionEnum.EXPIRED.name());
+                            transactionEntityService.save(tx);
+                        });
             }
-        } else {
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to set transaction EXPIRED for issue {}: {}", issueId, e.getMessage());
         }
         
         // ═══════════════════════════════════════════════════════════════
@@ -121,12 +149,26 @@ public class PaymentTimeoutProcessor {
             // Use unified cancellation for atomic transaction
             try {
                 OrderService orderService = orderServiceProvider.getObject();
-                orderService.cancelOrderUnified(orderId, context);
+ 
+                // IMPORTANT: Isolate unified cancellation in its own transaction.
+                // If cancelOrderUnified throws, the outer transaction would be marked rollback-only
+                // even if we catch the exception, causing UnexpectedRollbackException at commit.
+                TransactionTemplate requiresNewTx = new TransactionTemplate(transactionManager);
+                requiresNewTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+ 
+                requiresNewTx.executeWithoutResult(status -> orderService.cancelOrderUnified(orderId, context));
                 log.info("✅ Used unified cancellation to cancel order {} due to payment timeout", orderId);
             } catch (Exception e) {
                 log.error("❌ Failed to use unified cancellation for order {}: {}", orderId, e.getMessage(), e);
                 // Fallback to manual cancellation if unified method fails
-                fallbackManualCancellation(issue.getOrderDetails(), orderId);
+ 
+                try {
+                    TransactionTemplate requiresNewTx = new TransactionTemplate(transactionManager);
+                    requiresNewTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+                    requiresNewTx.executeWithoutResult(status -> fallbackManualCancellation(issue.getOrderDetails(), orderId));
+                } catch (Exception fallbackEx) {
+                    log.error("❌ Fallback manual cancellation also failed for order {}: {}", orderId, fallbackEx.getMessage(), fallbackEx);
+                }
             }
         }
         

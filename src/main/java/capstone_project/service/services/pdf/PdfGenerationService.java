@@ -114,6 +114,20 @@ public class PdfGenerationService {
             context.setVariable("finalTotal", result.getFinalTotal());
             context.setVariable("calculationDetails", result.getSteps());
             
+            // Insurance fields
+            log.info("🛡️ PDF Insurance Debug - hasInsurance={}, insuranceFee={}, totalDeclaredValue={}, grandTotal={}", 
+                    result.getHasInsurance(), result.getInsuranceFee(), result.getTotalDeclaredValue(), result.getGrandTotal());
+            context.setVariable("hasInsurance", result.getHasInsurance());
+            context.setVariable("insuranceFee", result.getInsuranceFee());
+            context.setVariable("totalDeclaredValue", result.getTotalDeclaredValue());
+            context.setVariable("insuranceRate", result.getInsuranceRate());
+            // Calculate insurance rate with VAT for display
+            BigDecimal insuranceRateWithVat = result.getInsuranceRate() != null && result.getVatRate() != null
+                ? result.getInsuranceRate().multiply(BigDecimal.ONE.add(result.getVatRate().divide(BigDecimal.valueOf(100))))
+                : result.getInsuranceRate();
+            context.setVariable("insuranceRateWithVat", insuranceRateWithVat);
+            context.setVariable("grandTotal", result.getGrandTotal());
+            
             // Group calculation details by vehicle type for PDF display
             Map<String, List<CalculationStep>> groupedSteps = result.getSteps().stream()
                     .collect(Collectors.groupingBy(CalculationStep::getSizeRuleName));
@@ -138,7 +152,15 @@ public class PdfGenerationService {
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
 
-            context.setVariable("depositPercent", setting.getDepositPercent());
+            // Use custom deposit percent from contract if available, otherwise use global setting
+            BigDecimal effectiveDepositPercent = (contract.getCustomDepositPercent() != null 
+                && contract.getCustomDepositPercent().compareTo(BigDecimal.ZERO) > 0
+                && contract.getCustomDepositPercent().compareTo(BigDecimal.valueOf(100)) <= 0)
+                ? contract.getCustomDepositPercent()
+                : setting.getDepositPercent();
+            log.info("📊 PDF Generation - Using deposit percent: {}% (custom: {})", effectiveDepositPercent, 
+                contract.getCustomDepositPercent() != null ? "yes" : "no");
+            context.setVariable("depositPercent", effectiveDepositPercent);
             context.setVariable("depositDeadlineHours", setting.getDepositDeadlineHours());
             context.setVariable("signingDeadlineHours", setting.getSigningDeadlineHours());
             context.setVariable("fullPaymentDaysBeforePickup", setting.getFullPaymentDaysBeforePickup());

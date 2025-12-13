@@ -5,43 +5,55 @@ public class OtpEmailForgetPasswordTemplate {
         return "<!DOCTYPE html>\n" +
                 "<html>\n" +
                 "<head>\n" +
+                "    <meta charset=\"UTF-8\">\n" +
                 "    <style>\n" +
-                "        body { font-family: Arial, sans-serif; background-color: #f9f9f9; margin: 0; padding: 20px; }\n" +
-                "        .container { max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); overflow: hidden; }\n" +
-                "        .header { background-color: #d9534f; color: white; padding: 25px; text-align: center; border-bottom: 5px solid #c9302c; }\n" +
-                "        .header h1 { margin: 0; font-size: 28px; font-weight: bold; }\n" +
-                "        .content { padding: 25px; }\n" +
-                "        .otp { font-size: 28px; font-weight: bold; color: #d9534f; text-align: center; margin: 20px 0; padding: 10px; background-color: #f2dede; border-radius: 4px; }\n" +
-                "        .section-title { font-size: 20px; color: #d9534f; margin-bottom: 15px; padding-bottom: 10px; font-weight: bold; }\n" +
-                "        .footer { background-color: #d9534f; padding: 20px; text-align: center; font-size: 14px; color: white; border-top: 5px solid #c9302c; }\n" +
-                "        h2 { color: #d9534f; font-size: 22px; margin-top: 25px; margin-bottom: 15px; font-weight: bold; }\n" +
-                "        ul { padding-left: 20px; margin-bottom: 20px; }\n" +
-                "        ul li { margin-bottom: 10px; color: #555; }\n" +
-                "        a { color: #c9302c; text-decoration: none; font-weight: bold; }\n" +
-                "        a:hover { text-decoration: underline; }\n" +
+                "        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f5f7fa; margin: 0; padding: 20px; }\n" +
+                "        .container { max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); overflow: hidden; }\n" +
+                "        .header { background: linear-gradient(135deg, #1976D2 0%%, #1565C0 100%%); color: white; padding: 30px; text-align: center; }\n" +
+                "        .header h1 { margin: 0; font-size: 24px; font-weight: 600; }\n" +
+                "        .header .logo { font-size: 32px; font-weight: bold; margin-bottom: 10px; }\n" +
+                "        .content { padding: 30px; color: #333; }\n" +
+                "        .otp-container { background: linear-gradient(135deg, #e3f2fd 0%%, #bbdefb 100%%); border-radius: 12px; padding: 25px; margin: 25px 0; text-align: center; }\n" +
+                "        .otp { font-size: 36px; font-weight: bold; color: #1976D2; letter-spacing: 8px; margin: 0; }\n" +
+                "        .otp-label { font-size: 14px; color: #666; margin-bottom: 10px; }\n" +
+                "        .info-box { background-color: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; }\n" +
+                "        .info-box p { margin: 0; color: #e65100; font-size: 14px; }\n" +
+                "        .footer { background-color: #f5f7fa; padding: 25px; text-align: center; font-size: 13px; color: #666; border-top: 1px solid #e0e0e0; }\n" +
+                "        .footer .brand { color: #1976D2; font-weight: bold; font-size: 18px; margin-bottom: 10px; }\n" +
+                "        h2 { color: #1976D2; font-size: 20px; margin-top: 0; margin-bottom: 15px; font-weight: 600; }\n" +
+                "        p { line-height: 1.6; margin-bottom: 15px; }\n" +
+                "        .highlight { color: #1976D2; font-weight: 600; }\n" +
+                "        .contact-info { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0; }\n" +
+                "        .contact-info p { margin: 5px 0; font-size: 14px; }\n" +
                 "    </style>\n" +
                 "</head>\n" +
                 "<body>\n" +
                 "    <div class=\"container\">\n" +
                 "        <div class=\"header\">\n" +
-                "            <h1>Password Reset Request</h1>\n" +
+                "            <div class=\"logo\">🚚 Truckie</div>\n" +
+                "            <h1>Yêu cầu đặt lại mật khẩu</h1>\n" +
                 "        </div>\n" +
                 "        <div class=\"content\">\n" +
-                "            <h2>Hello,</h2>\n" +
-                "            <p>We received a request to reset your password for the username <strong>%s</strong>. Use the OTP below to proceed:</p>\n" +
-                "            <p class=\"otp\">%s</p>\n" +
-                "            <p>This OTP is valid for <strong>5 minutes</strong>. If you did not request this reset, please ignore this email or contact support.</p>\n" +
-                "            <h2 class=\"section-title\">Need Help?</h2>\n" +
-                "            <p>If you have any issues, reach out to our support team:</p>\n" +
-                "            <ul>\n" +
-                "                <li><strong>Phone:</strong> 0123 456 789</li>\n" +
-                "                <li><strong>Email:</strong> <a href=\"mailto:support@homeservice.com\">support@homeservice.com</a></li>\n" +
-                "                <li><strong>Website:</strong> <a href=\"https://www.homeservice.com\">www.homeservice.com</a></li>\n" +
-                "            </ul>\n" +
+                "            <h2>Xin chào %s,</h2>\n" +
+                "            <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn. Vui lòng sử dụng mã OTP bên dưới để tiếp tục:</p>\n" +
+                "            <div class=\"otp-container\">\n" +
+                "                <p class=\"otp-label\">Mã xác thực của bạn</p>\n" +
+                "                <p class=\"otp\">%s</p>\n" +
+                "            </div>\n" +
+                "            <div class=\"info-box\">\n" +
+                "                <p>⏱️ Mã OTP này có hiệu lực trong <strong>5 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>\n" +
+                "            </div>\n" +
+                "            <p>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này hoặc liên hệ với chúng tôi ngay lập tức.</p>\n" +
+                "            <div class=\"contact-info\">\n" +
+                "                <p><strong>Cần hỗ trợ?</strong></p>\n" +
+                "                <p>📧 Email: support@truckie.vn</p>\n" +
+                "                <p>📞 Hotline: 1900 xxxx</p>\n" +
+                "            </div>\n" +
                 "        </div>\n" +
                 "        <div class=\"footer\">\n" +
-                "            <p>If you need further assistance, contact our support team.</p>\n" +
-                "            <p>© 2024 Cleanee. All rights reserved.</p>\n" +
+                "            <div class=\"brand\">Truckie</div>\n" +
+                "            <p>Giải pháp vận tải thông minh</p>\n" +
+                "            <p>© 2024 Truckie. Bảo lưu mọi quyền.</p>\n" +
                 "        </div>\n" +
                 "    </div>\n" +
                 "</body>\n" +

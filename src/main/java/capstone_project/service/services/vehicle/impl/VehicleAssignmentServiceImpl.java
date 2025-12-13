@@ -40,6 +40,7 @@ import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
 import capstone_project.service.services.notification.NotificationService;
 import capstone_project.service.services.notification.NotificationBuilder;
+import capstone_project.service.services.email.EmailNotificationService;
 import capstone_project.dtos.request.notification.CreateNotificationRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -87,6 +88,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final ContractSettingService contractSettingService;
     private final VehicleReservationEntityService vehicleReservationEntityService;
     private final VehicleReservationService vehicleReservationService;
+    private final EmailNotificationService emailNotificationService;
 
     private final ObjectMapper objectMapper;
 
@@ -263,8 +265,10 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             List<VehicleEntity> getVehiclesByVehicleType = vehicleEntityService.getVehicleEntitiesByVehicleTypeEntityAndStatus(sizeRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name());
 
             // Lấy tất cả các tài xế hợp lệ cho loại xe này
+            // Loại trừ tài xế có bằng lái hết hạn
             List<DriverEntity> allEligibleDrivers = driverEntityService.findByStatus(CommonStatusEnum.ACTIVE.name())
                     .stream()
+                    .filter(d -> !driverService.isLicenseExpired(d)) // Loại trừ bằng lái hết hạn
                     .filter(d -> driverService.isCheckClassDriverLicenseForVehicleType(d, vehicleTypeEnum))
                     .filter(d -> !entityService.existsActiveAssignmentForDriver(d.getId()))
                     .toList();
@@ -303,12 +307,14 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     DriverEntity driver2 = lastAssignment.getDriver2();
 
                     if (driver1 != null && CommonStatusEnum.ACTIVE.name().equals(driver1.getStatus()) &&
+                            !driverService.isLicenseExpired(driver1) &&
                             driverService.isCheckClassDriverLicenseForVehicleType(driver1, vehicleTypeEnum) &&
                             !entityService.existsActiveAssignmentForDriver(driver1.getId())) {
                         preferredDrivers.add(driver1);
                     }
 
                     if (driver2 != null && CommonStatusEnum.ACTIVE.name().equals(driver2.getStatus()) &&
+                            !driverService.isLicenseExpired(driver2) &&
                             driverService.isCheckClassDriverLicenseForVehicleType(driver2, vehicleTypeEnum) &&
                             !entityService.existsActiveAssignmentForDriver(driver2.getId()) &&
                             !preferredDrivers.contains(driver2)) {
@@ -2129,6 +2135,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             OrderEntity order = firstOrderDetail.getOrderEntity();
             ContractEntity contract = contractEntityService.getContractByOrderId(order.getId()).orElse(null);
             DriverEntity driver = assignment.getDriver1();
+            DriverEntity driver2 = assignment.getDriver2();
             VehicleEntity vehicle = assignment.getVehicleEntity();
             
             if (driver == null || vehicle == null) {
@@ -2141,17 +2148,14 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 double totalContractValue = getEffectiveContractValue(contract);
                 double depositAmount = 0.0;
                 
-                // Calculate deposit amount using contract settings
+                // Calculate deposit amount: prioritize contract's custom percent, fallback to global setting
                 try {
-                    var contractSetting = contractSettingService.getLatestContractSetting();
-                    if (contractSetting != null && contractSetting.depositPercent() != null) {
-                        depositAmount = totalContractValue * contractSetting.depositPercent().doubleValue() / 100.0;
-                    } else {
-                        // Fallback to 30% if contract setting not available
-                        depositAmount = totalContractValue * 0.1;
-                    }
+                    BigDecimal depositPercent = getEffectiveDepositPercent(contract);
+                    depositAmount = totalContractValue * depositPercent.doubleValue() / 100.0;
+                    log.info("📊 Driver assigned notification - Using deposit percent: {}% (custom: {})", 
+                        depositPercent, contract.getCustomDepositPercent() != null ? "yes" : "no");
                 } catch (Exception e) {
-                    log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+                    log.warn("Could not get deposit percent, using 10% default: {}", e.getMessage());
                     depositAmount = totalContractValue * 0.1;
                 }
                 
@@ -2161,11 +2165,11 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 // Payment deadline: now + 1 day
                 LocalDateTime paymentDeadline = LocalDateTime.now().plusDays(1);
                 
-                // Get order details for this assignment
-                List<OrderDetailEntity> assignmentOrderDetails = orderDetailEntityService
-                    .findByVehicleAssignmentId(assignment.getId());
-                if (assignmentOrderDetails == null || assignmentOrderDetails.isEmpty()) {
-                    assignmentOrderDetails = order.getOrderDetailEntities();
+                // Get ALL order details for the entire order (not just this assignment)
+                List<OrderDetailEntity> allOrderDetails = order.getOrderDetailEntities();
+                if (allOrderDetails == null || allOrderDetails.isEmpty()) {
+                    log.warn("No order details found for order {}", order.getOrderCode());
+                    return;
                 }
                 
                 // Get category description
@@ -2176,28 +2180,57 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     categoryDescription = order.getCategory().getCategoryName().name();
                 }
                 
-                // Get vehicle type name
-                String vehiclePlate = vehicle.getLicensePlateNumber() != null ? vehicle.getLicensePlateNumber() : "N/A";
-                String vehicleTypeName = (vehicle.getVehicleTypeEntity() != null && vehicle.getVehicleTypeEntity().getVehicleTypeName() != null) 
-                    ? vehicle.getVehicleTypeEntity().getVehicleTypeName() : "Truck";
+                // Build packages metadata for ALL order details in the order
+                List<Map<String, Object>> packages = new ArrayList<>();
+                for (OrderDetailEntity od : allOrderDetails) {
+                    Map<String, Object> pkg = new HashMap<>();
+                    pkg.put("trackingCode", od.getTrackingCode());
+                    pkg.put("description", od.getDescription());
+                    pkg.put("weight", od.getWeightTons() + " " + od.getUnit());
+                    pkg.put("weightBaseUnit", od.getWeightBaseUnit());
+                    pkg.put("unit", od.getUnit());
+                    packages.add(pkg);
+                }
                 
-                // 🔧 Get tracking code for display instead of UUID
-                String vehicleAssignmentTrackingCode = assignment.getTrackingCode();
+                // Calculate total weight from order details
+                BigDecimal totalWeight = allOrderDetails.stream()
+                    .map(OrderDetailEntity::getWeightTons)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
                 
+                // Build metadata with full order package info
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("orderCode", order.getOrderCode());
+                metadata.put("packageCount", allOrderDetails.size());
+                metadata.put("totalWeight", totalWeight + " Tấn");
+                metadata.put("categoryDescription", categoryDescription);
+                metadata.put("packages", packages);
+                metadata.put("vehicleAssignmentTrackingCode", assignment.getTrackingCode());
+                metadata.put("vehiclePlate", assignment.getVehicleEntity().getLicensePlateNumber());
+                metadata.put("driverName", driver.getUser().getFullName());
+                metadata.put("driverPhone", driver.getUser().getPhoneNumber());
+                if (driver2 != null) {
+                    metadata.put("driver2Name", driver2.getUser().getFullName());
+                    metadata.put("driver2Phone", driver2.getUser().getPhoneNumber());
+                }
+                
+                // Build order detail IDs for ALL packages in the order
+                List<UUID> allOrderDetailIds = allOrderDetails.stream()
+                    .map(OrderDetailEntity::getId)
+                    .collect(Collectors.toList());
+
                 CreateNotificationRequest customerNotif = NotificationBuilder.buildDriverAssigned(
                     order.getSender().getUser().getId(),
                     order.getOrderCode(),
                     driver.getUser().getFullName(),
                     driver.getUser().getPhoneNumber(),
-                    vehiclePlate,
-                    vehicleTypeName,
+                    vehicle.getLicensePlateNumber(),
+                    vehicle.getVehicleTypeEntity().getVehicleTypeName(),
                     remainingAmount,
                     paymentDeadline,
-                    (assignmentOrderDetails != null && !assignmentOrderDetails.isEmpty() && assignmentOrderDetails.get(0).getEstimatedStartTime() != null)
-                        ? assignmentOrderDetails.get(0).getEstimatedStartTime() : null,
-                    assignmentOrderDetails,
+                    LocalDateTime.now().plusDays(1), // estimated pickup date
+                    allOrderDetails,
                     categoryDescription,
-                    vehicleAssignmentTrackingCode,
+                    assignment.getTrackingCode(),
                     order.getId(),
                     assignment.getId()
                 );
@@ -2205,6 +2238,82 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 notificationService.createNotification(customerNotif);
                 log.info("✅ Created DRIVER_ASSIGNED notification for order: {} (Total: {}, Deposit: {}, Remaining: {})", 
                     order.getOrderCode(), totalContractValue, depositAmount, remainingAmount);
+                
+                // Send email to drivers with their specific trip package details
+                try {
+                    // Get order details for THIS assignment only (for driver emails)
+                    List<OrderDetailEntity> assignmentOrderDetails = orderDetailEntityService
+                        .findByVehicleAssignmentId(assignment.getId());
+                    if (assignmentOrderDetails == null || assignmentOrderDetails.isEmpty()) {
+                        log.warn("No order details found for assignment {} to send driver emails", assignment.getId());
+                    } else {
+                        // Build packages metadata for THIS assignment only
+                        List<Map<String, Object>> driverPackages = new ArrayList<>();
+                        for (OrderDetailEntity od : assignmentOrderDetails) {
+                            Map<String, Object> pkg = new HashMap<>();
+                            pkg.put("trackingCode", od.getTrackingCode());
+                            pkg.put("description", od.getDescription());
+                            pkg.put("weight", od.getWeightTons() + " " + od.getUnit());
+                            pkg.put("weightBaseUnit", od.getWeightBaseUnit());
+                            pkg.put("unit", od.getUnit());
+                            driverPackages.add(pkg);
+                        }
+                        
+                        // Build metadata for driver email
+                        Map<String, Object> driverMetadata = new HashMap<>();
+                        driverMetadata.put("orderCode", order.getOrderCode());
+                        driverMetadata.put("packageCount", assignmentOrderDetails.size());
+                        
+                        // Calculate total weight for this assignment
+                        BigDecimal assignmentTotalWeight = assignmentOrderDetails.stream()
+                            .map(OrderDetailEntity::getWeightTons)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                        
+                        driverMetadata.put("totalWeight", assignmentTotalWeight + " Tấn");
+                        driverMetadata.put("categoryDescription", categoryDescription);
+                        driverMetadata.put("packages", driverPackages);
+                        driverMetadata.put("vehicleAssignmentTrackingCode", assignment.getTrackingCode());
+                        driverMetadata.put("vehiclePlate", vehicle.getLicensePlateNumber());
+                        driverMetadata.put("driverName", driver.getUser().getFullName());
+                        driverMetadata.put("driverPhone", driver.getUser().getPhoneNumber());
+                        if (driver2 != null) {
+                            driverMetadata.put("driver2Name", driver2.getUser().getFullName());
+                            driverMetadata.put("driver2Phone", driver2.getUser().getPhoneNumber());
+                        }
+                        
+                        // Send email to driver 1
+                        if (driver.getUser() != null && driver.getUser().getEmail() != null) {
+                            emailNotificationService.sendDriverAssignmentEmail(
+                                driver.getUser().getEmail(),
+                                driver.getUser().getFullName(),
+                                order.getOrderCode(),
+                                driverMetadata
+                            );
+                            log.info("✅ Sent driver assignment email to driver1: {} ({})", 
+                                driver.getUser().getFullName(), driver.getUser().getEmail());
+                        } else {
+                            log.warn("⚠️ Driver1 {} has no email address", driver.getUser().getFullName());
+                        }
+                        
+                        // Send email to driver 2 if exists
+                        if (driver2 != null) {
+                            if (driver2.getUser() != null && driver2.getUser().getEmail() != null) {
+                                emailNotificationService.sendDriverAssignmentEmail(
+                                    driver2.getUser().getEmail(),
+                                    driver2.getUser().getFullName(),
+                                    order.getOrderCode(),
+                                    driverMetadata
+                                );
+                                log.info("✅ Sent driver assignment email to driver2: {} ({})", 
+                                    driver2.getUser().getFullName(), driver2.getUser().getEmail());
+                            } else {
+                                log.warn("⚠️ Driver2 {} has no email address", driver2.getUser().getFullName());
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("❌ Failed to send driver assignment emails: {}", e.getMessage(), e);
+                }
             } catch (Exception e) {
                 log.error("❌ Failed to create DRIVER_ASSIGNED notification: {}", e.getMessage(), e);
             }
@@ -2216,5 +2325,34 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         } catch (Exception e) {
             log.error("❌ Failed to create assignment notifications: {}", e.getMessage());
         }
+    }
+    
+    /**
+     * Get effective deposit percent for a contract.
+     * Prioritizes contract's custom deposit percent if set, otherwise falls back to global setting.
+     * 
+     * @param contract The contract to get deposit percent for
+     * @return The effective deposit percent (0-100)
+     */
+    private BigDecimal getEffectiveDepositPercent(ContractEntity contract) {
+        // First, check if contract has custom deposit percent
+        if (contract.getCustomDepositPercent() != null 
+            && contract.getCustomDepositPercent().compareTo(BigDecimal.ZERO) > 0
+            && contract.getCustomDepositPercent().compareTo(BigDecimal.valueOf(100)) <= 0) {
+            return contract.getCustomDepositPercent();
+        }
+        
+        // Fallback to global setting
+        var contractSetting = contractSettingService.getLatestContractSetting();
+        if (contractSetting != null && contractSetting.depositPercent() != null) {
+            BigDecimal depositPercent = contractSetting.depositPercent();
+            if (depositPercent.compareTo(BigDecimal.ZERO) > 0 && depositPercent.compareTo(BigDecimal.valueOf(100)) <= 0) {
+                return depositPercent;
+            }
+        }
+        
+        // Default fallback
+        log.warn("No valid deposit percent found, using 10% default");
+        return BigDecimal.valueOf(10);
     }
 }

@@ -7,8 +7,6 @@ import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
-import capstone_project.common.utils.BinPacker;
-import capstone_project.common.utils.UserContextUtils;
 import capstone_project.dtos.request.order.ContractRequest;
 import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
@@ -49,8 +47,11 @@ import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import capstone_project.service.services.setting.ContractSettingService;
+import capstone_project.common.utils.BinPacker;
+import capstone_project.common.utils.UserContextUtils;
 import capstone_project.service.services.user.DistanceService;
 import capstone_project.service.services.map.VietMapDistanceService;
+import capstone_project.service.services.map.impl.VietMapDistanceServiceImpl;
 import capstone_project.service.services.pricing.UnifiedPricingService;
 import capstone_project.service.services.pricing.InsuranceCalculationService;
 import capstone_project.service.services.notification.NotificationService;
@@ -246,20 +247,18 @@ public class ContractServiceImpl implements ContractService {
             // Get order details for package information
             List<OrderDetailEntity> orderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(order.getId());
             
-            // Calculate deposit amount using contract settings
+            // Calculate deposit amount: prioritize contract's custom percent, fallback to global setting
             double totalAmount = getEffectiveContractValue(savedContract);
             double depositAmount = 0.0;
             
             try {
-                var contractSetting = contractSettingService.getLatestContractSetting();
-                if (contractSetting != null && contractSetting.depositPercent() != null) {
-                    // Use effective contract value (adjustedValue prioritized over totalValue)
-                    double baseValue = getEffectiveContractValue(savedContract);
-                    depositAmount = baseValue * contractSetting.depositPercent().doubleValue() / 100.0;
-                }
+                double baseValue = getEffectiveContractValue(savedContract);
+                BigDecimal depositPercent = getEffectiveDepositPercent(savedContract);
+                depositAmount = baseValue * depositPercent.doubleValue() / 100.0;
+                log.info("📊 Contract notification - Using deposit percent: {}% (custom: {})", depositPercent, 
+                    savedContract.getCustomDepositPercent() != null ? "yes" : "no");
             } catch (Exception e) {
-                log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
-                // Fallback to 30% if contract setting fails
+                log.warn("Could not get deposit percent, using 10% default: {}", e.getMessage());
                 double baseValue = getEffectiveContractValue(savedContract);
                 depositAmount = baseValue * 0.1;
             }
@@ -325,7 +324,29 @@ public class ContractServiceImpl implements ContractService {
                     return new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode());
                 });
 
-        BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
+        // Get vehicle assignments to determine vehicle type for distance calculation
+        List<ContractRuleAssignResponse> vehicleAssignments = assignVehiclesWithAvailability(orderUuid);
+        
+        // Get the first vehicle type to use for distance calculation
+        String vehicleType = null;
+        if (!vehicleAssignments.isEmpty()) {
+            UUID firstVehicleRuleId = vehicleAssignments.get(0).getSizeRuleId();
+            SizeRuleEntity firstVehicleRule = sizeRuleEntityService.findEntityById(firstVehicleRuleId)
+                    .orElse(null);
+            if (firstVehicleRule != null && firstVehicleRule.getVehicleTypeEntity() != null) {
+                vehicleType = firstVehicleRule.getVehicleTypeEntity().getVehicleTypeName();
+            }
+        }
+        
+        // Calculate distance with vehicle type if available
+        BigDecimal distanceKm;
+        if (vehicleType != null) {
+            log.info("🚚 Using vehicle type {} for distance calculation in contract creation", vehicleType);
+            distanceKm = calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress(), vehicleType);
+        } else {
+            log.info("🚗 Using default vehicle type for distance calculation in contract creation");
+            distanceKm = distanceService.getDistanceInKilometers(order.getId());
+        }
 
         ContractEntity contractEntity = contractMapper.mapRequestToEntity(contractRequest);
         contractEntity.setStatus(ContractStatusEnum.CONTRACT_DRAFT.name());
@@ -336,7 +357,8 @@ public class ContractServiceImpl implements ContractService {
 
         ContractEntity savedContract = contractEntityService.save(contractEntity);
 
-        List<ContractRuleAssignResponse> assignments = assignVehiclesWithAvailability(orderUuid);
+        // Use the vehicle assignments from earlier
+        List<ContractRuleAssignResponse> assignments = vehicleAssignments;
 
         Map<UUID, Integer> vehicleCountMap = assignments.stream()
                 .collect(Collectors.groupingBy(ContractRuleAssignResponse::getSizeRuleId, Collectors.summingInt(a -> 1)));
@@ -487,7 +509,29 @@ public class ContractServiceImpl implements ContractService {
                     return new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode());
                 });
 
-        BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
+        // Get vehicle assignments to determine vehicle type for distance calculation
+        List<ContractRuleAssignResponse> vehicleAssignments = assignVehiclesWithAvailability(orderUuid);
+        
+        // Get the first vehicle type to use for distance calculation
+        String vehicleType = null;
+        if (!vehicleAssignments.isEmpty()) {
+            UUID firstVehicleRuleId = vehicleAssignments.get(0).getSizeRuleId();
+            SizeRuleEntity firstVehicleRule = sizeRuleEntityService.findEntityById(firstVehicleRuleId)
+                    .orElse(null);
+            if (firstVehicleRule != null && firstVehicleRule.getVehicleTypeEntity() != null) {
+                vehicleType = firstVehicleRule.getVehicleTypeEntity().getVehicleTypeName();
+            }
+        }
+        
+        // Calculate distance with vehicle type if available
+        BigDecimal distanceKm;
+        if (vehicleType != null) {
+            log.info("🚚 Using vehicle type {} for distance calculation in customer contract creation", vehicleType);
+            distanceKm = calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress(), vehicleType);
+        } else {
+            log.info("🚗 Using default vehicle type for distance calculation in customer contract creation");
+            distanceKm = distanceService.getDistanceInKilometers(order.getId());
+        }
 
         ContractEntity contractEntity = contractMapper.mapRequestForCusToEntity(contractRequest);
         contractEntity.setStatus(ContractStatusEnum.CONTRACT_DRAFT.name());
@@ -526,7 +570,8 @@ public class ContractServiceImpl implements ContractService {
             // Don't throw - notification failure shouldn't break contract creation
         }
 
-        List<ContractRuleAssignResponse> assignments = assignVehiclesWithAvailability(orderUuid);
+        // Use the vehicle assignments from earlier
+        List<ContractRuleAssignResponse> assignments = vehicleAssignments;
 
         Map<UUID, Integer> vehicleCountMap = assignments.stream()
                 .collect(Collectors.groupingBy(ContractRuleAssignResponse::getSizeRuleId, Collectors.summingInt(a -> 1)));
@@ -1097,6 +1142,39 @@ public class ContractServiceImpl implements ContractService {
 
         log.info("🧮 Using unified pricing for contract calculation");
         
+        // Get toll information for the route
+        OrderEntity contractOrder = contract.getOrderEntity();
+        BigDecimal totalTollFee = BigDecimal.ZERO;
+        Integer totalTollCount = 0;
+        String vehicleType = null;
+        
+        // Get vehicle type from the first vehicle in the count map
+        if (!vehicleCountMap.isEmpty()) {
+            UUID firstVehicleRuleId = vehicleCountMap.keySet().iterator().next();
+            SizeRuleEntity firstVehicleRule = sizeRuleEntityService.findEntityById(firstVehicleRuleId)
+                    .orElse(null);
+            if (firstVehicleRule != null && firstVehicleRule.getVehicleTypeEntity() != null) {
+                vehicleType = firstVehicleRule.getVehicleTypeEntity().getVehicleTypeName();
+                
+                // Get toll information using the vehicle type
+                try {
+                    VietMapDistanceServiceImpl.DistanceResult distanceResult = 
+                            vietMapDistanceService.calculateDistanceAndTolls(
+                                contractOrder.getPickupAddress(), 
+                                contractOrder.getDeliveryAddress(), 
+                                vehicleType);
+                    
+                    totalTollFee = distanceResult.getTotalTollFee();
+                    totalTollCount = distanceResult.getTotalTollCount();
+                    
+                    log.info("🛣️ Route has {} toll stations with total fee: {} VND", 
+                            totalTollCount, totalTollFee);
+                } catch (Exception e) {
+                    log.warn("⚠️ Failed to get toll information: {}", e.getMessage());
+                }
+            }
+        }
+        
         BigDecimal total = BigDecimal.ZERO;
         List<PriceCalculationResponse.CalculationStep> steps = new ArrayList<>();
 
@@ -1156,10 +1234,12 @@ public class ContractServiceImpl implements ContractService {
         }
 
         // Calculate insurance fee
-        OrderEntity order = contract.getOrderEntity();
-        CategoryName categoryName = order.getCategory().getCategoryName();
+        // Use the contractOrder variable we already have
+        CategoryName categoryName = contractOrder.getCategory().getCategoryName();
         boolean isFragile = insuranceCalculationService.isFragileCategory(categoryName);
-        boolean hasInsurance = Boolean.TRUE.equals(order.getHasInsurance());
+        boolean hasInsurance = Boolean.TRUE.equals(contractOrder.getHasInsurance());
+        log.info("🔍 Insurance Debug - OrderId={}, hasInsurance={}, categoryName={}, isFragile={}", 
+                contractOrder.getId(), hasInsurance, categoryName, isFragile);
         
         BigDecimal totalDeclaredValue = BigDecimal.ZERO;
         BigDecimal insuranceFee = BigDecimal.ZERO;
@@ -1169,7 +1249,7 @@ public class ContractServiceImpl implements ContractService {
         
         if (hasInsurance) {
             List<OrderDetailEntity> orderDetails = orderDetailEntityService
-                    .findOrderDetailEntitiesByOrderEntityId(order.getId());
+                    .findOrderDetailEntitiesByOrderEntityId(contractOrder.getId());
             totalDeclaredValue = insuranceCalculationService.calculateTotalDeclaredValue(orderDetails);
             insuranceFee = insuranceCalculationService.calculateTotalInsuranceFee(orderDetails, categoryName);
             log.info("🛡️ Insurance calculated: totalDeclaredValue={}, insuranceFee={}, rate={}%, isFragile={}", 
@@ -1195,6 +1275,9 @@ public class ContractServiceImpl implements ContractService {
                 .vatRate(vatRate)
                 .hasInsurance(hasInsurance)
                 .grandTotal(grandTotal)
+                .totalTollFee(totalTollFee)
+                .totalTollCount(totalTollCount)
+                .vehicleType(vehicleType)
                 .steps(steps)
                 .build();
     }
@@ -1252,13 +1335,14 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to) {
-        
+        // Use default vehicle type (car) when not specified
         return vietMapDistanceService.calculateDistance(from, to);
     }
 
     @Override
     public BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to, String vehicleType) {
-        
+        // Use toll API with specific vehicle type for more accurate distance and toll information
+        log.info("🚗 Calculating distance with vehicle type: {} between addresses", vehicleType);
         return vietMapDistanceService.calculateDistance(from, to, vehicleType);
     }
 
@@ -1374,7 +1458,26 @@ public class ContractServiceImpl implements ContractService {
                             Collectors.summingInt(a -> 1)
                     ));
 
-            BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
+            // Get the first vehicle type to use for distance calculation
+            String vehicleType = null;
+            if (!assignResult.isEmpty()) {
+                UUID firstVehicleRuleId = assignResult.get(0).getSizeRuleId();
+                SizeRuleEntity firstVehicleRule = sizeRuleEntityService.findEntityById(firstVehicleRuleId)
+                        .orElse(null);
+                if (firstVehicleRule != null && firstVehicleRule.getVehicleTypeEntity() != null) {
+                    vehicleType = firstVehicleRule.getVehicleTypeEntity().getVehicleTypeName();
+                }
+            }
+            
+            // Calculate distance with vehicle type if available
+            BigDecimal distanceKm;
+            if (vehicleType != null) {
+                log.info("🚚 Using vehicle type {} for distance calculation in PDF generation", vehicleType);
+                distanceKm = calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress(), vehicleType);
+            } else {
+                log.info("🚗 Using default vehicle type for distance calculation in PDF generation");
+                distanceKm = distanceService.getDistanceInKilometers(order.getId());
+            }
 
             // Generate PDF using backend PdfGenerationService (handles pagination properly)
             byte[] pdfBytes = pdfGenerationService.generateContractPdf(
@@ -1411,6 +1514,7 @@ public class ContractServiceImpl implements ContractService {
             contract.setExpirationDate(request.expirationDate());
             contract.setAdjustedValue(request.adjustedValue());
             contract.setDescription(request.description());
+            contract.setCustomDepositPercent(request.customDepositPercent());
             
             // Calculate total price for the contract
             PriceCalculationResponse totalPriceResponse = calculateTotalPrice(contract, distanceKm, vehicleCountMap);
@@ -1456,18 +1560,14 @@ public class ContractServiceImpl implements ContractService {
                 double totalAmount = getEffectiveContractValue(updated);
                 double depositAmount = 0.0;
                 
-                // Calculate deposit amount using contract settings
+                // Calculate deposit amount: prioritize contract's custom percent, fallback to global setting
                 try {
-                    var contractSetting = contractSettingService.getLatestContractSetting();
-                    if (contractSetting != null && contractSetting.depositPercent() != null) {
-                        depositAmount = totalAmount * contractSetting.depositPercent().doubleValue() / 100.0;
-                    } else {
-                        // Fallback to 30% if no contract setting found
-                        depositAmount = totalAmount * 0.1;
-                    }
+                    BigDecimal depositPercent = getEffectiveDepositPercent(updated);
+                    depositAmount = totalAmount * depositPercent.doubleValue() / 100.0;
+                    log.info("📊 PDF generation notification - Using deposit percent: {}% (custom: {})", depositPercent, 
+                        updated.getCustomDepositPercent() != null ? "yes" : "no");
                 } catch (Exception e) {
-                    log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
-                    // Fallback to 30% if contract setting fails
+                    log.warn("Could not get deposit percent, using 10% default: {}", e.getMessage());
                     depositAmount = totalAmount * 0.1;
                 }
                 
@@ -1695,5 +1795,34 @@ public class ContractServiceImpl implements ContractService {
             sb.append(address.getProvince());
         }
         return sb.length() > 0 ? sb.toString() : null;
+    }
+    
+    /**
+     * Get effective deposit percent for a contract.
+     * Prioritizes contract's custom deposit percent if set, otherwise falls back to global setting.
+     * 
+     * @param contract The contract to get deposit percent for
+     * @return The effective deposit percent (0-100)
+     */
+    private BigDecimal getEffectiveDepositPercent(ContractEntity contract) {
+        // First, check if contract has custom deposit percent
+        if (contract.getCustomDepositPercent() != null 
+            && contract.getCustomDepositPercent().compareTo(BigDecimal.ZERO) > 0
+            && contract.getCustomDepositPercent().compareTo(BigDecimal.valueOf(100)) <= 0) {
+            return contract.getCustomDepositPercent();
+        }
+        
+        // Fallback to global setting
+        var contractSetting = contractSettingService.getLatestContractSetting();
+        if (contractSetting != null && contractSetting.depositPercent() != null) {
+            BigDecimal depositPercent = contractSetting.depositPercent();
+            if (depositPercent.compareTo(BigDecimal.ZERO) > 0 && depositPercent.compareTo(BigDecimal.valueOf(100)) <= 0) {
+                return depositPercent;
+            }
+        }
+        
+        // Default fallback
+        log.warn("No valid deposit percent found, using 10% default");
+        return BigDecimal.valueOf(10);
     }
 }

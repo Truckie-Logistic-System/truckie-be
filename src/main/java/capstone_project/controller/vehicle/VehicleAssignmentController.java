@@ -12,11 +12,11 @@ import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 import java.util.UUID;
 
@@ -24,6 +24,7 @@ import java.util.UUID;
 @RequestMapping("${vehicle-assignment.api.base-path}")
 @RequiredArgsConstructor
 @Validated
+@Slf4j
 public class VehicleAssignmentController {
 
     private final VehicleAssignmentService service;
@@ -44,13 +45,23 @@ public class VehicleAssignmentController {
      */
     @GetMapping("/{id}/full")
     public ResponseEntity<ApiResponse<StaffVehicleAssignmentFullResponse>> getFullById(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.ok(service.getFullAssignmentById(id)));
+        log.info("🔍 DEBUG: Getting full vehicle assignment details for ID: {}", id);
+        StaffVehicleAssignmentFullResponse response = service.getFullAssignmentById(id);
+        log.info("🔍 DEBUG: Response contains {} devices", response.devices().size());
+        if (!response.devices().isEmpty()) {
+            log.info("🔍 DEBUG: Device codes in response: {}", 
+                response.devices().stream().map(d -> d.deviceCode()).toList());
+        }
+        return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
     @PostMapping
     public ResponseEntity<ApiResponse<VehicleAssignmentResponse>> create(
             @RequestBody @Valid VehicleAssignmentRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(service.createAssignment(req)));
+        log.info("🔍 DEBUG: Creating new vehicle assignment");
+        VehicleAssignmentResponse response = service.createAssignment(req);
+        log.info("🔍 DEBUG: Created vehicle assignment with ID: {}", response.id());
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(response));
     }
 
     @PutMapping("/{id}")

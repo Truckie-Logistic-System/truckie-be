@@ -3,6 +3,8 @@ package capstone_project.service.services.email;
 import capstone_project.entity.NotificationEntity;
 import capstone_project.entity.auth.UserEntity;
 
+import java.util.Map;
+
 /**
  * Service for sending email notifications to customers
  */
@@ -49,4 +51,14 @@ public interface EmailNotificationService {
     void sendOrderStatusChangeEmail(String customerEmail, String orderCode, 
                                    String oldStatus, String newStatus, 
                                    String description);
+    
+    /**
+     * Send driver assignment notification email
+     * @param driverEmail Driver email address
+     * @param driverName Driver name
+     * @param orderCode Order code
+     * @param metadata Assignment metadata including package details
+     */
+    void sendDriverAssignmentEmail(String driverEmail, String driverName, 
+                                  String orderCode, Map<String, Object> metadata);
 }

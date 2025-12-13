@@ -1,6 +1,7 @@
 package capstone_project.service.services.map;
 
 import capstone_project.entity.user.address.AddressEntity;
+import capstone_project.service.services.map.impl.VietMapDistanceServiceImpl.DistanceResult;
 
 import java.math.BigDecimal;
 
@@ -37,4 +38,13 @@ public interface VietMapDistanceService {
      * @return Distance in kilometers
      */
     BigDecimal calculateDistance(AddressEntity fromAddress, AddressEntity toAddress);
+    
+    /**
+     * Calculate distance and toll information between two addresses
+     * @param fromAddress Starting address
+     * @param toAddress Destination address
+     * @param vehicleType Vehicle type for routing
+     * @return DistanceResult containing distance and toll information
+     */
+    DistanceResult calculateDistanceAndTolls(AddressEntity fromAddress, AddressEntity toAddress, String vehicleType);
 }

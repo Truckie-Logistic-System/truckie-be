@@ -385,15 +385,31 @@
                 = <strong style="font-size: 12pt;" th:text="${#numbers.formatDecimal(finalTotal, 0, 'POINT', 0, 'COMMA')}">0</strong>
             </p>
 
-            <!-- Insurance (placeholder - will show no insurance) -->
-            <p style="margin-bottom: 12pt;">
-                <strong>3.2. Chi phí bảo hiểm hàng hóa (B):</strong> Khách hàng không đăng ký bảo hiểm = <strong>0 đ</strong>
-            </p>
+            <!-- Insurance -->
+            <th:block th:if="${hasInsurance != null and hasInsurance == true}">
+                <p style="margin-bottom: 8pt;">
+                    <strong>3.2. Chi phí bảo hiểm hàng hóa (B):</strong>
+                </p>
+                <p style="margin-left: 20px; margin-bottom: 4pt;">
+                    - Giá trị khai báo: <span th:text="${#numbers.formatDecimal(totalDeclaredValue, 0, 'POINT', 0, 'COMMA')}">0</span> VNĐ
+                </p>
+                <p style="margin-left: 20px; margin-bottom: 4pt;">
+                    - Tỷ lệ bảo hiểm: <span th:text="${#numbers.formatDecimal(insuranceRateWithVat, 1, 'COMMA', 5, 'COMMA')}">0,165</span>% (đã bao gồm 10% VAT)
+                </p>
+                <p style="margin-left: 20px; margin-bottom: 12pt;">
+                    - Phí bảo hiểm: <strong th:text="${#numbers.formatDecimal(insuranceFee, 0, 'POINT', 0, 'COMMA')}">0</strong> VNĐ
+                </p>
+            </th:block>
+            <th:block th:if="${hasInsurance == null or hasInsurance == false}">
+                <p style="margin-bottom: 12pt;">
+                    <strong>3.2. Chi phí bảo hiểm hàng hóa (B):</strong> Khách hàng không đăng ký bảo hiểm = <strong>0 đ</strong>
+                </p>
+            </th:block>
 
             <!-- Grand Total -->
             <p class="grand-total">
                 <strong>3.3. TỔNG GIÁ TRỊ HỢP ĐỒNG (A + B):</strong> 
-                <strong style="font-size: 14pt; text-decoration: underline;" th:text="${#numbers.formatDecimal(finalTotal, 0, 'POINT', 0, 'COMMA')}">0</strong> VNĐ
+                <strong style="font-size: 14pt; text-decoration: underline;" th:text="${#numbers.formatDecimal(grandTotal != null ? grandTotal : finalTotal, 0, 'POINT', 0, 'COMMA')}">0</strong> VNĐ
             </p>
         </div>
 
@@ -401,10 +417,10 @@
         <div style="margin-top: 20px;">
             <p><strong>Điều kiện thanh toán:</strong></p>
             <p>- Thời hạn ký hợp đồng: 24 giờ kể từ khi nhận được hợp đồng</p>
-            <p>- Đặt cọc: <span th:text="${depositPercent}">30</span>% (<span th:text="${#numbers.formatDecimal(finalTotal * depositPercent / 100, 0, 'POINT', 0, 'COMMA')}">0</span> VNĐ) - Thanh toán trong vòng 24 giờ kể từ khi ký hợp đồng</p>
-            <p>- Thanh toán còn lại: <span th:text="${#numbers.formatDecimal(finalTotal * (100 - depositPercent) / 100, 0, 'POINT', 0, 'COMMA')}">0</span> VNĐ - Thanh toán trước ngày lấy hàng dự kiến 1 ngày</p>
+            <p>- Đặt cọc: <span th:text="${depositPercent}">30</span>% (<span th:text="${#numbers.formatDecimal((grandTotal != null ? grandTotal : finalTotal) * depositPercent / 100, 0, 'POINT', 0, 'COMMA')}">0</span> VNĐ) - Thanh toán trong vòng 24 giờ kể từ khi ký hợp đồng</p>
+            <p>- Thanh toán còn lại: <span th:text="${#numbers.formatDecimal((grandTotal != null ? grandTotal : finalTotal) * (100 - depositPercent) / 100, 0, 'POINT', 0, 'COMMA')}">0</span> VNĐ - Thanh toán trước ngày lấy hàng dự kiến 1 ngày</p>
             <p>- Phương thức thanh toán: Chuyển khoản</p>
-            <p>- Quy định bảo hiểm: Hàng thông thường <span th:text="${insuranceRateNormal != null ? insuranceRateNormal : '0.08'}">0.08</span>%, hàng dễ vỡ <span th:text="${insuranceRateFragile != null ? insuranceRateFragile : '0.15'}">0.15</span>% giá trị khai báo (đã bao gồm 10% VAT)</p>
+            <p>- Quy định bảo hiểm: Hàng thông thường <span th:text="${insuranceRateNormal != null ? #numbers.formatDecimal(insuranceRateNormal * (1 + (vatRate != null ? vatRate : 10) / 100), 1, 'COMMA', 5, 'COMMA') : '0,088'}">0,088</span>%, hàng dễ vỡ <span th:text="${insuranceRateFragile != null ? #numbers.formatDecimal(insuranceRateFragile * (1 + (vatRate != null ? vatRate : 10) / 100), 1, 'COMMA', 5, 'COMMA') : '0,165'}">0,165</span>% giá trị khai báo (đã bao gồm 10% VAT)</p>
         </div>
     </div>
 
