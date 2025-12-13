@@ -43,4 +43,10 @@
     <!-- STEP 9: Add back is_demo_data column (part of BaseEntity) -->
     <include file="db/migration/V2025121103__Add_back_is_demo_data_column.sql"/>
 
+    <!-- STEP 10: Add custom_deposit_percent column to contracts table -->
+    <include file="db/changelog/changes/add-custom-deposit-percent-to-contracts.xml"/>
+
+    <!-- STEP 11: Add metadata fields to distance_rules for dynamic pricing -->
+    <include file="db/migration/V20251213__Add_Distance_Rule_Metadata.sql"/>
+
 </databaseChangeLog>

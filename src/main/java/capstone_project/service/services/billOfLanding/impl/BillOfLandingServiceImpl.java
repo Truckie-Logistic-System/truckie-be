@@ -1007,23 +1007,16 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             }
         }
 
-        // Calculate deposit using contract settings with fallback
+        // Calculate deposit: prioritize contract's custom percent, fallback to global setting
         BigDecimal depositAmount;
         try {
-            var contractSetting = contractSettingService.getLatestContractSetting();
-            BigDecimal depositPercent;
-            if (contractSetting != null && contractSetting.depositPercent() != null) {
-                depositPercent = contractSetting.depositPercent();
-                log.info("🔍 Using contract setting deposit rate: {}% for freight charge: {}", 
-                    depositPercent, freightCharge);
-            } else {
-                log.warn("Contract setting deposit percent is null, using 30% fallback");
-                depositPercent = new BigDecimal("10");
-            }
+            BigDecimal depositPercent = getEffectiveDepositPercent(contract);
+            log.info("📊 Bill of Landing - Using deposit percent: {}% (custom: {})", 
+                depositPercent, contract != null && contract.getCustomDepositPercent() != null ? "yes" : "no");
             // Convert percentage to decimal (e.g., 10% -> 0.10)
             depositAmount = freightCharge.multiply(depositPercent.divide(new BigDecimal("100")));
         } catch (Exception e) {
-            log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+            log.warn("Could not get deposit percent, using 10% default: {}", e.getMessage());
             // Fallback to 10% if contract setting fails
             depositAmount = freightCharge.multiply(new BigDecimal("0.10"));
         }
@@ -1538,5 +1531,34 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         addressBlock.add(addressTable);
         document.add(addressBlock);
         document.add(new Paragraph("").setMarginBottom(8));
+    }
+    
+    /**
+     * Get effective deposit percent for a contract.
+     * Prioritizes contract's custom deposit percent if set, otherwise falls back to global setting.
+     * 
+     * @param contract The contract to get deposit percent for
+     * @return The effective deposit percent (0-100)
+     */
+    private BigDecimal getEffectiveDepositPercent(ContractEntity contract) {
+        // First, check if contract has custom deposit percent
+        if (contract != null && contract.getCustomDepositPercent() != null 
+            && contract.getCustomDepositPercent().compareTo(BigDecimal.ZERO) > 0
+            && contract.getCustomDepositPercent().compareTo(BigDecimal.valueOf(100)) <= 0) {
+            return contract.getCustomDepositPercent();
+        }
+        
+        // Fallback to global setting
+        var contractSetting = contractSettingService.getLatestContractSetting();
+        if (contractSetting != null && contractSetting.depositPercent() != null) {
+            BigDecimal depositPercent = contractSetting.depositPercent();
+            if (depositPercent.compareTo(BigDecimal.ZERO) > 0 && depositPercent.compareTo(BigDecimal.valueOf(100)) <= 0) {
+                return depositPercent;
+            }
+        }
+        
+        // Default fallback
+        log.warn("No valid deposit percent found, using 10% default");
+        return BigDecimal.valueOf(10);
     }
 }

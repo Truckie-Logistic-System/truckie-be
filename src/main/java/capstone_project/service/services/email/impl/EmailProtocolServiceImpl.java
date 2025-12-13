@@ -20,7 +20,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import capstone_project.common.template.OtpEmailForgetPasswordTemplate;
 
 @Service
 @Slf4j
@@ -35,9 +39,27 @@ public class EmailProtocolServiceImpl implements EmailProtocolService {
     private final Object emailLock = new Object();
     private final OtpSchedulerService otpSchedulerService;
     private final Map<String, OTPResponse> otpStorage = new ConcurrentHashMap<>();
+    
+    // Separate storage for forgot password OTP and reset tokens
+    private final Map<String, OTPResponse> forgotPasswordOtpStorage = new ConcurrentHashMap<>();
+    private final Map<String, ResetTokenData> resetTokenStorage = new ConcurrentHashMap<>();
 
     @Value("${spring.mail.username}")
     private String sender;
+    
+    // Inner class to store reset token data
+    private static class ResetTokenData {
+        private final String token;
+        private final LocalDateTime createdAt;
+        
+        public ResetTokenData(String token, LocalDateTime createdAt) {
+            this.token = token;
+            this.createdAt = createdAt;
+        }
+        
+        public String getToken() { return token; }
+        public LocalDateTime getCreatedAt() { return createdAt; }
+    }
 
     @Override
     public void sendOtpEmail(String email, String otp) {
@@ -111,6 +133,122 @@ public class EmailProtocolServiceImpl implements EmailProtocolService {
             Thread.currentThread().interrupt();
             log.warn("Delay interrupted: {}", e.getMessage());
         }
+    }
+
+    // ==================== FORGOT PASSWORD OTP METHODS ====================
+
+    @Override
+    public void sendForgotPasswordOtp(String email) {
+        // Validate user exists
+        var userOpt = userEntityService.getUserByEmail(email);
+        if (userOpt.isEmpty()) {
+            log.warn("[sendForgotPasswordOtp] User not found with email: {}", email);
+            throw new IllegalArgumentException("Không tìm thấy tài khoản với email này");
+        }
+
+        synchronized (emailLock) {
+            try {
+                // Generate 6-digit OTP
+                String otp = generateOtp();
+                String username = userOpt.get().getUsername();
+
+                // Use forgot password email template
+                String emailTemplate = OtpEmailForgetPasswordTemplate.getOtpEmailForgetPasswordTemplate();
+                String emailContent = String.format(emailTemplate, username, otp);
+
+                MimeMessage message = javaMailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+                helper.setTo(email);
+                helper.setSubject("Yêu cầu đặt lại mật khẩu - Truckie");
+                helper.setText(emailContent, true);
+
+                javaMailSender.send(message);
+
+                // Store OTP with timestamp (valid for 5 minutes)
+                forgotPasswordOtpStorage.put(email, new OTPResponse(otp, LocalDateTime.now()));
+
+                log.info("[sendForgotPasswordOtp] OTP sent successfully to: {}", email);
+
+                introduceDelay();
+
+            } catch (MessagingException e) {
+                log.error("[sendForgotPasswordOtp] Failed to send OTP email to {}", email, e);
+                throw new RuntimeException("Không thể gửi email OTP. Vui lòng thử lại sau.", e);
+            }
+        }
+    }
+
+    @Override
+    public String verifyForgotPasswordOtp(String email, String otp) {
+        OTPResponse otpData = forgotPasswordOtpStorage.get(email);
+
+        if (otpData == null) {
+            log.warn("[verifyForgotPasswordOtp] No OTP found for email: {}", email);
+            return null;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime createdAt = otpData.getCreatedAt();
+
+        // OTP valid for 5 minutes
+        if (now.isAfter(createdAt.plusMinutes(5))) {
+            forgotPasswordOtpStorage.remove(email);
+            log.warn("[verifyForgotPasswordOtp] OTP expired for email: {}", email);
+            return null;
+        }
+
+        if (!otpData.getOtp().equals(otp)) {
+            log.warn("[verifyForgotPasswordOtp] Invalid OTP for email: {}", email);
+            return null;
+        }
+
+        // OTP is valid - remove it and generate reset token
+        forgotPasswordOtpStorage.remove(email);
+
+        // Generate reset token (valid for 10 minutes)
+        String resetToken = UUID.randomUUID().toString();
+        resetTokenStorage.put(email, new ResetTokenData(resetToken, LocalDateTime.now()));
+
+        log.info("[verifyForgotPasswordOtp] OTP verified successfully for email: {}", email);
+        return resetToken;
+    }
+
+    @Override
+    public boolean validateResetToken(String email, String resetToken) {
+        ResetTokenData tokenData = resetTokenStorage.get(email);
+
+        if (tokenData == null) {
+            log.warn("[validateResetToken] No reset token found for email: {}", email);
+            return false;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime createdAt = tokenData.getCreatedAt();
+
+        // Reset token valid for 10 minutes
+        if (now.isAfter(createdAt.plusMinutes(10))) {
+            resetTokenStorage.remove(email);
+            log.warn("[validateResetToken] Reset token expired for email: {}", email);
+            return false;
+        }
+
+        if (!tokenData.getToken().equals(resetToken)) {
+            log.warn("[validateResetToken] Invalid reset token for email: {}", email);
+            return false;
+        }
+
+        return true;
+    }
+
+    @Override
+    public void invalidateResetToken(String email) {
+        resetTokenStorage.remove(email);
+        log.info("[invalidateResetToken] Reset token invalidated for email: {}", email);
+    }
+
+    private String generateOtp() {
+        return String.format("%06d", new Random().nextInt(999999));
     }
 
 }

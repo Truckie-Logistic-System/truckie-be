@@ -186,4 +186,37 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
             log.error("❌ Failed to send order status change email to {}: {}", customerEmail, e.getMessage(), e);
         }
     }
+    
+    @Override
+    @Async
+    @Transactional
+    public void sendDriverAssignmentEmail(String driverEmail, String driverName, 
+                                         String orderCode, Map<String, Object> metadata) {
+        try {
+            log.info("📧 Sending driver assignment email to: {}", driverEmail);
+            
+            Context context = new Context();
+            context.setVariable("driverName", driverName);
+            context.setVariable("orderCode", orderCode);
+            context.setVariable("metadata", metadata);
+            context.setVariable("frontendUrl", frontendUrl);
+            
+            String emailContent = templateEngine.process("emails/driver-assignment", context);
+            
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            
+            helper.setFrom(fromEmail);
+            helper.setTo(driverEmail);
+            helper.setSubject("🚛 Thông báo phân công chuyến xe - Đơn hàng " + orderCode);
+            helper.setText(emailContent, true);
+            
+            mailSender.send(message);
+            
+            log.info("✅ Driver assignment email sent successfully to: {}", driverEmail);
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to send driver assignment email to {}: {}", driverEmail, e.getMessage(), e);
+        }
+    }
 }

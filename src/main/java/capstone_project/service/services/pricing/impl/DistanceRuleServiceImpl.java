@@ -1,6 +1,5 @@
 package capstone_project.service.services.pricing.impl;
 
-import capstone_project.common.enums.DistanceRuleEnum;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
@@ -11,6 +10,8 @@ import capstone_project.entity.pricing.DistanceRuleEntity;
 import capstone_project.repository.entityServices.pricing.DistanceRuleEntityService;
 import capstone_project.service.mapper.order.DistanceRuleMapper;
 import capstone_project.service.services.pricing.DistanceRuleService;
+import capstone_project.service.services.pricing.DistanceRuleMetadataCalculator;
+import capstone_project.service.services.pricing.DistanceRuleValidator;
 import capstone_project.service.services.redis.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,8 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
     private final DistanceRuleEntityService distanceRuleEntityService;
     private final DistanceRuleMapper distanceRuleMapper;
     private final RedisService redisService;
+    private final DistanceRuleMetadataCalculator metadataCalculator;
+    private final DistanceRuleValidator validator;
 
     private static final String DISTANCE_RULE_ALL_CACHE_KEY = "distances:all";
     private static final String DISTANCE_RULE_BY_ID_CACHE_KEY_PREFIX = "distance:";
@@ -37,7 +40,6 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
 
         List<DistanceRuleEntity> cachedDistanceRules = redisService.getList(DISTANCE_RULE_ALL_CACHE_KEY, DistanceRuleEntity.class);
         if (cachedDistanceRules != null && !cachedDistanceRules.isEmpty()) {
-            
             return cachedDistanceRules.stream()
                     .map(distanceRuleMapper::toDistanceRuleResponse)
                     .toList();
@@ -51,6 +53,9 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
                     ErrorEnum.NOT_FOUND.getErrorCode()
             );
         }
+
+        // Ensure metadata is up to date
+        metadataCalculator.calculateMetadataForAll(distanceRuleEntities);
 
         redisService.save(DISTANCE_RULE_ALL_CACHE_KEY, distanceRuleEntities);
 
@@ -88,32 +93,58 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
 
     @Override
     public DistanceRuleResponse createDistanceRule(DistanceRuleRequest distanceRuleRequest) {
+        log.info("Creating new distance rule: {} - {}", distanceRuleRequest.fromKm(), distanceRuleRequest.toKm());
 
-        DistanceRuleEnum ruleEnum;
-        try {
-            ruleEnum = DistanceRuleEnum.valueOf(distanceRuleRequest.distanceRuleTier());
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Invalid pricing tier: " + distanceRuleRequest.distanceRuleTier(),
-                    ErrorEnum.ENUM_INVALID.getErrorCode());
+        // Get all existing active rules for validation and metadata calculation
+        List<DistanceRuleEntity> existingActiveRules = distanceRuleEntityService.findAll().stream()
+                .filter(r -> "ACTIVE".equals(r.getStatus()))
+                .collect(java.util.stream.Collectors.toList());
+
+        // Create new entity
+        DistanceRuleEntity distanceRuleEntity = distanceRuleMapper.mapRequestToEntity(distanceRuleRequest);
+        distanceRuleEntity.setStatus("ACTIVE");
+
+        // Rule A: Block adding range that would split base range
+        if (metadataCalculator.wouldOverlapBaseRange(distanceRuleEntity, existingActiveRules)) {
+            throw new BadRequestException(
+                "Không thể thêm khoảng cách nằm trong khoảng giá gốc. Vui lòng chọn khoảng cách khác.", 
+                ErrorEnum.INVALID.getErrorCode()
+            );
         }
 
-        DistanceRuleEntity distanceRuleEntity = distanceRuleMapper.mapRequestToEntity(distanceRuleRequest);
+        // Smart auto-adjustment: adjust existing ranges to make room for new range
+        metadataCalculator.adjustForNewRange(distanceRuleEntity, existingActiveRules);
 
-        applyPricingTierEnum(distanceRuleEntity, ruleEnum);
+        // Save adjusted existing rules first
+        existingActiveRules.forEach(distanceRuleEntityService::save);
 
+        // Calculate metadata smartly for the new rule
+        metadataCalculator.calculateMetadataForSingle(distanceRuleEntity, existingActiveRules);
+
+        // Save the new rule
         DistanceRuleEntity savedEntity = distanceRuleEntityService.save(distanceRuleEntity);
 
-        redisService.delete(DISTANCE_RULE_ALL_CACHE_KEY);
+        // Recalculate metadata for all rules to ensure consistency
+        List<DistanceRuleEntity> allActiveRules = distanceRuleEntityService.findAll().stream()
+                .filter(r -> "ACTIVE".equals(r.getStatus()))
+                .collect(java.util.stream.Collectors.toList());
+        metadataCalculator.calculateMetadataForAll(allActiveRules);
+        allActiveRules.forEach(distanceRuleEntityService::save);
 
+        // Clear cache
+        clearAllCache();
+
+        log.info("Created distance rule: {} ({})", savedEntity.getDisplayName(), savedEntity.getId());
         return distanceRuleMapper.toDistanceRuleResponse(savedEntity);
     }
 
     @Override
     public DistanceRuleResponse updateDistanceRule(UUID id, UpdateDistanceRuleRequest distanceRuleRequest) {
+        log.info("Updating distance rule: {}", id);
 
         if (id == null) {
-            log.error("Pricing tier ID is required for updating a pricing tier");
-            throw new BadRequestException("Pricing tier ID is required", ErrorEnum.REQUIRED.getErrorCode());
+            log.error("Distance rule ID is required for updating");
+            throw new BadRequestException("Distance rule ID is required", ErrorEnum.REQUIRED.getErrorCode());
         }
 
         DistanceRuleEntity existingEntity = distanceRuleEntityService.findEntityById(id)
@@ -122,30 +153,98 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
+        // Get all active rules for validation and adjustment
+        List<DistanceRuleEntity> allActiveRules = distanceRuleEntityService.findAll().stream()
+                .filter(r -> "ACTIVE".equals(r.getStatus()))
+                .collect(java.util.stream.Collectors.toList());
+
+        // Update entity with new values
         distanceRuleMapper.toDistanceRuleEntity(distanceRuleRequest, existingEntity);
 
+        // Smart auto-adjustment: adjust adjacent ranges to prevent gaps
+        metadataCalculator.adjustAdjacentRanges(existingEntity, allActiveRules);
+
+        // Recalculate metadata for the updated rule
+        metadataCalculator.calculateMetadataForSingle(existingEntity, allActiveRules);
+
+        // Save the updated rule first
         DistanceRuleEntity savedEntity = distanceRuleEntityService.save(existingEntity);
 
-        redisService.delete(DISTANCE_RULE_ALL_CACHE_KEY);
-        redisService.delete(DISTANCE_RULE_BY_ID_CACHE_KEY_PREFIX + id);
+        // Save all adjusted rules
+        allActiveRules.forEach(distanceRuleEntityService::save);
 
+        // Recalculate metadata for all rules to ensure consistency
+        allActiveRules = distanceRuleEntityService.findAll().stream()
+                .filter(r -> "ACTIVE".equals(r.getStatus()))
+                .collect(java.util.stream.Collectors.toList());
+        metadataCalculator.calculateMetadataForAll(allActiveRules);
+        allActiveRules.forEach(distanceRuleEntityService::save);
+
+        // Clear cache
+        clearAllCache();
+
+        log.info("Updated distance rule: {} ({})", savedEntity.getDisplayName(), savedEntity.getId());
         return distanceRuleMapper.toDistanceRuleResponse(savedEntity);
     }
 
     @Override
     public void deleteDistanceRule(UUID id) {
+        log.info("Deleting distance rule: {}", id);
 
+        if (id == null) {
+            log.error("Distance rule ID is required for deletion");
+            throw new BadRequestException("Distance rule ID is required", ErrorEnum.REQUIRED.getErrorCode());
+        }
+
+        DistanceRuleEntity entity = distanceRuleEntityService.findEntityById(id)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Get all active rules for validation
+        List<DistanceRuleEntity> allActiveRules = distanceRuleEntityService.findAll().stream()
+                .filter(r -> "ACTIVE".equals(r.getStatus()))
+                .collect(java.util.stream.Collectors.toList());
+
+        // Validate deletion
+        validator.validateDeletion(entity, allActiveRules);
+
+        // Soft delete by setting status to DELETED
+        entity.setStatus("DELETED");
+        distanceRuleEntityService.save(entity);
+
+        // Get remaining active rules (excluding the deleted one)
+        List<DistanceRuleEntity> remainingActiveRules = distanceRuleEntityService.findAll().stream()
+                .filter(r -> "ACTIVE".equals(r.getStatus()))
+                .collect(java.util.stream.Collectors.toList());
+
+        // Smart auto-adjustment: expand adjacent range to cover the deleted range
+        metadataCalculator.adjustAfterDeletion(entity, remainingActiveRules);
+
+        // Save adjusted rules
+        remainingActiveRules.forEach(distanceRuleEntityService::save);
+
+        // Recalculate metadata for remaining active rules
+        metadataCalculator.calculateMetadataForAll(remainingActiveRules);
+        remainingActiveRules.forEach(distanceRuleEntityService::save);
+
+        // Validate minimum rules requirement
+        validator.validateMinimumRules(distanceRuleEntityService.findAll());
+
+        // Clear cache
+        clearAllCache();
+
+        log.info("Deleted distance rule: {}", id);
     }
 
-    private void applyPricingTierEnum(DistanceRuleEntity entity, DistanceRuleEnum tierEnum) {
-        try {
-            entity.setToKm(BigDecimal.valueOf(tierEnum.getToKm()));
-            entity.setFromKm(BigDecimal.valueOf(tierEnum.getFromKm()));
-
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid PricingRuleEnum value: {}", tierEnum, e);
-            throw new BadRequestException("Invalid pricing rule type: " + tierEnum,
-                    ErrorEnum.INVALID.getErrorCode());
-        }
+    private void clearAllCache() {
+        redisService.delete(DISTANCE_RULE_ALL_CACHE_KEY);
+        
+        // Clear all individual caches
+        List<DistanceRuleEntity> allRules = distanceRuleEntityService.findAll();
+        allRules.forEach(rule -> {
+            redisService.delete(DISTANCE_RULE_BY_ID_CACHE_KEY_PREFIX + rule.getId());
+        });
     }
 }

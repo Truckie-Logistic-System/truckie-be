@@ -21,13 +21,18 @@ public class PriceCalculationResponse {
     private BigDecimal promotionDiscount;     // Giảm giá khuyến mãi (nếu có)
     private BigDecimal finalTotal;            // Tổng cuối cùng sau mọi điều chỉnh
     
+    // Toll fee information
+    private BigDecimal totalTollFee;          // Tổng phí cầu đường
+    private Integer totalTollCount;           // Số lượng trạm thu phí
+    private String vehicleType;               // Loại phương tiện sử dụng để tính phí
+    
     // Insurance fields
     private BigDecimal totalDeclaredValue;    // Tổng giá trị khai báo
     private BigDecimal insuranceFee;          // Phí bảo hiểm (đã bao gồm VAT)
     private BigDecimal insuranceRate;         // Tỷ lệ bảo hiểm (0.08% hoặc 0.15%)
     private BigDecimal vatRate;               // Tỷ lệ VAT (10%)
     private Boolean hasInsurance;             // Có mua bảo hiểm không
-    private BigDecimal grandTotal;            // Tổng cuối cùng (bao gồm cả phí bảo hiểm)
+    private BigDecimal grandTotal;            // Tổng cuối cùng (bao gồm cả phí bảo hiểm và phí cầu đường)
 
     private List<CalculationStep> steps;      // Các bước tính chi tiết
 //    private String summary;

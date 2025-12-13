@@ -6,6 +6,10 @@ public record DistanceRuleResponse(
 
         String id,
         BigDecimal fromKm,
-        BigDecimal toKm
+        BigDecimal toKm,
+        Integer displayOrder,
+        String displayName,
+        Boolean isBasePrice,
+        String status
 ) {
 }

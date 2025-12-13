@@ -49,4 +49,11 @@ public class DistanceRuleController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deletePricingRule(@PathVariable("id") UUID id) {
+        distanceRuleService.deleteDistanceRule(id);
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
 }

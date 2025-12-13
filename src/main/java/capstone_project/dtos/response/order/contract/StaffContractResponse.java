@@ -37,6 +37,7 @@ public class StaffContractResponse {
     private BigDecimal totalValue;
     private BigDecimal adjustedValue;
     private BigDecimal effectiveValue; // adjustedValue if > 0, else totalValue
+    private BigDecimal customDepositPercent; // Custom deposit percentage (null = use global setting)
     
     // Order info
     private OrderInfo order;

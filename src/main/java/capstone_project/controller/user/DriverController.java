@@ -1,6 +1,7 @@
 package capstone_project.controller.user;
 
 import capstone_project.dtos.request.user.BulkDriverGenerationRequest;
+import capstone_project.dtos.request.user.LicenseRenewalRequest;
 import capstone_project.dtos.request.user.UpdateDriverRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.user.DriverResponse;
@@ -68,6 +69,15 @@ public class DriverController {
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<DriverResponse>> validateDriverByPhone(@PathVariable String phoneNumber) {
         final var driver = driverService.validateDriverByPhone(phoneNumber);
+        return ResponseEntity.ok(ApiResponse.ok(driver));
+    }
+
+    @PutMapping("/{id}/renew-license")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<DriverResponse>> renewDriverLicense(
+            @PathVariable UUID id,
+            @RequestBody LicenseRenewalRequest request) {
+        final var driver = driverService.renewDriverLicense(id, request);
         return ResponseEntity.ok(ApiResponse.ok(driver));
     }
 }

@@ -1,12 +1,17 @@
 package capstone_project.dtos.request.pricing;
 
-import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotNull;
+
+import java.math.BigDecimal;
 
 public record UpdateDistanceRuleRequest(
-        @Min(value = 1, message = "fromKm must be greater than 0")
-        Integer fromKm,
+        @NotNull(message = "Khoảng cách từ không được để trống")
+        @DecimalMin(value = "0.0", message = "Khoảng cách từ phải >= 0")
+        BigDecimal fromKm,
 
-        @Min(value = 1, message = "fromKm must be greater than 0")
-        Integer toKm
+        @NotNull(message = "Khoảng cách đến không được để trống")
+        @DecimalMin(value = "0.01", message = "Khoảng cách đến phải > 0")
+        BigDecimal toKm
 ) {
 }

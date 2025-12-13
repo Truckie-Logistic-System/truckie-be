@@ -1,6 +1,7 @@
 package capstone_project.service.services.user;
 
 import capstone_project.common.enums.VehicleTypeEnum;
+import capstone_project.dtos.request.user.LicenseRenewalRequest;
 import capstone_project.dtos.request.user.UpdateDriverRequest;
 import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.entity.user.driver.DriverEntity;
@@ -34,4 +35,22 @@ public interface DriverService {
      * @return Driver information if eligible
      */
     DriverResponse validateDriverByPhone(String phoneNumber);
+
+    /**
+     * Renew driver license
+     * Updates license information and reactivates driver if inactive due to expired license
+     * 
+     * @param driverId Driver ID
+     * @param request License renewal request
+     * @return Updated driver information
+     */
+    DriverResponse renewDriverLicense(UUID driverId, LicenseRenewalRequest request);
+
+    /**
+     * Check if driver's license is expired
+     * 
+     * @param driver Driver entity
+     * @return true if license is expired
+     */
+    boolean isLicenseExpired(DriverEntity driver);
 }

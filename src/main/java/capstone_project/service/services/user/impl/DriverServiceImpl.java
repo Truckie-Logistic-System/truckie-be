@@ -6,6 +6,7 @@ import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.enums.VehicleTypeEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
+import capstone_project.dtos.request.user.LicenseRenewalRequest;
 import capstone_project.dtos.request.user.UpdateDriverRequest;
 import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.dtos.response.user.PenaltyHistoryResponse;
@@ -191,17 +192,17 @@ public class DriverServiceImpl implements DriverService {
                     DriverLicenseClassEnum.valueOf(driver.getLicenseClass().toUpperCase());
             switch (licenseClassEnum) {
                 case B2:
+                    // B2: Xe tải từ 3.5 tấn trở xuống (yêu cầu 18 tuổi trở lên)
                     return EnumSet.of(
                             VehicleTypeEnum.TRUCK_0_5_TON,
                             VehicleTypeEnum.TRUCK_1_25_TON,
                             VehicleTypeEnum.TRUCK_1_9_TON,
                             VehicleTypeEnum.TRUCK_2_4_TONN,
-                            VehicleTypeEnum.TRUCK_3_5_TON,
-                            VehicleTypeEnum.TRUCK_5_TON,
-                            VehicleTypeEnum.TRUCK_7_TON
+                            VehicleTypeEnum.TRUCK_3_5_TON
                     );
                 case C:
-                    return EnumSet.allOf(VehicleTypeEnum.class); // full quyền
+                    // C: Tất cả các loại xe (yêu cầu 24 tuổi trở lên)
+                    return EnumSet.allOf(VehicleTypeEnum.class);
                 default:
                     return Set.of();
             }
@@ -413,6 +414,15 @@ public class DriverServiceImpl implements DriverService {
                 ErrorEnum.INVALID_REQUEST.getErrorCode()
             );
         }
+
+        // Check if driver's license is expired
+        if (isLicenseExpired(driver)) {
+            log.error("Driver {} ({}) has expired license", driver.getUser().getFullName(), phoneNumber);
+            throw new BadRequestException(
+                "⚠️ Tài xế " + driver.getUser().getFullName() + " có bằng lái đã hết hạn, không thể phân công",
+                ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
         
         // Check if driver already has an active assignment
         if (vehicleAssignmentEntityService.existsActiveAssignmentForDriver(driver.getId())) {
@@ -431,5 +441,77 @@ public class DriverServiceImpl implements DriverService {
         driverResponse.setPenaltyHistories(penaltyHistories);
         
         return driverResponse;
+    }
+
+    @Override
+    @Transactional
+    public DriverResponse renewDriverLicense(UUID driverId, LicenseRenewalRequest request) {
+        log.info("🔄 Renewing driver license for driver ID: {}", driverId);
+
+        // Find driver
+        DriverEntity driver = driverEntityService.findEntityById(driverId)
+                .orElseThrow(() -> {
+                    log.error("Driver not found with ID: {}", driverId);
+                    return new NotFoundException(
+                            "Không tìm thấy tài xế với ID: " + driverId,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    );
+                });
+
+        // Validate date order: dateOfPassing <= dateOfIssue < dateOfExpiry
+        if (request.getDateOfIssue().isBefore(request.getDateOfPassing())) {
+            throw new BadRequestException(
+                    "Ngày cấp phải sau hoặc bằng ngày sát hạch",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        if (!request.getDateOfExpiry().isAfter(request.getDateOfIssue())) {
+            throw new BadRequestException(
+                    "Ngày hết hạn phải sau ngày cấp",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        if (!request.getDateOfExpiry().isAfter(LocalDate.now())) {
+            throw new BadRequestException(
+                    "Ngày hết hạn phải sau ngày hiện tại",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Check if driver was inactive due to expired license
+        boolean wasInactiveDueToExpiredLicense = CommonStatusEnum.INACTIVE.name().equals(driver.getStatus()) 
+                && isLicenseExpired(driver);
+
+        // Update only date fields (license number, serial, class, place of issue remain unchanged)
+        driver.setDateOfPassing(request.getDateOfPassing().atStartOfDay());
+        driver.setDateOfIssue(request.getDateOfIssue().atStartOfDay());
+        driver.setDateOfExpiry(request.getDateOfExpiry().atStartOfDay());
+
+        // Reactivate driver if was inactive due to expired license
+        if (wasInactiveDueToExpiredLicense) {
+            driver.setStatus(CommonStatusEnum.ACTIVE.name());
+            log.info("✅ Driver {} reactivated after license renewal", driver.getUser().getFullName());
+        }
+
+        // Save updated driver
+        DriverEntity updatedDriver = driverEntityService.save(driver);
+        log.info("✅ Driver license renewed successfully for driver: {}", updatedDriver.getUser().getFullName());
+
+        // Map to response
+        DriverResponse driverResponse = driverMapper.mapDriverResponse(updatedDriver);
+        List<PenaltyHistoryResponse> penaltyHistories = penaltyHistoryService.getByDriverId(updatedDriver.getId());
+        driverResponse.setPenaltyHistories(penaltyHistories);
+
+        return driverResponse;
+    }
+
+    @Override
+    public boolean isLicenseExpired(DriverEntity driver) {
+        if (driver == null || driver.getDateOfExpiry() == null) {
+            return false;
+        }
+        return driver.getDateOfExpiry().toLocalDate().isBefore(LocalDate.now());
     }
 }
