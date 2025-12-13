@@ -85,6 +85,13 @@ public interface VehicleAssignmentEntityService extends BaseEntityService<Vehicl
     default Optional<VehicleAssignmentEntity> findById(UUID id) {
         return findEntityById(id);
     }
+    
+    /**
+     * Find vehicle assignment by ID with eagerly loaded driver and device relationships
+     * @param id the UUID of the vehicle assignment
+     * @return Optional containing the vehicle assignment with eagerly loaded relationships if found, or empty if not found
+     */
+    Optional<VehicleAssignmentEntity> findByIdWithDriversAndDevices(UUID id);
 
     /**
      * Check if a driver has any vehicle assignment on a specific date (B3 - Hard constraint: 1 driver per trip per day)

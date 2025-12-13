@@ -179,11 +179,11 @@ public class OrderTrackingService {
             ));
         }
 
-        // ETA from order detail
-        if (detail.getEstimatedEndTime() != null) {
-            LocalDateTime eta = detail.getEstimatedEndTime();
+        // ETA from order detail - using estimatedStartTime instead since estimatedEndTime was removed
+        if (detail.getEstimatedStartTime() != null) {
+            LocalDateTime eta = detail.getEstimatedStartTime();
             String etaStr = eta.format(TIME_FORMATTER);
-            info.append(String.format("⏱️ **Dự kiến đến**: %s\n", etaStr));
+            info.append(String.format("⏱️ **Dự kiến bắt đầu**: %s\n", etaStr));
         }
 
         info.append(String.format("📍 **Trạng thái**: %s\n", translateStatus(detail.getStatus())));

@@ -78,7 +78,7 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
     /**
      * Optimized query for WebSocket tracking - eagerly loads all required relationships
      * to prevent LazyInitializationException
-     * Loads: vehicle + vehicleType, driver1 + user, driver2 + user
+     * Loads: vehicle + vehicleType, driver1 + user, driver2 + user, devices + deviceType
      */
     @Query("""
             SELECT DISTINCT va 
@@ -163,6 +163,17 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
     Optional<VehicleAssignmentEntity> findLatestAssignmentByDriver2Id(@Param("driverId") UUID driverId);
 
     /**
+     * Find vehicle assignment with eagerly fetched driver and device relationships
+     */
+    @Query("SELECT DISTINCT va FROM VehicleAssignmentEntity va " +
+           "LEFT JOIN FETCH va.driver1 d1 " +
+           "LEFT JOIN FETCH d1.user u1 " +
+           "LEFT JOIN FETCH va.driver2 d2 " +
+           "LEFT JOIN FETCH d2.user u2 " +
+           "WHERE va.id = :assignmentId")
+    Optional<VehicleAssignmentEntity> findByIdWithDriversAndDevices(@Param("assignmentId") UUID assignmentId);
+
+    /**
      * Find vehicle assignment with eagerly fetched driver relationships
      */
     @Query("SELECT va FROM VehicleAssignmentEntity va " +
@@ -172,6 +183,8 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
            "LEFT JOIN FETCH d2.user u2 " +
            "WHERE va.id = :assignmentId")
     Optional<VehicleAssignmentEntity> findByIdWithDrivers(@Param("assignmentId") UUID assignmentId);
+
+    // Removed findByIdWithDevices - use native SQL query in VehicleAssignmentDeviceRepository instead
 
     /**
      * Find all vehicle assignments by vehicle ID with eagerly fetched driver relationships
@@ -271,4 +284,29 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
         ORDER BY tripCount DESC
         """)
     List<Object[]> findTopDriversForVehicle(@Param("vehicleId") UUID vehicleId);
+
+    /**
+     * Find all vehicle assignments that use a specific device using native SQL
+     */
+    @Query(value = """
+        SELECT va.* FROM vehicle_assignments va
+        JOIN vehicle_assignment_devices vad ON vad.vehicle_assignment_id = va.id
+        WHERE vad.device_id = :deviceId
+        ORDER BY va.created_at DESC
+        """, nativeQuery = true)
+    List<VehicleAssignmentEntity> findByDeviceId(@Param("deviceId") UUID deviceId);
+
+    /**
+     * Find active vehicle assignments for a specific vehicle (devices fetched separately)
+     */
+    @Query("""
+        SELECT va FROM VehicleAssignmentEntity va
+        WHERE va.vehicleEntity.id = :vehicleId
+        AND va.status IN :statuses
+        ORDER BY va.createdAt DESC
+        """)
+    List<VehicleAssignmentEntity> findByVehicleIdAndStatusWithDevices(
+        @Param("vehicleId") UUID vehicleId, 
+        @Param("statuses") List<String> statuses
+    );
 }

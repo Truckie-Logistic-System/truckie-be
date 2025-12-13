@@ -2,6 +2,7 @@ package capstone_project.controller.auth;
 
 import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
+import capstone_project.dtos.response.auth.CustomerRegisterResponse;
 import capstone_project.dtos.response.auth.AccessTokenResponse;
 import capstone_project.dtos.response.auth.ChangePasswordResponse;
 import capstone_project.dtos.response.auth.LoginResponse;
@@ -38,6 +39,8 @@ public class AuthsController {
         var accessDto = AccessTokenResponse.builder()
                 .authToken(login.getAuthToken())
                 .user(login.getUser())
+                .firstTimeLogin(login.getFirstTimeLogin())
+                .requiredActions(login.getRequiredActions())
                 .build();
 
         return ResponseEntity.ok(ApiResponse.ok(accessDto));
@@ -80,7 +83,7 @@ public class AuthsController {
     }
 
     @PostMapping("/customer/register")
-    public ResponseEntity<ApiResponse<CustomerResponse>> register(@RequestBody @Valid RegisterCustomerRequest registerCustomerRequest) {
+    public ResponseEntity<ApiResponse<CustomerRegisterResponse>> register(@RequestBody @Valid RegisterCustomerRequest registerCustomerRequest) {
         final var register = registerService.registerCustomer(registerCustomerRequest);
         return ResponseEntity.ok(ApiResponse.ok(register));
     }

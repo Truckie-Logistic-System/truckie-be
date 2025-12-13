@@ -3,6 +3,7 @@ package capstone_project.service.services.vehicle.impl;
 import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
+import org.springframework.transaction.annotation.Transactional;
 import capstone_project.dtos.request.vehicle.*;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
@@ -125,6 +126,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                         "There are no vehicle assignments available.",
                         ErrorEnum.NOT_FOUND.getErrorCode()))
                 .stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .map(mapper::toResponse)
                 .toList();
     }
@@ -141,12 +143,25 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public StaffVehicleAssignmentFullResponse getFullAssignmentById(UUID id) {
-        VehicleAssignmentEntity entity = entityService.findEntityById(id)
+        // Use the new method that eagerly fetches drivers and devices
+        VehicleAssignmentEntity entity = entityService.findByIdWithDriversAndDevices(id)
                 .orElseThrow(() -> new NotFoundException(
                         "Assignment is not found with ASSIGNMENT ID: " + id,
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
+        
+        // Debug log to check if devices are loaded
+        log.info("🔍 DEBUG: VehicleAssignment {} has {} devices loaded", 
+                entity.getId(), 
+                entity.getDevices() != null ? entity.getDevices().size() : "null");
+        
+        if (entity.getDevices() != null && !entity.getDevices().isEmpty()) {
+            entity.getDevices().forEach(device -> 
+                log.info("🔍 DEBUG: Device found: {} - {}", device.getDeviceCode(), device.getManufacturer())
+            );
+        }
         
         // Use StaffOrderMapper to build full response with order info and order details
         VehicleAssignmentResponse basicResponse = mapper.toResponse(entity);
@@ -205,6 +220,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode());
         }
         return entity.stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .map(mapper::toResponse)
                 .toList();
     }
@@ -225,6 +241,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode());
         }
         return entity.stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .map(mapper::toResponse)
                 .toList();
     }
@@ -1074,15 +1091,14 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             assignment.setStatus(CommonStatusEnum.ACTIVE.name());
             assignment.setTrackingCode(generateCode(prefixVehicleAssignmentCode));
 
-            // Query all devices attached to this vehicle and save device IDs
+            // Query all devices attached to this vehicle and assign them to the assignment
             List<capstone_project.entity.device.DeviceEntity> devices = deviceEntityService.findByVehicleId(vehicle.getId());
             if (!devices.isEmpty()) {
-                String deviceIds = devices.stream()
-                        .map(d -> d.getId().toString())
-                        .collect(Collectors.joining(","));
-                assignment.setDeviceIds(deviceIds);
+                // Use the new many-to-many relationship
+                assignment.getDevices().addAll(devices);
                 log.info("✅ [createGroupedAssignments] Found {} devices for vehicle {}: {}", 
-                        devices.size(), vehicle.getLicensePlateNumber(), deviceIds);
+                        devices.size(), vehicle.getLicensePlateNumber(), 
+                        devices.stream().map(d -> d.getId().toString()).collect(Collectors.joining(",")));
             } else {
                 log.warn("⚠️ [createGroupedAssignments] No devices found for vehicle {}", vehicle.getLicensePlateNumber());
             }

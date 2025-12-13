@@ -49,4 +49,31 @@
     <!-- STEP 11: Add metadata fields to distance_rules for dynamic pricing -->
     <include file="db/migration/V20251213__Add_Distance_Rule_Metadata.sql"/>
 
+    <!-- STEP 12: Drop FCM tokens table as it's no longer needed -->
+    <include file="db/migration/V20251213_1__Drop_FCM_Tokens_Table.sql"/>
+
+    <!-- STEP 13: Remove time fields from OrderDetail -->
+    <include file="db/migration/V20251213_3__Remove_Time_Fields_From_Order_Detail.sql"/>
+
+    <!-- STEP 14: Sync database schema with current entity code (SAFE changes first) -->
+    <include file="db/changelog/diff/db.changelog-diff-safe.xml"/>
+
+    <!-- STEP 15: Sync database schema with current entity code (RISKY changes - drops) -->
+    <include file="db/changelog/diff/db.changelog-diff-risky.xml"/>
+
+    <!-- STEP 16: Drop time columns from order_details table (removed from entity) -->
+    <include file="db/migration/V20251213_4__Drop_Time_Columns_From_OrderDetails.sql"/>
+
+    <!-- STEP 17: Restore estimated_start_time column (still needed in entity) -->
+    <include file="db/migration/V20251213_5__Restore_Estimated_Start_Time_Column.sql"/>
+
+    <!-- STEP 18: Create vehicle_assignment_devices junction table for many-to-many relationship -->
+    <include file="db/migration/V20251213_6__Create_Vehicle_Assignment_Devices_Junction_Table.sql"/>
+
+    <!-- STEP 19: Ensure vehicle_assignment_devices junction table exists on Neon DB -->
+    <include file="db/migration/V20251213_7__Ensure_Vehicle_Assignment_Devices_Table_Exists.sql"/>
+
+    <!-- STEP 20: Sync database schema with entity code -->
+    <include file="db/migration/V20251213_8__Sync_Database_With_Entity_Code.sql"/>
+
 </databaseChangeLog>

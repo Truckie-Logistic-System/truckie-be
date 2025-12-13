@@ -1,0 +1,847 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <changeSet author="kijte (generated)" id="1765612248190-10">
+        <dropForeignKeyConstraint baseTableName="vehicle_service_record" constraintName="fk9w5p26axksjpsxp4gd7okrynm"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-1">
+        <createTable tableName="fcm_tokens">
+            <column name="is_active" type="BOOLEAN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP WITHOUT TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="fcm_tokens_pkey"/>
+            </column>
+            <column name="last_used_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="user_id" type="UUID"/>
+            <column name="device_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="device_info" type="VARCHAR(500)"/>
+            <column name="token" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-2">
+        <createTable tableName="maintenance_types">
+            <column name="is_active" type="BOOLEAN"/>
+            <column name="is_demo_data" type="BOOLEAN"/>
+            <column name="created_at" type="TIMESTAMP WITHOUT TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="modified_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="maintenance_types_pkey"/>
+            </column>
+            <column name="maintenance_type_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="VARCHAR(200)"/>
+            <column name="created_by" type="VARCHAR(255)"/>
+            <column name="modified_by" type="VARCHAR(255)"/>
+        </createTable>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-3">
+        <createTable tableName="vehicle_maintenance">
+            <column name="is_demo_data" type="BOOLEAN"/>
+            <column name="odometer_reading" type="INTEGER"/>
+            <column name="completed_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="created_at" type="TIMESTAMP WITHOUT TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expire_maintenance_date" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="failed_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="maintenance_date" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="modified_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="next_maintenance_date" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="request_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="started_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="vehicle_maintenance_pkey"/>
+            </column>
+            <column name="maintenance_type_id" type="UUID"/>
+            <column name="vehicle_id" type="UUID"/>
+            <column name="status" type="VARCHAR(20)"/>
+            <column name="description" type="VARCHAR(200)"/>
+            <column name="failure_reason" type="VARCHAR(200)"/>
+            <column name="created_by" type="VARCHAR(255)"/>
+            <column name="modified_by" type="VARCHAR(255)"/>
+        </createTable>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-4">
+        <addUniqueConstraint columnNames="token" constraintName="fcm_tokens_token_key" tableName="fcm_tokens"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-5">
+        <addColumn tableName="vehicles">
+            <column name="capacity" type="numeric(38, 2)"/>
+        </addColumn>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-6">
+        <addColumn tableName="device_types">
+            <column name="vehicle_capacity" type="numeric(11, 8)"/>
+        </addColumn>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-7">
+        <addForeignKeyConstraint baseColumnNames="vehicle_id" baseTableName="vehicle_maintenance" constraintName="fk9w5p26axksjpsxp4gd7okrynm" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="vehicles" validate="true"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-8">
+        <addForeignKeyConstraint baseColumnNames="user_id" baseTableName="fcm_tokens" constraintName="fkj2kob865pl9dv5vwrs2pmshjv" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="users" validate="true"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-9">
+        <addForeignKeyConstraint baseColumnNames="maintenance_type_id" baseTableName="vehicle_maintenance" constraintName="fkkupe8rfvv0nynvnf087s9ds8w" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="maintenance_types" validate="true"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-11">
+        <dropTable tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-12">
+        <dropColumn columnName="custom_deposit_percent" tableName="contracts"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-13">
+        <dropColumn columnName="device_ids" tableName="vehicle_assignments"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-14">
+        <dropColumn columnName="display_name" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-15">
+        <dropColumn columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-16">
+        <dropColumn columnName="inspection_expiry_date" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-17">
+        <dropColumn columnName="insurance_expiry_date" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-18">
+        <dropColumn columnName="insurance_policy_number" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-19">
+        <dropColumn columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-20">
+        <dropColumn columnName="last_inspection_date" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-21">
+        <dropColumn columnName="last_maintenance_date" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-22">
+        <dropColumn columnName="next_maintenance_date" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-23">
+        <dropColumn columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-24">
+        <dropIndex indexName="idx_distance_rules_display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-25">
+        <dropIndex indexName="idx_distance_rules_status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612248190-26">
+        <dropIndex indexName="idx_distance_rules_unique_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-10">
+        <dropForeignKeyConstraint baseTableName="vehicle_service_record" constraintName="fk9w5p26axksjpsxp4gd7okrynm"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-1">
+        <createTable tableName="fcm_tokens">
+            <column name="is_active" type="BOOLEAN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP WITHOUT TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="fcm_tokens_pkey"/>
+            </column>
+            <column name="last_used_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="user_id" type="UUID"/>
+            <column name="device_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="device_info" type="VARCHAR(500)"/>
+            <column name="token" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-2">
+        <createTable tableName="maintenance_types">
+            <column name="is_active" type="BOOLEAN"/>
+            <column name="is_demo_data" type="BOOLEAN"/>
+            <column name="created_at" type="TIMESTAMP WITHOUT TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="modified_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="maintenance_types_pkey"/>
+            </column>
+            <column name="maintenance_type_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="VARCHAR(200)"/>
+            <column name="created_by" type="VARCHAR(255)"/>
+            <column name="modified_by" type="VARCHAR(255)"/>
+        </createTable>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-3">
+        <createTable tableName="vehicle_maintenance">
+            <column name="is_demo_data" type="BOOLEAN"/>
+            <column name="odometer_reading" type="INTEGER"/>
+            <column name="completed_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="created_at" type="TIMESTAMP WITHOUT TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expire_maintenance_date" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="failed_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="maintenance_date" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="modified_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="next_maintenance_date" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="request_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="started_at" type="TIMESTAMP WITHOUT TIME ZONE"/>
+            <column name="id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="vehicle_maintenance_pkey"/>
+            </column>
+            <column name="maintenance_type_id" type="UUID"/>
+            <column name="vehicle_id" type="UUID"/>
+            <column name="status" type="VARCHAR(20)"/>
+            <column name="description" type="VARCHAR(200)"/>
+            <column name="failure_reason" type="VARCHAR(200)"/>
+            <column name="created_by" type="VARCHAR(255)"/>
+            <column name="modified_by" type="VARCHAR(255)"/>
+        </createTable>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-4">
+        <addUniqueConstraint columnNames="token" constraintName="fcm_tokens_token_key" tableName="fcm_tokens"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-5">
+        <addColumn tableName="vehicles">
+            <column name="capacity" type="numeric(38, 2)"/>
+        </addColumn>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-6">
+        <addColumn tableName="device_types">
+            <column name="vehicle_capacity" type="numeric(11, 8)"/>
+        </addColumn>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-7">
+        <addForeignKeyConstraint baseColumnNames="vehicle_id" baseTableName="vehicle_maintenance" constraintName="fk9w5p26axksjpsxp4gd7okrynm" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="vehicles" validate="true"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-8">
+        <addForeignKeyConstraint baseColumnNames="user_id" baseTableName="fcm_tokens" constraintName="fkj2kob865pl9dv5vwrs2pmshjv" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="users" validate="true"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-9">
+        <addForeignKeyConstraint baseColumnNames="maintenance_type_id" baseTableName="vehicle_maintenance" constraintName="fkkupe8rfvv0nynvnf087s9ds8w" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="maintenance_types" validate="true"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-11">
+        <dropTable tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-12">
+        <dropColumn columnName="custom_deposit_percent" tableName="contracts"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-13">
+        <dropColumn columnName="device_ids" tableName="vehicle_assignments"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-14">
+        <dropColumn columnName="display_name" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-15">
+        <dropColumn columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-16">
+        <dropColumn columnName="inspection_expiry_date" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-17">
+        <dropColumn columnName="insurance_expiry_date" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-18">
+        <dropColumn columnName="insurance_policy_number" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-19">
+        <dropColumn columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-20">
+        <dropColumn columnName="last_inspection_date" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-21">
+        <dropColumn columnName="last_maintenance_date" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-22">
+        <dropColumn columnName="next_maintenance_date" tableName="vehicles"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-23">
+        <dropColumn columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-24">
+        <dropIndex indexName="idx_distance_rules_display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-25">
+        <dropIndex indexName="idx_distance_rules_status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="kijte (generated)" id="1765612510420-26">
+        <dropIndex indexName="idx_distance_rules_unique_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-21">
+        <dropColumn columnName="end_time" tableName="order_details"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-22">
+        <dropColumn columnName="estimated_end_time" tableName="order_details"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-23">
+        <dropColumn columnName="start_time" tableName="order_details"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-24">
+        <dropIndex indexName="idx_distance_rules_display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-25">
+        <dropIndex indexName="idx_distance_rules_status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-26">
+        <dropIndex indexName="idx_distance_rules_unique_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-1">
+        <setTableRemarks tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-2">
+        <setColumnRemarks columnDataType="timestamp" columnName="actual_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-3">
+        <setColumnRemarks columnDataType="number(5,2)" columnName="custom_deposit_percent" tableName="contracts"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-4">
+        <setColumnRemarks columnDataType="varchar(200)" columnName="description" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-5">
+        <setColumnRemarks columnDataType="clob" columnName="device_ids" tableName="vehicle_assignments"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-6">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="display_name" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-7">
+        <dropDefaultValue columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-8">
+        <setColumnRemarks columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-9">
+        <dropDefaultValue columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-10">
+        <setColumnRemarks columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-11">
+        <dropDefaultValue columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-12">
+        <setColumnRemarks columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-13">
+        <setColumnRemarks columnDataType="timestamp" columnName="next_service_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-14">
+        <setColumnRemarks columnDataType="int" columnName="odometer_reading" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-15">
+        <setColumnRemarks columnDataType="timestamp" columnName="planned_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-16">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="service_status" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-17">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="service_type" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-18">
+        <dropDefaultValue columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-19">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765613216250-20">
+        <setColumnRemarks columnDataType="uuid" columnName="vehicle_id" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-21">
+        <dropColumn columnName="end_time" tableName="order_details"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-22">
+        <dropColumn columnName="estimated_end_time" tableName="order_details"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-23">
+        <dropColumn columnName="start_time" tableName="order_details"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-24">
+        <dropIndex indexName="idx_distance_rules_display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-25">
+        <dropIndex indexName="idx_distance_rules_status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-26">
+        <dropIndex indexName="idx_distance_rules_unique_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-1">
+        <setTableRemarks tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-2">
+        <setColumnRemarks columnDataType="timestamp" columnName="actual_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-3">
+        <setColumnRemarks columnDataType="number(5,2)" columnName="custom_deposit_percent" tableName="contracts"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-4">
+        <setColumnRemarks columnDataType="varchar(200)" columnName="description" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-5">
+        <setColumnRemarks columnDataType="clob" columnName="device_ids" tableName="vehicle_assignments"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-6">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="display_name" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-7">
+        <dropDefaultValue columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-8">
+        <setColumnRemarks columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-9">
+        <dropDefaultValue columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-10">
+        <setColumnRemarks columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-11">
+        <dropDefaultValue columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-12">
+        <setColumnRemarks columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-13">
+        <setColumnRemarks columnDataType="timestamp" columnName="next_service_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-14">
+        <setColumnRemarks columnDataType="int" columnName="odometer_reading" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-15">
+        <setColumnRemarks columnDataType="timestamp" columnName="planned_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-16">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="service_status" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-17">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="service_type" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-18">
+        <dropDefaultValue columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-19">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765616285533-20">
+        <setColumnRemarks columnDataType="uuid" columnName="vehicle_id" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-21">
+        <dropTable tableName="order_details_time_archive"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-22">
+        <dropIndex indexName="idx_distance_rules_display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-23">
+        <dropIndex indexName="idx_distance_rules_status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-24">
+        <dropIndex indexName="idx_distance_rules_unique_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-1">
+        <setTableRemarks tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-2">
+        <setColumnRemarks columnDataType="timestamp" columnName="actual_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-3">
+        <setColumnRemarks columnDataType="number(5,2)" columnName="custom_deposit_percent" tableName="contracts"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-4">
+        <setColumnRemarks columnDataType="varchar(200)" columnName="description" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-5">
+        <setColumnRemarks columnDataType="clob" columnName="device_ids" tableName="vehicle_assignments"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-6">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="display_name" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-7">
+        <dropDefaultValue columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-8">
+        <setColumnRemarks columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-9">
+        <dropDefaultValue columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-10">
+        <setColumnRemarks columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-11">
+        <dropDefaultValue columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-12">
+        <setColumnRemarks columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-13">
+        <setColumnRemarks columnDataType="timestamp" columnName="next_service_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-14">
+        <setColumnRemarks columnDataType="int" columnName="odometer_reading" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-15">
+        <setColumnRemarks columnDataType="timestamp" columnName="planned_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-16">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="service_status" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-17">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="service_type" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-18">
+        <dropDefaultValue columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-19">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765617236576-20">
+        <setColumnRemarks columnDataType="uuid" columnName="vehicle_id" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-21">
+        <dropForeignKeyConstraint baseTableName="vehicle_assignment_devices" constraintName="fk_vehicle_assignment_devices_device"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-22">
+        <dropForeignKeyConstraint baseTableName="vehicle_assignment_devices" constraintName="fk_vehicle_assignment_devices_va"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-20">
+        <addColumn tableName="vehicle_assignments">
+            <column name="device_ids" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-23">
+        <dropTable tableName="order_details_time_archive"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-24">
+        <dropTable tableName="vehicle_assignment_devices"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-25">
+        <dropIndex indexName="idx_distance_rules_display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-26">
+        <dropIndex indexName="idx_distance_rules_status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-27">
+        <dropIndex indexName="idx_distance_rules_unique_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-1">
+        <setTableRemarks tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-2">
+        <setColumnRemarks columnDataType="timestamp" columnName="actual_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-3">
+        <setColumnRemarks columnDataType="number(5,2)" columnName="custom_deposit_percent" tableName="contracts"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-4">
+        <setColumnRemarks columnDataType="varchar(200)" columnName="description" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-5">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="display_name" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-6">
+        <dropDefaultValue columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-7">
+        <setColumnRemarks columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-8">
+        <dropDefaultValue columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-9">
+        <setColumnRemarks columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-10">
+        <dropDefaultValue columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-11">
+        <setColumnRemarks columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-12">
+        <setColumnRemarks columnDataType="timestamp" columnName="next_service_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-13">
+        <setColumnRemarks columnDataType="int" columnName="odometer_reading" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-14">
+        <setColumnRemarks columnDataType="timestamp" columnName="planned_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-15">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="service_status" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-16">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="service_type" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-17">
+        <dropDefaultValue columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-18">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618024839-19">
+        <setColumnRemarks columnDataType="uuid" columnName="vehicle_id" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-21">
+        <dropForeignKeyConstraint baseTableName="vehicle_assignment_devices" constraintName="fk_vehicle_assignment_devices_device"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-22">
+        <dropForeignKeyConstraint baseTableName="vehicle_assignment_devices" constraintName="fk_vehicle_assignment_devices_va"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-20">
+        <addColumn tableName="vehicle_assignments">
+            <column name="device_ids" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-23">
+        <dropTable tableName="order_details_time_archive"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-24">
+        <dropTable tableName="vehicle_assignment_devices"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-25">
+        <dropIndex indexName="idx_distance_rules_display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-26">
+        <dropIndex indexName="idx_distance_rules_status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-27">
+        <dropIndex indexName="idx_distance_rules_unique_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-1">
+        <setTableRemarks tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-2">
+        <setColumnRemarks columnDataType="timestamp" columnName="actual_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-3">
+        <setColumnRemarks columnDataType="number(5,2)" columnName="custom_deposit_percent" tableName="contracts"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-4">
+        <setColumnRemarks columnDataType="varchar(200)" columnName="description" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-5">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="display_name" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-6">
+        <dropDefaultValue columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-7">
+        <setColumnRemarks columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-8">
+        <dropDefaultValue columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-9">
+        <setColumnRemarks columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-10">
+        <dropDefaultValue columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-11">
+        <setColumnRemarks columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-12">
+        <setColumnRemarks columnDataType="timestamp" columnName="next_service_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-13">
+        <setColumnRemarks columnDataType="int" columnName="odometer_reading" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-14">
+        <setColumnRemarks columnDataType="timestamp" columnName="planned_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-15">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="service_status" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-16">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="service_type" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-17">
+        <dropDefaultValue columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-18">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618279611-19">
+        <setColumnRemarks columnDataType="uuid" columnName="vehicle_id" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-21">
+        <dropForeignKeyConstraint baseTableName="vehicle_assignment_devices" constraintName="fk_vehicle_assignment_devices_device"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-22">
+        <dropForeignKeyConstraint baseTableName="vehicle_assignment_devices" constraintName="fk_vehicle_assignment_devices_va"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-20">
+        <addColumn tableName="vehicle_assignments">
+            <column name="device_ids" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-23">
+        <dropTable tableName="archived_columns"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-24">
+        <dropTable tableName="vehicle_assignment_devices"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-25">
+        <dropIndex indexName="idx_distance_rules_display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-26">
+        <dropIndex indexName="idx_distance_rules_status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-27">
+        <dropIndex indexName="idx_distance_rules_unique_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-1">
+        <setTableRemarks tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-2">
+        <setColumnRemarks columnDataType="timestamp" columnName="actual_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-3">
+        <setColumnRemarks columnDataType="number(5,2)" columnName="custom_deposit_percent" tableName="contracts"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-4">
+        <setColumnRemarks columnDataType="varchar(200)" columnName="description" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-5">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="display_name" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-6">
+        <dropDefaultValue columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-7">
+        <setColumnRemarks columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-8">
+        <dropDefaultValue columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-9">
+        <setColumnRemarks columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-10">
+        <dropDefaultValue columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-11">
+        <setColumnRemarks columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-12">
+        <setColumnRemarks columnDataType="timestamp" columnName="next_service_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-13">
+        <setColumnRemarks columnDataType="int" columnName="odometer_reading" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-14">
+        <setColumnRemarks columnDataType="timestamp" columnName="planned_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-15">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="service_status" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-16">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="service_type" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-17">
+        <dropDefaultValue columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-18">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765618772371-19">
+        <setColumnRemarks columnDataType="uuid" columnName="vehicle_id" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-21">
+        <dropForeignKeyConstraint baseTableName="vehicle_assignment_devices" constraintName="fk_vehicle_assignment_devices_device"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-22">
+        <dropForeignKeyConstraint baseTableName="vehicle_assignment_devices" constraintName="fk_vehicle_assignment_devices_va"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-20">
+        <addColumn tableName="vehicle_assignments">
+            <column name="device_ids" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-23">
+        <dropTable tableName="archived_columns"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-24">
+        <dropTable tableName="vehicle_assignment_devices"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-25">
+        <dropIndex indexName="idx_distance_rules_display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-26">
+        <dropIndex indexName="idx_distance_rules_status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-27">
+        <dropIndex indexName="idx_distance_rules_unique_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-1">
+        <setTableRemarks tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-2">
+        <setColumnRemarks columnDataType="timestamp" columnName="actual_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-3">
+        <setColumnRemarks columnDataType="number(5,2)" columnName="custom_deposit_percent" tableName="contracts"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-4">
+        <setColumnRemarks columnDataType="varchar(200)" columnName="description" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-5">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="display_name" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-6">
+        <dropDefaultValue columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-7">
+        <setColumnRemarks columnDataType="int" columnName="display_order" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-8">
+        <dropDefaultValue columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-9">
+        <setColumnRemarks columnDataType="boolean" columnName="is_base_price" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-10">
+        <dropDefaultValue columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-11">
+        <setColumnRemarks columnDataType="boolean" columnName="is_demo_data" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-12">
+        <setColumnRemarks columnDataType="timestamp" columnName="next_service_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-13">
+        <setColumnRemarks columnDataType="int" columnName="odometer_reading" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-14">
+        <setColumnRemarks columnDataType="timestamp" columnName="planned_date" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-15">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="service_status" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-16">
+        <setColumnRemarks columnDataType="varchar(100)" columnName="service_type" tableName="vehicle_service_record"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-17">
+        <dropDefaultValue columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-18">
+        <setColumnRemarks columnDataType="varchar(20)" columnName="status" tableName="distance_rules"/>
+    </changeSet>
+    <changeSet author="absolutedev9 (generated)" id="1765624186425-19">
+        <setColumnRemarks columnDataType="uuid" columnName="vehicle_id" tableName="vehicle_service_record"/>
+    </changeSet>
+</databaseChangeLog>

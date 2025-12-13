@@ -1,6 +1,7 @@
 package capstone_project.entity.vehicle;
 
 import capstone_project.entity.common.BaseEntity;
+import capstone_project.entity.device.DeviceEntity;
 import capstone_project.entity.user.driver.DriverEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
@@ -8,6 +9,9 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "vehicle_assignments", schema = "public", catalog = "capstone-project")
@@ -40,7 +44,17 @@ public class VehicleAssignmentEntity extends BaseEntity {
     @JoinColumn(name = "driver_id_2")
     private DriverEntity driver2;
 
-    @Column(name = "device_ids", length = Integer.MAX_VALUE)
-    private String deviceIds;  // Comma-separated device IDs
+    @OneToMany(mappedBy = "vehicleAssignment", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<VehicleAssignmentDeviceEntity> vehicleAssignmentDevices = new HashSet<>();
 
+    // Convenience method to get devices from intermediate entity
+    public Set<DeviceEntity> getDevices() {
+        if (vehicleAssignmentDevices == null || vehicleAssignmentDevices.isEmpty()) {
+            return new HashSet<>();
+        }
+        return vehicleAssignmentDevices.stream()
+                .map(VehicleAssignmentDeviceEntity::getDevice)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+    }
 }

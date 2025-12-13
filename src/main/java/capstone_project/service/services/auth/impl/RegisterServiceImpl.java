@@ -10,6 +10,7 @@ import capstone_project.common.exceptions.dto.UnauthorizedException;
 import capstone_project.common.utils.JWTUtil;
 import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
+import capstone_project.dtos.response.auth.CustomerRegisterResponse;
 import capstone_project.dtos.request.user.RegisterDriverRequest;
 import capstone_project.dtos.response.auth.ChangePasswordResponse;
 import capstone_project.dtos.response.auth.LoginResponse;
@@ -45,6 +46,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -64,6 +66,8 @@ public class RegisterServiceImpl implements RegisterService {
     private final RefreshTokenEntityService refreshTokenEntityService;
     private final EmailProtocolService emailProtocolService;
     private final capstone_project.service.auth.JwtCacheService jwtCacheService;
+    private final capstone_project.service.services.notification.NotificationService notificationService;
+    private final capstone_project.service.services.email.EmailNotificationService emailNotificationService;
 
     private final PasswordEncoder passwordEncoder;
 
@@ -74,8 +78,10 @@ public class RegisterServiceImpl implements RegisterService {
     private static final String NO_PASSWORD = "NO_PASSWORD";
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
     private static final String TOKEN_TYPE = "Bearer";
+    private static final String TEMP_PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$%";
+    private static final int TEMP_PASSWORD_LENGTH = 10;
 
-    // just only for register staff
+    // Register staff with temporary password and email notification
     @Override
     @Transactional
     public UserResponse register(final RegisterUserRequest registerUserRequest, RoleTypeEnum roleTypeEnum) {
@@ -98,29 +104,49 @@ public class RegisterServiceImpl implements RegisterService {
                 ));
 
         LocalDateTime validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
+        
+        // Generate temporary password for staff accounts
+        String password;
+        boolean isStaff = roleTypeEnum == RoleTypeEnum.STAFF;
+        String userStatus = UserStatusEnum.ACTIVE.name();
+        
+        if (isStaff) {
+            // For staff, generate temporary password and set status to INACTIVE
+            password = generateTemporaryPassword();
+            userStatus = UserStatusEnum.INACTIVE.name();
+            log.info("[register] Generated temporary password for staff: {}", username);
+        } else {
+            // For other roles, use provided password and set status to ACTIVE
+            password = registerUserRequest.getPassword();
+        }
 
         UserEntity user = UserEntity.builder()
                 .username(username)
                 .email(email)
-                .password(passwordEncoder.encode(registerUserRequest.getPassword()))
+                .password(passwordEncoder.encode(password))
                 .fullName(registerUserRequest.getFullName())
                 .phoneNumber(registerUserRequest.getPhoneNumber())
                 .gender(registerUserRequest.getGender())
                 .imageUrl(registerUserRequest.getImageUrl())
                 .dateOfBirth(validatedDob.toLocalDate())
-                .status(UserStatusEnum.ACTIVE.name())
+                .status(userStatus)
                 .role(role)
                 .createdAt(LocalDateTime.now())
                 .build();
 
         UserEntity savedUser = userEntityService.save(user);
+        
+        // Send email notification for staff accounts
+        if (isStaff) {
+            sendStaffCredentialsEmail(savedUser, password);
+        }
 
         return userMapper.mapUserResponse(savedUser);
     }
 
     @Override
     @Transactional
-    public CustomerResponse registerCustomer(final RegisterCustomerRequest registerCustomerRequest) {
+    public CustomerRegisterResponse registerCustomer(final RegisterCustomerRequest registerCustomerRequest) {
 
         final String username = registerCustomerRequest.getUsername();
         final String email = registerCustomerRequest.getEmail();
@@ -172,19 +198,15 @@ public class RegisterServiceImpl implements RegisterService {
 
         String otp = generateOtp();
 
-        try {
-            
-            emailProtocolService.sendOtpEmail(savedCustomer.getUser().getEmail(), otp);
-        } catch (Exception e) {
-            log.error("Failed to send OTP email", e);
-            throw new BadRequestException(
-                    "Failed to send OTP email",
-                    ErrorEnum.INVALID_EMAIL.getErrorCode()
-            );
-        }
+        // Gửi OTP qua email - sử dụng @Async nên không cần try-catch ở đây
+        // Vì phương thức sendOtpEmail đã được đánh dấu @Async, nó sẽ chạy trong thread riêng
+        // và không block luồng chính
+        emailProtocolService.sendOtpEmail(savedCustomer.getUser().getEmail(), otp);
+        log.info("[registerCustomer] OTP request initiated for email: {}", email);
 
-        return customerMapper.mapCustomerResponse(savedCustomer);
-
+        // Trả về response với thông tin OTP để frontend biết chuyển đến trang nhập OTP
+        CustomerResponse customerResponse = customerMapper.mapCustomerResponse(savedCustomer);
+        return CustomerRegisterResponse.withOtpRequired(customerResponse, email);
     }
 
     @Override
@@ -253,6 +275,66 @@ public class RegisterServiceImpl implements RegisterService {
         return driverMapper.mapDriverResponse(savedDriver);
     }
 
+    /**
+     * Generate a random temporary password
+     */
+    private String generateTemporaryPassword() {
+        SecureRandom random = new SecureRandom();
+        StringBuilder password = new StringBuilder(TEMP_PASSWORD_LENGTH);
+        
+        for (int i = 0; i < TEMP_PASSWORD_LENGTH; i++) {
+            password.append(TEMP_PASSWORD_CHARS.charAt(random.nextInt(TEMP_PASSWORD_CHARS.length())));
+        }
+        
+        return password.toString();
+    }
+    
+    /**
+     * Send staff login credentials via email
+     */
+    private void sendStaffCredentialsEmail(UserEntity staff, String tempPassword) {
+        try {
+            log.info("[sendStaffCredentialsEmail] Sending login credentials to staff email: {}", staff.getEmail());
+            
+            // Send email directly using EmailNotificationService
+            emailNotificationService.sendStaffCredentialsEmail(
+                staff.getEmail(),
+                staff.getFullName(),
+                staff.getUsername(),
+                tempPassword
+            );
+            
+            // Create notification record for tracking
+            capstone_project.dtos.request.notification.CreateNotificationRequest notificationRequest = 
+                capstone_project.dtos.request.notification.CreateNotificationRequest.builder()
+                    .userId(staff.getId())
+                    .recipientRole("STAFF")
+                    .notificationType(capstone_project.common.enums.NotificationTypeEnum.STAFF_CREATED)
+                    .title("Tài khoản Truckie đã được tạo - Thông tin đăng nhập")
+                    .description(String.format(
+                        "Chào %s,%n%n" +
+                        "Tài khoản nhân viên của bạn đã được tạo thành công trên hệ thống Truckie.%n%n" +
+                        "Thông tin đăng nhập:%n" +
+                        "• Tên đăng nhập: %s%n" +
+                        "• Mật khẩu tạm thời: %s%n%n" +
+                        "Vui lòng đăng nhập và đổi mật khẩu mới.%n%n" +
+                        "Trân trọng,%n" +
+                        "Đội ngũ Truckie",
+                        staff.getFullName(),
+                        staff.getUsername(),
+                        tempPassword
+                    ))
+                    .build();
+
+            notificationService.createNotification(notificationRequest);
+            
+            log.info("[sendStaffCredentialsEmail] Login credentials sent to staff email: {}", staff.getEmail());
+        } catch (Exception e) {
+            log.error("[sendStaffCredentialsEmail] Failed to send credentials email to staff: {}", staff.getEmail(), e);
+            // Don't throw exception - staff creation should still succeed even if email fails
+        }
+    }
+
     private void validateDriverBusinessRules(LocalDateTime dob, LocalDateTime dateOfIssue,
                                              LocalDateTime dateOfExpiry, LocalDateTime dateOfPassing,
                                              String licenseClassStr) {
@@ -302,13 +384,36 @@ public class RegisterServiceImpl implements RegisterService {
 
             if (passwordEncoder.matches(loginRequest.getPassword(), usersEntity.getPassword())) {
 
-                // Check if user is INACTIVE
+                // Check if user is INACTIVE or OTP_PENDING
                 boolean isInactive = Objects.equals(usersEntity.getStatus(), UserStatusEnum.INACTIVE.name());
+                boolean isOtpPending = Objects.equals(usersEntity.getStatus(), UserStatusEnum.OTP_PENDING.name());
                 boolean isDriver = usersEntity.getRole() != null 
                         && RoleTypeEnum.DRIVER.name().equals(usersEntity.getRole().getRoleName());
+                boolean isStaff = usersEntity.getRole() != null 
+                        && RoleTypeEnum.STAFF.name().equals(usersEntity.getRole().getRoleName());
+                boolean isCustomer = usersEntity.getRole() != null 
+                        && RoleTypeEnum.CUSTOMER.name().equals(usersEntity.getRole().getRoleName());
 
-                // Allow INACTIVE drivers to login for onboarding, block other INACTIVE users
-                if (isInactive && !isDriver) {
+                // Block INACTIVE customers (waiting for admin activation)
+                if (isInactive && isCustomer) {
+                    log.warn("[login] Customer {} attempted to login but account is INACTIVE (waiting for admin activation)", username);
+                    throw new BadRequestException(
+                            "Tài khoản của bạn đang chờ được kích hoạt bởi quản trị viên",
+                            ErrorEnum.USER_PERMISSION_DENIED.getErrorCode()
+                    );
+                }
+                
+                // Block OTP_PENDING customers (need to verify OTP first)
+                if (isOtpPending && isCustomer) {
+                    log.warn("[login] Customer {} attempted to login but account is OTP_PENDING (needs OTP verification)", username);
+                    throw new BadRequestException(
+                            "Vui lòng xác thực OTP trước khi đăng nhập",
+                            ErrorEnum.USER_PERMISSION_DENIED.getErrorCode()
+                    );
+                }
+                
+                // Allow INACTIVE drivers and staff to login for onboarding, block other INACTIVE users
+                if (isInactive && !isDriver && !isStaff) {
                     throw new BadRequestException(
                             ErrorEnum.USER_PERMISSION_DENIED.getMessage(),
                             ErrorEnum.USER_PERMISSION_DENIED.getErrorCode()
@@ -345,13 +450,21 @@ public class RegisterServiceImpl implements RegisterService {
 
                 refreshTokenEntityService.save(newRefreshToken);
 
-                // Build response with firstTimeLogin flag for INACTIVE drivers
+                // Build response with firstTimeLogin flag for INACTIVE drivers and staff
                 LoginResponse response = userMapper.mapLoginResponse(usersEntity, accessToken, refreshTokenString);
                 
-                if (isInactive && isDriver) {
+                if (isInactive) {
                     response.setFirstTimeLogin(true);
-                    response.setRequiredActions(Arrays.asList("CHANGE_PASSWORD", "UPLOAD_FACE"));
-                    log.info("[login] Driver {} logged in for first time onboarding", username);
+                    
+                    if (isDriver) {
+                        // Drivers need to change password and upload face image
+                        response.setRequiredActions(Arrays.asList("CHANGE_PASSWORD", "UPLOAD_FACE"));
+                        log.info("[login] Driver {} logged in for first time onboarding", username);
+                    } else if (isStaff) {
+                        // Staff only need to change password
+                        response.setRequiredActions(Arrays.asList("CHANGE_PASSWORD"));
+                        log.info("[login] Staff {} logged in for first time onboarding", username);
+                    }
                 } else {
                     response.setFirstTimeLogin(false);
                     response.setRequiredActions(null);
@@ -645,12 +758,21 @@ public class RegisterServiceImpl implements RegisterService {
             );
         }
 
-        if (!passwordEncoder.matches(changePasswordRequest.oldPassword(), user.getPassword())) {
+        // Kiểm tra mật khẩu cũ, trừ khi đây là lần đăng nhập đầu tiên (status = INACTIVE)
+        boolean isFirstTimeLogin = Objects.equals(user.getStatus(), UserStatusEnum.INACTIVE.name());
+        
+        if (!isFirstTimeLogin && !passwordEncoder.matches(changePasswordRequest.oldPassword(), user.getPassword())) {
             log.error("[changePassword] Current password is incorrect");
             throw new BadRequestException(
                     ErrorEnum.OLD_PASSWORD_IS_INCORRECT.getMessage(),
                     ErrorEnum.OLD_PASSWORD_IS_INCORRECT.getErrorCode()
             );
+        }
+        
+        // Nếu là lần đăng nhập đầu tiên, cập nhật status thành ACTIVE
+        if (isFirstTimeLogin) {
+            log.info("[changePassword] First time login detected, updating user status to ACTIVE");
+            user.setStatus(UserStatusEnum.ACTIVE.name());
         }
 
         if (Objects.equals(changePasswordRequest.oldPassword(), changePasswordRequest.newPassword())) {

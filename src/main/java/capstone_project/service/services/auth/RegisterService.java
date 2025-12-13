@@ -3,6 +3,7 @@ package capstone_project.service.services.auth;
 import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
+import capstone_project.dtos.response.auth.CustomerRegisterResponse;
 import capstone_project.dtos.request.user.RegisterDriverRequest;
 import capstone_project.dtos.response.auth.ChangePasswordResponse;
 import capstone_project.dtos.response.auth.LoginResponse;
@@ -25,7 +26,7 @@ public interface RegisterService {
      */
     UserResponse register(RegisterUserRequest registerUserRequest, RoleTypeEnum roleTypeEnum);
 
-    CustomerResponse registerCustomer(RegisterCustomerRequest registerCustomerRequest);
+    CustomerRegisterResponse registerCustomer(RegisterCustomerRequest registerCustomerRequest);
 
     DriverResponse registerDriver(RegisterDriverRequest registerDriverRequest);
 

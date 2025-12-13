@@ -123,6 +123,11 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    systemProperty("java.io.tmpdir", "${project.buildDir}/tmp")
+    jvmArgs("-Xmx512m")
+}
+
 // Liquibase configuration
 liquibase {
     // Main activity: apply all changelogs to main database

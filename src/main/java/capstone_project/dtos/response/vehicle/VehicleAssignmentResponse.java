@@ -2,6 +2,7 @@ package capstone_project.dtos.response.vehicle;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record VehicleAssignmentResponse(
@@ -13,7 +14,8 @@ public record VehicleAssignmentResponse(
         String trackingCode,
         VehicleInfo vehicle,
         DriverInfo driver1,
-        DriverInfo driver2
+        DriverInfo driver2,
+        List<DeviceInfo> devices
 ){
     public record VehicleInfo(
             UUID id,
@@ -37,5 +39,22 @@ public record VehicleAssignmentResponse(
             String driverLicenseNumber,
             String licenseClass,
             String experienceYears
+    ) {}
+    
+    public record DeviceInfo(
+            UUID id,
+            String deviceCode,
+            String manufacturer,
+            String model,
+            String status,
+            String ipAddress,
+            String firmwareVersion,
+            DeviceTypeInfo deviceType
+    ) {}
+    
+    public record DeviceTypeInfo(
+            UUID id,
+            String typeName,
+            String description
     ) {}
 }

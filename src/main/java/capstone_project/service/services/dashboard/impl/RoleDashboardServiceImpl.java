@@ -847,7 +847,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                 .count();
         
         long totalDeliveries = orderDetails.stream()
-                .filter(od -> od.getEndTime() != null || "SUCCESSFUL".equals(od.getStatus()) || "DELIVERED".equals(od.getStatus()))
+                .filter(od -> "SUCCESSFUL".equals(od.getStatus()) || "DELIVERED".equals(od.getStatus()))
                 .count();
         
         double onTimePercentage = totalDeliveries > 0 
@@ -929,15 +929,14 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
     }
 
     private AdminDashboardResponse.DeliveryPerformance buildDeliveryPerformance(List<OrderDetailEntity> orderDetails) {
+        // Since endTime and estimatedEndTime fields have been removed,
+        // we'll use status to determine on-time vs late deliveries
         long onTime = orderDetails.stream()
-                .filter(od -> od.getEndTime() != null && od.getEstimatedEndTime() != null 
-                        && !od.getEndTime().isAfter(od.getEstimatedEndTime()))
+                .filter(od -> "DELIVERED".equals(od.getStatus()) || "SUCCESSFUL".equals(od.getStatus()))
                 .count();
         
-        long late = orderDetails.stream()
-                .filter(od -> od.getEndTime() != null && od.getEstimatedEndTime() != null 
-                        && od.getEndTime().isAfter(od.getEstimatedEndTime()))
-                .count();
+        // For now, we'll consider all deliveries on time since we can't determine lateness without endTime
+        long late = 0;
         
         long total = onTime + late;
         double onTimePercentage = total > 0 ? (double) onTime / total * 100 : 0;

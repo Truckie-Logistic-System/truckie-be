@@ -14,9 +14,6 @@ import capstone_project.repository.repositories.auth.UserRepository;
 import capstone_project.repository.repositories.user.DriverRepository;
 import capstone_project.service.services.notification.NotificationService;
 import capstone_project.service.services.email.EmailNotificationService;
-import capstone_project.service.services.fcm.FCMService;
-import capstone_project.entity.fcm.FCMTokenEntity;
-import capstone_project.repository.FCMTokenRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,8 +58,6 @@ public class NotificationServiceImpl implements NotificationService {
     private final DriverRepository driverRepository;
     private final ObjectMapper objectMapper;
     private final EmailNotificationService emailNotificationService;
-    private final FCMService fcmService;
-    private final FCMTokenRepository fcmTokenRepository;
     private final capstone_project.service.services.websocket.NotificationWebSocketService notificationWebSocketService;
     private final ApplicationEventPublisher applicationEventPublisher;
 
@@ -95,7 +90,7 @@ public class NotificationServiceImpl implements NotificationService {
                 return null;
             }
 
-            // Special case: DRIVER_CREATED for DRIVER should send email only (no in-app notification / WebSocket / FCM)
+            // Special case: DRIVER_CREATED for DRIVER should send email only (no in-app notification / WebSocket)
             if (NotificationTypeEnum.DRIVER_CREATED.equals(request.getNotificationType())
                     && "DRIVER".equals(request.getRecipientRole())) {
                 log.info("Sending DRIVER_CREATED email without creating persistent notification for user: {}", user.getId());
@@ -109,7 +104,7 @@ public class NotificationServiceImpl implements NotificationService {
                         .createdAt(LocalDateTime.now())
                         .build();
 
-                // Directly send email using the email service; no DB record, no WebSocket, no FCM
+                // Directly send email using the email service; no DB record, no WebSocket
                 emailNotificationService.sendNotificationEmail(tempNotification, user);
 
                 return null;
@@ -163,8 +158,7 @@ public class NotificationServiceImpl implements NotificationService {
                 sendEmailNotificationAsync(notification, user);
             }
             
-            // Send FCM push notification (async)
-            sendFCMNotificationAsync(notification, user);
+            // FCM push notification removed
             
             return response;
             
@@ -438,90 +432,6 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
     
-    /**
-     * Send FCM push notification async (all recipients)
-     */
-    @Async
-    private void sendFCMNotificationAsync(NotificationEntity notification, UserEntity user) {
-        log.debug("🔔 Sending FCM notification to user: {}, type: {}", user.getId(), notification.getNotificationType());
-        
-        try {
-            // Get active FCM tokens for this user based on their role
-            List<String> tokens = getActiveFCMTokensForUser(user, notification.getRecipientRole());
-            
-            if (tokens.isEmpty()) {
-                log.debug("No active FCM tokens found for user: {} - skipping push notification", user.getId());
-                return;
-            }
-            
-            // Prepare notification data
-            Map<String, String> data = new HashMap<>();
-            data.put("notificationId", notification.getId().toString());
-            data.put("type", notification.getNotificationType().name());
-            data.put("recipientRole", notification.getRecipientRole());
-            
-            if (notification.getRelatedOrderId() != null) {
-                data.put("orderId", notification.getRelatedOrderId().toString());
-            }
-            if (notification.getRelatedIssueId() != null) {
-                data.put("issueId", notification.getRelatedIssueId().toString());
-            }
-            if (notification.getRelatedVehicleAssignmentId() != null) {
-                data.put("vehicleAssignmentId", notification.getRelatedVehicleAssignmentId().toString());
-            }
-            
-            // Parse metadata if exists
-            if (notification.getMetadata() != null) {
-                try {
-                    Map<String, Object> metadata = objectMapper.readValue(
-                        notification.getMetadata(), 
-                        new TypeReference<Map<String, Object>>() {}
-                    );
-                    metadata.forEach((key, value) -> data.put(key, String.valueOf(value)));
-                } catch (JsonProcessingException e) {
-                    log.warn("Failed to parse notification metadata for FCM: {}", e.getMessage());
-                }
-            }
-            
-            // Send FCM notification
-            fcmService.sendNotificationToTokens(
-                tokens, 
-                notification.getTitle(), 
-                notification.getDescription(), 
-                data
-            );
-            
-            log.info("✅ FCM notification sent to {} tokens for user: {}", tokens.size(), user.getId());
-            
-        } catch (Exception e) {
-            log.error("❌ Failed to send FCM notification to user: {}", user.getId(), e);
-            // Don't throw exception to avoid breaking main notification flow
-        }
-    }
-    
-    /**
-     * Get active FCM tokens for a user based on their role
-     */
-    private List<String> getActiveFCMTokensForUser(UserEntity user, String recipientRole) {
-        // Simplified implementation - use user ID for all roles since driver entities don't exist
-        List<FCMTokenEntity> tokenEntities = fcmTokenRepository.findByUserIdAndIsActiveTrue(user.getId());
-        
-        // Extract token strings and update last used timestamp
-        List<String> tokens = tokenEntities.stream()
-            .map(token -> {
-                token.updateLastUsed();
-                return token.getToken();
-            })
-            .collect(Collectors.toList());
-        
-        // Save updated lastUsed timestamps
-        if (!tokens.isEmpty()) {
-            fcmTokenRepository.saveAll(tokenEntities);
-        }
-        
-        log.debug("Found {} active FCM tokens for user: {} ({})", tokens.size(), user.getId(), recipientRole);
-        return tokens;
-    }
     
     /**
      * Send notification via WebSocket using NotificationWebSocketService

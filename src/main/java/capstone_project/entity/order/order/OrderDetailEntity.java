@@ -44,15 +44,6 @@ public class OrderDetailEntity extends BaseEntity {
     @Column(name = "estimated_start_time")
     private LocalDateTime estimatedStartTime;
 
-    @Column(name = "start_time")
-    private LocalDateTime startTime;
-
-    @Column(name = "estimated_end_time")
-    private LocalDateTime estimatedEndTime;
-
-    @Column(name = "end_time")
-    private LocalDateTime endTime;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id")
     @ToString.Exclude

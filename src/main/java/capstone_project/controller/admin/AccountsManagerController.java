@@ -33,8 +33,14 @@ public class AccountsManagerController {
      * @param registerUserRequest the register user request
      * @return the response entity
      */
+    /**
+     * Register employee with optional password
+     * For staff registration, password is optional and will be generated automatically
+     * Login credentials will be sent to the staff's email
+     */
     @PostMapping("/employee/register")
     public ResponseEntity<ApiResponse<UserResponse>> register(@RequestBody @Valid RegisterUserRequest registerUserRequest, @RequestParam RoleTypeEnum roleTypeEnum) {
+        // For staff registration, password is generated automatically
         final var register = registerService.register(registerUserRequest, roleTypeEnum);
         return ResponseEntity.ok(ApiResponse.ok(register));
     }

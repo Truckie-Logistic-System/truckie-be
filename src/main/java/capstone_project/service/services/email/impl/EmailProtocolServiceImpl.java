@@ -1,5 +1,7 @@
 package capstone_project.service.services.email.impl;
 
+import org.springframework.scheduling.annotation.Async;
+
 import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.template.OtpEmailTemplate;
 import capstone_project.config.expired.OtpSchedulerService;
@@ -62,31 +64,41 @@ public class EmailProtocolServiceImpl implements EmailProtocolService {
     }
 
     @Override
+    @Async
     public void sendOtpEmail(String email, String otp) {
-        synchronized (emailLock) {
+        try {
+            log.info("[📧 sendOtpEmail] Sending OTP email to: {}", email);
+            
+            String emailTemplate = OtpEmailTemplate.getOtpEmailTemplate();
+            // Sử dụng replace thay vì String.format để tránh lỗi với các ký tự đặc biệt trong HTML
+            String emailContent = emailTemplate.replace("%s", otp);
+
+            MimeMessage message = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setTo(email);
+            helper.setSubject("Xác thực OTP - Truckie");
+            helper.setText(emailContent, true);
+            helper.setFrom(sender);
+
+            javaMailSender.send(message);
+            
+            // Lưu OTP vào storage
+            otpStorage.put(email, new OTPResponse(otp, LocalDateTime.now()));
+            
+            // Lên lịch hết hạn OTP
             try {
-                String emailTemplate = OtpEmailTemplate.getOtpEmailTemplate();
-                String emailContent = String.format(emailTemplate, otp);
-
-                MimeMessage message = javaMailSender.createMimeMessage();
-                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-                helper.setTo(email);
-                helper.setSubject("OTP Verification");
-                helper.setText(emailContent, true);
-
-                javaMailSender.send(message);
-
-                otpStorage.put(email, new OTPResponse(otp, LocalDateTime.now()));
-
                 otpSchedulerService.scheduleOtpExpirationJob(email, otp);
-
-                introduceDelay();
-
-            } catch (MessagingException | SchedulerException e) {
-                log.error("Failed to send OTP email to {}", email, e);
-                throw new RuntimeException("Failed to send OTP email", e);
+            } catch (SchedulerException se) {
+                log.warn("[📧 sendOtpEmail] Failed to schedule OTP expiration: {}", se.getMessage());
+                // Không throw exception ở đây, vì OTP vẫn được gửi thành công
             }
+
+            log.info("[📧 sendOtpEmail] OTP sent successfully to: {}", email);
+            
+        } catch (Exception e) {
+            log.error("[❌ sendOtpEmail] Failed to send OTP email to {}: {}", email, e.getMessage(), e);
+            throw new RuntimeException("Không thể gửi email OTP. Vui lòng thử lại sau.", e);
         }
     }
 
@@ -102,11 +114,15 @@ public class EmailProtocolServiceImpl implements EmailProtocolService {
                 if (otpData.getOtp().equals(otp)) {
                     otpStorage.remove(email);
 
+                    // Cập nhật trạng thái của UserEntity thành ACTIVE (đã xác thực OTP)
                     userService.updateUserStatus(email, UserStatusEnum.ACTIVE.name());
+                    
+                    // Cập nhật trạng thái của CustomerEntity thành INACTIVE (đã xác thực OTP nhưng chờ admin kích hoạt)
                     customerService.updateCustomerStatus(userEntityService.getUserByEmail(email)
                             .orElseThrow(() -> new IllegalArgumentException("User not found with email: " + email))
-                            .getId(), UserStatusEnum.ACTIVE.name());
-
+                            .getId(), UserStatusEnum.INACTIVE.name());
+                    
+                    log.info("[verifyOtp] OTP verified successfully for email: {}. User is now ACTIVE but Customer is INACTIVE waiting for admin approval", email);
                     return true;
                 }
             } else {
@@ -126,56 +142,51 @@ public class EmailProtocolServiceImpl implements EmailProtocolService {
         }
     }
 
-    private void introduceDelay() {
-        try {
-            Thread.sleep(1000); // 1 second delay
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.warn("Delay interrupted: {}", e.getMessage());
-        }
-    }
+    // Phương thức introduceDelay() đã được loại bỏ vì các phương thức gửi email đã được đánh dấu @Async
 
     // ==================== FORGOT PASSWORD OTP METHODS ====================
 
     @Override
+    @Async
     public void sendForgotPasswordOtp(String email) {
         // Validate user exists
         var userOpt = userEntityService.getUserByEmail(email);
         if (userOpt.isEmpty()) {
-            log.warn("[sendForgotPasswordOtp] User not found with email: {}", email);
+            log.warn("[📧 sendForgotPasswordOtp] User not found with email: {}", email);
             throw new IllegalArgumentException("Không tìm thấy tài khoản với email này");
         }
 
-        synchronized (emailLock) {
-            try {
-                // Generate 6-digit OTP
-                String otp = generateOtp();
-                String username = userOpt.get().getUsername();
+        try {
+            log.info("[📧 sendForgotPasswordOtp] Sending password reset OTP to: {}", email);
+            
+            // Generate 6-digit OTP
+            String otp = generateOtp();
+            String username = userOpt.get().getUsername();
 
-                // Use forgot password email template
-                String emailTemplate = OtpEmailForgetPasswordTemplate.getOtpEmailForgetPasswordTemplate();
-                String emailContent = String.format(emailTemplate, username, otp);
+            // Use forgot password email template
+            String emailTemplate = OtpEmailForgetPasswordTemplate.getOtpEmailForgetPasswordTemplate();
+            // Sử dụng replace thay vì String.format để tránh lỗi với các ký tự đặc biệt trong HTML
+            String emailContent = emailTemplate.replace("%s", username);
+            emailContent = emailContent.replace("%s", otp);
 
-                MimeMessage message = javaMailSender.createMimeMessage();
-                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            MimeMessage message = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-                helper.setTo(email);
-                helper.setSubject("Yêu cầu đặt lại mật khẩu - Truckie");
-                helper.setText(emailContent, true);
+            helper.setTo(email);
+            helper.setSubject("Yêu cầu đặt lại mật khẩu - Truckie");
+            helper.setText(emailContent, true);
+            helper.setFrom(sender);
 
-                javaMailSender.send(message);
+            javaMailSender.send(message);
 
-                // Store OTP with timestamp (valid for 5 minutes)
-                forgotPasswordOtpStorage.put(email, new OTPResponse(otp, LocalDateTime.now()));
+            // Store OTP with timestamp (valid for 5 minutes)
+            forgotPasswordOtpStorage.put(email, new OTPResponse(otp, LocalDateTime.now()));
 
-                log.info("[sendForgotPasswordOtp] OTP sent successfully to: {}", email);
+            log.info("[📧 sendForgotPasswordOtp] OTP sent successfully to: {}", email);
 
-                introduceDelay();
-
-            } catch (MessagingException e) {
-                log.error("[sendForgotPasswordOtp] Failed to send OTP email to {}", email, e);
-                throw new RuntimeException("Không thể gửi email OTP. Vui lòng thử lại sau.", e);
-            }
+        } catch (Exception e) {
+            log.error("[❌ sendForgotPasswordOtp] Failed to send OTP email to {}: {}", email, e.getMessage(), e);
+            throw new RuntimeException("Không thể gửi email OTP. Vui lòng thử lại sau.", e);
         }
     }
 
