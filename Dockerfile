@@ -2,7 +2,7 @@
 FROM gradle:8.5-jdk17 AS builder
 WORKDIR /app
 COPY . .
-RUN gradle clean build -x test
+RUN gradle clean bootJar -x test
 
 # Stage 2: Run
 FROM eclipse-temurin:17-jre-alpine
@@ -12,7 +12,7 @@ WORKDIR /app
 RUN mkdir -p /app/tomcat-temp && chmod 777 /app/tomcat-temp
 
 # Copy application JAR
-COPY --from=builder /app/build/libs/capstone-project-0.0.1-SNAPSHOT.jar truckie.jar
+COPY --from=builder /app/build/libs/app.jar truckie.jar
 
 # Expose the port
 EXPOSE 8080
