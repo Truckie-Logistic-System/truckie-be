@@ -10,6 +10,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionCreateRequest;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionEndReadingRequest;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionInvoiceRequest;
+import capstone_project.dtos.response.vehicle.VehicleFuelConsumptionListResponse;
 import capstone_project.dtos.response.vehicle.VehicleFuelConsumptionResponse;
 import capstone_project.entity.order.order.VehicleFuelConsumptionEntity;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
@@ -35,7 +36,16 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.entity.vehicle.VehicleEntity;
+import capstone_project.entity.user.driver.DriverEntity;
+import capstone_project.entity.auth.UserEntity;
+import capstone_project.entity.order.order.FuelTypeEntity;
 
 @Service
 @Slf4j
@@ -54,6 +64,74 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private final OrderStatusWebSocketService orderStatusWebSocketService;
     private final JourneyHistoryEntityService journeyHistoryEntityService;
     private final capstone_project.repository.entityServices.vehicle.VehicleEntityService vehicleEntityService;
+
+    @Override
+    public List<VehicleFuelConsumptionListResponse> getAllVehicleFuelConsumptions() {
+        List<VehicleFuelConsumptionEntity> entities = vehicleFuelConsumptionEntityService.findAll();
+        
+        // Sort by createdAt DESC (newest first)
+        entities.sort(Comparator.comparing(
+                VehicleFuelConsumptionEntity::getCreatedAt,
+                Comparator.nullsLast(Comparator.reverseOrder())
+        ));
+        
+        return entities.stream()
+                .map(this::mapToListResponse)
+                .collect(Collectors.toList());
+    }
+    
+    private VehicleFuelConsumptionListResponse mapToListResponse(VehicleFuelConsumptionEntity entity) {
+        VehicleAssignmentEntity va = entity.getVehicleAssignmentEntity();
+        
+        // Get vehicle info safely
+        VehicleEntity vehicle = va != null ? va.getVehicleEntity() : null;
+        
+        // Get driver info safely
+        String driverName = null;
+        String driverPhone = null;
+        UUID driverId = null;
+        if (va != null && va.getDriver1() != null) {
+            DriverEntity driver = va.getDriver1();
+            driverId = driver.getId();
+            UserEntity driverUser = driver.getUser();
+            if (driverUser != null) {
+                driverName = driverUser.getFullName();
+                driverPhone = driverUser.getPhoneNumber();
+            }
+        }
+        
+        return VehicleFuelConsumptionListResponse.builder()
+                .id(entity.getId())
+                .fuelVolumeLiters(entity.getFuelVolume())
+                .odometerAtStartUrl(entity.getOdometerAtStartUrl())
+                .odometerAtEndUrl(entity.getOdometerAtEndUrl())
+                .companyInvoiceImageUrl(entity.getCompanyInvoiceImageUrl())
+                .odometerStartKm(entity.getOdometerReadingAtStart())
+                .odometerEndKm(entity.getOdometerReadingAtEnd())
+                .distanceTraveledKm(entity.getDistanceTraveled())
+                .dateRecorded(entity.getDateRecorded())
+                .notes(entity.getNotes())
+                .createdAt(entity.getCreatedAt())
+                .vehicleAssignment(va != null ? VehicleFuelConsumptionListResponse.VehicleAssignmentInfo.builder()
+                        .id(va.getId())
+                        .trackingCode(va.getTrackingCode())
+                        .status(va.getStatus())
+                        .build() : null)
+                .vehicle(vehicle != null ? VehicleFuelConsumptionListResponse.VehicleInfo.builder()
+                        .id(vehicle.getId())
+                        .licensePlateNumber(vehicle.getLicensePlateNumber())
+                        .vehicleType(vehicle.getVehicleTypeEntity() != null ? vehicle.getVehicleTypeEntity().getVehicleTypeName() : null)
+                        .brand(vehicle.getManufacturer())
+                        .model(vehicle.getModel())
+                        .build() : null)
+                .driver(driverId != null ? VehicleFuelConsumptionListResponse.DriverInfo.builder()
+                        .id(driverId)
+                        .fullName(driverName)
+                        .phoneNumber(driverPhone)
+                        .build() : null)
+                .fuelType(null) // FuelType relationship not in entity, can be added later
+                .build();
+    }
 
     @Override
     @Transactional
@@ -149,29 +227,41 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
         final var averageFuelConsumption = vehicleType.getAverageFuelConsumptionLPer100km();
         final var vehicleWeightLimit = vehicleType.getWeightLimitTon();
 
-        // ✅ NEW: Use journey-based calculation with load factors
+        log.info("\uD83D\uDD0E Calculating fuel consumption for VehicleAssignment={}, vehicleType={}, odoStart={}, odoEnd={}, distanceKm={}",
+                entity.getVehicleAssignmentEntity().getId(),
+                vehicleType != null ? vehicleType.getId() : "unknown",
+                entity.getOdometerReadingAtStart(),
+                request.odometerReadingAtEnd(),
+                distanceTraveled);
+
+        // ✅ Use journey-based calculation with load factors + odo distance validation
         BigDecimal fuelVolume;
-        
+
+        BigDecimal effectiveBaseConsumption;
         if (averageFuelConsumption == null) {
             log.warn("Average fuel consumption is null for vehicle type: {}, using default value 10L/100km",
                     vehicleType != null ? vehicleType.getId() : "unknown");
-            // Use default fuel consumption value of 10L/100km if null
-            fuelVolume = calculateFuelConsumptionWithLoad(
-                    entity.getVehicleAssignmentEntity().getId(),
-                    new BigDecimal("10"),
-                    vehicleWeightLimit != null ? vehicleWeightLimit : new BigDecimal("5"),
-                    distanceTraveled
-            );
+            effectiveBaseConsumption = new BigDecimal("10");
         } else {
-            // Use vehicle type's average fuel consumption
-            fuelVolume = calculateFuelConsumptionWithLoad(
-                    entity.getVehicleAssignmentEntity().getId(),
-                    averageFuelConsumption,
-                    vehicleWeightLimit != null ? vehicleWeightLimit : new BigDecimal("5"),
-                    distanceTraveled
-            );
+            effectiveBaseConsumption = averageFuelConsumption;
         }
-        
+
+        BigDecimal effectiveWeightLimit = vehicleWeightLimit != null ? vehicleWeightLimit : new BigDecimal("5");
+
+        fuelVolume = calculateFuelConsumptionWithLoad(
+                entity.getVehicleAssignmentEntity().getId(),
+                effectiveBaseConsumption,
+                effectiveWeightLimit,
+                distanceTraveled
+        );
+
+        log.info("\u2705 Fuel consumption calculated: vehicleAssignment={}, baseConsumptionLPer100km={}, weightLimitTon={}, distanceKm={}, fuelVolumeL={}",
+                entity.getVehicleAssignmentEntity().getId(),
+                effectiveBaseConsumption,
+                effectiveWeightLimit,
+                distanceTraveled,
+                fuelVolume);
+
         entity.setFuelVolume(fuelVolume);
 
         entity.setOdometerAtEndUrl(odometerAtEndUrl);
@@ -185,53 +275,66 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
         // OrderDetail status stays as DELIVERED (final state for successful delivery)
         try {
             UUID vehicleAssignmentId = entity.getVehicleAssignmentEntity().getId();
-            
+
             // Get all OrderDetails for this assignment
             var allOrderDetails = orderDetailEntityService.findByVehicleAssignmentId(vehicleAssignmentId);
-            
+
             if (!allOrderDetails.isEmpty()) {
                 UUID orderId = allOrderDetails.get(0).getOrderEntity().getId();
-                
+
                 // Get ALL OrderDetails of the entire Order (across all trips)
                 var allDetailsInOrder = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
-                
-                // Check if ANY OrderDetail is DELIVERED
+
+                // Condition 1: Check if ANY OrderDetail is DELIVERED
                 boolean hasDelivered = allDetailsInOrder.stream()
-                    .anyMatch(od -> "DELIVERED".equals(od.getStatus()));
-                
+                        .anyMatch(od -> "DELIVERED".equals(od.getStatus()));
+
                 if (hasDelivered) {
-                    // Manually force Order → SUCCESSFUL (don't use aggregation)
-                    var order = orderEntityService.findEntityById(orderId)
-                        .orElseThrow(() -> new NotFoundException(
-                            "Order not found with ID: " + orderId,
-                            ErrorEnum.NOT_FOUND.getErrorCode()
-                        ));
-                    
-                    String oldStatus = order.getStatus();
-                    
-                    // Only update if not already SUCCESSFUL or higher priority states
-                    if (!"SUCCESSFUL".equals(oldStatus) 
-                        && !"COMPENSATION".equals(oldStatus)
-                        && !"RETURNED".equals(oldStatus)) {
-                        
-                        order.setStatus(capstone_project.common.enums.OrderStatusEnum.SUCCESSFUL.name());
-                        orderEntityService.save(order);
-                        
-                        log.info("✅ Order {} updated to SUCCESSFUL after odometer end upload (had {} DELIVERED details)", 
-                                orderId, 
-                                allDetailsInOrder.stream().filter(od -> "DELIVERED".equals(od.getStatus())).count());
-                        
-                        // Send WebSocket notification
-                        try {
-                            orderStatusWebSocketService.sendOrderStatusChange(
-                                orderId,
-                                order.getOrderCode(),
-                                capstone_project.common.enums.OrderStatusEnum.valueOf(oldStatus),
-                                capstone_project.common.enums.OrderStatusEnum.SUCCESSFUL
-                            );
-                        } catch (Exception e) {
-                            log.error("❌ Failed to send WebSocket for order status change: {}", e.getMessage());
+                    // Condition 2: All vehicle assignments of this order must have end odometer recorded
+                    var allAssignments = vehicleAssignmentEntityService.findVehicleAssignmentsWithOrderID(orderId);
+
+                    boolean allAssignmentsHaveEndOdometer = allAssignments.stream().allMatch(assignment -> {
+                        var fuelOpt = vehicleFuelConsumptionEntityService.findByVehicleAssignmentId(assignment.getId());
+                        return fuelOpt.isPresent() && fuelOpt.get().getOdometerReadingAtEnd() != null;
+                    });
+
+                    if (allAssignmentsHaveEndOdometer) {
+                        // Manually force Order → SUCCESSFUL (don't use aggregation)
+                        var order = orderEntityService.findEntityById(orderId)
+                                .orElseThrow(() -> new NotFoundException(
+                                        "Order not found with ID: " + orderId,
+                                        ErrorEnum.NOT_FOUND.getErrorCode()
+                                ));
+
+                        String oldStatus = order.getStatus();
+
+                        // Only update if not already SUCCESSFUL or higher priority states
+                        if (!"SUCCESSFUL".equals(oldStatus)
+                                && !"COMPENSATION".equals(oldStatus)
+                                && !"RETURNED".equals(oldStatus)) {
+
+                            OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
+                            order.setStatus(capstone_project.common.enums.OrderStatusEnum.SUCCESSFUL.name());
+                            orderEntityService.save(order);
+
+                            // Send WebSocket notification for status change
+                            try {
+                                orderStatusWebSocketService.sendOrderStatusChange(
+                                    order.getId(),
+                                    order.getOrderCode(),
+                                    previousStatus,
+                                    OrderStatusEnum.SUCCESSFUL
+                                );
+                            } catch (Exception e) {
+                                log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
+                            }
+
+                            log.info("✅ Order {} updated to SUCCESSFUL after odometer end upload (had {} DELIVERED details, all assignments completed)",
+                                    orderId,
+                                    allDetailsInOrder.stream().filter(od -> "DELIVERED".equals(od.getStatus())).count());
                         }
+                    } else {
+                        log.info("ℹ️ Not all vehicle assignments for order {} have end odometer yet - skipping SUCCESSFUL status update", orderId);
                     }
                 }
             }
@@ -325,46 +428,57 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
         try {
             // ✅ Get the most recent ACTIVE or COMPLETED journey history
             var activeJourney = journeyHistoryEntityService.findLatestActiveJourney(vehicleAssignmentId);
-            
+
             if (activeJourney.isEmpty()) {
-                log.warn("⚠️ No active journey found for vehicle assignment {}", vehicleAssignmentId);
+                log.warn("⚠️ No active journey found for vehicle assignment {}, falling back to simple odo-based calculation", vehicleAssignmentId);
                 BigDecimal simpleFuel = totalDistanceKm.multiply(baseFuelConsumption)
                         .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
-                
+
+                log.info("ℹ️ Simple fuel calculation (no journey): distanceKm={}, baseConsumptionLPer100km={}, fuelVolumeL={}",
+                        totalDistanceKm, baseFuelConsumption, simpleFuel);
                 return simpleFuel;
             }
-            
+
             var journey = activeJourney.get();
 
             var segments = journey.getJourneySegments();
-            
+
             if (segments == null || segments.isEmpty()) {
-                log.warn("⚠️ No segments found in journey {}", journey.getId());
+                log.warn("⚠️ No segments found in journey {}, falling back to simple odo-based calculation", journey.getId());
                 BigDecimal simpleFuel = totalDistanceKm.multiply(baseFuelConsumption)
                         .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
-                
+
+                log.info("ℹ️ Simple fuel calculation (no segments): distanceKm={}, baseConsumptionLPer100km={}, fuelVolumeL={}",
+                        totalDistanceKm, baseFuelConsumption, simpleFuel);
                 return simpleFuel;
             }
 
             // Sort segments by order
             segments.sort((s1, s2) -> s1.getSegmentOrder().compareTo(s2.getSegmentOrder()));
-            
+
             // Get all order details for this assignment
             var orderDetails = orderDetailEntityService.findByVehicleAssignmentId(vehicleAssignmentId);
 
-            // Log all order details
-            for (var od : orderDetails) {
-                
+            if (log.isInfoEnabled()) {
+                log.info("📝 Fuel calc (segments-only): journeyId={}, segmentsCount={}, orderDetailsCount={}, baseConsumptionLPer100km={}, vehicleWeightLimitTon={}, odoDistanceKm={}",
+                        journey.getId(),
+                        segments.size(),
+                        orderDetails.size(),
+                        baseFuelConsumption,
+                        vehicleWeightLimit,
+                        totalDistanceKm);
             }
-            
-            BigDecimal totalFuelVolume = BigDecimal.ZERO;
+
+            BigDecimal totalFuelVolumeFromSegments = BigDecimal.ZERO;
+            BigDecimal totalSegmentDistance = BigDecimal.ZERO;
 
             for (JourneySegmentEntity segment : segments) {
 
-                // ✅ Field renamed to distanceKilometers for clarity
-                BigDecimal segmentDistanceKm = segment.getDistanceKilometers() != null 
-                        ? segment.getDistanceKilometers() 
+                BigDecimal segmentDistanceKm = segment.getDistanceKilometers() != null
+                        ? segment.getDistanceKilometers()
                         : BigDecimal.ZERO;
+
+                totalSegmentDistance = totalSegmentDistance.add(segmentDistanceKm);
 
                 // Determine cargo weight for this segment
                 BigDecimal cargoWeight = getCargoWeightForSegment(segment, segments, orderDetails);
@@ -376,20 +490,55 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
                 BigDecimal segmentFuel = segmentDistanceKm
                         .multiply(baseFuelConsumption)
                         .multiply(loadFactor)
-                        .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+                        .divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
 
-                totalFuelVolume = totalFuelVolume.add(segmentFuel);
-                
+                totalFuelVolumeFromSegments = totalFuelVolumeFromSegments.add(segmentFuel);
+
+                if (log.isInfoEnabled()) {
+                    log.info("➡️ Segment fuel calc: journeyId={}, segmentOrder={}, startPoint='{}', endPoint='{}', distanceKm={}, cargoWeightKg={}, loadFactor={}, segmentFuelL={}",
+                            journey.getId(),
+                            segment.getSegmentOrder(),
+                            segment.getStartPointName(),
+                            segment.getEndPointName(),
+                            segmentDistanceKm,
+                            cargoWeight,
+                            loadFactor,
+                            segmentFuel.setScale(3, RoundingMode.HALF_UP));
+                }
             }
 
-            return totalFuelVolume;
-            
+            if (totalSegmentDistance.compareTo(BigDecimal.ZERO) <= 0) {
+                log.warn("⚠️ Total segment distance is zero or negative for journey {}, falling back to simple odo-based calculation", journey.getId());
+                BigDecimal simpleFuel = totalDistanceKm.multiply(baseFuelConsumption)
+                        .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+
+                log.info("ℹ️ Simple fuel calculation (zero segment distance): distanceKm={}, baseConsumptionLPer100km={}, fuelVolumeL={}",
+                        totalDistanceKm, baseFuelConsumption, simpleFuel);
+                return simpleFuel;
+            }
+
+            BigDecimal result = totalFuelVolumeFromSegments.setScale(2, RoundingMode.HALF_UP);
+
+            if (log.isInfoEnabled()) {
+                log.info("📊 Segment-based fuel summary: journeyId={}, totalSegmentDistanceKm={}, baseConsumptionLPer100km={}, odoDistanceKm={}, totalFuelL={}",
+                        journey.getId(),
+                        totalSegmentDistance.setScale(3, RoundingMode.HALF_UP),
+                        baseFuelConsumption,
+                        totalDistanceKm,
+                        result);
+            }
+
+            return result;
+
         } catch (Exception e) {
-            log.error("❌ Error calculating fuel with load: {}, falling back to simple calculation", 
-                    e.getMessage(), e);
+            log.error("❌ Error calculating fuel with load: {}, falling back to simple calculation", e.getMessage(), e);
             // Fallback to simple calculation if something goes wrong
-            return totalDistanceKm.multiply(baseFuelConsumption)
+            BigDecimal simpleFuel = totalDistanceKm.multiply(baseFuelConsumption)
                     .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+
+            log.info("ℹ️ Simple fuel calculation (exception): distanceKm={}, baseConsumptionLPer100km={}, fuelVolumeL={}",
+                    totalDistanceKm, baseFuelConsumption, simpleFuel);
+            return simpleFuel;
         }
     }
 
@@ -420,7 +569,10 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
         // Carrier → Pickup: Empty
         if (startPoint.contains("carrier") && endPoint.contains("pickup")) {
-            
+            if (log.isInfoEnabled()) {
+                log.info("\uD83D\uDE9A Cargo weight: Carrier→Pickup segmentOrder={}, assuming empty (0 kg)",
+                        segment.getSegmentOrder());
+            }
             return BigDecimal.ZERO;
         }
         
@@ -428,11 +580,6 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
         // ✅ CRITICAL FIX: Use `getWeight()` (tons) and convert to kg by multiplying 1000
         if (startPoint.contains("pickup") && endPoint.contains("delivery")) {
 
-            // Log ALL order details before filtering
-            for (var od : orderDetails) {
-                
-            }
-            
             var validOrderDetails = orderDetails.stream()
                     .filter(od -> !("RETURNED".equals(od.getStatus()) || "CANCELLED".equals(od.getStatus())))
                     .collect(java.util.stream.Collectors.toList());
@@ -444,13 +591,24 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
             // Convert tons to kg
             BigDecimal weightKg = totalWeightTons.multiply(new BigDecimal("1000"));
-            
+
+            if (log.isInfoEnabled()) {
+                log.info("\uD83D\uDE9A Cargo weight: Pickup→Delivery segmentOrder={}, packagesCount={}, totalWeightTons={}, weightKg={}",
+                        segment.getSegmentOrder(),
+                        validOrderDetails.size(),
+                        totalWeightTons,
+                        weightKg);
+            }
+
             return weightKg;
         }
         
         // Delivery → Carrier: Empty (after successful delivery)
         if (startPoint.contains("delivery") && endPoint.contains("carrier")) {
-            
+            if (log.isInfoEnabled()) {
+                log.info("\uD83D\uDE9A Cargo weight: Delivery→Carrier segmentOrder={}, assuming empty (0 kg)",
+                        segment.getSegmentOrder());
+            }
             return BigDecimal.ZERO;
         }
         
@@ -466,21 +624,32 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
                     .map(OrderDetailEntity::getWeightTons)
                     .filter(w -> w != null)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
-            
+
             // Convert tons to kg
             BigDecimal weightKg = totalWeightTons.multiply(new BigDecimal("1000"));
-            
+
+            if (log.isInfoEnabled()) {
+                log.info("\uD83D\uDE9A Cargo weight: Delivery→Pickup (return) segmentOrder={}, returnedPackagesCount={}, totalWeightTons={}, weightKg={}",
+                        segment.getSegmentOrder(),
+                        returnedOrderDetails.size(),
+                        totalWeightTons,
+                        weightKg);
+            }
+
             return weightKg;
         }
         
         // Pickup → Carrier (return flow): Empty (after returning packages to pickup point)
         if (startPoint.contains("pickup") && endPoint.contains("carrier")) {
-            
+            if (log.isInfoEnabled()) {
+                log.info("\uD83D\uDE9A Cargo weight: Pickup→Carrier (return) segmentOrder={}, assuming empty (0 kg)",
+                        segment.getSegmentOrder());
+            }
             return BigDecimal.ZERO;
         }
         
         // Default: assume empty for unknown segment types
-        log.warn("⚠️ Unknown segment type: {} → {}, assuming empty", startPoint, endPoint);
+        log.warn("⚠️ Unknown segment type: {} → {} (segmentOrder={}), assuming empty", startPoint, endPoint, segment.getSegmentOrder());
         return BigDecimal.ZERO;
     }
 
@@ -505,12 +674,14 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private BigDecimal calculateLoadFactor(BigDecimal cargoWeightKg, BigDecimal vehicleWeightLimitTon) {
 
         if (cargoWeightKg == null || cargoWeightKg.compareTo(BigDecimal.ZERO) == 0) {
-            
+            if (log.isInfoEnabled()) {
+                log.info("\u2699\uFE0F Load factor: empty truck (cargoWeightKg={}), loadFactor=1.000", cargoWeightKg);
+            }
             return BigDecimal.ONE; // Empty truck
         }
         
         if (vehicleWeightLimitTon == null || vehicleWeightLimitTon.compareTo(BigDecimal.ZERO) == 0) {
-            log.warn("⚠️ Vehicle weight limit is null or zero, using default load factor = 1.0");
+            log.warn("⚠️ Vehicle weight limit is null or zero, using default load factor = 1.0 (cargoWeightKg={})", cargoWeightKg);
             return BigDecimal.ONE;
         }
         
@@ -536,7 +707,18 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
                         .multiply(new BigDecimal("0.3"))
         );
 
-        return loadFactor.setScale(3, RoundingMode.HALF_UP);
+        BigDecimal scaledLoadFactor = loadFactor.setScale(3, RoundingMode.HALF_UP);
+
+        if (log.isInfoEnabled()) {
+            log.info("\u2699\uFE0F Load factor: cargoWeightKg={}, vehicleLimitTon={}, vehicleLimitKg={}, loadPercentage={}, loadFactor={}",
+                    cargoWeightKg,
+                    vehicleWeightLimitTon,
+                    vehicleWeightLimitKg,
+                    loadPercentage,
+                    scaledLoadFactor);
+        }
+
+        return scaledLoadFactor;
     }
 
     private VehicleFuelConsumptionResponse mapToResponse(VehicleFuelConsumptionEntity entity) {

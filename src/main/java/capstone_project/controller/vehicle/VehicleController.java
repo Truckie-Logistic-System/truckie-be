@@ -99,6 +99,24 @@ public class VehicleController {
         final var vehicles = service.generateBulkVehicles(request.getCount());
         return ResponseEntity.ok(ApiResponse.ok(vehicles));
     }
+    
+    /**
+     * Get count of vehicles by status
+     */
+    @GetMapping("/count/status/{status}")
+    public ResponseEntity<ApiResponse<Long>> countByStatus(@PathVariable String status) {
+        long count = service.countVehiclesByStatus(status);
+        return ResponseEntity.ok(ApiResponse.ok(count));
+    }
+    
+    /**
+     * Get count of vehicles by vehicle type
+     */
+    @GetMapping("/count/type/{vehicleTypeId}")
+    public ResponseEntity<ApiResponse<Long>> countByType(@PathVariable UUID vehicleTypeId) {
+        long count = service.countVehiclesByType(vehicleTypeId);
+        return ResponseEntity.ok(ApiResponse.ok(count));
+    }
 
 //    @DeleteMapping("/{id}")
 //    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {

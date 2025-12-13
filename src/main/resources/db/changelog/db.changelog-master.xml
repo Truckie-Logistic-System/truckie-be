@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- 
+        Master Changelog File
+        Quản lý tất cả migration files theo thứ tự
+    -->
+
+    <!-- 
+        Migration Strategy: Archive data trước khi drop
+        - Safe changes: Archive data + Add constraints
+        - Risky changes: Drop tables/columns (data đã archive)
+    -->
+
+    <!-- STEP 1: Feature changes - Add device_ids to vehicle_assignments -->
+    <include file="db/changelog/changes/add-device-ids-to-vehicle-assignments.xml"/>
+
+    <!-- STEP 2: Cleanup changes - Remove vehicle_capacity from device_types -->
+    <include file="db/changelog/changes/remove-vehicle-capacity-from-device-types.xml"/>
+
+    <!-- STEP 3: Cleanup changes - Remove capacity from vehicles table -->
+    <include file="db/changelog/changes/remove-vehicle-capacity-from-vehicles.xml"/>
+
+    <!-- STEP 4: Add vehicle inspection and insurance tracking fields -->
+    <include file="db/changelog/changes/add-vehicle-insurance-inspection-fields.xml"/>
+
+    <!-- STEP 5: Add missing next_maintenance_date column -->
+    <include file="db/changelog/changes/add-next-maintenance-date-to-vehicles.xml"/>
+
+    <!-- STEP 6: Rename vehicle_maintenance to vehicle_service_record -->
+    <include file="db/migration/V2025031111__Rename_vehicle_maintenance_to_vehicle_service_record.sql"/>
+
+    <!-- STEP 7: Cleanup maintenance_types table and sync DB with code -->
+    <include file="db/migration/V2025121101__Cleanup_maintenance_types_table.sql"/>
+
+    <!-- STEP 8: Sync vehicle_service_record table with entity (rename columns, drop unused) -->
+    <include file="db/migration/V2025121102__Sync_vehicle_service_record_with_entity.sql"/>
+
+    <!-- STEP 9: Add back is_demo_data column (part of BaseEntity) -->
+    <include file="db/migration/V2025121103__Add_back_is_demo_data_column.sql"/>
+
+    <!-- STEP 10: Add custom_deposit_percent column to contracts table -->
+    <include file="db/changelog/changes/add-custom-deposit-percent-to-contracts.xml"/>
+
+    <!-- STEP 11: Add metadata fields to distance_rules for dynamic pricing -->
+    <include file="db/migration/V20251213__Add_Distance_Rule_Metadata.sql"/>
+
+</databaseChangeLog>

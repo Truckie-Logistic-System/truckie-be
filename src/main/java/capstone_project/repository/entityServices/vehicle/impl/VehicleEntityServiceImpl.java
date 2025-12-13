@@ -140,4 +140,14 @@ public class VehicleEntityServiceImpl implements VehicleEntityService {
 
         return totalUpdated;
     }
+    
+    @Override
+    public long countByStatus(String status) {
+        return vehicleRepository.countByStatus(status);
+    }
+    
+    @Override
+    public long countByVehicleTypeId(UUID vehicleTypeId) {
+        return vehicleRepository.countByVehicleTypeEntityId(vehicleTypeId);
+    }
 }

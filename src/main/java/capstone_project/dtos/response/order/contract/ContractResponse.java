@@ -9,6 +9,7 @@ public record ContractResponse (
     String expirationDate,
     BigDecimal totalValue,
     BigDecimal adjustedValue,
+    BigDecimal customDepositPercent,
     String description,
     String attachFileUrl,
     String status,

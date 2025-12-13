@@ -21,14 +21,10 @@ public class DeviceTypeEntity extends BaseEntity {
     @Column(name = "device_type_name", nullable = false, length = 100)
     private String deviceTypeName;
 
-    @Column(name = "vehicle_capacity", precision = 11, scale = 8)
-    private BigDecimal vehicleCapacity;
-
     @Size(max = 200)
     @Column(name = "description", length = 200)
     private String description;
 
     @Column(name = "is_active")
     private Boolean isActive;
-
 }

@@ -10,21 +10,31 @@ import capstone_project.dtos.request.vehicle.UpdateVehicleRequest;
 import capstone_project.dtos.request.vehicle.VehicleRequest;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.dtos.response.vehicle.VehicleGetDetailsResponse;
-import capstone_project.dtos.response.vehicle.VehicleMaintenanceResponse;
+import capstone_project.dtos.response.vehicle.VehicleServiceRecordResponse;
 import capstone_project.dtos.response.vehicle.VehicleResponse;
+import capstone_project.dtos.response.vehicle.VehicleTypeResponse;
+import capstone_project.dtos.response.vehicle.TopDriverResponse;
+import capstone_project.dtos.response.user.PenaltyHistoryResponse;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
-import capstone_project.entity.vehicle.VehicleMaintenanceEntity;
+import capstone_project.entity.vehicle.VehicleServiceRecordEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
+import capstone_project.entity.user.driver.PenaltyHistoryEntity;
+import capstone_project.entity.issue.IssueEntity;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
-import capstone_project.repository.entityServices.vehicle.VehicleMaintenanceEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleServiceRecordEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
+import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
+import capstone_project.repository.repositories.vehicle.VehicleAssignmentRepository;
+import capstone_project.repository.repositories.issue.IssueRepository;
 import capstone_project.service.mapper.vehicle.VehicleAssignmentMapper;
-import capstone_project.service.mapper.vehicle.VehicleMaintenanceMapper;
+import capstone_project.service.mapper.vehicle.VehicleServiceRecordMapper;
 import capstone_project.service.mapper.vehicle.VehicleMapper;
+import capstone_project.service.mapper.vehicle.VehicleTypeMapper;
+import capstone_project.service.mapper.user.PenaltyHistoryMapper;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
-import capstone_project.service.services.vehicle.VehicleMaintenanceService;
+import capstone_project.service.services.vehicle.VehicleServiceRecordService;
 import capstone_project.service.services.vehicle.VehicleService;
 import capstone_project.service.services.vehicle.VehicleTypeService;
 import capstone_project.service.websocket.VehicleLocationService;
@@ -47,12 +57,17 @@ public class VehicleServiceImpl implements VehicleService {
 
     private final VehicleEntityService vehicleEntityService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
-    private final VehicleMaintenanceEntityService vehicleMaintenanceEntityService;
+    private final VehicleServiceRecordEntityService vehicleServiceRecordEntityService;
     private final VehicleTypeEntityService vehicleTypeEntityService;
     private final VehicleMapper vehicleMapper;
     private final VehicleAssignmentMapper vehicleAssignmentMapper;
-    private final VehicleMaintenanceMapper vehicleMaintenanceMapper;
-    private final VehicleLocationService vehicleLocationService;  // Thêm service cho broadcast vị trí
+    private final VehicleServiceRecordMapper vehicleServiceRecordMapper;
+    private final VehicleTypeMapper vehicleTypeMapper;
+    private final VehicleLocationService vehicleLocationService;
+    private final PenaltyHistoryRepository penaltyHistoryRepository;
+    private final PenaltyHistoryMapper penaltyHistoryMapper;
+    private final VehicleAssignmentRepository vehicleAssignmentRepository;
+    private final IssueRepository issueRepository;
 
     @Override
     public List<VehicleResponse> getAllVehicles() {
@@ -78,11 +93,18 @@ public class VehicleServiceImpl implements VehicleService {
                     );
                 });
 
+        // Get assignments
         List<VehicleAssignmentEntity> vha =
                 vehicleAssignmentEntityService.findByVehicleEntityId(entity.getId());
 
         // map vehicle entity first
         VehicleGetDetailsResponse response = vehicleMapper.toVehicleDetailResponse(entity);
+
+        // Set vehicle type response properly
+        if (entity.getVehicleTypeEntity() != null) {
+            VehicleTypeResponse vehicleTypeResponse = vehicleTypeMapper.toVehicleTypeResponse(entity.getVehicleTypeEntity());
+            response.setVehicleTypeResponse(vehicleTypeResponse);
+        }
 
         // map assignments and attach to response
         List<VehicleAssignmentResponse> assignmentResponses = vha.stream()
@@ -91,14 +113,54 @@ public class VehicleServiceImpl implements VehicleService {
 
         response.setVehicleAssignmentResponse(assignmentResponses);
 
-        List<VehicleMaintenanceEntity> vhm  =
-                vehicleMaintenanceEntityService.findByVehicleEntityId(entity.getId());
+        // Get service records
+        List<VehicleServiceRecordEntity> vhm  =
+                vehicleServiceRecordEntityService.findByVehicleEntityId(entity.getId());
 
-        List<VehicleMaintenanceResponse> maintenanceResponses = vhm.stream()
-                .map(vehicleMaintenanceMapper::toResponse)
+        List<VehicleServiceRecordResponse> maintenanceResponses = vhm.stream()
+                .map(vehicleServiceRecordMapper::toResponse)
                 .toList();
 
         response.setVehicleMaintenanceResponse(maintenanceResponses);
+
+        // Get top 3 drivers for this vehicle
+        List<Object[]> topDriversData = vehicleAssignmentRepository.findTopDriversForVehicle(id);
+        List<TopDriverResponse> topDrivers = topDriversData.stream()
+                .limit(3)
+                .map(row -> TopDriverResponse.builder()
+                        .driverId(row[0] != null ? row[0].toString() : null)
+                        .driverName(row[1] != null ? row[1].toString() : null)
+                        .driverPhoneNumber(row[2] != null ? row[2].toString() : null)
+                        .driverStatus(row[3] != null ? row[3].toString() : null)
+                        .tripCount(row[4] != null ? ((Number) row[4]).longValue() : 0L)
+                        .build())
+                .toList();
+
+        response.setTopDrivers(topDrivers);
+
+        // Get penalties for this vehicle
+        List<PenaltyHistoryEntity> penalties = penaltyHistoryRepository.findByVehicleId(id);
+        List<PenaltyHistoryResponse> penaltyResponses = penalties.stream()
+                .map(penalty -> {
+                    PenaltyHistoryResponse penaltyResponse = penaltyHistoryMapper.toPenaltyHistoryResponse(penalty);
+                    
+                    // Get location from related Issue (issueCategory = PENALTY)
+                    if (penalty.getVehicleAssignmentEntity() != null) {
+                        UUID assignmentId = penalty.getVehicleAssignmentEntity().getId();
+                        Optional<IssueEntity> penaltyIssue = issueRepository.findPenaltyIssueByVehicleAssignment(assignmentId);
+                        
+                        if (penaltyIssue.isPresent()) {
+                            IssueEntity issue = penaltyIssue.get();
+                            penaltyResponse.setViolationLatitude(issue.getLocationLatitude());
+                            penaltyResponse.setViolationLongitude(issue.getLocationLongitude());
+                        }
+                    }
+                    
+                    return penaltyResponse;
+                })
+                .toList();
+
+        response.setPenalties(penaltyResponses);
 
         return response;
     }
@@ -303,18 +365,14 @@ public class VehicleServiceImpl implements VehicleService {
             // Year between 2018 and current year (2025)
             int year = 2018 + (currentNumber % 8);
 
-            // Capacity based on vehicle type
-            VehicleTypeEntity vehicleType = vehicleTypes.get(i % vehicleTypes.size());
-
             // Create the vehicle entity
             VehicleEntity vehicleEntity = VehicleEntity.builder()
                     .licensePlateNumber(licensePlate)
                     .model(model)
                     .manufacturer(manufacturer)
                     .year(year)
-                    .capacity(null)
                     .status(VehicleStatusEnum.ACTIVE.name())
-                    .vehicleTypeEntity(vehicleType)
+                    .vehicleTypeEntity(vehicleTypes.get(i % vehicleTypes.size()))
                     .createdAt(LocalDateTime.now())
                     .build();
 
@@ -366,5 +424,15 @@ public class VehicleServiceImpl implements VehicleService {
         }
 
         return highestNumber;
+    }
+    
+    @Override
+    public long countVehiclesByStatus(String status) {
+        return vehicleEntityService.countByStatus(status);
+    }
+    
+    @Override
+    public long countVehiclesByType(UUID vehicleTypeId) {
+        return vehicleEntityService.countByVehicleTypeId(vehicleTypeId);
     }
 }

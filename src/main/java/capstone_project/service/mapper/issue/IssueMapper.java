@@ -15,7 +15,8 @@ import java.util.List;
 
 @Mapper(componentModel = "spring", uses = {
     capstone_project.service.mapper.vehicle.VehicleAssignmentMapper.class,
-    capstone_project.service.mapper.order.JourneyHistoryMapper.class
+    capstone_project.service.mapper.order.JourneyHistoryMapper.class,
+    capstone_project.service.mapper.order.SealMapper.class
 })
 public interface IssueMapper {
     GetIssueTypeResponse toIssueTypeResponse(IssueTypeEntity issueType);

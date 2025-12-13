@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thông báo phân công chuyến xe</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .email-container {
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 30px 25px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 16px;
+        }
+        .content {
+            padding: 30px 25px;
+        }
+        .section-title {
+            color: #1e40af;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .info-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        .info-item:last-child { border-bottom: none; }
+        .info-label { color: #64748b; font-size: 14px; }
+        .info-value { color: #1e293b; font-weight: 600; font-size: 14px; }
+        
+        .package-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 13px;
+        }
+        .package-table th {
+            background: #1e40af;
+            color: white;
+            padding: 12px 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .package-table td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #374151;
+        }
+        .package-table tr:last-child td {
+            border-bottom: none;
+        }
+        .package-table tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        
+        .footer {
+            background: #f1f5f9;
+            padding: 25px;
+            text-align: center;
+            color: #64748b;
+            font-size: 13px;
+        }
+        .highlight {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .highlight-title {
+            color: #d97706;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>🚛 THÔNG BÁO PHÂN CÔNG CHUYẾN XE</h1>
+            <p th:text="'Bạn có một chuyến xe mới: ' + ${orderCode}">Bạn có một chuyến xe mới: ORD-20251227-001</p>
+        </div>
+        
+        <div class="content">
+            <p>Chào <strong th:text="${driverName}">Nguyễn Văn A</strong>,</p>
+            <p>Bạn đã được phân công cho một chuyến xe mới. Vui lòng kiểm tra thông tin chi tiết bên dưới.</p>
+            
+            <!-- Trip Information -->
+            <div class="info-card">
+                <div class="section-title">Thông tin chuyến xe</div>
+                <table style="width: 100%;">
+                    <tr class="info-item">
+                        <td class="info-label">Mã đơn hàng:</td>
+                        <td class="info-value" th:text="${metadata['orderCode']}">ORD-20251227-001</td>
+                    </tr>
+                    <tr class="info-item">
+                        <td class="info-label">Mã chuyến xe:</td>
+                        <td class="info-value" th:text="${metadata['vehicleAssignmentTrackingCode']}" style="color: #1e40af;">TRIP_20251227_001</td>
+                    </tr>
+                    <tr class="info-item">
+                        <td class="info-label">Biển số xe:</td>
+                        <td class="info-value" th:text="${metadata['vehiclePlate']}">51C-123.45</td>
+                    </tr>
+                    <tr class="info-item">
+                        <td class="info-label">Số kiện hàng:</td>
+                        <td class="info-value" th:text="${metadata['packageCount'] + ' kiện'}">5 kiện</td>
+                    </tr>
+                    <tr class="info-item">
+                        <td class="info-label">Tổng trọng lượng:</td>
+                        <td class="info-value" th:text="${metadata['totalWeight']}">10.5 Tấn</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- Package Details -->
+            <div th:if="${metadata['packages'] != null}">
+                <div class="section-title">Chi tiết các kiện hàng</div>
+                <table class="package-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">Mã kiện</th>
+                            <th style="width: 40%;">Mô tả</th>
+                            <th style="width: 35%;">Trọng lượng</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="pkg : ${metadata['packages']}">
+                            <td th:text="${pkg['trackingCode']}" style="font-weight: 600;">ORD_D_20251227_001-D1</td>
+                            <td th:text="${pkg['description']}">Hàng điện tử</td>
+                            <td th:text="${pkg['weight']}">2.5 Tấn</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Driver Team -->
+            <div class="info-card">
+                <div class="section-title">Đội ngũ tài xế</div>
+                <table style="width: 100%;">
+                    <tr class="info-item">
+                        <td class="info-label">Tài xế chính:</td>
+                        <td class="info-value" th:text="${metadata['driverName']}">Nguyễn Văn A</td>
+                    </tr>
+                    <tr class="info-item" th:if="${metadata['driver2Name'] != null}">
+                        <td class="info-label">Tài xế phụ:</td>
+                        <td class="info-value" th:text="${metadata['driver2Name']}">Nguyễn Văn B</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- Important Notice -->
+            <div class="highlight">
+                <div class="highlight-title">⚠️ Lưu ý quan trọng</div>
+                <ul style="margin: 0; padding-left: 20px;">
+                    <li>Vui lòng chuẩn bị xe và kiểm tra tình trạng trước khi khởi hành</li>
+                    <li>Liên hệ với văn phòng nếu có bất kỳ vấn đề gì</li>
+                    <li>Theo dõi ứng dụng để nhận thông tin cập nhật về chuyến xe</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025 TMS Truckie - Hệ thống quản lý vận tải</p>
+            <p>Đây là email tự động, vui lòng không trả lời</p>
+        </div>
+    </div>
+</body>
+</html>

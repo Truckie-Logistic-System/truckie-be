@@ -1,5 +1,6 @@
 package capstone_project.service.mapper.order;
 
+import capstone_project.dtos.response.order.PenaltyHistoryResponse;
 import capstone_project.dtos.response.issue.GetIssueImageResponse;
 import capstone_project.dtos.response.issue.SimpleIssueResponse;
 import capstone_project.dtos.response.issue.SimpleStaffResponse;
@@ -11,25 +12,35 @@ import capstone_project.dtos.response.order.transaction.SimpleTransactionRespons
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.dtos.response.order.PhotoCompletionResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
+import capstone_project.dtos.response.order.VehicleFuelConsumptionResponse;
+import capstone_project.dtos.response.order.VehicleResponse;
 import capstone_project.entity.auth.UserEntity;
-import capstone_project.entity.user.driver.DriverEntity;
+import capstone_project.entity.common.BaseEntity;
+import capstone_project.entity.issue.IssueEntity;
+import capstone_project.entity.order.order.JourneyHistoryEntity;
+import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.user.driver.PenaltyHistoryEntity;
+import capstone_project.entity.order.order.SealEntity;
+import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
+import capstone_project.repository.entityServices.device.DeviceEntityService;
+import capstone_project.repository.entityServices.issue.IssueEntityService;
+import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
+import capstone_project.repository.entityServices.order.order.OrderEntityService;
+import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
 import capstone_project.repository.entityServices.setting.ContractSettingEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
-import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
-import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
-import capstone_project.entity.issue.IssueEntity;
-import capstone_project.entity.order.order.OrderDetailEntity;
-import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.service.services.issue.IssueImageService;
+import capstone_project.service.services.issue.IssueService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
-import capstone_project.service.services.order.seal.SealService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
+import capstone_project.service.services.order.seal.SealService;
 import capstone_project.service.services.pricing.PricingUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +48,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -59,6 +71,7 @@ public class StaffOrderMapper {
     private final PhotoCompletionService photoCompletionService;
     private final ContractSettingEntityService contractSettingEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
+    private final capstone_project.repository.entityServices.device.DeviceEntityService deviceEntityService;
 
     /**
      * Translate status to Vietnamese
@@ -137,9 +150,10 @@ public class StaffOrderMapper {
         } catch (Exception ignored) {
         }
 
-        // Calculate deposit amount based on contract adjusted value
+        // Calculate deposit amount based on contract adjusted value and custom deposit percent
         BigDecimal adjustedValue = contractResponse != null ? contractResponse.adjustedValue() : null;
-        BigDecimal depositAmount = calculateDepositAmount(effectiveTotal, adjustedValue);
+        BigDecimal customDepositPercent = contractResponse != null ? contractResponse.customDepositPercent() : null;
+        BigDecimal depositAmount = calculateDepositAmount(effectiveTotal, adjustedValue, customDepositPercent);
 
         // Convert Order with enhanced information for staff
         StaffOrderResponse staffOrderResponse = toStaffOrderResponseWithEnhancedInfo(orderResponse, depositAmount);
@@ -321,6 +335,9 @@ public class StaffOrderMapper {
                 ))
                 .collect(Collectors.toList());
         
+        // Get device info from device_ids field
+        List<StaffVehicleAssignmentFullResponse.DeviceInfo> devices = getDeviceInfoFromAssignment(entity);
+        
         return new StaffVehicleAssignmentFullResponse(
                 baseResponse.id(),
                 baseResponse.vehicle(),
@@ -336,7 +353,8 @@ public class StaffOrderMapper {
                 baseResponse.photoCompletions(),
                 baseResponse.issues(),
                 translatedOrderDetails,
-                translatedOrderInfo
+                translatedOrderInfo,
+                devices
         );
     }
     
@@ -867,9 +885,10 @@ public class StaffOrderMapper {
      * Priority: adjustedValue > totalPrice
      * @param totalPrice The total price of the order
      * @param adjustedValue The adjusted value from contract (optional)
+     * @param customDepositPercent Custom deposit percent from contract (optional, overrides global setting)
      * @return The calculated deposit amount, or null if total price is null
      */
-    private BigDecimal calculateDepositAmount(BigDecimal totalPrice, BigDecimal adjustedValue) {
+    private BigDecimal calculateDepositAmount(BigDecimal totalPrice, BigDecimal adjustedValue, BigDecimal customDepositPercent) {
         // Use adjustedValue if available, otherwise use totalPrice
         BigDecimal baseAmount = adjustedValue != null && adjustedValue.compareTo(BigDecimal.ZERO) > 0 
             ? adjustedValue 
@@ -880,18 +899,79 @@ public class StaffOrderMapper {
         }
 
         try {
-            // Get the latest contract setting
-            var contractSetting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc().orElse(null);
-            BigDecimal depositPercent = contractSetting != null && contractSetting.getDepositPercent() != null 
-                    ? contractSetting.getDepositPercent() 
-                    : new BigDecimal("30"); // Default to 30%
+            BigDecimal depositPercent;
+            
+            // Priority 1: Use custom deposit percent from contract if valid
+            if (customDepositPercent != null 
+                && customDepositPercent.compareTo(BigDecimal.ZERO) > 0
+                && customDepositPercent.compareTo(BigDecimal.valueOf(100)) <= 0) {
+                depositPercent = customDepositPercent;
+                log.debug("📊 StaffOrderMapper - Using custom deposit percent: {}%", depositPercent);
+            } else {
+                // Priority 2: Fallback to global contract setting
+                var contractSetting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc().orElse(null);
+                depositPercent = contractSetting != null && contractSetting.getDepositPercent() != null 
+                        ? contractSetting.getDepositPercent() 
+                        : new BigDecimal("10"); // Default to 10%
+            }
             
             // Use unified pricing for consistent rounding across all systems
             return PricingUtils.calculateRoundedDeposit(baseAmount, depositPercent);
         } catch (Exception e) {
             log.warn("Error calculating deposit amount: {}", e.getMessage());
-            // Default to 30% on error using unified pricing
-            return PricingUtils.calculateRoundedDeposit(baseAmount, new BigDecimal("30"));
+            // Default to 10% on error using unified pricing
+            return PricingUtils.calculateRoundedDeposit(baseAmount, new BigDecimal("10"));
+        }
+    }
+    
+    /**
+     * Get device info from vehicle assignment's device_ids field
+     */
+    private List<StaffVehicleAssignmentFullResponse.DeviceInfo> getDeviceInfoFromAssignment(VehicleAssignmentEntity entity) {
+        log.info("🔍 DEBUG: Getting device info for assignment {}", entity.getId());
+        log.info("🔍 DEBUG: Raw deviceIds from entity: '{}'", entity.getDeviceIds());
+        
+        if (entity == null || entity.getDeviceIds() == null || entity.getDeviceIds().trim().isEmpty()) {
+            log.info("🔍 DEBUG: No device IDs found, returning empty list");
+            return Collections.emptyList();
+        }
+        
+        try {
+            // Parse comma-separated device IDs
+            String[] deviceIdStrings = entity.getDeviceIds().split(",");
+            log.info("🔍 DEBUG: Parsed {} device IDs: {}", deviceIdStrings.length, Arrays.toString(deviceIdStrings));
+            List<StaffVehicleAssignmentFullResponse.DeviceInfo> deviceInfoList = new ArrayList<>();
+            
+            for (String deviceIdStr : deviceIdStrings) {
+                try {
+                    UUID deviceId = UUID.fromString(deviceIdStr.trim());
+                    log.debug("🔍 DEBUG: Looking for device with ID: {}", deviceId);
+                    deviceEntityService.findEntityById(deviceId).ifPresent(device -> {
+                        log.debug("🔍 DEBUG: Found device: {} - {}", device.getDeviceCode(), device.getManufacturer());
+                        String deviceTypeName = device.getDeviceTypeEntity() != null 
+                                ? device.getDeviceTypeEntity().getDeviceTypeName() 
+                                : null;
+                        
+                        deviceInfoList.add(new StaffVehicleAssignmentFullResponse.DeviceInfo(
+                                device.getId(),
+                                device.getDeviceCode(),
+                                device.getManufacturer(),
+                                device.getModel(),
+                                device.getIpAddress(),
+                                device.getFirmwareVersion(),
+                                deviceTypeName
+                        ));
+                    })  ;
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid device ID format in assignment {}: {}", entity.getId(), deviceIdStr);
+                }
+            }
+            
+            log.info("🔍 DEBUG: Returning {} device infos for assignment {}", deviceInfoList.size(), entity.getId());
+            return deviceInfoList;
+        } catch (Exception e) {
+            log.error("Error getting device info for assignment {}: {}", entity.getId(), e.getMessage());
+            return Collections.emptyList();
         }
     }
 }

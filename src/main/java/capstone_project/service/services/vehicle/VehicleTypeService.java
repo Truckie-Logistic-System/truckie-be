@@ -17,4 +17,9 @@ public interface VehicleTypeService {
     VehicleTypeResponse updateVehicleType(UUID id, VehicleTypeRequest vehicleTypeRequest);
 
     void deleteVehicleType(UUID id);
+
+    /**
+     * Assign default fuel types to predefined truck vehicle types based on their names.
+     */
+    java.util.List<VehicleTypeResponse> assignDefaultFuelTypesForTruckRange();
 }

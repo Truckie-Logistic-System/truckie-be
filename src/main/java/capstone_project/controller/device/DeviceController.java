@@ -4,6 +4,7 @@ import capstone_project.dtos.request.device.DeviceRequest;
 import capstone_project.dtos.request.device.UpdateDeviceRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.device.DeviceResponse;
+import capstone_project.dtos.response.device.DeviceBulkCreateForVehiclesResponse;
 import capstone_project.service.services.device.DeviceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +52,20 @@ public class DeviceController {
             @PathVariable UUID id,
             @RequestBody @Valid UpdateDeviceRequest deviceRequest) {
         final var result = deviceService.updateDevice(id, deviceRequest);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * API tiện ích cho admin/staff:
+     * - Đếm số lượng xe trong hệ thống
+     * - Với mỗi xe, tự động tạo:
+     *   + 1 thiết bị loại "Camera hành trình"
+     *   + 1 thiết bị loại "Thiết bị GPS"
+     * - Bỏ qua những thiết bị đã tồn tại (trùng loại + xe)
+     */
+    @PostMapping("/bulk-create-default-for-vehicles")
+    public ResponseEntity<ApiResponse<DeviceBulkCreateForVehiclesResponse>> bulkCreateDefaultDevicesForVehicles() {
+        final var result = deviceService.createDefaultDevicesForAllVehicles();
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 

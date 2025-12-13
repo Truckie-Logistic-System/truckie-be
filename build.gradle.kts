@@ -5,6 +5,7 @@ plugins {
     id("org.springframework.boot") version "3.3.13"
     id("io.spring.dependency-management") version "1.1.7"
     id("com.microsoft.azure.azurewebapp") version "1.10.0"
+    id("org.liquibase.gradle") version "2.2.2"
 }
 
 group = "capstone-project"
@@ -46,6 +47,9 @@ dependencies {
     // DATABASE
     implementation("org.postgresql:postgresql")
     implementation("com.azure.spring:spring-cloud-azure-starter:5.22.0")
+    
+    // LIQUIBASE - Database Migration
+    implementation("org.liquibase:liquibase-core:4.29.2")
 
     // Redis & Cache
     implementation("org.springframework.boot:spring-boot-starter-data-redis:3.5.4")
@@ -117,4 +121,66 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// Liquibase configuration
+liquibase {
+    // Main activity: apply all changelogs to main database
+    activities.register("main") {
+        arguments = mapOf(
+            "changelogFile" to "db/changelog/db.changelog-master.xml",
+            "url" to "jdbc:postgresql://localhost:5432/capstone-project",
+            "username" to "postgres",
+            "password" to "postgres",
+            "driver" to "org.postgresql.Driver",
+            "searchPath" to "src/main/resources"
+        )
+    }
+
+    // Baseline: dùng cho generate baseline changelog từ schema hiện tại
+    activities.register("generateBaseline") {
+        arguments = mapOf(
+            "changelogFile" to "db/changelog/baseline/db.changelog-baseline.xml",
+            "url" to "jdbc:postgresql://localhost:5432/capstone-project",
+            "username" to "postgres",
+            "password" to "postgres",
+            "driver" to "org.postgresql.Driver",
+            "searchPath" to "src/main/resources"
+        )
+    }
+
+    // Diff: generate file db/changelog/diff/db.changelog-diff.xml giữa reference DB và target DB
+    activities.register("generateDiff") {
+        arguments = mapOf(
+            "changelogFile" to "db/changelog/diff/db.changelog-diff.xml",
+            "url" to "jdbc:postgresql://localhost:5432/capstone-project",
+            "username" to "postgres",
+            "password" to "postgres",
+            "referenceUrl" to "jdbc:postgresql://localhost:5432/capstone_reference",
+            "referenceUsername" to "postgres",
+            "referencePassword" to "postgres",
+            "driver" to "org.postgresql.Driver",
+            "searchPath" to "src/main/resources"
+        )
+    }
+
+    // Test migration: apply master changelog lên test database
+    activities.register("testMigration") {
+        arguments = mapOf(
+            "changelogFile" to "db/changelog/db.changelog-master.xml",
+            "url" to "jdbc:postgresql://localhost:5432/capstone_test",
+            "username" to "postgres",
+            "password" to "postgres",
+            "driver" to "org.postgresql.Driver",
+            "searchPath" to "src/main/resources"
+        )
+    }
+
+    runList = "main"
+}
+
+dependencies {
+    liquibaseRuntime("org.liquibase:liquibase-core:4.29.2")
+    liquibaseRuntime("org.postgresql:postgresql")
+    liquibaseRuntime("info.picocli:picocli:4.7.5")
 }

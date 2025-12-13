@@ -98,6 +98,9 @@ public class IssueWebSocketService {
             java.util.UUID returnJourneyId,
             java.util.UUID orderId) {
 
+        log.info("📤 [RETURN_PAYMENT_SUCCESS] Preparing to send notification to driver: {}", driverId);
+        log.info("   issueId: {}, vehicleAssignmentId: {}, orderId: {}", issueId, vehicleAssignmentId, orderId);
+
         try {
             // Create notification payload
             var notification = new java.util.HashMap<String, Object>();
@@ -115,11 +118,13 @@ public class IssueWebSocketService {
             }
             notification.put("timestamp", java.time.Instant.now().toString());
             
+            String topic = "/topic/driver/" + driverId + "/notifications";
+            log.info("📡 [RETURN_PAYMENT_SUCCESS] Sending to topic: {}", topic);
+            
             // Send to specific driver via user-specific topic
-            messagingTemplate.convertAndSend(
-                "/topic/driver/" + driverId + "/notifications", 
-                notification
-            );
+            messagingTemplate.convertAndSend(topic, notification);
+            
+            log.info("✅ [RETURN_PAYMENT_SUCCESS] Successfully sent WebSocket notification to driver: {}", driverId);
 
         } catch (Exception e) {
             log.error("❌ Error sending return payment notification: {}", e.getMessage(), e);

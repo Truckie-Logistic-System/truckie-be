@@ -8,14 +8,22 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.common.utils.UserContextUtils;
 import capstone_project.dtos.request.refund.ProcessRefundRequest;
 import capstone_project.dtos.response.refund.GetRefundResponse;
+import capstone_project.dtos.response.refund.StaffRefundResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.issue.IssueEntity;
+import capstone_project.entity.issue.IssueTypeEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.RefundEntity;
+import capstone_project.entity.order.transaction.TransactionEntity;
+import capstone_project.entity.user.driver.DriverEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.refund.RefundEntityService;
+import capstone_project.repository.entityServices.order.transaction.TransactionEntityService;
 import capstone_project.service.mapper.issue.IssueMapper;
 import capstone_project.service.mapper.refund.RefundMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
@@ -29,7 +37,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -45,6 +56,7 @@ public class RefundServiceImpl implements RefundService {
     private final IssueWebSocketService issueWebSocketService;
     private final capstone_project.service.services.order.order.OrderDetailStatusWebSocketService orderDetailStatusWebSocketService;
     private final UserContextUtils userContextUtils;
+    private final TransactionEntityService transactionEntityService;
     
     // ✅ NEW: OrderDetailStatusService for centralized Order status aggregation
     private final capstone_project.service.services.order.order.OrderDetailStatusService orderDetailStatusService;
@@ -194,5 +206,197 @@ public class RefundServiceImpl implements RefundService {
         RefundEntity refund = refundEntityService.findByIssueId(issueId)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.REFUND_NOT_FOUND));
         return refundMapper.toRefundResponse(refund);
+    }
+
+    @Override
+    public List<StaffRefundResponse> getAllRefundsForStaff() {
+        List<RefundEntity> refunds = refundEntityService.findAll();
+        
+        // Sort by createdAt DESC (newest first)
+        return refunds.stream()
+                .sorted(Comparator.comparing(RefundEntity::getCreatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(this::mapToStaffRefundResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public StaffRefundResponse getRefundDetailForStaff(UUID refundId) {
+        RefundEntity refund = refundEntityService.findEntityById(refundId)
+                .orElseThrow(() -> new NotFoundException(ErrorEnum.REFUND_NOT_FOUND));
+        
+        // Re-fetch with all relationships to avoid lazy loading issues
+        refund = refundEntityService.findEntityById(refundId)
+                .orElseThrow(() -> new NotFoundException(ErrorEnum.REFUND_NOT_FOUND));
+        
+        return mapToStaffRefundResponseWithDetails(refund);
+    }
+
+    /**
+     * Map RefundEntity to StaffRefundResponse for list view
+     */
+    private StaffRefundResponse mapToStaffRefundResponse(RefundEntity refund) {
+        IssueEntity issue = refund.getIssueEntity();
+        VehicleAssignmentEntity vehicleAssignment = issue != null ? issue.getVehicleAssignmentEntity() : null;
+        
+        // Get order from issue's order details
+        OrderEntity order = null;
+        if (issue != null && issue.getOrderDetails() != null && !issue.getOrderDetails().isEmpty()) {
+            OrderDetailEntity firstOrderDetail = issue.getOrderDetails().get(0);
+            if (firstOrderDetail != null) {
+                order = firstOrderDetail.getOrderEntity();
+            }
+        }
+        
+        // Safely get issue type
+        IssueTypeEntity issueTypeEntity = null;
+        if (issue != null) {
+            issueTypeEntity = issue.getIssueTypeEntity();
+        }
+        
+        return StaffRefundResponse.builder()
+                .id(refund.getId())
+                .refundAmount(refund.getRefundAmount())
+                .bankTransferImage(refund.getBankTransferImage() != null
+                        ? refund.getBankTransferImage().replace("http://", "https://")
+                        : null)
+                .transactionCode(refund.getTransactionCode())
+                .refundDate(refund.getRefundDate())
+                .sourceType(refund.getSourceType())
+                .createdAt(refund.getCreatedAt())
+                .issue(issue != null ? StaffRefundResponse.IssueInfo.builder()
+                        .id(issue.getId())
+                        .issueTypeName(issueTypeEntity != null ? 
+                                issueTypeEntity.getIssueTypeName() : null)
+                        .issueCategory(issueTypeEntity != null ? 
+                                issueTypeEntity.getIssueCategory() : null)
+                        .status(issue.getStatus())
+                        .build() : null)
+                .order(order != null ? StaffRefundResponse.OrderInfo.builder()
+                        .id(order.getId())
+                        .orderCode(order.getOrderCode())
+                        .build() : null)
+                .vehicleAssignment(vehicleAssignment != null ? StaffRefundResponse.VehicleAssignmentInfo.builder()
+                        .id(vehicleAssignment.getId())
+                        .trackingCode(vehicleAssignment.getTrackingCode())
+                        .build() : null)
+                .build();
+    }
+
+    /**
+     * Map RefundEntity to StaffRefundResponse with full details for detail view
+     */
+    private StaffRefundResponse mapToStaffRefundResponseWithDetails(RefundEntity refund) {
+        IssueEntity issue = refund.getIssueEntity();
+        VehicleAssignmentEntity vehicleAssignment = issue != null ? issue.getVehicleAssignmentEntity() : null;
+        
+        // Get order from issue's order details
+        OrderEntity order = null;
+        if (issue != null && issue.getOrderDetails() != null && !issue.getOrderDetails().isEmpty()) {
+            OrderDetailEntity firstOrderDetail = issue.getOrderDetails().get(0);
+            if (firstOrderDetail != null) {
+                order = firstOrderDetail.getOrderEntity();
+            }
+        }
+        
+        // Get transaction related to this issue (if any)
+        TransactionEntity transaction = null;
+        if (issue != null) {
+            try {
+                List<TransactionEntity> transactions = transactionEntityService.findByIssueId(issue.getId());
+                if (transactions != null && !transactions.isEmpty()) {
+                    // Get the most recent transaction
+                    transaction = transactions.stream()
+                            .max(Comparator.comparing(TransactionEntity::getCreatedAt))
+                            .orElse(null);
+                }
+            } catch (Exception e) {
+                log.warn("Error fetching transactions for issue {}: {}", issue.getId(), e.getMessage());
+            }
+        }
+        
+        // Safely get issue type
+        IssueTypeEntity issueTypeEntity = null;
+        if (issue != null) {
+            issueTypeEntity = issue.getIssueTypeEntity();
+        }
+        
+        // Safely get vehicle and driver info
+        VehicleEntity vehicle = null;
+        DriverEntity driver = null;
+        UserEntity driverUser = null;
+        if (vehicleAssignment != null) {
+            vehicle = vehicleAssignment.getVehicleEntity();
+            driver = vehicleAssignment.getDriver1();
+            if (driver != null) {
+                driverUser = driver.getUser();
+            }
+        }
+        
+        // Safely get sender info
+        UserEntity senderUser = null;
+        if (order != null && order.getSender() != null) {
+            senderUser = order.getSender().getUser();
+        }
+        
+        return StaffRefundResponse.builder()
+                .id(refund.getId())
+                .refundAmount(refund.getRefundAmount())
+                .bankTransferImage(refund.getBankTransferImage() != null
+                        ? refund.getBankTransferImage().replace("http://", "https://")
+                        : null)
+                .bankName(refund.getBankName())
+                .accountNumber(refund.getAccountNumber())
+                .accountHolderName(refund.getAccountHolderName())
+                .transactionCode(refund.getTransactionCode())
+                .refundDate(refund.getRefundDate())
+                .notes(refund.getNotes())
+                .sourceType(refund.getSourceType())
+                .createdAt(refund.getCreatedAt())
+                .processedByStaff(refund.getProcessedByStaff() != null ? 
+                        StaffRefundResponse.StaffInfo.builder()
+                                .id(refund.getProcessedByStaff().getId())
+                                .fullName(refund.getProcessedByStaff().getFullName())
+                                .email(refund.getProcessedByStaff().getEmail())
+                                .phone(refund.getProcessedByStaff().getPhoneNumber())
+                                .build() : null)
+                .issue(issue != null ? StaffRefundResponse.IssueInfo.builder()
+                        .id(issue.getId())
+                        .issueTypeName(issueTypeEntity != null ? 
+                                issueTypeEntity.getIssueTypeName() : null)
+                        .issueCategory(issueTypeEntity != null ? 
+                                issueTypeEntity.getIssueCategory() : null)
+                        .description(issue.getDescription())
+                        .status(issue.getStatus())
+                        .reportedAt(issue.getReportedAt())
+                        .resolvedAt(issue.getResolvedAt())
+                        .damageFinalCompensation(issue.getDamageFinalCompensation())
+                        .damageCompensationStatus(issue.getDamageCompensationStatus())
+                        .build() : null)
+                .order(order != null ? StaffRefundResponse.OrderInfo.builder()
+                        .id(order.getId())
+                        .orderCode(order.getOrderCode())
+                        .status(order.getStatus())
+                        .senderName(senderUser != null ? senderUser.getFullName() : null)
+                        .receiverName(order.getReceiverName())
+                        .build() : null)
+                .vehicleAssignment(vehicleAssignment != null ? StaffRefundResponse.VehicleAssignmentInfo.builder()
+                        .id(vehicleAssignment.getId())
+                        .trackingCode(vehicleAssignment.getTrackingCode())
+                        .status(vehicleAssignment.getStatus())
+                        .vehiclePlateNumber(vehicle != null ? 
+                                vehicle.getLicensePlateNumber() : null)
+                        .driverName(driverUser != null ? driverUser.getFullName() : null)
+                        .build() : null)
+                .transaction(transaction != null ? StaffRefundResponse.TransactionInfo.builder()
+                        .id(transaction.getId())
+                        .transactionType(transaction.getTransactionType())
+                        .amount(transaction.getAmount())
+                        .status(transaction.getStatus())
+                        .paymentProvider(transaction.getPaymentProvider())
+                        .gatewayOrderCode(transaction.getGatewayOrderCode())
+                        .paymentDate(transaction.getPaymentDate())
+                        .build() : null)
+                .build();
     }
 }

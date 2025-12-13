@@ -1,14 +1,20 @@
 package capstone_project.service.services.admin.impl;
 
 import capstone_project.dtos.response.admin.AdminDashboardSummaryResponse;
+import capstone_project.dtos.response.admin.FleetStatsResponse;
 import capstone_project.dtos.response.admin.RegistrationTimeSeriesResponse;
 import capstone_project.dtos.response.admin.TopDriverResponse;
 import capstone_project.dtos.response.admin.TopStaffResponse;
 import capstone_project.entity.auth.UserEntity;
+import capstone_project.entity.user.driver.PenaltyHistoryEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.repositories.auth.UserRepository;
 import capstone_project.repository.repositories.issue.IssueRepository;
+import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
+import capstone_project.repository.repositories.device.DeviceRepository;
+import capstone_project.repository.repositories.vehicle.VehicleRepository;
 import capstone_project.repository.repositories.vehicle.VehicleAssignmentRepository;
+import capstone_project.repository.repositories.vehicle.VehicleServiceRecordRepository;
 import capstone_project.service.services.admin.AdminDashboardService;
 import capstone_project.service.services.ai.GeminiService;
 import capstone_project.service.services.ai.GeminiService.ChatMessage;
@@ -35,6 +41,10 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private final UserRepository userRepository;
     private final IssueRepository issueRepository;
     private final VehicleAssignmentRepository vehicleAssignmentRepository;
+    private final VehicleRepository vehicleRepository;
+    private final DeviceRepository deviceRepository;
+    private final VehicleServiceRecordRepository vehicleServiceRecordRepository;
+    private final PenaltyHistoryRepository penaltyHistoryRepository;
     private final GeminiService geminiService;
 
     @Override
@@ -76,6 +86,15 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         Long currentDrivers = userRepository.countByRoleAndCreatedAtBetween("driver", currentStart, currentEnd);
         Long previousDrivers = userRepository.countByRoleAndCreatedAtBetween("driver", previousStart, previousEnd);
 
+        // Get fleet status data
+        AdminDashboardSummaryResponse.FleetStatus fleetStatus = getFleetStatusData(currentStart, currentEnd);
+
+        // Get penalties summary data
+        AdminDashboardSummaryResponse.PenaltiesSummary penaltiesSummary = getPenaltiesSummaryData(currentStart, currentEnd);
+        
+        // Get penalties time series data
+        AdminDashboardSummaryResponse.PenaltiesTimeSeries penaltiesTimeSeries = getPenaltiesTimeSeriesData(period, currentStart, currentEnd);
+
         return AdminDashboardSummaryResponse.builder()
                 .period(period)
                 .currentRange(AdminDashboardSummaryResponse.DateRange.builder()
@@ -100,6 +119,9 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                                 .deltaPercent(calculateDeltaPercent(currentDrivers, previousDrivers))
                                 .build())
                         .build())
+                .fleetStatus(fleetStatus)
+                .penaltiesSummary(penaltiesSummary)
+                .penaltiesTimeSeries(penaltiesTimeSeries)
                 .build();
     }
 
@@ -485,5 +507,99 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
             default:
                 return "tháng này";
         }
+    }
+    
+    private AdminDashboardSummaryResponse.FleetStatus getFleetStatusData(LocalDateTime start, LocalDateTime end) {
+        // Count vehicles by status using existing repository methods
+        long totalVehicles = vehicleRepository.count();
+        long availableVehicles = vehicleRepository.getVehicleEntitiesByVehicleTypeEntityAndStatus(null, "AVAILABLE").size();
+        long inUseVehicles = vehicleRepository.getVehicleEntitiesByVehicleTypeEntityAndStatus(null, "IN_USE").size();
+        long inMaintenanceVehicles = vehicleRepository.getVehicleEntitiesByVehicleTypeEntityAndStatus(null, "MAINTENANCE").size();
+        
+        // Get maintenance alerts (vehicles due for maintenance)
+        List<AdminDashboardSummaryResponse.MaintenanceAlert> maintenanceAlerts = getMaintenanceAlerts();
+        
+        return AdminDashboardSummaryResponse.FleetStatus.builder()
+                .totalVehicles(totalVehicles)
+                .availableVehicles(availableVehicles)
+                .inUseVehicles(inUseVehicles)
+                .inMaintenanceVehicles(inMaintenanceVehicles)
+                .maintenanceAlerts(maintenanceAlerts)
+                .build();
+    }
+    
+    private List<AdminDashboardSummaryResponse.MaintenanceAlert> getMaintenanceAlerts() {
+        // This would typically query for vehicles due for maintenance
+        // For now, returning empty list - you can implement the actual logic
+        return new ArrayList<>();
+    }
+    
+    private AdminDashboardSummaryResponse.PenaltiesSummary getPenaltiesSummaryData(LocalDateTime start, LocalDateTime end) {
+        // Count penalties for current and previous periods
+        LocalDateTime previousStart = start.minus(java.time.Duration.between(start, end));
+        LocalDateTime previousEnd = start;
+        
+        long currentPenalties = penaltyHistoryRepository.countByCreatedAtBetween(start, end);
+        long previousPenalties = penaltyHistoryRepository.countByCreatedAtBetween(previousStart, previousEnd);
+        
+        return AdminDashboardSummaryResponse.PenaltiesSummary.builder()
+                .totalPenalties(currentPenalties)
+                .previousPenalties(previousPenalties)
+                .deltaPercent(calculateDeltaPercent(currentPenalties, previousPenalties))
+                .build();
+    }
+    
+    private AdminDashboardSummaryResponse.PenaltiesTimeSeries getPenaltiesTimeSeriesData(String period, LocalDateTime start, LocalDateTime end) {
+        List<PenaltyHistoryEntity> penalties = penaltyHistoryRepository.findByCreatedAtBetween(start, end);
+        
+        List<AdminDashboardSummaryResponse.DataPoint> points;
+        
+        if (period.equalsIgnoreCase("year")) {
+            // Group by month for year view
+            Map<String, Long> countByMonth = penalties.stream()
+                    .collect(Collectors.groupingBy(
+                            penalty -> penalty.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM")),
+                            Collectors.counting()
+                    ));
+
+            // Fill in missing months with 0
+            points = new ArrayList<>();
+            LocalDate current = start.toLocalDate().withDayOfMonth(1);
+            LocalDate endMonth = end.toLocalDate().withDayOfMonth(1);
+            
+            while (!current.isAfter(endMonth)) {
+                String monthKey = current.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM"));
+                points.add(AdminDashboardSummaryResponse.DataPoint.builder()
+                        .date(current)
+                        .count(countByMonth.getOrDefault(monthKey, 0L))
+                        .build());
+                current = current.plusMonths(1);
+            }
+        } else {
+            // Group by date for week/month view
+            Map<LocalDate, Long> countByDate = penalties.stream()
+                    .collect(Collectors.groupingBy(
+                            penalty -> penalty.getCreatedAt().toLocalDate(),
+                            Collectors.counting()
+                    ));
+
+            // Fill in missing dates with 0
+            points = new ArrayList<>();
+            LocalDate current = start.toLocalDate();
+            LocalDate endDate = end.toLocalDate();
+            
+            while (!current.isAfter(endDate)) {
+                points.add(AdminDashboardSummaryResponse.DataPoint.builder()
+                        .date(current)
+                        .count(countByDate.getOrDefault(current, 0L))
+                        .build());
+                current = current.plusDays(1);
+            }
+        }
+
+        return AdminDashboardSummaryResponse.PenaltiesTimeSeries.builder()
+                .period(period)
+                .points(points)
+                .build();
     }
 }

@@ -226,13 +226,13 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
      * @return true nếu tài xế đã có assignment trong ngày đó, false nếu không
      */
     @Query(value = """
-        SELECT CASE WHEN COUNT(va.id) > 0 THEN true ELSE false END
-        FROM vehicle_assignments va
-        JOIN order_details od ON od.vehicle_assignment_id = va.id
-        WHERE (va.driver_id_1 = :driverId OR va.driver_id_2 = :driverId)
-        AND CAST(od.estimated_start_time AS DATE) = :tripDate
-        GROUP BY va.id
-        LIMIT 1
+        SELECT EXISTS (
+            SELECT 1
+            FROM vehicle_assignments va
+            JOIN order_details od ON od.vehicle_assignment_id = va.id
+            WHERE (va.driver_id_1 = :driverId OR va.driver_id_2 = :driverId)
+            AND CAST(od.estimated_start_time AS DATE) = :tripDate
+        )
     """, nativeQuery = true)
     boolean existsAssignmentForDriverOnDate(@Param("driverId") UUID driverId, @Param("tripDate") LocalDate tripDate);
 
@@ -251,4 +251,24 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
      * Find all vehicle assignments created between start and end date
      */
     List<VehicleAssignmentEntity> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
+    
+    /**
+     * Find vehicle assignment by tracking code
+     * @param trackingCode the tracking code to search for
+     * @return Optional containing the vehicle assignment if found, or empty if not found
+     */
+    Optional<VehicleAssignmentEntity> findByTrackingCode(String trackingCode);
+    
+    /**
+     * Get top N drivers for a vehicle (as driver1) ordered by trip count
+     */
+    @Query("""
+        SELECT va.driver1.id, va.driver1.user.fullName, va.driver1.user.phoneNumber, va.driver1.status, COUNT(va.id) as tripCount
+        FROM VehicleAssignmentEntity va
+        WHERE va.vehicleEntity.id = :vehicleId
+        AND va.driver1 IS NOT NULL
+        GROUP BY va.driver1.id, va.driver1.user.fullName, va.driver1.user.phoneNumber, va.driver1.status
+        ORDER BY tripCount DESC
+        """)
+    List<Object[]> findTopDriversForVehicle(@Param("vehicleId") UUID vehicleId);
 }

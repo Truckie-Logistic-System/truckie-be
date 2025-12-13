@@ -30,6 +30,8 @@ public interface UserMapper {
     @Mapping(source = "token", target = "authToken")
     @Mapping(source = "refreshToken", target = "refreshToken")
     @Mapping(target = "user", expression = "java(mapUserResponse(userEntity))")
+    @Mapping(target = "firstTimeLogin", ignore = true)
+    @Mapping(target = "requiredActions", ignore = true)
     LoginResponse mapLoginResponse(final UserEntity userEntity, final String token, final String refreshToken);
 
     /**

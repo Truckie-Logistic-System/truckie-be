@@ -99,6 +99,20 @@ public class OrderServiceImpl implements OrderService {
     @Value("${prefix.order.detail.code}")
     private String prefixOrderDetailCode;
 
+    /**
+     * Helper method to determine if a status requires ALL order details to have that status
+     * before updating the parent order status
+     */
+    private boolean requiresAllAggregation(OrderStatusEnum status) {
+        return Set.of(
+            OrderStatusEnum.IN_TROUBLES,
+            OrderStatusEnum.DELIVERED,
+            OrderStatusEnum.RETURNED,
+            OrderStatusEnum.SUCCESSFUL,
+            OrderStatusEnum.COMPENSATION
+        ).contains(status);
+    }
+
     @Override
     public List<OrderForCustomerListResponse> getOrdersForCurrentCustomer() {
         UUID customerId = userContextUtils.getCurrentCustomerId();
@@ -368,15 +382,27 @@ public class OrderServiceImpl implements OrderService {
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
+        
+        // Validate that cascading is only used for initialization states
+        // Delivery progress states should be set via aggregation from OrderDetails
+        if (!isValidForCascadingUpdate(newStatus)) {
+            throw new BadRequestException(
+                    ErrorEnum.INVALID.getMessage() + " Status " + newStatus + " should be updated via aggregation from OrderDetails, not cascading from Order. Use updateOrderStatus() instead.",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
         // Update Order
         OrderStatusEnum previousStatus = currentStatus;
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
 
-        // Update toàn bộ OrderDetail
+        // Update toàn bộ OrderDetail với status tương ứng
         List<OrderDetailEntity> orderDetailEntities = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
-
-        orderDetailEntities.forEach(detail -> detail.setStatus(newStatus.name()));
+        
+        // Map OrderStatusEnum to OrderDetailStatusEnum
+        OrderDetailStatusEnum correspondingDetailStatus = mapOrderStatusToDetailStatus(newStatus);
+        
+        orderDetailEntities.forEach(detail -> detail.setStatus(correspondingDetailStatus.name()));
         orderDetailEntityService.saveAllOrderDetailEntities(orderDetailEntities);
 
         // Send WebSocket notification for status change
@@ -806,20 +832,13 @@ public class OrderServiceImpl implements OrderService {
             
             double depositAmount = 0.0;
             try {
-                // Use the existing contractSetting variable from line 783
-                if (contractSetting == null) {
-                    throw new NotFoundException("Contract settings not found", ErrorEnum.NOT_FOUND.getErrorCode());
-                }
-                if (contractSetting != null && contractSetting.depositPercent() != null) {
-                    depositAmount = baseValue * contractSetting.depositPercent().doubleValue() / 100.0;
-                    log.info("🔍 Using contract setting deposit rate: {}% for base value: {}", 
-                        contractSetting.depositPercent(), baseValue);
-                } else {
-                    log.warn("Contract setting deposit percent is null, using 30% fallback");
-                    depositAmount = baseValue * 0.1;
-                }
+                // Prioritize contract's custom deposit percent, fallback to global setting
+                BigDecimal depositPercent = getEffectiveDepositPercent(contractEntity);
+                depositAmount = baseValue * depositPercent.doubleValue() / 100.0;
+                log.info("📊 Contract signed notification - Using deposit percent: {}% (custom: {})", 
+                    depositPercent, contractEntity.getCustomDepositPercent() != null ? "yes" : "no");
             } catch (Exception e) {
-                log.warn("Could not get contract setting for deposit calculation, using 30% default: {}", e.getMessage());
+                log.warn("Could not get deposit percent, using 10% default: {}", e.getMessage());
                 depositAmount = baseValue * 0.1;
             }
             
@@ -886,6 +905,22 @@ public class OrderServiceImpl implements OrderService {
                     ErrorEnum.INVALID.getMessage() + " Cannot change from " + order.getStatus() + " to " + newStatus,
                     ErrorEnum.INVALID.getErrorCode()
             );
+        }
+        
+        // Validate aggregation for statuses that require ALL order details to match
+        if (requiresAllAggregation(newStatus)) {
+            List<OrderDetailEntity> orderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
+            boolean allDetailsMatch = orderDetails.stream()
+                    .allMatch(detail -> detail.getStatus().equals(newStatus.name()));
+            
+            if (!allDetailsMatch) {
+                throw new BadRequestException(
+                        ErrorEnum.INVALID.getMessage() + " Cannot update order status to " + newStatus + 
+                        " because not all order details have this status. " +
+                        "This status requires all order details to be " + newStatus + " first.",
+                        ErrorEnum.INVALID.getErrorCode()
+                );
+            }
         }
         
         OrderStatusEnum previousStatus = currentStatus;
@@ -1005,15 +1040,21 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // Update status to ONGOING_DELIVERED
+        OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
         order.setStatus(OrderStatusEnum.ONGOING_DELIVERED.name());
         OrderEntity updatedOrder = orderEntityService.save(order);
 
-        // Send WebSocket notification
-//        orderStatusWebSocketService.sendOrderStatusUpdate(
-//                orderId,
-//                OrderStatusEnum.ONGOING_DELIVERED,
-//                "Xe đang trên đường giao hàng (trong phạm vi 3km)"
-//        );
+        // Send WebSocket notification for status change
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                orderId,
+                order.getOrderCode(),
+                previousStatus,
+                OrderStatusEnum.ONGOING_DELIVERED
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
+        }
 
         return orderMapper.toCreateOrderResponse(updatedOrder);
     }
@@ -1046,16 +1087,15 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
-        // Update status to DELIVERED
-        order.setStatus(OrderStatusEnum.DELIVERED.name());
-        OrderEntity updatedOrder = orderEntityService.save(order);
+        // Use centralized aggregation logic: only allow DELIVERED when ALL order details are DELIVERED
+        updateOrderStatus(orderId, OrderStatusEnum.DELIVERED);
 
-        // Send WebSocket notification
-//        orderStatusWebSocketService.sendOrderStatusUpdate(
-//                orderId,
-//                OrderStatusEnum.DELIVERED,
-//                "Đã đến điểm giao hàng"
-//        );
+        // Reload order after status update
+        OrderEntity updatedOrder = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID after update: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
 
         return orderMapper.toCreateOrderResponse(updatedOrder);
     }
@@ -1088,16 +1128,15 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
-        // Update status to SUCCESSFUL
-        order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
-        OrderEntity updatedOrder = orderEntityService.save(order);
+        // Use centralized aggregation logic: only allow SUCCESSFUL when ALL order details are SUCCESSFUL
+        updateOrderStatus(orderId, OrderStatusEnum.SUCCESSFUL);
 
-        // Send WebSocket notification
-//        orderStatusWebSocketService.sendOrderStatusUpdate(
-//                orderId,
-//                OrderStatusEnum.SUCCESSFUL,
-//                "Chuyến xe đã hoàn thành thành công"
-//        );
+        // Reload order after status update
+        OrderEntity updatedOrder = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID after update: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
 
         return orderMapper.toCreateOrderResponse(updatedOrder);
     }
@@ -1301,11 +1340,14 @@ public class OrderServiceImpl implements OrderService {
             case CONTRACT_EXPIRY:
             case SYSTEM_CANCEL:
                 // System cancellations have broader permissions
+                // Note: ON_PLANNING is included as safety measure, though orders at this stage
+                // should not normally be cancelled by payment/contract expiry checks
                 allowedStatuses = Arrays.asList(
                         OrderStatusEnum.PENDING.name(),
                         OrderStatusEnum.PROCESSING.name(),
                         OrderStatusEnum.CONTRACT_DRAFT.name(),
-                        OrderStatusEnum.CONTRACT_SIGNED.name()
+                        OrderStatusEnum.CONTRACT_SIGNED.name(),
+                        OrderStatusEnum.ON_PLANNING.name()
                 );
                 break;
                 
@@ -1568,5 +1610,75 @@ public class OrderServiceImpl implements OrderService {
         ).order();
 
         return new RecipientOrderTrackingResponse(simpleOrderResponse);
+    }
+
+    /**
+     * Check if the status is valid for cascading update from Order to OrderDetails
+     * Only initialization states should use cascading, delivery progress states should aggregate from OrderDetails
+     */
+    private boolean isValidForCascadingUpdate(OrderStatusEnum status) {
+        return switch (status) {
+            // Initialization states - safe for cascading
+            case PENDING, PROCESSING, CONTRACT_DRAFT, CONTRACT_SIGNED, ON_PLANNING, CANCELLED -> true;
+            
+            // Delivery progress states - should aggregate from OrderDetails, not cascade
+            case ASSIGNED_TO_DRIVER, FULLY_PAID, PICKING_UP, ON_DELIVERED, ONGOING_DELIVERED, 
+                 IN_TROUBLES, COMPENSATION, DELIVERED, SUCCESSFUL, RETURNING, RETURNED -> false;
+        };
+    }
+
+    /**
+     * Map OrderStatusEnum to corresponding OrderDetailStatusEnum
+     * Used for cascading status updates from Order to OrderDetails
+     */
+    private OrderDetailStatusEnum mapOrderStatusToDetailStatus(OrderStatusEnum orderStatus) {
+        return switch (orderStatus) {
+            case PENDING -> OrderDetailStatusEnum.PENDING;
+            case PROCESSING -> OrderDetailStatusEnum.PENDING; // Processing order maps to PENDING details
+            case CANCELLED -> OrderDetailStatusEnum.CANCELLED;
+            case CONTRACT_DRAFT -> OrderDetailStatusEnum.PENDING;
+            case CONTRACT_SIGNED -> OrderDetailStatusEnum.PENDING;
+            case ON_PLANNING -> OrderDetailStatusEnum.ON_PLANNING;
+            case ASSIGNED_TO_DRIVER -> OrderDetailStatusEnum.ASSIGNED_TO_DRIVER;
+            case FULLY_PAID -> OrderDetailStatusEnum.ASSIGNED_TO_DRIVER; // Fully paid order maps to assigned details
+            case PICKING_UP -> OrderDetailStatusEnum.PICKING_UP;
+            case ON_DELIVERED -> OrderDetailStatusEnum.ON_DELIVERED;
+            case ONGOING_DELIVERED -> OrderDetailStatusEnum.ONGOING_DELIVERED;
+            case IN_TROUBLES -> OrderDetailStatusEnum.IN_TROUBLES;
+            case COMPENSATION -> OrderDetailStatusEnum.COMPENSATION;
+            case DELIVERED -> OrderDetailStatusEnum.DELIVERED;
+            case SUCCESSFUL -> OrderDetailStatusEnum.DELIVERED; // SUCCESSFUL maps to DELIVERED for order details
+            case RETURNING -> OrderDetailStatusEnum.RETURNING;
+            case RETURNED -> OrderDetailStatusEnum.RETURNED;
+        };
+    }
+    
+    /**
+     * Get effective deposit percent for a contract.
+     * Prioritizes contract's custom deposit percent if set, otherwise falls back to global setting.
+     * 
+     * @param contract The contract to get deposit percent for
+     * @return The effective deposit percent (0-100)
+     */
+    private BigDecimal getEffectiveDepositPercent(ContractEntity contract) {
+        // First, check if contract has custom deposit percent
+        if (contract.getCustomDepositPercent() != null 
+            && contract.getCustomDepositPercent().compareTo(BigDecimal.ZERO) > 0
+            && contract.getCustomDepositPercent().compareTo(BigDecimal.valueOf(100)) <= 0) {
+            return contract.getCustomDepositPercent();
+        }
+        
+        // Fallback to global setting
+        var contractSetting = contractSettingService.getLatestContractSetting();
+        if (contractSetting != null && contractSetting.depositPercent() != null) {
+            BigDecimal depositPercent = contractSetting.depositPercent();
+            if (depositPercent.compareTo(BigDecimal.ZERO) > 0 && depositPercent.compareTo(BigDecimal.valueOf(100)) <= 0) {
+                return depositPercent;
+            }
+        }
+        
+        // Default fallback
+        log.warn("No valid deposit percent found, using 10% default");
+        return BigDecimal.valueOf(10);
     }
 }

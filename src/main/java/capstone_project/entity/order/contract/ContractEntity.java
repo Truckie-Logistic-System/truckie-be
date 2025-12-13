@@ -45,6 +45,11 @@ public class ContractEntity extends BaseEntity {
     @Column(name = "adjusted_value")
     private BigDecimal adjustedValue;
 
+    // Custom deposit percentage for this contract (overrides global contract_settings if set)
+    // NULL means use global setting, otherwise use this value (0-100)
+    @Column(name = "custom_deposit_percent", precision = 5, scale = 2)
+    private BigDecimal customDepositPercent;
+
     @Column(name = "attach_file_url", length = Integer.MAX_VALUE)
     private String attachFileUrl;
 

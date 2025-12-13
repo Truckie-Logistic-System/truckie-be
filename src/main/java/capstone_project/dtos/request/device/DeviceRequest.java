@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 public record DeviceRequest(
         @NotBlank(message = "Device code must not be blank")
@@ -16,9 +16,9 @@ public record DeviceRequest(
         @NotBlank(message = "Model must not be blank")
         String model,
 
-        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+        @JsonFormat(pattern = "yyyy-MM-dd")
         @NotNull(message = "Installed at must not be null")
-        LocalDateTime installedAt,
+        LocalDate installedAt,
 
         @NotBlank(message = "IP address must not be blank")
         String ipAddress,
@@ -29,7 +29,6 @@ public record DeviceRequest(
         @NotBlank(message = "Device type ID must not be blank")
         String deviceTypeId,
 
-        @NotBlank(message = "Vehicle ID must not be blank")
-        String vehicleId
+        String vehicleId  // Optional: device may not be assigned to a vehicle yet
 ) {
 }

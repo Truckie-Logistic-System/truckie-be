@@ -27,6 +27,7 @@ public class DemoDataSummary {
     private Integer refundsCreated;
     private Integer issuesCreated;
     private Integer vehiclesCreated;
+    private Integer devicesCreated;
     private Integer maintenancesCreated;
     private Integer penaltiesCreated;
     private Integer fuelConsumptionsCreated;

@@ -146,6 +146,10 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                             .sizeRuleName(rule.getSizeRuleEntity().getSizeRuleName())
                             .currentLoad(currentLoad)
                             .currentLoadUnit(dominantUnit) // Sử dụng đơn vị động
+                            // Vehicle dimensions for 3D visualization (in meters)
+                            .maxLength(rule.getSizeRuleEntity().getMaxLength())
+                            .maxWidth(rule.getSizeRuleEntity().getMaxWidth())
+                            .maxHeight(rule.getSizeRuleEntity().getMaxHeight())
                             .assignedDetails(detailResponses)
                             .packedDetailDetails(packedDetails)
                             .build()
@@ -412,6 +416,10 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                                 .sizeRuleName(sizeRule.getSizeRuleName())
                                 .currentLoad(actualCurrentLoad)
                                 .currentLoadUnit(dominantUnit) // Sử dụng đơn vị động
+                                // Vehicle dimensions for 3D visualization (in meters)
+                                .maxLength(sizeRule.getMaxLength())
+                                .maxWidth(sizeRule.getMaxWidth())
+                                .maxHeight(sizeRule.getMaxHeight())
                                 .assignedDetails(assignedDetails)
                                 .packedDetailDetails(packedDetails)
                                 .build()

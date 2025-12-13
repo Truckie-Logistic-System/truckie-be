@@ -75,9 +75,10 @@ public class SimpleOrderMapper {
         } catch (Exception ignored) {
         }
 
-        // Calculate deposit amount based on contract adjusted value
+        // Calculate deposit amount based on contract adjusted value and custom deposit percent
         BigDecimal adjustedValue = contractResponse != null ? contractResponse.adjustedValue() : null;
-        BigDecimal depositAmount = calculateDepositAmount(effectiveTotal, adjustedValue);
+        BigDecimal customDepositPercent = contractResponse != null ? contractResponse.customDepositPercent() : null;
+        BigDecimal depositAmount = calculateDepositAmount(effectiveTotal, adjustedValue, customDepositPercent);
 
         // Convert Order with enhanced vehicle assignments
         SimpleOrderResponse simpleOrderResponse = toSimpleOrderResponseWithTripInfo(
@@ -616,13 +617,14 @@ public class SimpleOrderMapper {
     }
 
     /**
-     * Calculate deposit amount based on adjusted value (if available) or total price and deposit percent from contract settings
-     * Priority: adjustedValue > totalPrice
+     * Calculate deposit amount based on adjusted value (if available) or total price and deposit percent
+     * Priority: customDepositPercent > global contract settings > default 10%
      * @param totalPrice The total price of the order
      * @param adjustedValue The adjusted value from contract (optional)
+     * @param customDepositPercent Custom deposit percent from contract (optional, overrides global setting)
      * @return The calculated deposit amount, or null if total price is null
      */
-    private BigDecimal calculateDepositAmount(BigDecimal totalPrice, BigDecimal adjustedValue) {
+    private BigDecimal calculateDepositAmount(BigDecimal totalPrice, BigDecimal adjustedValue, BigDecimal customDepositPercent) {
         // Use adjustedValue if available, otherwise use totalPrice
         BigDecimal baseAmount = adjustedValue != null && adjustedValue.compareTo(BigDecimal.ZERO) > 0 
             ? adjustedValue 
@@ -633,18 +635,28 @@ public class SimpleOrderMapper {
         }
 
         try {
-            // Get the latest contract setting
-            var contractSetting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc().orElse(null);
-            BigDecimal depositPercent = contractSetting != null && contractSetting.getDepositPercent() != null 
-                    ? contractSetting.getDepositPercent() 
-                    : new BigDecimal("30"); // Default to 30%
+            BigDecimal depositPercent;
+            
+            // Priority 1: Use custom deposit percent from contract if valid
+            if (customDepositPercent != null 
+                && customDepositPercent.compareTo(BigDecimal.ZERO) > 0
+                && customDepositPercent.compareTo(BigDecimal.valueOf(100)) <= 0) {
+                depositPercent = customDepositPercent;
+                log.debug("📊 SimpleOrderMapper - Using custom deposit percent: {}%", depositPercent);
+            } else {
+                // Priority 2: Fallback to global contract setting
+                var contractSetting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc().orElse(null);
+                depositPercent = contractSetting != null && contractSetting.getDepositPercent() != null 
+                        ? contractSetting.getDepositPercent() 
+                        : new BigDecimal("10"); // Default to 10%
+            }
             
             // Use unified pricing for consistent rounding across all systems
             return PricingUtils.calculateRoundedDeposit(baseAmount, depositPercent);
         } catch (Exception e) {
             log.warn("Error calculating deposit amount: {}", e.getMessage());
-            // Default to 30% on error using unified pricing
-            return PricingUtils.calculateRoundedDeposit(baseAmount, new BigDecimal("30"));
+            // Default to 10% on error using unified pricing
+            return PricingUtils.calculateRoundedDeposit(baseAmount, new BigDecimal("10"));
         }
     }
 }

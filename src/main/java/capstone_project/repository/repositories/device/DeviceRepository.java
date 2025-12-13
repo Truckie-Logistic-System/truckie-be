@@ -10,4 +10,6 @@ public interface DeviceRepository extends BaseRepository<DeviceEntity> {
     Optional<DeviceEntity> findDeviceEntityByDeviceCode(String deviceCode);
 
     Optional<DeviceEntity> findDeviceEntityByDeviceTypeEntityIdAndVehicleEntityId(UUID deviceTypeId, UUID vehicleId);
+    
+    java.util.List<DeviceEntity> findDeviceEntitiesByVehicleEntityId(UUID vehicleId);
 }

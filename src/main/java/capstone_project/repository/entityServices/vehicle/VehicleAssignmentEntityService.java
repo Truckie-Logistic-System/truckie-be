@@ -96,4 +96,11 @@ public interface VehicleAssignmentEntityService extends BaseEntityService<Vehicl
      * @return true nếu tài xế đã có assignment trong ngày đó, false nếu không
      */
     boolean existsAssignmentForDriverOnDate(UUID driverId, LocalDate tripDate);
+    
+    /**
+     * Find vehicle assignment by tracking code
+     * @param trackingCode the tracking code to search for
+     * @return Optional containing the vehicle assignment if found, or empty if not found
+     */
+    Optional<VehicleAssignmentEntity> findByTrackingCode(String trackingCode);
 }

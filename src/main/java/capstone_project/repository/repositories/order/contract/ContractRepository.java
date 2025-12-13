@@ -2,6 +2,8 @@ package capstone_project.repository.repositories.order.contract;
 
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.repository.repositories.common.BaseRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -10,6 +12,14 @@ import java.util.UUID;
 
 public interface ContractRepository extends BaseRepository<ContractEntity> {
     Optional<ContractEntity> findContractEntityByOrderEntity_Id(UUID orderEntityId);
+    
+    // Fetch contract with order, sender (customer) and user eagerly loaded for PDF generation
+    @Query("SELECT c FROM ContractEntity c " +
+           "LEFT JOIN FETCH c.orderEntity o " +
+           "LEFT JOIN FETCH o.sender s " +
+           "LEFT JOIN FETCH s.user " +
+           "WHERE c.id = :contractId")
+    Optional<ContractEntity> findByIdWithOrderAndSender(@Param("contractId") UUID contractId);
 
     void deleteByOrderEntityId(UUID orderId);
 

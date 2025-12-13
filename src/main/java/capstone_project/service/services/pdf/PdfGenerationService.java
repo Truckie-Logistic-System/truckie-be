@@ -4,6 +4,7 @@ import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
+import capstone_project.dtos.response.order.contract.PriceCalculationResponse.CalculationStep;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderEntity;
@@ -23,10 +24,12 @@ import org.xhtmlrenderer.pdf.ITextRenderer;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -57,31 +60,45 @@ public class PdfGenerationService {
                 context.setVariable("createdDateFormatted", formattedDate);
             }
 
-            Optional<CustomerEntity> customerOpt = customerEntityService.findByUserId(order.getSender().getId());
-            if (customerOpt.isPresent()) {
-                CustomerEntity customer = customerOpt.get();
-                context.setVariable("customerName", customer.getCompanyName() != null ? customer.getCompanyName() : "N/A");
-                context.setVariable("representativeName", customer.getRepresentativeName() != null ? customer.getRepresentativeName() : "N/A");
-                context.setVariable("customerPhone", customer.getRepresentativePhone() != null ? customer.getRepresentativePhone() : "N/A");
-                context.setVariable("businessLicenseNumber", customer.getBusinessLicenseNumber() != null ? customer.getBusinessLicenseNumber() : "N/A");
-                context.setVariable("businessAddress", customer.getBusinessAddress() != null ? customer.getBusinessAddress() : "N/A");
+            // Lấy thông tin khách hàng từ sender của order
+            CustomerEntity senderCustomer = order.getSender();
+            
+            // Log để debug
+            log.info("🔍 PDF Generation - Order ID: {}, Sender: {}", order.getId(), senderCustomer);
+            
+            if (senderCustomer != null) {
+                log.info("🔍 Customer Info - CompanyName: {}, RepName: {}, Phone: {}, Address: {}", 
+                    senderCustomer.getCompanyName(),
+                    senderCustomer.getRepresentativeName(),
+                    senderCustomer.getRepresentativePhone(),
+                    senderCustomer.getBusinessAddress());
+                    
+                context.setVariable("customerName", senderCustomer.getCompanyName() != null ? senderCustomer.getCompanyName() : "N/A");
+                context.setVariable("representativeName", senderCustomer.getRepresentativeName() != null ? senderCustomer.getRepresentativeName() : "N/A");
+                context.setVariable("customerPhone", senderCustomer.getRepresentativePhone() != null ? senderCustomer.getRepresentativePhone() : "N/A");
+                context.setVariable("businessLicenseNumber", senderCustomer.getBusinessLicenseNumber() != null ? senderCustomer.getBusinessLicenseNumber() : "N/A");
+                context.setVariable("businessAddress", senderCustomer.getBusinessAddress() != null ? senderCustomer.getBusinessAddress() : "N/A");
+                
+                // Lấy email từ User entity nếu có
+                if (senderCustomer.getUser() != null) {
+                    UserEntity user = senderCustomer.getUser();
+                    context.setVariable("senderEmail", user.getEmail() != null ? user.getEmail() : "N/A");
+                    context.setVariable("fullName", user.getFullName() != null ? user.getFullName() : "N/A");
+                    context.setVariable("phoneNumber", user.getPhoneNumber() != null ? user.getPhoneNumber() : "N/A");
+                } else {
+                    context.setVariable("senderEmail", "N/A");
+                    context.setVariable("fullName", "N/A");
+                    context.setVariable("phoneNumber", "N/A");
+                }
             } else {
+                log.warn("⚠️ PDF Generation - Sender customer is NULL for order: {}", order.getId());
                 context.setVariable("customerName", "N/A");
                 context.setVariable("representativeName", "N/A");
                 context.setVariable("customerPhone", "N/A");
                 context.setVariable("businessLicenseNumber", "N/A");
                 context.setVariable("businessAddress", "N/A");
-            }
-
-            Optional<UserEntity> userEntityOptional = userEntityService.getUserById(order.getSender().getUser().getId());
-            if (userEntityOptional.isPresent()) {
-                UserEntity user = userEntityOptional.get();
-                context.setVariable("fullName", user.getFullName() != null ? user.getFullName() : "N/A");
-                context.setVariable("senderEmail", user.getEmail() != null ? user.getEmail() : "N/A");
-                context.setVariable("phoneNumber", user.getPhoneNumber() != null ? user.getPhoneNumber() : "N/A");
-            } else {
-                context.setVariable("fullName", "N/A");
                 context.setVariable("senderEmail", "N/A");
+                context.setVariable("fullName", "N/A");
                 context.setVariable("phoneNumber", "N/A");
             }
 
@@ -96,6 +113,36 @@ public class PdfGenerationService {
             context.setVariable("promotionDiscount", result.getPromotionDiscount());
             context.setVariable("finalTotal", result.getFinalTotal());
             context.setVariable("calculationDetails", result.getSteps());
+            
+            // Insurance fields
+            log.info("🛡️ PDF Insurance Debug - hasInsurance={}, insuranceFee={}, totalDeclaredValue={}, grandTotal={}", 
+                    result.getHasInsurance(), result.getInsuranceFee(), result.getTotalDeclaredValue(), result.getGrandTotal());
+            context.setVariable("hasInsurance", result.getHasInsurance());
+            context.setVariable("insuranceFee", result.getInsuranceFee());
+            context.setVariable("totalDeclaredValue", result.getTotalDeclaredValue());
+            context.setVariable("insuranceRate", result.getInsuranceRate());
+            // Calculate insurance rate with VAT for display
+            BigDecimal insuranceRateWithVat = result.getInsuranceRate() != null && result.getVatRate() != null
+                ? result.getInsuranceRate().multiply(BigDecimal.ONE.add(result.getVatRate().divide(BigDecimal.valueOf(100))))
+                : result.getInsuranceRate();
+            context.setVariable("insuranceRateWithVat", insuranceRateWithVat);
+            context.setVariable("grandTotal", result.getGrandTotal());
+            
+            // Group calculation details by vehicle type for PDF display
+            Map<String, List<CalculationStep>> groupedSteps = result.getSteps().stream()
+                    .collect(Collectors.groupingBy(CalculationStep::getSizeRuleName));
+            context.setVariable("groupedCalculationDetails", groupedSteps);
+            
+            // Pre-calculate vehicle totals for each vehicle type
+            Map<String, BigDecimal> vehicleTotals = new HashMap<>();
+            for (Map.Entry<String, List<CalculationStep>> entry : groupedSteps.entrySet()) {
+                BigDecimal total = entry.getValue().stream()
+                        .map(CalculationStep::getSubtotal)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                vehicleTotals.put(entry.getKey(), total);
+            }
+            context.setVariable("vehicleTotals", vehicleTotals);
+            
 //            context.setVariable("summary", result.getSummary());
             context.setVariable("distanceKm", distanceKm);
 
@@ -105,7 +152,15 @@ public class PdfGenerationService {
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
 
-            context.setVariable("depositPercent", setting.getDepositPercent());
+            // Use custom deposit percent from contract if available, otherwise use global setting
+            BigDecimal effectiveDepositPercent = (contract.getCustomDepositPercent() != null 
+                && contract.getCustomDepositPercent().compareTo(BigDecimal.ZERO) > 0
+                && contract.getCustomDepositPercent().compareTo(BigDecimal.valueOf(100)) <= 0)
+                ? contract.getCustomDepositPercent()
+                : setting.getDepositPercent();
+            log.info("📊 PDF Generation - Using deposit percent: {}% (custom: {})", effectiveDepositPercent, 
+                contract.getCustomDepositPercent() != null ? "yes" : "no");
+            context.setVariable("depositPercent", effectiveDepositPercent);
             context.setVariable("depositDeadlineHours", setting.getDepositDeadlineHours());
             context.setVariable("signingDeadlineHours", setting.getSigningDeadlineHours());
             context.setVariable("fullPaymentDaysBeforePickup", setting.getFullPaymentDaysBeforePickup());

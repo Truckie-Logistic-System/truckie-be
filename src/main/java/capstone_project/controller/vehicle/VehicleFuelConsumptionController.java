@@ -3,8 +3,9 @@ package capstone_project.controller.vehicle;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionCreateRequest;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionEndReadingRequest;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionInvoiceRequest;
-import capstone_project.dtos.response.vehicle.VehicleFuelConsumptionResponse;
 import capstone_project.dtos.response.common.ApiResponse;
+import capstone_project.dtos.response.vehicle.VehicleFuelConsumptionListResponse;
+import capstone_project.dtos.response.vehicle.VehicleFuelConsumptionResponse;
 import capstone_project.service.services.vehicle.VehicleFuelConsumptionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.beans.PropertyEditorSupport;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -29,6 +31,16 @@ import java.util.UUID;
 public class VehicleFuelConsumptionController {
 
     private final VehicleFuelConsumptionService vehicleFuelConsumptionService;
+
+    /**
+     * Get all vehicle fuel consumptions for staff (sorted by createdAt DESC)
+     */
+    @GetMapping("/staff/list")
+    @PreAuthorize("hasAnyAuthority('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<VehicleFuelConsumptionListResponse>>> getAllVehicleFuelConsumptions() {
+        List<VehicleFuelConsumptionListResponse> result = vehicleFuelConsumptionService.getAllVehicleFuelConsumptions();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 
     @InitBinder
     public void initBinder(WebDataBinder binder) {

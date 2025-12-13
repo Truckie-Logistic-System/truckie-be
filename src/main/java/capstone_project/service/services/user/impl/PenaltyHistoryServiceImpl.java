@@ -6,6 +6,7 @@ import capstone_project.dtos.request.user.PenaltyHistoryRequest;
 import capstone_project.dtos.response.user.PenaltyHistoryResponse;
 import capstone_project.entity.user.driver.PenaltyHistoryEntity;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
+import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
 import capstone_project.service.mapper.user.PenaltyHistoryMapper;
 import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.user.PenaltyHistoryService;
@@ -23,6 +24,7 @@ import java.util.UUID;
 public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
 
     private final PenaltyHistoryEntityService entityService;
+    private final PenaltyHistoryRepository penaltyHistoryRepository;
     private final PenaltyHistoryMapper mapper;
     private final RedisService redis; // optional cache
 
@@ -40,45 +42,33 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
 
     @Override
     public PenaltyHistoryResponse getById(UUID id) {
-        PenaltyHistoryEntity e = entityService.findEntityById(id)
+        PenaltyHistoryEntity e = penaltyHistoryRepository.findDetailById(id)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
         return mapper.toPenaltyHistoryResponse(e);
     }
 
-    @Transactional
-    @Override
-    public PenaltyHistoryResponse create(PenaltyHistoryRequest req) {
-        PenaltyHistoryEntity saved = entityService.save(mapper.toEntity(req));
-        return mapper.toPenaltyHistoryResponse(saved);
-    }
-
-    @Transactional
-    @Override
-    public PenaltyHistoryResponse update(UUID id, PenaltyHistoryRequest req) {
-        PenaltyHistoryEntity existing = entityService.findEntityById(id)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
-        mapper.toEntity(req, existing);
-        PenaltyHistoryEntity saved = entityService.save(existing);
-        return mapper.toPenaltyHistoryResponse(saved);
-    }
-
-    @Transactional
-    @Override
-    public void delete(UUID id) {
-        PenaltyHistoryEntity existing = entityService.findEntityById(id)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
-        entityService.save(existing);               // or repository.delete(existing);
-    }
-
+    
     @Override
     public List<PenaltyHistoryResponse> getByDriverId(UUID driverId) {
-        
         List<PenaltyHistoryEntity> penalties = entityService.findByDriverId(driverId);
         return penalties.stream()
                 .map(mapper::toPenaltyHistoryResponse)
                 .toList();
+    }
+
+    @Override
+    public List<String> getTrafficViolationReasons() {
+        return List.of(
+            "Vượt tốc độ",
+            "Đỗ sai quy định",
+            "Vi phạm tín hiệu giao thông",
+            "Không đủ giấy tờ xe",
+            "Quá tải",
+            "Đi sai tuyến đường",
+            "Vi phạm thời gian lái xe",
+            "Vi phạm điều kiện phương tiện",
+            "Khác"
+        );
     }
 }

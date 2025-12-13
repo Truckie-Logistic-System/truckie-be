@@ -75,9 +75,8 @@ public class VietMapDistanceServiceImpl implements VietMapDistanceService {
             String routeTollsResponse = vietmapService.routeTolls(pathJson, vietVehicle);
 
             // Parse JSON response to extract distance from path
-            BigDecimal distance = parseDistanceFromRouteTollsResponse(routeTollsResponse);
-
-            return distance;
+            DistanceResult result = parseDistanceAndTollsFromResponse(routeTollsResponse);
+            return result.getDistanceKm();
 
         } catch (Exception e) {
             log.warn("⚠️ VietMap API failed, falling back to Haversine calculation: {}", e.getMessage());
@@ -89,12 +88,86 @@ public class VietMapDistanceServiceImpl implements VietMapDistanceService {
     public BigDecimal calculateDistance(AddressEntity fromAddress, AddressEntity toAddress) {
         return calculateDistance(fromAddress, toAddress, DEFAULT_VEHICLE_TYPE);
     }
+    
+    @Override
+    public DistanceResult calculateDistanceAndTolls(AddressEntity fromAddress, AddressEntity toAddress, String vehicleType) {
+        if (fromAddress == null || toAddress == null) {
+            throw new IllegalArgumentException("From and to addresses must not be null");
+        }
+
+        Double fromLat = fromAddress.getLatitude() != null ? fromAddress.getLatitude().doubleValue() : null;
+        Double fromLng = fromAddress.getLongitude() != null ? fromAddress.getLongitude().doubleValue() : null;
+        Double toLat = toAddress.getLatitude() != null ? toAddress.getLatitude().doubleValue() : null;
+        Double toLng = toAddress.getLongitude() != null ? toAddress.getLongitude().doubleValue() : null;
+
+        if (fromLat == null || fromLng == null || toLat == null || toLng == null) {
+            throw new IllegalArgumentException("Address coordinates must not be null");
+        }
+
+        return calculateDistanceAndTolls(fromLat, fromLng, toLat, toLng, vehicleType);
+    }
+    
+    /**
+     * Calculate distance and toll information between two coordinates
+     */
+    public DistanceResult calculateDistanceAndTolls(Double fromLat, Double fromLng, Double toLat, Double toLng, String vehicleType) {
+        if (fromLat == null || fromLng == null || toLat == null || toLng == null) {
+            throw new IllegalArgumentException("Coordinates must not be null");
+        }
+
+        // Check if coordinates are the same
+        if (fromLat.equals(toLat) && fromLng.equals(toLng)) {
+            return new DistanceResult(BigDecimal.ZERO, BigDecimal.ZERO, 0);
+        }
+
+        try {
+            // Build path JSON for route-tolls API: [[lng, lat], [lng, lat]]
+            java.util.List<java.util.List<Double>> path = Arrays.asList(
+                Arrays.asList(fromLng, fromLat),
+                Arrays.asList(toLng, toLat)
+            );
+            
+            String pathJson = objectMapper.writeValueAsString(path);
+
+            // Map vehicle type to VietMap vehicle integer if needed
+            Integer vietVehicle = mapVehicleTypeToInteger(vehicleType);
+            
+            // Call route-tolls API for consistency with DistanceService
+            String routeTollsResponse = vietmapService.routeTolls(pathJson, vietVehicle);
+
+            // Parse JSON response to extract distance and toll information
+            return parseDistanceAndTollsFromResponse(routeTollsResponse);
+
+        } catch (Exception e) {
+            log.warn("⚠️ VietMap API failed, falling back to Haversine calculation: {}", e.getMessage());
+            BigDecimal distance = fallbackHaversineDistance(fromLat, fromLng, toLat, toLng);
+            return new DistanceResult(distance, BigDecimal.ZERO, 0); // No toll info in fallback
+        }
+    }
 
     /**
-     * Parse distance from VietMap route-tolls API response
-     * Route-tolls returns path coordinates, so we calculate distance from the path
+     * Result class to hold distance and toll information
      */
-    private BigDecimal parseDistanceFromRouteTollsResponse(String routeTollsResponse) throws Exception {
+    public static class DistanceResult {
+        private final BigDecimal distanceKm;
+        private final BigDecimal totalTollFee;
+        private final int totalTollCount;
+        
+        public DistanceResult(BigDecimal distanceKm, BigDecimal totalTollFee, int totalTollCount) {
+            this.distanceKm = distanceKm;
+            this.totalTollFee = totalTollFee;
+            this.totalTollCount = totalTollCount;
+        }
+        
+        public BigDecimal getDistanceKm() { return distanceKm; }
+        public BigDecimal getTotalTollFee() { return totalTollFee; }
+        public int getTotalTollCount() { return totalTollCount; }
+    }
+    
+    /**
+     * Parse distance and toll information from VietMap route-tolls API response
+     */
+    private DistanceResult parseDistanceAndTollsFromResponse(String routeTollsResponse) throws Exception {
         JsonNode rootNode = objectMapper.readTree(routeTollsResponse);
         
         // Extract path coordinates from response
@@ -123,8 +196,25 @@ public class VietMapDistanceServiceImpl implements VietMapDistanceService {
         
         BigDecimal distanceKm = BigDecimal.valueOf(totalDistanceKm)
             .setScale(2, RoundingMode.HALF_UP);
-
-        return distanceKm;
+        
+        // Extract toll information
+        BigDecimal totalTollFee = BigDecimal.ZERO;
+        int totalTollCount = 0;
+        
+        JsonNode tollsNode = rootNode.path("tolls");
+        if (tollsNode.isArray()) {
+            totalTollCount = tollsNode.size();
+            
+            for (JsonNode toll : tollsNode) {
+                long amount = toll.path("amount").asLong(0);
+                totalTollFee = totalTollFee.add(BigDecimal.valueOf(amount));
+            }
+        }
+        
+        // Convert toll fee from VND to a decimal value
+        totalTollFee = totalTollFee.setScale(2, RoundingMode.HALF_UP);
+        
+        return new DistanceResult(distanceKm, totalTollFee, totalTollCount);
     }
     
     /**

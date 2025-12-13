@@ -302,8 +302,22 @@ public class RegisterServiceImpl implements RegisterService {
 
             if (passwordEncoder.matches(loginRequest.getPassword(), usersEntity.getPassword())) {
 
-                if (!Objects.equals(usersEntity.getStatus(), UserStatusEnum.ACTIVE.name())) {
-                    
+                // Check if user is INACTIVE
+                boolean isInactive = Objects.equals(usersEntity.getStatus(), UserStatusEnum.INACTIVE.name());
+                boolean isDriver = usersEntity.getRole() != null 
+                        && RoleTypeEnum.DRIVER.name().equals(usersEntity.getRole().getRoleName());
+
+                // Allow INACTIVE drivers to login for onboarding, block other INACTIVE users
+                if (isInactive && !isDriver) {
+                    throw new BadRequestException(
+                            ErrorEnum.USER_PERMISSION_DENIED.getMessage(),
+                            ErrorEnum.USER_PERMISSION_DENIED.getErrorCode()
+                    );
+                }
+
+                // Block DELETED, BANNED users
+                if (Objects.equals(usersEntity.getStatus(), UserStatusEnum.DELETED.name()) 
+                        || Objects.equals(usersEntity.getStatus(), UserStatusEnum.BANNED.name())) {
                     throw new BadRequestException(
                             ErrorEnum.USER_PERMISSION_DENIED.getMessage(),
                             ErrorEnum.USER_PERMISSION_DENIED.getErrorCode()
@@ -331,7 +345,19 @@ public class RegisterServiceImpl implements RegisterService {
 
                 refreshTokenEntityService.save(newRefreshToken);
 
-                return userMapper.mapLoginResponse(usersEntity, accessToken, refreshTokenString);
+                // Build response with firstTimeLogin flag for INACTIVE drivers
+                LoginResponse response = userMapper.mapLoginResponse(usersEntity, accessToken, refreshTokenString);
+                
+                if (isInactive && isDriver) {
+                    response.setFirstTimeLogin(true);
+                    response.setRequiredActions(Arrays.asList("CHANGE_PASSWORD", "UPLOAD_FACE"));
+                    log.info("[login] Driver {} logged in for first time onboarding", username);
+                } else {
+                    response.setFirstTimeLogin(false);
+                    response.setRequiredActions(null);
+                }
+
+                return response;
             }
             
             throw new NotFoundException(
@@ -543,11 +569,41 @@ public class RegisterServiceImpl implements RegisterService {
             );
         }
 
-        UserEntity user = userEntityService.getUserByUserName(changePasswordForForgetPassRequest.username())
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorEnum.NOT_FOUND.getMessage(),
-                        ErrorEnum.NOT_FOUND.getErrorCode()
-                ));
+        // Support lookup by email when username is null (for forgot password flow)
+        UserEntity user;
+        if (changePasswordForForgetPassRequest.username() != null && !changePasswordForForgetPassRequest.username().isBlank()) {
+            user = userEntityService.getUserByUserName(changePasswordForForgetPassRequest.username())
+                    .orElseThrow(() -> new NotFoundException(
+                            ErrorEnum.NOT_FOUND.getMessage(),
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+        } else if (changePasswordForForgetPassRequest.email() != null && !changePasswordForForgetPassRequest.email().isBlank()) {
+            user = userEntityService.getUserByEmail(changePasswordForForgetPassRequest.email())
+                    .orElseThrow(() -> new NotFoundException(
+                            "Không tìm thấy tài khoản với email này",
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+        } else {
+            throw new BadRequestException(
+                    "Vui lòng cung cấp username hoặc email",
+                    ErrorEnum.NULL.getErrorCode()
+            );
+        }
+
+        // IMPORTANT: Do not allow forget password for INACTIVE drivers.
+        // First-time password change for drivers must go through the dedicated
+        // onboarding flow (password + face image in a single API call).
+        boolean isInactive = Objects.equals(user.getStatus(), UserStatusEnum.INACTIVE.name());
+        boolean isDriver = user.getRole() != null
+                && RoleTypeEnum.DRIVER.name().equals(user.getRole().getRoleName());
+
+        if (isInactive && isDriver) {
+            log.warn("[changePasswordForForgetPassword] INACTIVE DRIVER attempted to use forgot password flow. Username: {}", user.getUsername());
+            throw new BadRequestException(
+                    "Tài xế cần hoàn tất bước kích hoạt (đổi mật khẩu + chụp ảnh khuôn mặt) trong quy trình onboarding.",
+                    ErrorEnum.USER_PERMISSION_DENIED.getErrorCode()
+            );
+        }
 
         if (!Objects.equals(changePasswordForForgetPassRequest.newPassword(), changePasswordForForgetPassRequest.confirmNewPassword())) {
             log.error("[changePasswordForForgetPassword] New password and confirm new password do not match");
@@ -573,6 +629,21 @@ public class RegisterServiceImpl implements RegisterService {
                         ErrorEnum.NOT_FOUND.getMessage(),
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
+
+        // IMPORTANT: Do not allow normal changePassword for INACTIVE drivers.
+        // First-time password change for drivers must go through the dedicated
+        // onboarding flow (password + face image in a single API call).
+        boolean isInactive = Objects.equals(user.getStatus(), UserStatusEnum.INACTIVE.name());
+        boolean isDriver = user.getRole() != null
+                && RoleTypeEnum.DRIVER.name().equals(user.getRole().getRoleName());
+
+        if (isInactive && isDriver) {
+            log.warn("[changePassword] INACTIVE DRIVER attempted to change password via normal endpoint. Username: {}", user.getUsername());
+            throw new BadRequestException(
+                    "Tài xế cần hoàn tất bước kích hoạt (đổi mật khẩu + chụp ảnh khuôn mặt) trong quy trình onboarding.",
+                    ErrorEnum.USER_PERMISSION_DENIED.getErrorCode()
+            );
+        }
 
         if (!passwordEncoder.matches(changePasswordRequest.oldPassword(), user.getPassword())) {
             log.error("[changePassword] Current password is incorrect");

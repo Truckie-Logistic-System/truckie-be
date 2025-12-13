@@ -18,8 +18,9 @@ import capstone_project.entity.user.driver.PenaltyHistoryEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.entity.order.order.VehicleFuelConsumptionEntity;
-import capstone_project.entity.vehicle.VehicleMaintenanceEntity;
+import capstone_project.entity.vehicle.VehicleServiceRecordEntity;
 import capstone_project.entity.auth.RoleEntity;
+import capstone_project.entity.device.DeviceTypeEntity;
 import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.repository.entityServices.issue.IssueTypeEntityService;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
@@ -32,7 +33,7 @@ import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
-import capstone_project.repository.entityServices.vehicle.VehicleMaintenanceEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleServiceRecordEntityService;
 import capstone_project.repository.repositories.auth.RoleRepository;
 import capstone_project.repository.repositories.auth.UserRepository;
 import capstone_project.repository.repositories.issue.IssueRepository;
@@ -46,7 +47,7 @@ import capstone_project.repository.repositories.user.CustomerRepository;
 import capstone_project.repository.repositories.user.DriverRepository;
 import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
 import capstone_project.repository.repositories.vehicle.VehicleAssignmentRepository;
-import capstone_project.repository.repositories.vehicle.VehicleMaintenanceRepository;
+import capstone_project.repository.repositories.vehicle.VehicleServiceRecordRepository;
 import capstone_project.repository.repositories.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -84,14 +85,14 @@ public class DashboardDemoDataService {
     private final IssueEntityService issueEntityService;
     private final IssueTypeEntityService issueTypeEntityService;
     private final VehicleEntityService vehicleEntityService;
-    private final VehicleMaintenanceEntityService vehicleMaintenanceEntityService;
+    private final VehicleServiceRecordEntityService vehicleServiceRecordEntityService;
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
     private final CustomerEntityService customerEntityService;
     
     // Repositories (for delete operations)
     private final VehicleFuelConsumptionRepository vehicleFuelConsumptionRepository;
     private final PenaltyHistoryRepository penaltyHistoryRepository;
-    private final VehicleMaintenanceRepository vehicleMaintenanceRepository;
+    private final VehicleServiceRecordRepository vehicleServiceRecordRepository;
     private final RefundRepository refundRepository;
     private final TransactionRepository transactionRepository;
     private final IssueRepository issueRepository;
@@ -104,6 +105,9 @@ public class DashboardDemoDataService {
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final capstone_project.repository.entityServices.device.DeviceEntityService deviceEntityService;
+    private final capstone_project.repository.repositories.device.DeviceRepository deviceRepository;
+    private final capstone_project.repository.entityServices.device.DeviceTypeEntityService deviceTypeEntityService;
 
     // Seasonal multipliers for realistic distribution
     private static final Map<Integer, Double> SEASONAL_MULTIPLIERS = Map.ofEntries(
@@ -193,6 +197,10 @@ public class DashboardDemoDataService {
             // Step 2: Create demo vehicles
             List<VehicleEntity> demoVehicles = createDemoVehicles(request);
             summary.setVehiclesCreated(demoVehicles.size());
+
+            // Step 2.5: Create demo devices and assign to vehicles
+            int devicesCreated = createDemoDevices(request, demoVehicles);
+            summary.setDevicesCreated(devicesCreated);
 
             // Step 3: Generate orders, trips, issues month by month
             Map<String, Integer> entityCounts = generateMonthlyData(
@@ -435,7 +443,6 @@ public class DashboardDemoDataService {
                     .licensePlateNumber("DEMO-" + String.format("%02d", i) + randomChar() + "-" + String.format("%04d", 1000 + i))
                     .model("Demo Model " + (i % 5))
                     .manufacturer("Demo Manufacturer")
-                    .capacity(getCapacityForType(vehicleType))
                     .status(vehicleStatus.name())
                     .isDemoData(true)
                     .build();
@@ -447,6 +454,95 @@ public class DashboardDemoDataService {
 
         log.info("Created {} demo vehicles distributed across months", vehicles.size());
         return vehicles;
+    }
+
+    /**
+     * Create demo devices and assign to vehicles
+     */
+    private int createDemoDevices(GenerateDemoDataRequest request, List<VehicleEntity> vehicles) {
+        int devicesCreated = 0;
+        String[] deviceManufacturers = {"Teltonika", "Queclink", "CalAmp", "Sierra Wireless", "Geotab"};
+        String[] deviceModels = {"FMB920", "GL300", "LMU-2630", "MP70", "GO9"};
+        
+        // Get device types - create them if they don't exist
+        capstone_project.entity.device.DeviceTypeEntity gpsType = deviceTypeEntityService.findByDeviceTypeName("Thiết bị GPS")
+                .orElseGet(() -> createDemoDeviceType("Thiết bị GPS", "GPS tracking device"));
+        capstone_project.entity.device.DeviceTypeEntity cameraType = deviceTypeEntityService.findByDeviceTypeName("Camera hành trình")
+                .orElseGet(() -> createDemoDeviceType("Camera hành trình", "Vehicle camera"));
+        capstone_project.entity.device.DeviceTypeEntity fuelSensorType = deviceTypeEntityService.findByDeviceTypeName("Cảm biến nhiên liệu")
+                .orElseGet(() -> createDemoDeviceType("Cảm biến nhiên liệu", "Fuel level sensor"));
+        
+        capstone_project.entity.device.DeviceTypeEntity[] deviceTypes = {gpsType, cameraType, fuelSensorType};
+        
+        // Create 1-2 devices per vehicle (GPS tracker, fuel sensor, etc.)
+        for (int i = 0; i < vehicles.size(); i++) {
+            VehicleEntity vehicle = vehicles.get(i);
+            int devicesPerVehicle = randomInt(1, 2);
+            
+            for (int j = 0; j < devicesPerVehicle; j++) {
+                LocalDateTime installedAt = randomDateTimeInYear(request.getYear());
+                
+                // 80% active, 15% inactive, 5% maintenance
+                String status;
+                int statusRoll = randomInt(1, 100);
+                if (statusRoll <= 80) {
+                    status = "ACTIVE";
+                } else if (statusRoll <= 95) {
+                    status = "INACTIVE";
+                } else {
+                    status = "MAINTENANCE";
+                }
+                
+                // Select device type based on device index
+                capstone_project.entity.device.DeviceTypeEntity deviceType = deviceTypes[j % deviceTypes.length];
+                
+                capstone_project.entity.device.DeviceEntity device = capstone_project.entity.device.DeviceEntity.builder()
+                        .deviceCode("DEV-DEMO-" + String.format("%03d", devicesCreated + 1))
+                        .manufacturer(deviceManufacturers[randomInt(0, deviceManufacturers.length - 1)])
+                        .model(deviceModels[randomInt(0, deviceModels.length - 1)])
+                        .status(status)
+                        .installedAt(installedAt)
+                        .ipAddress("192.168." + randomInt(1, 255) + "." + randomInt(1, 255))
+                        .firmwareVersion("v" + randomInt(1, 5) + "." + randomInt(0, 9) + "." + randomInt(0, 9))
+                        .vehicleEntity(vehicle)
+                        .deviceTypeEntity(deviceType)
+                        .isDemoData(true)
+                        .build();
+                device.setIsDemoData(true);
+                device.setCreatedAt(installedAt);
+                
+                deviceEntityService.save(device);
+                devicesCreated++;
+            }
+        }
+        
+        // Create some unassigned devices (not attached to any vehicle)
+        for (int i = 0; i < 10; i++) {
+            LocalDateTime createdAt = randomDateTimeInYear(request.getYear());
+            
+            // Select device type for unassigned devices
+            capstone_project.entity.device.DeviceTypeEntity deviceType = deviceTypes[i % deviceTypes.length];
+            
+            capstone_project.entity.device.DeviceEntity device = capstone_project.entity.device.DeviceEntity.builder()
+                    .deviceCode("DEV-DEMO-SPARE-" + String.format("%03d", i + 1))
+                    .manufacturer(deviceManufacturers[randomInt(0, deviceManufacturers.length - 1)])
+                    .model(deviceModels[randomInt(0, deviceModels.length - 1)])
+                    .status(randomPercent(70) ? "ACTIVE" : "INACTIVE")
+                    .ipAddress("192.168." + randomInt(1, 255) + "." + randomInt(1, 255))
+                    .firmwareVersion("v" + randomInt(1, 5) + "." + randomInt(0, 9) + "." + randomInt(0, 9))
+                    .vehicleEntity(null) // Unassigned
+                    .deviceTypeEntity(deviceType)
+                    .isDemoData(true)
+                    .build();
+            device.setIsDemoData(true);
+            device.setCreatedAt(createdAt);
+            
+            deviceEntityService.save(device);
+            devicesCreated++;
+        }
+        
+        log.info("Created {} demo devices ({} assigned to vehicles, 10 spare)", devicesCreated, devicesCreated - 10);
+        return devicesCreated;
     }
 
     /**
@@ -541,7 +637,7 @@ public class DashboardDemoDataService {
                     // Create VehicleAssignment - distribute drivers evenly for top driver stats
                     DriverEntity driver;
                     if (request.getTargetDriverId() != null) {
-                        // 60% chance to use target driver, 40% random for diversity
+                        // 60% chance to use target driver, 40% random cho đa dạng dữ liệu
                         if (randomPercent(60)) {
                             driver = drivers.stream()
                                     .filter(d -> d.getId().equals(request.getTargetDriverId()))
@@ -551,21 +647,22 @@ public class DashboardDemoDataService {
                             driver = randomElement(drivers);
                         }
                     } else {
-                        // Distribute evenly across all drivers using global counter for better top driver statistics
+                        // Phân bổ đều tài xế cho thống kê top driver
                         driver = drivers.get(globalDriverCounter % drivers.size());
                         globalDriverCounter++;
                     }
+
                     VehicleEntity vehicle = randomElement(vehicles);
                     VehicleAssignmentEntity assignment = createDemoAssignment(detail, driver, vehicle, orderDate);
                     assignmentsCreated++;
 
-                    // 30% chance of fuel consumption record
+                    // 30% xác suất có bản ghi tiêu thụ nhiên liệu
                     if (randomPercent(30)) {
                         createDemoFuelConsumption(assignment);
                         fuelConsumptionsCreated++;
                     }
 
-                    // 15% chance of issue (ensure we create all categories across the month)
+                    // 15% xác suất tạo issue, đồng thời đảm bảo đủ các category trong tháng
                     if (randomPercent(15) || createdIssueCategories.size() < IssueCategoryEnum.values().length) {
                         IssueCategoryEnum category = selectIssueCategory(createdIssueCategories);
                         createDemoIssue(assignment, detail, orderDate, category, staffUsers);
@@ -573,24 +670,24 @@ public class DashboardDemoDataService {
                         issuesCreated++;
                     }
 
-                    // 10% chance of penalty for driver
-                    if (randomPercent(10)) {
+                    // Tăng xác suất phạt vi phạm giao thông để có nhiều penalty_history demo
+                    if (randomPercent(35)) {
                         createDemoPenalty(driver, assignment, orderDate);
                         penaltiesCreated++;
                     }
                 }
 
-                // Create Contract for order
+                // Tạo hợp đồng cho order
                 ContractEntity contract = createDemoContract(order, orderDate);
                 contractsCreated++;
 
-                // Create single transaction for PAID contracts (full payment)
+                // Giao dịch thanh toán cho hợp đồng đã PAID (full payment)
                 if ("PAID".equals(contract.getStatus())) {
                     createDemoTransaction(contract, orderDate.plusDays(1));
                     transactionsCreated++;
                 }
 
-                // 15% chance of refund only for PAID contracts
+                // 15% xác suất hoàn tiền cho các hợp đồng đã thanh toán
                 if ("PAID".equals(contract.getStatus()) && randomPercent(15)) {
                     createDemoRefund(contract, orderDate.plusDays(7));
                     refundsCreated++;
@@ -846,20 +943,20 @@ public class DashboardDemoDataService {
         return saved;
     }
 
-    private VehicleMaintenanceEntity createDemoMaintenance(VehicleEntity vehicle, LocalDateTime maintenanceDate) {
-        VehicleMaintenanceEntity maintenance = VehicleMaintenanceEntity.builder()
+    private VehicleServiceRecordEntity createDemoMaintenance(VehicleEntity vehicle, LocalDateTime maintenanceDate) {
+        VehicleServiceRecordEntity record = VehicleServiceRecordEntity.builder()
                 .vehicleEntity(vehicle)
                 .description("Demo maintenance - " + randomElement(new String[]{"Oil change", "Tire replacement", "Brake check"}))
-                .maintenanceDate(maintenanceDate)
-                .nextMaintenanceDate(maintenanceDate.plusMonths(randomInt(1, 3))) // Next maintenance in 1-3 months
-                .Status("COMPLETED")
-                .completedAt(maintenanceDate.plusHours(randomInt(2, 8)))
+                .serviceType(randomElement(new String[]{"Bảo dưỡng định kỳ", "Thay dầu máy", "Kiểm tra phanh", "Kiểm tra lốp xe"}))
+                .serviceStatus(capstone_project.common.enums.VehicleServiceStatusEnum.COMPLETED)
+                .plannedDate(maintenanceDate)
+                .actualDate(maintenanceDate)
                 .isDemoData(true)
                 .build();
         // IMPORTANT: Set isDemoData FIRST, then createdAt to prevent override
-        maintenance.setIsDemoData(true);
-        maintenance.setCreatedAt(maintenanceDate);
-        return vehicleMaintenanceEntityService.save(maintenance);
+        record.setIsDemoData(true);
+        record.setCreatedAt(maintenanceDate);
+        return vehicleServiceRecordEntityService.save(record);
     }
 
     private void createDemoPenalty(DriverEntity driver, VehicleAssignmentEntity assignment, LocalDateTime penaltyDate) {
@@ -868,6 +965,8 @@ public class DashboardDemoDataService {
                 .vehicleAssignmentEntity(assignment)
                 .violationType(randomElement(new String[]{"SPEEDING", "WRONG_PARKING", "OVERLOAD"}))
                 .penaltyDate(penaltyDate.toLocalDate())
+                // Fill traffic violation image URL for demo data so all fields are populated
+                .trafficViolationRecordImageUrl("https://demo-cdn.truckie.local/penalties/" + UUID.randomUUID())
                 .isDemoData(true)
                 .build();
         // IMPORTANT: Set isDemoData FIRST, then createdAt to prevent override
@@ -914,11 +1013,11 @@ public class DashboardDemoDataService {
     }
     
     private int deleteDemoMaintenances() {
-        List<VehicleMaintenanceEntity> demo = vehicleMaintenanceRepository.findAll()
+        List<VehicleServiceRecordEntity> demo = vehicleServiceRecordRepository.findAll()
                 .stream().filter(m -> Boolean.TRUE.equals(m.getIsDemoData()))
                 .collect(Collectors.toList());
-        vehicleMaintenanceRepository.deleteAll(demo);
-        log.info("Deleted {} demo maintenances", demo.size());
+        vehicleServiceRecordRepository.deleteAll(demo);
+        log.info("Deleted {} demo service records", demo.size());
         return demo.size();
     }
     
@@ -1028,7 +1127,14 @@ public class DashboardDemoDataService {
     private int deleteDemoOffRouteEvents() { return 0; }
     private int deleteDemoNotifications() { return 0; }
     private int deleteDemoFcmTokens() { return 0; }
-    private int deleteDemoDevices() { return 0; }
+    private int deleteDemoDevices() {
+        List<capstone_project.entity.device.DeviceEntity> demo = deviceRepository.findAll()
+                .stream().filter(d -> Boolean.TRUE.equals(d.getIsDemoData()))
+                .collect(Collectors.toList());
+        deviceRepository.deleteAll(demo);
+        log.info("Deleted {} demo devices", demo.size());
+        return demo.size();
+    }
     private int deleteDemoChatReadStatuses() { return 0; }
     private int deleteDemoChatMessages() { return 0; }
     private int deleteDemoChatConversations() { return 0; }
@@ -1108,5 +1214,21 @@ public class DashboardDemoDataService {
             case "TRUCK_20_TON" -> BigDecimal.valueOf(20000);
             default -> BigDecimal.valueOf(5000);
         };
+    }
+
+    /**
+     * Create a demo device type if it doesn't exist
+     */
+    private capstone_project.entity.device.DeviceTypeEntity createDemoDeviceType(String name, String description) {
+        capstone_project.entity.device.DeviceTypeEntity deviceType = capstone_project.entity.device.DeviceTypeEntity.builder()
+                .deviceTypeName(name)
+                .description(description)
+                .isActive(true)
+                .isDemoData(true)
+                .build();
+        deviceType.setIsDemoData(true);
+        deviceType.setCreatedAt(LocalDateTime.now());
+        
+        return deviceTypeEntityService.save(deviceType);
     }
 }

@@ -78,6 +78,13 @@ public interface IssueService {
      * @return List of ACTIVE seals
      */
     List<capstone_project.dtos.response.order.seal.GetSealResponse> getActiveSealsByVehicleAssignment(UUID vehicleAssignmentId);
+    
+    /**
+     * Get available ACTIVE seals by tracking code (fallback mechanism)
+     * @param trackingCode Vehicle assignment tracking code
+     * @return List of ACTIVE seals
+     */
+    List<capstone_project.dtos.response.order.seal.GetSealResponse> getActiveSealsByTrackingCode(String trackingCode);
 
     /**
      * Get pending seal replacement issues for a vehicle assignment (for driver to confirm)

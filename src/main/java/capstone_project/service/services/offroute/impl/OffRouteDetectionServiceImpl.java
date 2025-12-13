@@ -4,6 +4,7 @@ import capstone_project.common.enums.IssueCategoryEnum;
 import capstone_project.common.enums.IssueEnum;
 import capstone_project.common.enums.OffRouteWarningStatus;
 import capstone_project.dtos.response.offroute.OffRouteEventDetailResponse;
+import capstone_project.dtos.response.offroute.OffRouteEventListResponse;
 import capstone_project.dtos.response.offroute.OffRouteWarningPayload;
 import capstone_project.entity.issue.IssueEntity;
 import capstone_project.entity.issue.IssueTypeEntity;
@@ -45,6 +46,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import capstone_project.entity.user.driver.DriverEntity;
+import capstone_project.entity.auth.UserEntity;
 
 @Service
 @RequiredArgsConstructor
@@ -85,6 +90,94 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
 
     private static final String STAFF_OFF_ROUTE_TOPIC = "/topic/staff/off-route-warnings";
     private static final String STAFF_NEW_ISSUES_TOPIC = "/topic/staff/new-issues";
+
+    @Override
+    public List<OffRouteEventListResponse> getAllOffRouteEvents() {
+        List<OffRouteEventEntity> events = offRouteEventEntityService.findAll();
+        
+        // Sort by createdAt DESC (newest first)
+        events.sort((a, b) -> {
+            LocalDateTime aTime = a.getOffRouteStartTime();
+            LocalDateTime bTime = b.getOffRouteStartTime();
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            return bTime.compareTo(aTime);
+        });
+        
+        return events.stream()
+                .map(this::mapToListResponse)
+                .collect(Collectors.toList());
+    }
+    
+    private OffRouteEventListResponse mapToListResponse(OffRouteEventEntity event) {
+        VehicleAssignmentEntity va = event.getVehicleAssignment();
+        OrderEntity order = event.getOrder();
+        IssueEntity issue = event.getIssue();
+        
+        // Get driver info safely
+        String driverName = null;
+        String driverPhone = null;
+        if (va != null && va.getDriver1() != null) {
+            DriverEntity driver = va.getDriver1();
+            UserEntity driverUser = driver.getUser();
+            if (driverUser != null) {
+                driverName = driverUser.getFullName();
+                driverPhone = driverUser.getPhoneNumber();
+            }
+        }
+        
+        // Get vehicle plate number safely
+        String vehiclePlateNumber = null;
+        if (va != null && va.getVehicleEntity() != null) {
+            vehiclePlateNumber = va.getVehicleEntity().getLicensePlateNumber();
+        }
+        
+        // Get sender name safely
+        String senderName = null;
+        if (order != null && order.getSender() != null && order.getSender().getUser() != null) {
+            senderName = order.getSender().getUser().getFullName();
+        }
+        
+        return OffRouteEventListResponse.builder()
+                .id(event.getId())
+                .offRouteStartTime(event.getOffRouteStartTime())
+                .lastKnownLat(event.getLastKnownLat())
+                .lastKnownLng(event.getLastKnownLng())
+                .distanceFromRouteMeters(event.getDistanceFromRouteMeters())
+                .warningStatus(event.getWarningStatus())
+                .yellowWarningSentAt(event.getYellowWarningSentAt())
+                .redWarningSentAt(event.getRedWarningSentAt())
+                .canContactDriver(event.getCanContactDriver())
+                .contactedAt(event.getContactedAt())
+                .resolvedAt(event.getResolvedAt())
+                .resolvedReason(event.getResolvedReason())
+                .gracePeriodExpiresAt(event.getGracePeriodExpiresAt())
+                .gracePeriodExtensionCount(event.getGracePeriodExtensionCount())
+                .createdAt(event.getOffRouteStartTime())
+                .vehicleAssignment(va != null ? OffRouteEventListResponse.VehicleAssignmentInfo.builder()
+                        .id(va.getId())
+                        .trackingCode(va.getTrackingCode())
+                        .status(va.getStatus())
+                        .vehiclePlateNumber(vehiclePlateNumber)
+                        .driverName(driverName)
+                        .driverPhone(driverPhone)
+                        .build() : null)
+                .order(order != null ? OffRouteEventListResponse.OrderInfo.builder()
+                        .id(order.getId())
+                        .orderCode(order.getOrderCode())
+                        .status(order.getStatus())
+                        .senderName(senderName)
+                        .receiverName(order.getReceiverName())
+                        .build() : null)
+                .issue(issue != null ? OffRouteEventListResponse.IssueInfo.builder()
+                        .id(issue.getId())
+                        .issueTypeName(issue.getIssueTypeEntity() != null ? 
+                                issue.getIssueTypeEntity().getIssueTypeName() : null)
+                        .status(issue.getStatus())
+                        .build() : null)
+                .build();
+    }
 
     @Override
     @Transactional
@@ -150,8 +243,16 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
             offRouteEventEntityService.findActiveByVehicleAssignmentId(assignmentId);
         
         if (existingEventOpt.isPresent()) {
-            // Update existing event
+            // Update existing event only if still active
             OffRouteEventEntity event = existingEventOpt.get();
+            
+            // CRITICAL FIX: Check if event is still active before updating
+            // This prevents tracking after ISSUE_CREATED status
+            if (!event.isActive()) {
+                log.debug("[OffRoute] Skipping update for inactive event {} with status {}", 
+                    event.getId(), event.getWarningStatus());
+                return;
+            }
             
             // Store previous distance before updating
             event.setPreviousDistanceFromRouteMeters(event.getDistanceFromRouteMeters());
@@ -214,6 +315,14 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
      * - After confirm contact on RED: reset to YELLOW, then RED again after redWarningMinutes from last contact
      */
     private void checkWarningThresholds(OffRouteEventEntity event) {
+        // CRITICAL FIX: Check if event is still active before processing warnings
+        // This prevents sending warnings for ISSUE_CREATED or other inactive events
+        if (!event.isActive()) {
+            log.debug("[OffRoute] Skipping warning check for inactive event {} with status {}", 
+                event.getId(), event.getWarningStatus());
+            return;
+        }
+        
         long durationMinutes = event.getOffRouteDurationMinutes();
         OffRouteWarningStatus currentStatus = event.getWarningStatus();
 
@@ -419,10 +528,10 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
 
     private void createOffRouteRunawayIssue(OffRouteEventEntity event) {
         try {
-            // Find or create OFF_ROUTE_RUNAWAY issue type
-            IssueTypeEntity issueType = issueTypeEntityService.findByIssueTypeName("OFF_ROUTE_RUNAWAY");
+            // Find issue type by category OFF_ROUTE_RUNAWAY
+            IssueTypeEntity issueType = issueTypeEntityService.findByIssueCategory("OFF_ROUTE_RUNAWAY");
             if (issueType == null) {
-                throw new RuntimeException("OFF_ROUTE_RUNAWAY issue type not found");
+                throw new RuntimeException("Issue type with category OFF_ROUTE_RUNAWAY not found");
             }
             
             // Create issue for off-route runaway scenario
@@ -529,14 +638,10 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
         
         VehicleAssignmentEntity assignment = event.getVehicleAssignment();
         
-        // Find or create issue type for off-route
-        IssueTypeEntity issueType = issueTypeEntityService.findByIssueTypeName("OFF_ROUTE_RUNAWAY");
+        // Find issue type by category OFF_ROUTE_RUNAWAY
+        IssueTypeEntity issueType = issueTypeEntityService.findByIssueCategory("OFF_ROUTE_RUNAWAY");
         if (issueType == null) {
-            issueType = new IssueTypeEntity();
-            issueType.setIssueTypeName("OFF_ROUTE_RUNAWAY");
-            issueType.setDescription("Tài xế lệch khỏi tuyến đường đã lên kế hoạch");
-            issueType.setIssueCategory(IssueCategoryEnum.OFF_ROUTE_RUNAWAY.name());
-            issueType = issueTypeEntityService.save(issueType);
+            throw new RuntimeException("Issue type with category OFF_ROUTE_RUNAWAY not found");
         }
         
         // Build detailed Vietnamese description

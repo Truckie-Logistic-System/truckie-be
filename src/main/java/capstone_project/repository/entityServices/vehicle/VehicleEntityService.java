@@ -47,4 +47,14 @@ public interface VehicleEntityService extends BaseEntityService<VehicleEntity, U
      * @return number of vehicles that were actually updated
      */
     int updateLocationsInBatch(BatchUpdateLocationRequest batchRequest);
+    
+    /**
+     * Count vehicles by status
+     */
+    long countByStatus(String status);
+    
+    /**
+     * Count vehicles by vehicle type ID
+     */
+    long countByVehicleTypeId(UUID vehicleTypeId);
 }

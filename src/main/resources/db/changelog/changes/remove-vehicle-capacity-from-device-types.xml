@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="remove-vehicle-capacity-column-from-device-types" author="system">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="device_types" columnName="vehicle_capacity"/>
+        </preConditions>
+        
+        <dropColumn tableName="device_types" columnName="vehicle_capacity"/>
+        
+        <rollback>
+            <addColumn tableName="device_types">
+                <column name="vehicle_capacity" type="DECIMAL(11,8)"/>
+            </addColumn>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

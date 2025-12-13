@@ -23,4 +23,16 @@ public class DistanceRuleEntity extends BaseEntity {
 
     @Column(name = "to_km", precision = 11, scale = 2)
     private BigDecimal toKm;
+
+    @Column(name = "display_order", nullable = false)
+    private Integer displayOrder;
+
+    @Column(name = "display_name", length = 100)
+    private String displayName;
+
+    @Column(name = "is_base_price", nullable = false)
+    private Boolean isBasePrice;
+
+    @Column(name = "status", length = 20, nullable = false)
+    private String status;
 }

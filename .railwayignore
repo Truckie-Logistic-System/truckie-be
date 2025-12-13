@@ -1,0 +1,40 @@
+# Build artifacts
+build/
+target/
+bin/
+.gradle/
+gradle/
+out/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+
+# Logs
+*.log
+error.log
+
+# Database
+*.sql
+db-backups/
+
+# Development
+development/
+.azure/
+
+# Documentation (optional - comment out if you want to keep them)
+*.md
+docs/
+
+# Test files
+test/
+*Test.java
+*Tests.java
+
+# Local configs
+application-test.properties
+application-ref.properties
+application-migrate.properties
+*.bat

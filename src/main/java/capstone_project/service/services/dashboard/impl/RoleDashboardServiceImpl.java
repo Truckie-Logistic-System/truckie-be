@@ -11,7 +11,7 @@ import capstone_project.entity.order.transaction.TransactionEntity;
 import capstone_project.entity.user.driver.PenaltyHistoryEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
-import capstone_project.entity.vehicle.VehicleMaintenanceEntity;
+import capstone_project.entity.vehicle.VehicleServiceRecordEntity;
 import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
@@ -22,7 +22,7 @@ import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
-import capstone_project.repository.entityServices.vehicle.VehicleMaintenanceEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleServiceRecordEntityService;
 import capstone_project.repository.entityServices.refund.RefundEntityService;
 import capstone_project.repository.repositories.issue.IssueRepository;
 import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
@@ -35,6 +35,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -52,7 +53,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
     private final IssueEntityService issueEntityService;
     private final VehicleEntityService vehicleEntityService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
-    private final VehicleMaintenanceEntityService vehicleMaintenanceEntityService;
+    private final VehicleServiceRecordEntityService vehicleServiceRecordEntityService;
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
     private final CustomerEntityService customerEntityService;
     private final DriverEntityService driverEntityService;
@@ -60,6 +61,8 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
     private final GeminiService geminiService;
     private final IssueRepository issueRepository;
     private final PenaltyHistoryRepository penaltyHistoryRepository;
+    private final capstone_project.repository.repositories.auth.UserRepository userRepository;
+    private final capstone_project.repository.entityServices.device.DeviceEntityService deviceEntityService;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter DEADLINE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
@@ -68,6 +71,9 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
     public AdminDashboardResponse getAdminDashboard(DashboardFilterRequest filter) {
         LocalDateTime startDate = filter.getStartDate();
         LocalDateTime endDate = filter.getEndDate();
+
+        log.info("[AdminDashboard] range={}, startDate={}, endDate={}",
+                filter.getRange(), startDate, endDate);
         
         log.info("[Admin Dashboard] Getting data from {} to {}", startDate, endDate);
 
@@ -112,7 +118,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         List<VehicleEntity> allVehicles = vehicleEntityService.findAll();
         
         // Get maintenances
-        List<VehicleMaintenanceEntity> allMaintenances = vehicleMaintenanceEntityService.findAll();
+        List<VehicleServiceRecordEntity> allMaintenances = vehicleServiceRecordEntityService.findAll();
 
         // Calculate KPIs
         AdminDashboardResponse.KpiSummary kpiSummary = buildAdminKpiSummary(
@@ -124,10 +130,10 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                 .collect(Collectors.groupingBy(OrderDetailEntity::getStatus, Collectors.counting()));
         
         // Build order trend
-        List<AdminDashboardResponse.TrendDataPoint> orderTrend = buildOrderTrend(filteredOrders, startDate, endDate);
+        List<AdminDashboardResponse.TrendDataPoint> orderTrend = buildOrderTrend(filteredOrders, filter);
         
         // Build revenue trend
-        List<AdminDashboardResponse.TrendDataPoint> revenueTrend = buildRevenueTrend(filteredTransactions, startDate, endDate);
+        List<AdminDashboardResponse.TrendDataPoint> revenueTrend = buildRevenueTrend(filteredTransactions, filter);
         
         // Delivery performance
         AdminDashboardResponse.DeliveryPerformance deliveryPerformance = buildDeliveryPerformance(allOrderDetails);
@@ -141,10 +147,32 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         // Top drivers
         List<AdminDashboardResponse.TopPerformer> topDrivers = buildTopDrivers();
         
-        // Fleet health
+        // Fleet health - fix inUseVehicles to use IN_TRANSIT status
         AdminDashboardResponse.FleetHealthSummary fleetHealth = buildFleetHealth(allVehicles, allMaintenances);
         
+        // Top staff
+        List<AdminDashboardResponse.TopPerformer> topStaff = buildTopStaff(filteredIssues);
+        
+        // Registration data (customer, staff, driver time series)
+        AdminDashboardResponse.RegistrationData registrationData = buildRegistrationData(startDate, endDate, filter);
+        
+        // Device statistics
+        AdminDashboardResponse.DeviceStatistics deviceStatistics = buildDeviceStatistics();
+        
+        // Fuel consumption statistics
+        AdminDashboardResponse.FuelConsumptionStatistics fuelConsumptionStatistics = buildFuelConsumptionStatistics(startDate, endDate, filter);
+        
+        // Penalties statistics
+        AdminDashboardResponse.PenaltiesStatistics penaltiesStatistics = buildPenaltiesStatistics(startDate, endDate, filter);
+        
+        // Vehicle inspection alerts (vehicles due for inspection/maintenance)
+        List<AdminDashboardResponse.VehicleInspectionAlert> vehicleInspectionAlerts = buildVehicleInspectionAlerts(allVehicles, allMaintenances);
+        
+        // AI Summary is now fetched separately via /admin/ai-summary endpoint
+        // to avoid blocking the dashboard data response
+        
         return AdminDashboardResponse.builder()
+                .aiSummary(null) // AI summary loaded separately
                 .kpiSummary(kpiSummary)
                 .orderTrend(orderTrend)
                 .revenueTrend(revenueTrend)
@@ -152,8 +180,14 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                 .issueRefundSummary(issueRefundSummary)
                 .topCustomers(topCustomers)
                 .topDrivers(topDrivers)
+                .topStaff(topStaff)
                 .fleetHealth(fleetHealth)
+                .deviceStatistics(deviceStatistics)
+                .fuelConsumptionStatistics(fuelConsumptionStatistics)
+                .penaltiesStatistics(penaltiesStatistics)
+                .vehicleInspectionAlerts(vehicleInspectionAlerts)
                 .orderStatusDistribution(orderStatusDistribution)
+                .registrationData(registrationData)
                 .build();
     }
 
@@ -194,7 +228,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         List<VehicleEntity> allVehicles = vehicleEntityService.findAll();
         
         // Get maintenances
-        List<VehicleMaintenanceEntity> allMaintenances = vehicleMaintenanceEntityService.findAll();
+        List<VehicleServiceRecordEntity> allMaintenances = vehicleServiceRecordEntityService.findAll();
 
         // Get transactions for filtering
         List<TransactionEntity> allTransactions = transactionEntityService.findAll();
@@ -298,7 +332,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         List<VehicleEntity> allVehicles = vehicleEntityService.findAll();
         
         // Get maintenances (no date filter - for alerts)
-        List<VehicleMaintenanceEntity> allMaintenances = vehicleMaintenanceEntityService.findAll();
+        List<VehicleServiceRecordEntity> allMaintenances = vehicleServiceRecordEntityService.findAll();
 
         // === BUILD RESPONSE DATA ===
         
@@ -446,7 +480,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         List<VehicleEntity> allVehicles = vehicleEntityService.findAll();
         
         // Get maintenances
-        List<VehicleMaintenanceEntity> allMaintenances = vehicleMaintenanceEntityService.findAll();
+        List<VehicleServiceRecordEntity> allMaintenances = vehicleServiceRecordEntityService.findAll();
         
         // Build summary data (reuse existing helper methods)
         StaffDashboardResponse.OperationalSummary operationalSummary = buildOperationalSummary(filteredAssignments);
@@ -843,39 +877,54 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                 .build();
     }
 
-    private List<AdminDashboardResponse.TrendDataPoint> buildOrderTrend(List<OrderEntity> orders, LocalDateTime start, LocalDateTime end) {
+    private List<AdminDashboardResponse.TrendDataPoint> buildOrderTrend(
+            List<OrderEntity> orders, DashboardFilterRequest filter) {
+
+        // Generate full label set for selected range
+        List<String> allDateLabels = generateAllDateLabels(filter);
+
+        // Group orders by normalized date key
         Map<String, Long> ordersByDate = orders.stream()
                 .filter(o -> o.getCreatedAt() != null)
                 .collect(Collectors.groupingBy(
-                        o -> o.getCreatedAt().format(DATE_FORMATTER),
+                        o -> getDateKey(o.getCreatedAt(), filter),
                         Collectors.counting()));
-        
-        return ordersByDate.entrySet().stream()
-                .map(e -> AdminDashboardResponse.TrendDataPoint.builder()
-                        .label(e.getKey())
-                        .count(e.getValue())
+
+        // Build trend with all dates in range (count 0 if no orders)
+        return allDateLabels.stream()
+                .map(label -> AdminDashboardResponse.TrendDataPoint.builder()
+                        .label(label)
+                        .count(ordersByDate.getOrDefault(label, 0L))
                         .amount(BigDecimal.ZERO)
                         .build())
-                .sorted(Comparator.comparing(AdminDashboardResponse.TrendDataPoint::getLabel))
                 .collect(Collectors.toList());
     }
+    
+    private List<AdminDashboardResponse.TrendDataPoint> buildRevenueTrend(
+            List<TransactionEntity> transactions, DashboardFilterRequest filter) {
 
-    private List<AdminDashboardResponse.TrendDataPoint> buildRevenueTrend(List<TransactionEntity> transactions, LocalDateTime start, LocalDateTime end) {
+        // Generate full label set for selected range
+        List<String> allDateLabels = generateAllDateLabels(filter);
+
+        // Group revenue by normalized date key
         Map<String, BigDecimal> revenueByDate = transactions.stream()
                 .filter(t -> t.getPaymentDate() != null && "PAID".equals(t.getStatus()))
                 .collect(Collectors.groupingBy(
-                        t -> t.getPaymentDate().format(DATE_FORMATTER),
-                        Collectors.reducing(BigDecimal.ZERO, 
-                                t -> t.getAmount() != null ? t.getAmount() : BigDecimal.ZERO, 
-                                BigDecimal::add)));
-        
-        return revenueByDate.entrySet().stream()
-                .map(e -> AdminDashboardResponse.TrendDataPoint.builder()
-                        .label(e.getKey())
+                        t -> getDateKey(t.getPaymentDate(), filter),
+                        Collectors.reducing(
+                                BigDecimal.ZERO,
+                                t -> t.getAmount() != null ? t.getAmount() : BigDecimal.ZERO,
+                                BigDecimal::add
+                        )
+                ));
+
+        // Build trend with all dates in range (0 amount if no revenue)
+        return allDateLabels.stream()
+                .map(label -> AdminDashboardResponse.TrendDataPoint.builder()
+                        .label(label)
                         .count(0)
-                        .amount(e.getValue())
+                        .amount(revenueByDate.getOrDefault(label, BigDecimal.ZERO))
                         .build())
-                .sorted(Comparator.comparing(AdminDashboardResponse.TrendDataPoint::getLabel))
                 .collect(Collectors.toList());
     }
 
@@ -972,21 +1021,22 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         }
     }
 
-    private AdminDashboardResponse.FleetHealthSummary buildFleetHealth(List<VehicleEntity> vehicles, List<VehicleMaintenanceEntity> maintenances) {
+    private AdminDashboardResponse.FleetHealthSummary buildFleetHealth(List<VehicleEntity> vehicles, List<VehicleServiceRecordEntity> maintenances) {
         long activeVehicles = vehicles.stream().filter(v -> "ACTIVE".equals(v.getStatus())).count();
+        long inTransitVehicles = vehicles.stream().filter(v -> "IN_TRANSIT".equals(v.getStatus())).count();
         long inMaintenance = vehicles.stream().filter(v -> "MAINTENANCE".equals(v.getStatus())).count();
         
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime nextWeek = now.plusWeeks(1);
         
         List<AdminDashboardResponse.MaintenanceAlert> alerts = maintenances.stream()
-                .filter(m -> m.getNextMaintenanceDate() != null && m.getNextMaintenanceDate().isBefore(nextWeek))
+                .filter(m -> m.getPlannedDate() != null && m.getPlannedDate().toLocalDate().isBefore(nextWeek.toLocalDate()))
                 .map(m -> AdminDashboardResponse.MaintenanceAlert.builder()
                         .vehicleId(m.getVehicleEntity() != null ? m.getVehicleEntity().getId().toString() : "")
                         .licensePlate(m.getVehicleEntity() != null ? m.getVehicleEntity().getLicensePlateNumber() : "")
-                        .maintenanceType(m.getMaintenanceTypeEntity() != null ? m.getMaintenanceTypeEntity().getMaintenanceTypeName() : "")
-                        .dueDate(m.getNextMaintenanceDate().format(DATE_FORMATTER))
-                        .isOverdue(m.getNextMaintenanceDate().isBefore(now))
+                        .maintenanceType(m.getServiceType() != null ? m.getServiceType() : "")
+                        .dueDate(m.getPlannedDate().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE))
+                        .isOverdue(m.getPlannedDate().toLocalDate().isBefore(now.toLocalDate()))
                         .build())
                 .limit(5)
                 .collect(Collectors.toList());
@@ -994,12 +1044,224 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         return AdminDashboardResponse.FleetHealthSummary.builder()
                 .totalVehicles((long) vehicles.size())
                 .activeVehicles(activeVehicles)
+                .inUseVehicles(inTransitVehicles)
                 .inMaintenanceVehicles(inMaintenance)
                 .pendingMaintenanceVehicles((long) alerts.size())
                 .overdueMaintenanceVehicles(alerts.stream().filter(AdminDashboardResponse.MaintenanceAlert::isOverdue).count())
                 .averageFuelConsumption(BigDecimal.ZERO)
                 .upcomingMaintenances(alerts)
                 .build();
+    }
+
+    private AdminDashboardResponse.DeviceStatistics buildDeviceStatistics() {
+        try {
+            var allDevices = deviceEntityService.findAll();
+            long totalDevices = allDevices.size();
+            long activeDevices = allDevices.stream()
+                    .filter(d -> "ACTIVE".equals(d.getStatus()))
+                    .count();
+            long inactiveDevices = allDevices.stream()
+                    .filter(d -> "INACTIVE".equals(d.getStatus()))
+                    .count();
+            long assignedDevices = allDevices.stream()
+                    .filter(d -> d.getVehicleEntity() != null)
+                    .count();
+            
+            return AdminDashboardResponse.DeviceStatistics.builder()
+                    .totalDevices(totalDevices)
+                    .activeDevices(activeDevices)
+                    .inactiveDevices(inactiveDevices)
+                    .assignedDevices(assignedDevices)
+                    .deltaPercent(0.0)
+                    .build();
+        } catch (Exception e) {
+            log.warn("Failed to build device statistics: {}", e.getMessage());
+            return AdminDashboardResponse.DeviceStatistics.builder()
+                    .totalDevices(0)
+                    .activeDevices(0)
+                    .inactiveDevices(0)
+                    .assignedDevices(0)
+                    .deltaPercent(0.0)
+                    .build();
+        }
+    }
+
+    private AdminDashboardResponse.FuelConsumptionStatistics buildFuelConsumptionStatistics(
+            LocalDateTime startDate, LocalDateTime endDate, DashboardFilterRequest filter) {
+        try {
+            var allFuelConsumptions = vehicleFuelConsumptionEntityService.findAll();
+            var filteredFuelConsumptions = allFuelConsumptions.stream()
+                    .filter(fc -> fc.getDateRecorded() != null &&
+                            !fc.getDateRecorded().isBefore(startDate) &&
+                            !fc.getDateRecorded().isAfter(endDate))
+                    .collect(Collectors.toList());
+            
+            BigDecimal totalFuelConsumed = filteredFuelConsumptions.stream()
+                    .map(fc -> fc.getFuelVolume() != null ? fc.getFuelVolume() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            BigDecimal averageFuelConsumption = filteredFuelConsumptions.isEmpty() 
+                    ? BigDecimal.ZERO 
+                    : totalFuelConsumed.divide(BigDecimal.valueOf(filteredFuelConsumptions.size()), 2, RoundingMode.HALF_UP);
+            
+            // Build trend data
+            List<AdminDashboardResponse.TrendDataPoint> fuelTrend = buildFuelConsumptionTrend(filteredFuelConsumptions, filter);
+            
+            return AdminDashboardResponse.FuelConsumptionStatistics.builder()
+                    .totalFuelConsumed(totalFuelConsumed)
+                    .averageFuelConsumption(averageFuelConsumption)
+                    .deltaPercent(0.0)
+                    .fuelConsumptionTrend(fuelTrend)
+                    .build();
+        } catch (Exception e) {
+            log.warn("Failed to build fuel consumption statistics: {}", e.getMessage());
+            return AdminDashboardResponse.FuelConsumptionStatistics.builder()
+                    .totalFuelConsumed(BigDecimal.ZERO)
+                    .averageFuelConsumption(BigDecimal.ZERO)
+                    .deltaPercent(0.0)
+                    .fuelConsumptionTrend(new ArrayList<>())
+                    .build();
+        }
+    }
+
+    private List<AdminDashboardResponse.TrendDataPoint> buildFuelConsumptionTrend(
+            List<capstone_project.entity.order.order.VehicleFuelConsumptionEntity> fuelConsumptions,
+            DashboardFilterRequest filter) {
+        Map<String, BigDecimal> groupedData = new LinkedHashMap<>();
+        
+        for (var fc : fuelConsumptions) {
+            if (fc.getDateRecorded() == null) continue;
+            String label = formatDateLabel(fc.getDateRecorded(), filter);
+            BigDecimal fuelVolume = fc.getFuelVolume() != null ? fc.getFuelVolume() : BigDecimal.ZERO;
+            groupedData.merge(label, fuelVolume, BigDecimal::add);
+        }
+        
+        return groupedData.entrySet().stream()
+                .map(entry -> AdminDashboardResponse.TrendDataPoint.builder()
+                        .label(entry.getKey())
+                        .count(0)
+                        .amount(entry.getValue())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private AdminDashboardResponse.PenaltiesStatistics buildPenaltiesStatistics(
+            LocalDateTime startDate, LocalDateTime endDate, DashboardFilterRequest filter) {
+        try {
+            var allPenalties = penaltyHistoryRepository.findAll();
+            var filteredPenalties = allPenalties.stream()
+                    .filter(p -> p.getPenaltyDate() != null &&
+                            !p.getPenaltyDate().isBefore(startDate.toLocalDate()) &&
+                            !p.getPenaltyDate().isAfter(endDate.toLocalDate()))
+                    .collect(Collectors.toList());
+            
+            long totalPenalties = filteredPenalties.size();
+            // PenaltyHistoryEntity doesn't have status field, count all as unresolved for now
+            long unresolvedPenalties = filteredPenalties.size();
+            
+            // Build trend data
+            List<AdminDashboardResponse.TrendDataPoint> penaltiesTrend = buildPenaltiesTrend(filteredPenalties, filter);
+            
+            return AdminDashboardResponse.PenaltiesStatistics.builder()
+                    .totalPenalties(totalPenalties)
+                    .unresolvedPenalties(unresolvedPenalties)
+                    .deltaPercent(0.0)
+                    .penaltiesTrend(penaltiesTrend)
+                    .build();
+        } catch (Exception e) {
+            log.warn("Failed to build penalties statistics: {}", e.getMessage());
+            return AdminDashboardResponse.PenaltiesStatistics.builder()
+                    .totalPenalties(0)
+                    .unresolvedPenalties(0)
+                    .deltaPercent(0.0)
+                    .penaltiesTrend(new ArrayList<>())
+                    .build();
+        }
+    }
+
+    private List<AdminDashboardResponse.TrendDataPoint> buildPenaltiesTrend(
+            List<PenaltyHistoryEntity> penalties, DashboardFilterRequest filter) {
+        Map<String, Long> groupedData = new LinkedHashMap<>();
+        
+        for (var p : penalties) {
+            if (p.getPenaltyDate() == null) continue;
+            LocalDateTime dateTime = p.getPenaltyDate().atStartOfDay();
+            String label = formatDateLabel(dateTime, filter);
+            groupedData.merge(label, 1L, Long::sum);
+        }
+        
+        return groupedData.entrySet().stream()
+                .map(entry -> AdminDashboardResponse.TrendDataPoint.builder()
+                        .label(entry.getKey())
+                        .count(entry.getValue())
+                        .amount(BigDecimal.ZERO)
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private List<AdminDashboardResponse.VehicleInspectionAlert> buildVehicleInspectionAlerts(
+            List<VehicleEntity> vehicles, List<VehicleServiceRecordEntity> maintenances) {
+        List<AdminDashboardResponse.VehicleInspectionAlert> alerts = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime threeMonthsFromNow = now.plusMonths(3);
+        
+        LocalDate today = now.toLocalDate();
+        LocalDate threeMonthsFromNowDate = threeMonthsFromNow.toLocalDate();
+        
+        for (VehicleEntity vehicle : vehicles) {
+            // Check inspection expiry date (LocalDate)
+            if (vehicle.getInspectionExpiryDate() != null) {
+                LocalDate inspectionExpiry = vehicle.getInspectionExpiryDate();
+                if (inspectionExpiry.isBefore(threeMonthsFromNowDate)) {
+                    int daysUntilDue = (int) java.time.temporal.ChronoUnit.DAYS.between(today, inspectionExpiry);
+                    alerts.add(AdminDashboardResponse.VehicleInspectionAlert.builder()
+                            .vehicleId(vehicle.getId().toString())
+                            .licensePlate(vehicle.getLicensePlateNumber())
+                            .alertType("INSPECTION")
+                            .dueDate(inspectionExpiry.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE))
+                            .daysUntilDue(daysUntilDue)
+                            .isOverdue(inspectionExpiry.isBefore(today))
+                            .description("Đăng kiểm xe")
+                            .build());
+                }
+            }
+            
+            // Check next maintenance date (LocalDate)
+            if (vehicle.getNextMaintenanceDate() != null) {
+                LocalDate nextMaintenance = vehicle.getNextMaintenanceDate();
+                if (nextMaintenance.isBefore(threeMonthsFromNowDate)) {
+                    int daysUntilDue = (int) java.time.temporal.ChronoUnit.DAYS.between(today, nextMaintenance);
+                    alerts.add(AdminDashboardResponse.VehicleInspectionAlert.builder()
+                            .vehicleId(vehicle.getId().toString())
+                            .licensePlate(vehicle.getLicensePlateNumber())
+                            .alertType("MAINTENANCE")
+                            .dueDate(nextMaintenance.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE))
+                            .daysUntilDue(daysUntilDue)
+                            .isOverdue(nextMaintenance.isBefore(today))
+                            .description("Bảo dưỡng định kỳ")
+                            .build());
+                }
+            }
+        }
+        
+        // Sort by days until due (overdue first, then closest to due)
+        alerts.sort(Comparator.comparingInt(AdminDashboardResponse.VehicleInspectionAlert::getDaysUntilDue));
+        
+        return alerts.stream().limit(10).collect(Collectors.toList());
+    }
+
+    private String formatDateLabel(LocalDateTime dateTime, DashboardFilterRequest filter) {
+        if (filter.getRange() == null) {
+            return dateTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        }
+        
+        String rangeStr = filter.getRange().name();
+        return switch (rangeStr) {
+            case "WEEK" -> dateTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            case "MONTH" -> "Tuần " + ((dateTime.getDayOfMonth() - 1) / 7 + 1);
+            case "YEAR" -> dateTime.format(java.time.format.DateTimeFormatter.ofPattern("MM/yyyy"));
+            default -> dateTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        };
     }
 
     private String generateAdminAiSummary(
@@ -1227,7 +1489,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                 .build();
     }
 
-    private StaffDashboardResponse.FleetStatus buildFleetStatus(List<VehicleEntity> vehicles, List<VehicleMaintenanceEntity> maintenances) {
+    private StaffDashboardResponse.FleetStatus buildFleetStatus(List<VehicleEntity> vehicles, List<VehicleServiceRecordEntity> maintenances) {
         long available = vehicles.stream().filter(v -> "ACTIVE".equals(v.getStatus())).count();
         long inUse = vehicles.stream().filter(v -> "IN_TRANSIT".equals(v.getStatus())).count();
         long inMaintenance = vehicles.stream().filter(v -> "MAINTENANCE".equals(v.getStatus())).count();
@@ -1236,23 +1498,23 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         // Get all maintenance alerts within next 30 days or overdue
         // Sort: overdue first, then by scheduledDate ascending (nearest first)
         List<StaffDashboardResponse.MaintenanceAlert> alerts = maintenances.stream()
-                .filter(m -> m.getNextMaintenanceDate() != null && m.getNextMaintenanceDate().isBefore(now.plusDays(30)))
+                .filter(m -> m.getPlannedDate() != null && m.getPlannedDate().toLocalDate().isBefore(now.toLocalDate().plusDays(30)))
                 .sorted((a, b) -> {
-                    boolean aOverdue = a.getNextMaintenanceDate().isBefore(now);
-                    boolean bOverdue = b.getNextMaintenanceDate().isBefore(now);
+                    boolean aOverdue = a.getPlannedDate().toLocalDate().isBefore(now.toLocalDate());
+                    boolean bOverdue = b.getPlannedDate().toLocalDate().isBefore(now.toLocalDate());
                     // Overdue items first
                     if (aOverdue && !bOverdue) return -1;
                     if (!aOverdue && bOverdue) return 1;
                     // Then sort by date ascending (nearest first)
-                    return a.getNextMaintenanceDate().compareTo(b.getNextMaintenanceDate());
+                    return a.getPlannedDate().compareTo(b.getPlannedDate());
                 })
                 .map(m -> StaffDashboardResponse.MaintenanceAlert.builder()
                         .vehicleId(m.getVehicleEntity() != null ? m.getVehicleEntity().getId().toString() : "")
                         .licensePlate(m.getVehicleEntity() != null ? m.getVehicleEntity().getLicensePlateNumber() : "")
-                        .maintenanceType(m.getMaintenanceTypeEntity() != null ? m.getMaintenanceTypeEntity().getMaintenanceTypeName() : "")
-                        .scheduledDate(m.getNextMaintenanceDate().format(DATE_FORMATTER))
-                        .status(m.getStatus())
-                        .isOverdue(m.getNextMaintenanceDate().isBefore(now))
+                        .maintenanceType(m.getServiceType() != null ? m.getServiceType() : "")
+                        .scheduledDate(m.getPlannedDate().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE))
+                        .status(m.getServiceStatus() != null ? m.getServiceStatus().name() : "")
+                        .isOverdue(m.getPlannedDate().toLocalDate().isBefore(now.toLocalDate()))
                         .build())
                 .collect(Collectors.toList());
 
@@ -1414,90 +1676,85 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         
         DashboardFilterRequest.TimeRange range = filter.getRange();
         
+        // Generate all date labels for the time range
+        List<String> allDateLabels = generateAllDateLabels(filter);
+        
+        // Group assignments by date key
         Map<String, List<VehicleAssignmentEntity>> assignmentsByDate = assignments.stream()
                 .filter(a -> a.getCreatedAt() != null)
-                .collect(Collectors.groupingBy(a -> {
-                    LocalDateTime date = a.getCreatedAt();
-                    return switch (range) {
-                                                case WEEK, MONTH -> date.format(DATE_FORMATTER);
-                        case YEAR, CUSTOM -> String.format("%02d/%d", date.getMonthValue(), date.getYear());
-                    };
-                }));
+                .collect(Collectors.groupingBy(a -> getDateKey(a.getCreatedAt(), filter)));
         
-        return assignmentsByDate.entrySet().stream()
-                .map(e -> {
-                    List<VehicleAssignmentEntity> list = e.getValue();
+        // Build trend data with all date points (including empty ones)
+        return allDateLabels.stream()
+                .map(dateLabel -> {
+                    List<VehicleAssignmentEntity> list = assignmentsByDate.getOrDefault(dateLabel, Collections.emptyList());
                     long completed = list.stream().filter(a -> "COMPLETED".equals(a.getStatus())).count();
                     long active = list.stream().filter(a -> "ACTIVE".equals(a.getStatus()) || "IN_PROGRESS".equals(a.getStatus())).count();
                     
                     return StaffDashboardResponse.TripCompletionTrend.builder()
-                            .date(e.getKey())
+                            .date(dateLabel)
                             .completedTrips(completed)
                             .activeTrips(active)
                             .totalTrips((long) list.size())
                             .build();
                 })
-                .sorted(Comparator.comparing(StaffDashboardResponse.TripCompletionTrend::getDate))
                 .collect(Collectors.toList());
     }
 
     private List<StaffDashboardResponse.IssueTypeTrend> buildIssueTypeTrend(
             List<IssueEntity> issues, DashboardFilterRequest filter) {
         
-        DashboardFilterRequest.TimeRange range = filter.getRange();
+        // Generate all date labels for the time range
+        List<String> allDateLabels = generateAllDateLabels(filter);
+        
+        // Get all unique issue types
+        Set<String> allIssueTypes = issues.stream()
+                .filter(i -> i.getIssueTypeEntity() != null)
+                .map(i -> i.getIssueTypeEntity().getIssueTypeName())
+                .collect(Collectors.toSet());
         
         // Group by date and issue type
         Map<String, Map<String, Long>> issuesByDateAndType = issues.stream()
                 .filter(i -> i.getReportedAt() != null && i.getIssueTypeEntity() != null)
                 .collect(Collectors.groupingBy(
-                        i -> {
-                            LocalDateTime date = i.getReportedAt();
-                            return switch (range) {
-                                                                case WEEK, MONTH -> date.format(DATE_FORMATTER);
-                                case YEAR, CUSTOM -> String.format("%02d/%d", date.getMonthValue(), date.getYear());
-                            };
-                        },
+                        i -> getDateKey(i.getReportedAt(), filter),
                         Collectors.groupingBy(
                                 i -> i.getIssueTypeEntity().getIssueTypeName(),
                                 Collectors.counting()
                         )
                 ));
         
+        // Build trend data with all date points (including empty ones)
         List<StaffDashboardResponse.IssueTypeTrend> result = new ArrayList<>();
-        for (Map.Entry<String, Map<String, Long>> dateEntry : issuesByDateAndType.entrySet()) {
-            String date = dateEntry.getKey();
-            for (Map.Entry<String, Long> typeEntry : dateEntry.getValue().entrySet()) {
+        for (String dateLabel : allDateLabels) {
+            Map<String, Long> typeCountsForDate = issuesByDateAndType.getOrDefault(dateLabel, Collections.emptyMap());
+            for (String issueType : allIssueTypes) {
                 result.add(StaffDashboardResponse.IssueTypeTrend.builder()
-                        .date(date)
-                        .issueType(typeEntry.getKey())
-                        .count(typeEntry.getValue())
+                        .date(dateLabel)
+                        .issueType(issueType)
+                        .count(typeCountsForDate.getOrDefault(issueType, 0L))
                         .build());
             }
         }
         
-        return result.stream()
-                .sorted(Comparator.comparing(StaffDashboardResponse.IssueTypeTrend::getDate))
-                .collect(Collectors.toList());
+        return result;
     }
 
     private List<StaffDashboardResponse.ContractTrend> buildStaffContractTrend(
             List<ContractEntity> contracts, DashboardFilterRequest filter) {
         
-        DashboardFilterRequest.TimeRange range = filter.getRange();
+        // Generate all date labels for the time range
+        List<String> allDateLabels = generateAllDateLabels(filter);
         
+        // Group contracts by date key
         Map<String, List<ContractEntity>> contractsByDate = contracts.stream()
                 .filter(c -> c.getCreatedAt() != null)
-                .collect(Collectors.groupingBy(c -> {
-                    LocalDateTime date = c.getCreatedAt();
-                    return switch (range) {
-                                                case WEEK, MONTH -> date.format(DATE_FORMATTER);
-                        case YEAR, CUSTOM -> String.format("%02d/%d", date.getMonthValue(), date.getYear());
-                    };
-                }));
+                .collect(Collectors.groupingBy(c -> getDateKey(c.getCreatedAt(), filter)));
         
-        return contractsByDate.entrySet().stream()
-                .map(e -> {
-                    List<ContractEntity> list = e.getValue();
+        // Build trend data with all date points (including empty ones)
+        return allDateLabels.stream()
+                .map(dateLabel -> {
+                    List<ContractEntity> list = contractsByDate.getOrDefault(dateLabel, Collections.emptyList());
                     long paid = list.stream().filter(c -> "PAID".equals(c.getStatus())).count();
                     long cancelled = list.stream().filter(c -> "CANCELLED".equals(c.getStatus())).count();
                     BigDecimal totalValue = list.stream()
@@ -1505,95 +1762,83 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
                     
                     return StaffDashboardResponse.ContractTrend.builder()
-                            .date(e.getKey())
+                            .date(dateLabel)
                             .createdCount((long) list.size())
                             .paidCount(paid)
                             .cancelledCount(cancelled)
                             .totalValue(totalValue)
                             .build();
                 })
-                .sorted(Comparator.comparing(StaffDashboardResponse.ContractTrend::getDate))
                 .collect(Collectors.toList());
     }
 
     private List<StaffDashboardResponse.TransactionTrend> buildStaffTransactionTrend(
             List<TransactionEntity> transactions, DashboardFilterRequest filter) {
         
-        DashboardFilterRequest.TimeRange range = filter.getRange();
+        // Generate all date labels for the time range
+        List<String> allDateLabels = generateAllDateLabels(filter);
         
+        // Group transactions by date key
         Map<String, List<TransactionEntity>> transactionsByDate = transactions.stream()
                 .filter(t -> t.getPaymentDate() != null && "PAID".equals(t.getStatus()))
-                .collect(Collectors.groupingBy(t -> {
-                    LocalDateTime date = t.getPaymentDate();
-                    return switch (range) {
-                                                case WEEK, MONTH -> date.format(DATE_FORMATTER);
-                        case YEAR, CUSTOM -> String.format("%02d/%d", date.getMonthValue(), date.getYear());
-                    };
-                }));
+                .collect(Collectors.groupingBy(t -> getDateKey(t.getPaymentDate(), filter)));
         
-        return transactionsByDate.entrySet().stream()
-                .map(e -> {
-                    BigDecimal totalAmount = e.getValue().stream()
+        // Build trend data with all date points (including empty ones)
+        return allDateLabels.stream()
+                .map(dateLabel -> {
+                    List<TransactionEntity> list = transactionsByDate.getOrDefault(dateLabel, Collections.emptyList());
+                    BigDecimal totalAmount = list.stream()
                             .map(t -> t.getAmount() != null ? t.getAmount() : BigDecimal.ZERO)
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
                     
                     return StaffDashboardResponse.TransactionTrend.builder()
-                            .date(e.getKey())
+                            .date(dateLabel)
                             .paidAmount(totalAmount)
-                            .paidCount((long) e.getValue().size())
+                            .paidCount((long) list.size())
                             .build();
                 })
-                .sorted(Comparator.comparing(StaffDashboardResponse.TransactionTrend::getDate))
                 .collect(Collectors.toList());
     }
 
     private List<StaffDashboardResponse.RefundTrend> buildRefundTrend(
             List<RefundEntity> refunds, DashboardFilterRequest filter) {
         
-        DashboardFilterRequest.TimeRange range = filter.getRange();
+        // Generate all date labels for the time range
+        List<String> allDateLabels = generateAllDateLabels(filter);
         
+        // Group refunds by date key
         Map<String, List<RefundEntity>> refundsByDate = refunds.stream()
                 .filter(r -> r.getRefundDate() != null)
-                .collect(Collectors.groupingBy(r -> {
-                    LocalDateTime date = r.getRefundDate();
-                    return switch (range) {
-                                                case WEEK, MONTH -> date.format(DATE_FORMATTER);
-                        case YEAR, CUSTOM -> String.format("%02d/%d", date.getMonthValue(), date.getYear());
-                    };
-                }));
+                .collect(Collectors.groupingBy(r -> getDateKey(r.getRefundDate(), filter)));
         
-        return refundsByDate.entrySet().stream()
-                .map(e -> {
-                    BigDecimal totalAmount = e.getValue().stream()
+        // Build trend data with all date points (including empty ones)
+        return allDateLabels.stream()
+                .map(dateLabel -> {
+                    List<RefundEntity> list = refundsByDate.getOrDefault(dateLabel, Collections.emptyList());
+                    BigDecimal totalAmount = list.stream()
                             .map(r -> r.getRefundAmount() != null ? r.getRefundAmount() : BigDecimal.ZERO)
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
                     
                     return StaffDashboardResponse.RefundTrend.builder()
-                            .date(e.getKey())
-                            .refundCount((long) e.getValue().size())
+                            .date(dateLabel)
+                            .refundCount((long) list.size())
                             .refundAmount(totalAmount)
                             .build();
                 })
-                .sorted(Comparator.comparing(StaffDashboardResponse.RefundTrend::getDate))
                 .collect(Collectors.toList());
     }
 
     private List<StaffDashboardResponse.RevenueCompensationTrend> buildRevenueCompensationTrend(
             List<TransactionEntity> transactions, List<RefundEntity> refunds, DashboardFilterRequest filter) {
         
-        DashboardFilterRequest.TimeRange range = filter.getRange();
+        // Generate all date labels for the time range
+        List<String> allDateLabels = generateAllDateLabels(filter);
         
         // Group transactions by date
         Map<String, BigDecimal> revenueByDate = transactions.stream()
                 .filter(t -> t.getPaymentDate() != null && "PAID".equals(t.getStatus()))
                 .collect(Collectors.groupingBy(
-                        t -> {
-                            LocalDateTime date = t.getPaymentDate();
-                            return switch (range) {
-                                                                case WEEK, MONTH -> date.format(DATE_FORMATTER);
-                                case YEAR, CUSTOM -> String.format("%02d/%d", date.getMonthValue(), date.getYear());
-                            };
-                        },
+                        t -> getDateKey(t.getPaymentDate(), filter),
                         Collectors.reducing(
                                 BigDecimal.ZERO,
                                 t -> t.getAmount() != null ? t.getAmount() : BigDecimal.ZERO,
@@ -1605,13 +1850,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         Map<String, BigDecimal> compensationByDate = refunds.stream()
                 .filter(r -> r.getRefundDate() != null)
                 .collect(Collectors.groupingBy(
-                        r -> {
-                            LocalDateTime date = r.getRefundDate();
-                            return switch (range) {
-                                                                case WEEK, MONTH -> date.format(DATE_FORMATTER);
-                                case YEAR, CUSTOM -> String.format("%02d/%d", date.getMonthValue(), date.getYear());
-                            };
-                        },
+                        r -> getDateKey(r.getRefundDate(), filter),
                         Collectors.reducing(
                                 BigDecimal.ZERO,
                                 r -> r.getRefundAmount() != null ? r.getRefundAmount() : BigDecimal.ZERO,
@@ -1619,39 +1858,31 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                         )
                 ));
         
-        // Merge all dates
-        Set<String> allDates = new HashSet<>();
-        allDates.addAll(revenueByDate.keySet());
-        allDates.addAll(compensationByDate.keySet());
-        
-        return allDates.stream()
-                .map(date -> StaffDashboardResponse.RevenueCompensationTrend.builder()
-                        .date(date)
-                        .revenue(revenueByDate.getOrDefault(date, BigDecimal.ZERO))
-                        .compensation(compensationByDate.getOrDefault(date, BigDecimal.ZERO))
+        // Build trend data with all date points (including empty ones)
+        return allDateLabels.stream()
+                .map(dateLabel -> StaffDashboardResponse.RevenueCompensationTrend.builder()
+                        .date(dateLabel)
+                        .revenue(revenueByDate.getOrDefault(dateLabel, BigDecimal.ZERO))
+                        .compensation(compensationByDate.getOrDefault(dateLabel, BigDecimal.ZERO))
                         .build())
-                .sorted(Comparator.comparing(StaffDashboardResponse.RevenueCompensationTrend::getDate))
                 .collect(Collectors.toList());
     }
 
     private List<StaffDashboardResponse.PackageStatusTrend> buildStaffPackageStatusTrend(
             List<OrderDetailEntity> orderDetails, DashboardFilterRequest filter) {
         
-        DashboardFilterRequest.TimeRange range = filter.getRange();
+        // Generate all date labels for the time range
+        List<String> allDateLabels = generateAllDateLabels(filter);
         
+        // Group order details by date key
         Map<String, List<OrderDetailEntity>> detailsByDate = orderDetails.stream()
                 .filter(od -> od.getCreatedAt() != null)
-                .collect(Collectors.groupingBy(od -> {
-                    LocalDateTime date = od.getCreatedAt();
-                    return switch (range) {
-                                                case WEEK, MONTH -> date.format(DATE_FORMATTER);
-                        case YEAR, CUSTOM -> String.format("%02d/%d", date.getMonthValue(), date.getYear());
-                    };
-                }));
+                .collect(Collectors.groupingBy(od -> getDateKey(od.getCreatedAt(), filter)));
         
-        return detailsByDate.entrySet().stream()
-                .map(e -> {
-                    List<OrderDetailEntity> details = e.getValue();
+        // Build trend data with all date points (including empty ones)
+        return allDateLabels.stream()
+                .map(dateLabel -> {
+                    List<OrderDetailEntity> details = detailsByDate.getOrDefault(dateLabel, Collections.emptyList());
                     
                     long inTransit = details.stream()
                             .filter(od -> "PICKING_UP".equals(od.getStatus()) || 
@@ -1675,14 +1906,13 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                             .count();
                     
                     return StaffDashboardResponse.PackageStatusTrend.builder()
-                            .date(e.getKey())
+                            .date(dateLabel)
                             .inTransit(inTransit)
                             .delivered(delivered)
                             .cancelled(cancelled)
                             .problem(problem)
                             .build();
                 })
-                .sorted(Comparator.comparing(StaffDashboardResponse.PackageStatusTrend::getDate))
                 .collect(Collectors.toList());
     }
 
@@ -2162,24 +2392,24 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
     private List<CustomerDashboardResponse.ContractValueTrend> buildContractValueTrend(
             List<ContractEntity> contracts, DashboardFilterRequest filter) {
 
-        DashboardFilterRequest.TimeRange range = filter.getRange();
+        // Generate all date labels for the time range
+        List<String> allDateLabels = generateAllDateLabels(filter);
 
+        // Group contracts by date key
         Map<String, List<ContractEntity>> contractsByDate = contracts.stream()
                 // Chỉ lấy các hợp đồng đã thanh toán (status = PAID) và có ngày hiệu lực hoặc ngày tạo
                 .filter(c -> "PAID".equals(c.getStatus()))
                 .filter(c -> c.getEffectiveDate() != null || c.getCreatedAt() != null)
                 .collect(Collectors.groupingBy(c -> {
                     LocalDateTime date = c.getEffectiveDate() != null ? c.getEffectiveDate() : c.getCreatedAt();
-                    return switch (range) {
-                         // theo giờ
-                        case WEEK, MONTH -> date.format(DATE_FORMATTER); // theo ngày
-                        case YEAR, CUSTOM -> String.format("%02d/%d", date.getMonthValue(), date.getYear()); // theo tháng/năm
-                    };
+                    return getDateKey(date, filter);
                 }));
         
-        return contractsByDate.entrySet().stream()
-                .map(e -> {
-                    BigDecimal totalValue = e.getValue().stream()
+        // Build trend data with all date points (including empty ones)
+        return allDateLabels.stream()
+                .map(dateLabel -> {
+                    List<ContractEntity> list = contractsByDate.getOrDefault(dateLabel, Collections.emptyList());
+                    BigDecimal totalValue = list.stream()
                             .map(c -> {
                                 // Prioritize adjustedValue if > 0, otherwise use totalValue
                                 BigDecimal adjusted = c.getAdjustedValue();
@@ -2192,66 +2422,57 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
                     
                     return CustomerDashboardResponse.ContractValueTrend.builder()
-                            .date(e.getKey())
-                            .contractCount((long) e.getValue().size())
+                            .date(dateLabel)
+                            .contractCount((long) list.size())
                             .totalValue(totalValue)
                             .build();
                 })
-                .sorted(Comparator.comparing(CustomerDashboardResponse.ContractValueTrend::getDate))
                 .collect(Collectors.toList());
     }
     
     private List<CustomerDashboardResponse.TransactionTrend> buildTransactionTrend(
             List<TransactionEntity> transactions, DashboardFilterRequest filter) {
 
-        DashboardFilterRequest.TimeRange range = filter.getRange();
+        // Generate all date labels for the time range
+        List<String> allDateLabels = generateAllDateLabels(filter);
 
+        // Group transactions by date key
         Map<String, List<TransactionEntity>> transactionsByDate = transactions.stream()
                 .filter(t -> t.getPaymentDate() != null && "PAID".equals(t.getStatus()))
-                .collect(Collectors.groupingBy(t -> {
-                    LocalDateTime date = t.getPaymentDate();
-                    return switch (range) {
-                                                case WEEK, MONTH -> date.format(DATE_FORMATTER);
-                        case YEAR, CUSTOM -> String.format("%02d/%d", date.getMonthValue(), date.getYear());
-                    };
-                }));
+                .collect(Collectors.groupingBy(t -> getDateKey(t.getPaymentDate(), filter)));
         
-        return transactionsByDate.entrySet().stream()
-                .map(e -> {
-                    BigDecimal totalAmount = e.getValue().stream()
+        // Build trend data with all date points (including empty ones)
+        return allDateLabels.stream()
+                .map(dateLabel -> {
+                    List<TransactionEntity> list = transactionsByDate.getOrDefault(dateLabel, Collections.emptyList());
+                    BigDecimal totalAmount = list.stream()
                             .map(t -> t.getAmount() != null ? t.getAmount() : BigDecimal.ZERO)
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
                     
                     return CustomerDashboardResponse.TransactionTrend.builder()
-                            .date(e.getKey())
+                            .date(dateLabel)
                             .amount(totalAmount)
-                            .transactionCount((long) e.getValue().size())
+                            .transactionCount((long) list.size())
                             .build();
                 })
-                .sorted(Comparator.comparing(CustomerDashboardResponse.TransactionTrend::getDate))
                 .collect(Collectors.toList());
     }
     
     private List<CustomerDashboardResponse.PackageStatusTrend> buildPackageStatusTrend(
             List<OrderDetailEntity> orderDetails, DashboardFilterRequest filter) {
 
-        // Group order details by time bucket, flexible theo range giống contract/transaction trend
-        DashboardFilterRequest.TimeRange range = filter.getRange();
-
+        // Generate all date labels for the time range
+        List<String> allDateLabels = generateAllDateLabels(filter);
+        
+        // Group order details by date key
         Map<String, List<OrderDetailEntity>> detailsByDate = orderDetails.stream()
                 .filter(od -> od.getCreatedAt() != null)
-                .collect(Collectors.groupingBy(od -> {
-                    LocalDateTime date = od.getCreatedAt();
-                    return switch (range) {
-                         // theo giờ
-                        case WEEK, MONTH -> date.format(DATE_FORMATTER); // theo ngày dd/MM/yyyy
-                        case YEAR, CUSTOM -> String.format("%02d/%d", date.getMonthValue(), date.getYear()); // theo tháng/năm
-                    };
-                }));
+                .collect(Collectors.groupingBy(od -> getDateKey(od.getCreatedAt(), filter)));
 
-        return detailsByDate.entrySet().stream()
-                .map(e -> {
-                    List<OrderDetailEntity> details = e.getValue();
+        // Build trend data with all date points (including empty ones)
+        return allDateLabels.stream()
+                .map(dateLabel -> {
+                    List<OrderDetailEntity> details = detailsByDate.getOrDefault(dateLabel, Collections.emptyList());
                     
                     long inTransit = details.stream()
                             .filter(od -> "PICKING_UP".equals(od.getStatus()) || 
@@ -2275,7 +2496,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                             .count();
                     
                     return CustomerDashboardResponse.PackageStatusTrend.builder()
-                            .date(e.getKey())
+                            .date(dateLabel)
                             .inTransit(inTransit)
                             .delivered(delivered)
                             .cancelled(cancelled)
@@ -2283,7 +2504,6 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                             .total((long) details.size())
                             .build();
                 })
-                .sorted(Comparator.comparing(CustomerDashboardResponse.PackageStatusTrend::getDate))
                 .collect(Collectors.toList());
     }
     
@@ -2468,21 +2688,23 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
             List<VehicleAssignmentEntity> assignments, 
             DashboardFilterRequest filter) {
         
-        // Group assignments by date/period based on filter range
-        Map<String, List<VehicleAssignmentEntity>> groupedByPeriod = new LinkedHashMap<>();
+        // Generate full set of date labels for range (WEEK/MONTH/YEAR/CUSTOM)
+        List<String> allDateLabels = generateAllDateLabels(filter);
+
+        // Group assignments by normalized date key
+        Map<String, List<VehicleAssignmentEntity>> groupedByPeriod = assignments.stream()
+                .filter(a -> a.getCreatedAt() != null)
+                .collect(Collectors.groupingBy(
+                        a -> getDateKey(a.getCreatedAt(), filter),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
         
-        for (VehicleAssignmentEntity assignment : assignments) {
-            if (assignment.getCreatedAt() == null) continue;
-            
-            String periodLabel = getPeriodLabel(assignment.getCreatedAt(), filter);
-            groupedByPeriod.computeIfAbsent(periodLabel, k -> new ArrayList<>()).add(assignment);
-        }
-        
-        // Build trend points - only completed trips
-        return groupedByPeriod.entrySet().stream()
-                .map(entry -> {
-                    String label = entry.getKey();
-                    List<VehicleAssignmentEntity> periodAssignments = entry.getValue();
+        // Build trend points - ensure all dates exist, even if 0 trips
+        return allDateLabels.stream()
+                .map(label -> {
+                    List<VehicleAssignmentEntity> periodAssignments = groupedByPeriod
+                            .getOrDefault(label, Collections.emptyList());
                     
                     int tripsCompleted = (int) periodAssignments.stream()
                             .filter(a -> "COMPLETED".equals(a.getStatus()))
@@ -2498,10 +2720,10 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
     
     private String getPeriodLabel(LocalDateTime dateTime, DashboardFilterRequest filter) {
         return switch (filter.getRange()) {
-            case WEEK -> dateTime.format(DateTimeFormatter.ofPattern("dd/MM"));
-            case MONTH -> "Tuần " + ((dateTime.getDayOfMonth() - 1) / 7 + 1);
-            case YEAR -> dateTime.format(DateTimeFormatter.ofPattern("MM/yyyy"));
-            case CUSTOM -> dateTime.format(DateTimeFormatter.ofPattern("dd/MM"));
+            case WEEK -> dateTime.toLocalDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")); // Daily for week with full date
+            case MONTH -> dateTime.format(DateTimeFormatter.ofPattern("dd/MM")); // Daily for month (same month/year)
+            case YEAR -> dateTime.format(DateTimeFormatter.ofPattern("MM/yyyy")); // Monthly for year
+            case CUSTOM -> dateTime.format(DateTimeFormatter.ofPattern("dd/MM")); // Daily for custom (adjusted in getDateKey)
         };
     }
 
@@ -2512,11 +2734,104 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
     
     private String getPeriodLabel(DashboardFilterRequest filter) {
         return switch (filter.getRange()) {
-            case WEEK -> "tuần này";
+            case WEEK -> "7 ngày qua";
             case MONTH -> "tháng này";
             case YEAR -> "năm nay";
             case CUSTOM -> "khoảng thời gian";
-            default -> "tuần này"; // Default to week
+        };
+    }
+    
+    /**
+     * Generate all date labels for a time range to ensure line charts show all points
+     * @param filter Dashboard filter with time range
+     * @return List of date labels in order
+     */
+    private List<String> generateAllDateLabels(DashboardFilterRequest filter) {
+        List<String> labels = new ArrayList<>();
+        LocalDateTime start = filter.getStartDate();
+        LocalDateTime end = filter.getEndDate();
+        
+        switch (filter.getRange()) {
+            case WEEK -> {
+                // Generate daily labels for 7 days (full date yyyy-MM-dd)
+                LocalDateTime current = start;
+                while (!current.isAfter(end)) {
+                    labels.add(current.toLocalDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
+                    current = current.plusDays(1);
+                }
+            }
+            case MONTH -> {
+                // Generate daily labels for the month
+                LocalDateTime current = start;
+                while (!current.isAfter(end)) {
+                    labels.add(current.format(DateTimeFormatter.ofPattern("dd/MM")));
+                    current = current.plusDays(1);
+                }
+            }
+            case YEAR -> {
+                // Generate monthly labels for the year
+                LocalDateTime current = start.withDayOfMonth(1);
+                while (!current.isAfter(end)) {
+                    labels.add(current.format(DateTimeFormatter.ofPattern("MM/yyyy")));
+                    current = current.plusMonths(1);
+                }
+            }
+            case CUSTOM -> {
+                // For custom range, determine granularity based on duration
+                long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(start, end);
+                if (daysBetween <= 31) {
+                    // Daily labels
+                    LocalDateTime current = start;
+                    while (!current.isAfter(end)) {
+                        labels.add(current.format(DateTimeFormatter.ofPattern("dd/MM")));
+                        current = current.plusDays(1);
+                    }
+                } else {
+                    // Monthly labels
+                    LocalDateTime current = start.withDayOfMonth(1);
+                    while (!current.isAfter(end)) {
+                        labels.add(current.format(DateTimeFormatter.ofPattern("MM/yyyy")));
+                        current = current.plusMonths(1);
+                    }
+                }
+            }
+        }
+        return labels;
+    }
+    
+    /**
+     * Get the date format pattern based on time range
+     */
+    private String getDateFormatPattern(DashboardFilterRequest filter) {
+        return switch (filter.getRange()) {
+            case WEEK -> "yyyy-MM-dd";
+            case MONTH, CUSTOM -> "dd/MM";
+            case YEAR -> "MM/yyyy";
+        };
+    }
+    
+    /**
+     * Get the date key from a LocalDateTime based on filter range
+     */
+    private String getDateKey(LocalDateTime dateTime, DashboardFilterRequest filter) {
+        if (dateTime == null) return null;
+        return switch (filter.getRange()) {
+            case WEEK -> dateTime.toLocalDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")); // Full date key
+            case MONTH -> dateTime.format(DateTimeFormatter.ofPattern("dd/MM")); // Same month, no year needed
+            case YEAR -> dateTime.format(DateTimeFormatter.ofPattern("MM/yyyy"));
+            case CUSTOM -> {
+                long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(filter.getStartDate(), filter.getEndDate());
+                // For custom range, check if spans multiple years
+                boolean spansMultipleYears = filter.getStartDate().getYear() != filter.getEndDate().getYear();
+                if (daysBetween <= 31) {
+                    // Use full date if spans years, otherwise dd/MM is enough
+                    yield spansMultipleYears 
+                        ? dateTime.toLocalDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                        : dateTime.format(DateTimeFormatter.ofPattern("dd/MM"));
+                } else {
+                    yield dateTime.format(DateTimeFormatter.ofPattern("MM/yyyy"));
+                }
+            }
         };
     }
     
@@ -2556,8 +2871,25 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
             allOrderDetails.addAll(assignmentOrderDetails);
         }
         
-        // Sort by creation date and limit to 5
-        return allOrderDetails.stream()
+        // Deduplicate by Order ID - keep the most recent order detail for each order
+        Map<UUID, OrderDetailEntity> mostRecentOrderDetails = new HashMap<>();
+        for (OrderDetailEntity orderDetail : allOrderDetails) {
+            OrderEntity order = orderDetail.getOrderEntity();
+            if (order != null) {
+                UUID orderId = order.getId();
+                OrderDetailEntity existing = mostRecentOrderDetails.get(orderId);
+                
+                // Keep the most recent order detail for this order
+                if (existing == null || 
+                    (orderDetail.getCreatedAt() != null && existing.getCreatedAt() != null && 
+                     orderDetail.getCreatedAt().isAfter(existing.getCreatedAt()))) {
+                    mostRecentOrderDetails.put(orderId, orderDetail);
+                }
+            }
+        }
+        
+        // Sort deduplicated order details by creation date and limit to 5
+        return mostRecentOrderDetails.values().stream()
                 .sorted((a, b) -> {
                     if (a.getCreatedAt() == null) return 1;
                     if (b.getCreatedAt() == null) return -1;
@@ -2583,5 +2915,109 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+    
+    // ==================== Admin Dashboard Additional Helpers ====================
+    
+    private List<AdminDashboardResponse.TopPerformer> buildTopStaff(List<IssueEntity> issues) {
+        // Group issues by staff and count resolved issues
+        Map<UUID, Long> resolvedByStaff = issues.stream()
+                .filter(i -> i.getStaff() != null && "RESOLVED".equals(i.getStatus()))
+                .collect(Collectors.groupingBy(
+                        i -> i.getStaff().getId(),
+                        Collectors.counting()
+                ));
+        
+        // Build top staff list
+        return resolvedByStaff.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .limit(5)
+                .map(entry -> {
+                    try {
+                        capstone_project.entity.auth.UserEntity staff = userRepository.findById(entry.getKey()).orElse(null);
+                        if (staff != null) {
+                            return AdminDashboardResponse.TopPerformer.builder()
+                                    .id(staff.getId().toString())
+                                    .name(staff.getFullName())
+                                    .orderCount(entry.getValue())
+                                    .rank(0) // Will be set after sorting
+                                    .build();
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to get staff info: {}", e.getMessage());
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+    
+    private AdminDashboardResponse.RegistrationData buildRegistrationData(
+            LocalDateTime startDate, LocalDateTime endDate, DashboardFilterRequest filter) {
+        
+        // Get customer registrations
+        List<capstone_project.entity.auth.UserEntity> customers = userRepository.findByRoleAndCreatedAtBetween("CUSTOMER", startDate, endDate);
+        List<AdminDashboardResponse.TrendDataPoint> customerRegistrations = buildUserRegistrationTrend(customers, startDate, endDate, filter);
+        
+        // Get staff registrations
+        List<capstone_project.entity.auth.UserEntity> staff = userRepository.findByRoleAndCreatedAtBetween("STAFF", startDate, endDate);
+        List<AdminDashboardResponse.TrendDataPoint> staffRegistrations = buildUserRegistrationTrend(staff, startDate, endDate, filter);
+        
+        // Get driver registrations
+        List<capstone_project.entity.auth.UserEntity> drivers = userRepository.findByRoleAndCreatedAtBetween("DRIVER", startDate, endDate);
+        List<AdminDashboardResponse.TrendDataPoint> driverRegistrations = buildUserRegistrationTrend(drivers, startDate, endDate, filter);
+        
+        return AdminDashboardResponse.RegistrationData.builder()
+                .customerRegistrations(customerRegistrations)
+                .staffRegistrations(staffRegistrations)
+                .driverRegistrations(driverRegistrations)
+                .build();
+    }
+    
+    private List<AdminDashboardResponse.TrendDataPoint> buildUserRegistrationTrend(
+            List<capstone_project.entity.auth.UserEntity> users, 
+            LocalDateTime startDate, 
+            LocalDateTime endDate, 
+            DashboardFilterRequest filter) {
+        
+        // Group users by period
+        Map<String, List<capstone_project.entity.auth.UserEntity>> groupedByPeriod = users.stream()
+                .collect(Collectors.groupingBy(u -> getPeriodLabel(u.getCreatedAt(), filter)));
+        
+        // Build trend points
+        return groupedByPeriod.entrySet().stream()
+                .map(entry -> AdminDashboardResponse.TrendDataPoint.builder()
+                        .label(entry.getKey())
+                        .count(entry.getValue().size())
+                        .amount(BigDecimal.ZERO)
+                        .build())
+                .sorted((a, b) -> a.getLabel().compareTo(b.getLabel()))
+                .collect(Collectors.toList());
+    }
+    
+    private String buildFallbackAdminSummary(
+            AdminDashboardResponse.KpiSummary kpi,
+            AdminDashboardResponse.DeliveryPerformance delivery,
+            AdminDashboardResponse.IssueRefundSummary issues,
+            AdminDashboardResponse.FleetHealthSummary fleet,
+            DashboardFilterRequest filter) {
+        
+        String periodLabel = getPeriodLabel(filter);
+        StringBuilder fallback = new StringBuilder();
+        
+        fallback.append(String.format("Trong %s, hệ thống có **%d đơn hàng** với **%d kiện hàng**, ", 
+                periodLabel, kpi.getTotalOrders(), kpi.getTotalOrderDetails()));
+        fallback.append(String.format("doanh thu đạt **%s VNĐ**. ", formatCurrency(kpi.getTotalRevenue())));
+        fallback.append(String.format("Tỷ lệ giao hàng đúng hẹn: **%.1f%%**. ", delivery.getOnTimePercentage()));
+        
+        if (issues.getOpenIssues() > 0) {
+            fallback.append(String.format("Có **%d sự cố** đang mở cần xử lý. ", issues.getOpenIssues()));
+        }
+        
+        if (fleet.getOverdueMaintenanceVehicles() > 0) {
+            fallback.append(String.format("**%d xe** đã quá hạn bảo dưỡng. ", fleet.getOverdueMaintenanceVehicles()));
+        }
+        
+        return fallback.toString();
     }
 }
