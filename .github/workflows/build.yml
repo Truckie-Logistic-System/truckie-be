@@ -2,7 +2,7 @@ name: Build and Push Image (GHCR)
 
 on:
   push:
-    branches: ["depploy/VPS"]
+    branches: ["deploy/VPS"]
   workflow_dispatch:
 
 jobs:
