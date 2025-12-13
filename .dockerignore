@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Gradle
+.gradle
+build
+bin
+gradle
+*.gradle.kts.swp
+.gradletasknamecache
+
+# IDE
+.idea
+.vscode
+*.iml
+*.iws
+*.ipr
+
+# Logs
+*.log
+error.log
+
+# Docs
+*.md
+docs/
+.azure/
+
+# Database
+*.sql
+db-backups/
+
+# Batch files
+*.bat
+
+# Temp
+development/
+temp/
+tmp/
+
+# Mac
+.DS_Store
+
+# Test
+*Test.java
+*Tests.java
+test/
