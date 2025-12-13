@@ -1340,11 +1340,14 @@ public class OrderServiceImpl implements OrderService {
             case CONTRACT_EXPIRY:
             case SYSTEM_CANCEL:
                 // System cancellations have broader permissions
+                // Note: ON_PLANNING is included as safety measure, though orders at this stage
+                // should not normally be cancelled by payment/contract expiry checks
                 allowedStatuses = Arrays.asList(
                         OrderStatusEnum.PENDING.name(),
                         OrderStatusEnum.PROCESSING.name(),
                         OrderStatusEnum.CONTRACT_DRAFT.name(),
-                        OrderStatusEnum.CONTRACT_SIGNED.name()
+                        OrderStatusEnum.CONTRACT_SIGNED.name(),
+                        OrderStatusEnum.ON_PLANNING.name()
                 );
                 break;
                 
