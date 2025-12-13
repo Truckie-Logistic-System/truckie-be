@@ -150,6 +150,8 @@ public class ContractExpiryScheduler {
                 return;
             }
 
+            log.info("Found {} contracts with expired full payment deadlines", expiredContracts.size());
+
             for (ContractEntity contract : expiredContracts) {
                 try {
                     cancelOrderAndContract(
@@ -160,6 +162,7 @@ public class ContractExpiryScheduler {
                 } catch (Exception e) {
                     log.error("Failed to cancel order for contract {} due to expired full payment deadline: {}", 
                             contract.getId(), e.getMessage(), e);
+                    // Continue processing other contracts even if one fails
                 }
             }
         } catch (Exception e) {
@@ -175,6 +178,27 @@ public class ContractExpiryScheduler {
         OrderEntity order = contract.getOrderEntity();
         if (order == null) {
             log.warn("Contract {} has no associated order", contract.getId());
+            return;
+        }
+        
+        // Skip orders that have already been paid and moved to ON_PLANNING or later stages
+        // This indicates the payment was completed but contract status wasn't updated
+        String currentStatus = order.getStatus();
+        List<String> paidStatuses = List.of(
+                OrderStatusEnum.ON_PLANNING.name(),
+                OrderStatusEnum.ASSIGNED_TO_DRIVER.name(),
+                OrderStatusEnum.FULLY_PAID.name(),
+                OrderStatusEnum.PICKING_UP.name(),
+                OrderStatusEnum.ON_DELIVERED.name(),
+                OrderStatusEnum.ONGOING_DELIVERED.name(),
+                OrderStatusEnum.IN_TROUBLES.name(),
+                OrderStatusEnum.DELIVERED.name(),
+                OrderStatusEnum.SUCCESSFUL.name()
+        );
+        
+        if (paidStatuses.contains(currentStatus)) {
+            log.warn("⚠️ Skipping cancellation for order {} (contract {}). Order is in status {} which indicates payment was completed. Contract status may need manual update.", 
+                    order.getOrderCode(), contract.getId(), currentStatus);
             return;
         }
 
@@ -204,10 +228,6 @@ public class ContractExpiryScheduler {
     private void fallbackManualCancellation(ContractEntity contract, OrderEntity order, String reason) {
         log.warn("⚠️ Using fallback manual cancellation for order {} due to contract expiry", order.getOrderCode());
         
-        // Update contract status to EXPIRED
-        contract.setStatus(ContractStatusEnum.EXPIRED.name());
-        contractEntityService.save(contract);
-
         // Only cancel if order is in a cancellable state
         String currentStatus = order.getStatus();
         List<String> cancellableStatuses = List.of(
@@ -216,37 +236,49 @@ public class ContractExpiryScheduler {
                 OrderStatusEnum.CONTRACT_DRAFT.name(),
                 OrderStatusEnum.CONTRACT_SIGNED.name()
         );
-
-        if (cancellableStatuses.contains(currentStatus)) {
+        
+        // Check if order has already progressed past cancellable stages
+        if (!cancellableStatuses.contains(currentStatus)) {
+            log.warn("Order {} is in status {} and cannot be automatically cancelled. Updating contract to EXPIRED only.", 
+                    order.getOrderCode(), currentStatus);
+            // Still update contract status to EXPIRED for record keeping
+            contract.setStatus(ContractStatusEnum.EXPIRED.name());
+            contractEntityService.save(contract);
+            return;
+        }
+        
+        // Update contract status to EXPIRED
+        contract.setStatus(ContractStatusEnum.EXPIRED.name());
+        contractEntityService.save(contract);
+        
+        // Proceed with order cancellation
+        try {
             OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(currentStatus);
             order.setStatus(OrderStatusEnum.CANCELLED.name());
             order.setCancellationReason(reason);
             orderEntityService.save(order);
             
             // Cancel all order details
-            try {
-                List<OrderDetailEntity> orderDetails = order.getOrderDetailEntities();
-                if (orderDetails != null && !orderDetails.isEmpty()) {
-                    for (OrderDetailEntity orderDetail : orderDetails) {
-                        orderDetail.setStatus(OrderDetailStatusEnum.CANCELLED.name());
-                    }
-                    orderDetailEntityService.saveAllOrderDetailEntities(orderDetails);
-                    log.info("✅ Cancelled {} order details for order {}", orderDetails.size(), order.getOrderCode());
+            List<OrderDetailEntity> orderDetails = order.getOrderDetailEntities();
+            if (orderDetails != null && !orderDetails.isEmpty()) {
+                for (OrderDetailEntity orderDetail : orderDetails) {
+                    orderDetail.setStatus(OrderDetailStatusEnum.CANCELLED.name());
                 }
-
-                // Send WebSocket notification to customer
-                orderStatusWebSocketService.sendOrderStatusChange(
-                        order.getId(),
-                        order.getOrderCode(),
-                        previousStatus,
-                        OrderStatusEnum.CANCELLED
-                );
-            } catch (Exception e) {
-                log.error("❌ Failed to complete fallback cancellation for order {}: {}", order.getId(), e.getMessage());
+                orderDetailEntityService.saveAllOrderDetailEntities(orderDetails);
+                log.info("✅ Cancelled {} order details for order {}", orderDetails.size(), order.getOrderCode());
             }
-        } else {
-            log.warn("Order {} is in status {} and cannot be automatically cancelled", 
-                    order.getId(), currentStatus);
+
+            // Send WebSocket notification to customer
+            orderStatusWebSocketService.sendOrderStatusChange(
+                    order.getId(),
+                    order.getOrderCode(),
+                    previousStatus,
+                    OrderStatusEnum.CANCELLED
+            );
+            
+            log.info("✅ Successfully cancelled order {} using fallback method", order.getOrderCode());
+        } catch (Exception e) {
+            log.error("❌ Failed to complete fallback cancellation for order {}: {}", order.getOrderCode(), e.getMessage());
         }
     }
 }
