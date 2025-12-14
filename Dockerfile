@@ -15,17 +15,23 @@ RUN chmod +x gradlew
 RUN ./gradlew clean build -x test
 
 # Debug: List built jars
-RUN ls -lah /app/build/libs/
+RUN echo "=== Built JARs ===" && ls -lah /app/build/libs/
+
+# Remove plain jar
+RUN rm -f /app/build/libs/*-plain.jar
+
+# Verify only boot jar remains
+RUN echo "=== After removing plain jar ===" && ls -lah /app/build/libs/
 
 # Stage 2: Run
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 
-# Copy only the executable jar (exclude *-plain.jar)
-COPY --from=builder /app/build/libs/*[!plain].jar app.jar
+# Copy the remaining jar (now only boot jar)
+COPY --from=builder /app/build/libs/*.jar app.jar
 
-# Or copy with specific name pattern
-# COPY --from=builder /app/build/libs/*-SNAPSHOT.jar app.jar
+# Verify jar
+RUN echo "=== Copied JAR ===" && ls -lah /app/
 
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","/app/app.jar"]
