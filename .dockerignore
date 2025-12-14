@@ -7,7 +7,7 @@
 .gradle
 build
 bin
-gradle
+#gradle
 *.gradle.kts.swp
 .gradletasknamecache
 
