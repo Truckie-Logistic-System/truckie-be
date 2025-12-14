@@ -20,4 +20,11 @@ public interface DriverRepository extends BaseRepository<DriverEntity> {
      * @return Optional containing driver if found
      */
     Optional<DriverEntity> findByUserPhoneNumber(String phoneNumber);
+
+    /**
+     * Find driver by user's email
+     * @param email Email to search
+     * @return Optional containing driver if found
+     */
+    Optional<DriverEntity> findByUserEmail(String email);
 }

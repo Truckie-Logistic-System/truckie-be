@@ -6,7 +6,9 @@ import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.template.OtpEmailTemplate;
 import capstone_project.config.expired.OtpSchedulerService;
 import capstone_project.dtos.response.auth.OTPResponse;
+import capstone_project.entity.auth.UserEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
+import capstone_project.repository.repositories.user.DriverRepository;
 import capstone_project.service.services.email.EmailProtocolService;
 import capstone_project.service.services.user.CustomerService;
 import capstone_project.service.services.user.UserService;
@@ -36,6 +38,7 @@ public class EmailProtocolServiceImpl implements EmailProtocolService {
     private final UserEntityService userEntityService;
     private final UserService userService;
     private final CustomerService customerService;
+    private final DriverRepository driverRepository;
 
     private final JavaMailSender javaMailSender;
     private final Object emailLock = new Object();
@@ -149,9 +152,27 @@ public class EmailProtocolServiceImpl implements EmailProtocolService {
     @Override
     @Async
     public void sendForgotPasswordOtp(String email) {
-        // Validate user exists
+        // Validate user exists - check both users table directly and via driver relationship
+        log.info("[📧 sendForgotPasswordOtp] Looking for user with email: {}", email);
         var userOpt = userEntityService.getUserByEmail(email);
-        if (userOpt.isEmpty()) {
+        UserEntity user = null;
+        
+        if (userOpt.isPresent()) {
+            user = userOpt.get();
+            log.info("[📧 sendForgotPasswordOtp] Found user directly: {}", user.getUsername());
+        } else {
+            log.info("[📧 sendForgotPasswordOtp] User not found directly, trying via driver relationship...");
+            // Try to find user via driver relationship
+            var driverOpt = driverRepository.findByUserEmail(email);
+            if (driverOpt.isPresent()) {
+                user = driverOpt.get().getUser();
+                log.info("[📧 sendForgotPasswordOtp] Found user via driver: {}", user.getUsername());
+            } else {
+                log.warn("[📧 sendForgotPasswordOtp] Driver not found with user email: {}", email);
+            }
+        }
+        
+        if (user == null) {
             log.warn("[📧 sendForgotPasswordOtp] User not found with email: {}", email);
             throw new IllegalArgumentException("Không tìm thấy tài khoản với email này");
         }
@@ -161,13 +182,13 @@ public class EmailProtocolServiceImpl implements EmailProtocolService {
             
             // Generate 6-digit OTP
             String otp = generateOtp();
-            String username = userOpt.get().getUsername();
+            String username = user.getUsername();
 
             // Use forgot password email template
             String emailTemplate = OtpEmailForgetPasswordTemplate.getOtpEmailForgetPasswordTemplate();
-            // Sử dụng replace thay vì String.format để tránh lỗi với các ký tự đặc biệt trong HTML
-            String emailContent = emailTemplate.replace("%s", username);
-            emailContent = emailContent.replace("%s", otp);
+            // Replace username first, then OTP (use replaceFirst to replace only first occurrence)
+            String emailContent = emailTemplate.replaceFirst("%s", username);
+            emailContent = emailContent.replaceFirst("%s", otp);
 
             MimeMessage message = javaMailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
