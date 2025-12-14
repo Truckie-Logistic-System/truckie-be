@@ -19,6 +19,8 @@ import capstone_project.service.services.vehicle.VehicleServiceRecordService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.time.LocalDateTime;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -244,7 +246,7 @@ public class VehicleServiceRecordServiceImpl implements VehicleServiceRecordServ
         }
 
         record.setServiceStatus(VehicleServiceStatusEnum.COMPLETED);
-        record.setActualDate(LocalDateTime.now());
+        record.setActualDate(VietnamTimeUtils.now());
 
         VehicleEntity vehicle = record.getVehicleEntity();
         if (vehicle != null) {
@@ -365,7 +367,7 @@ public class VehicleServiceRecordServiceImpl implements VehicleServiceRecordServ
             return 0;
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = VietnamTimeUtils.now();
         Random random = new Random();
         List<VehicleServiceRecordEntity> recordsToSave = new ArrayList<>();
 
@@ -431,7 +433,7 @@ public class VehicleServiceRecordServiceImpl implements VehicleServiceRecordServ
 
     @Override
     public List<VehicleServiceRecordResponse> getServicesDueSoon(int warningDays) {
-        LocalDateTime today = LocalDateTime.now();
+        LocalDateTime today = VietnamTimeUtils.now();
         LocalDateTime beforeDate = today.plusDays(warningDays);
         
         List<VehicleServiceRecordEntity> records = repository.findServicesDueSoon(today, beforeDate);
@@ -456,7 +458,7 @@ public class VehicleServiceRecordServiceImpl implements VehicleServiceRecordServ
 
     @Override
     public List<VehicleServiceRecordResponse> getOverdueServices() {
-        LocalDateTime today = LocalDateTime.now();
+        LocalDateTime today = VietnamTimeUtils.now();
         
         List<VehicleServiceRecordEntity> records = repository.findOverdueServices(today);
         
@@ -490,7 +492,7 @@ public class VehicleServiceRecordServiceImpl implements VehicleServiceRecordServ
 
         // Giả sử danh sách đã đủ ngẫu nhiên, chỉ cần lấy tối đa 3 xe đầu tiên
         int maxVehicles = Math.min(3, vehicles.size());
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = VietnamTimeUtils.now();
         int createdCount = 0;
 
         if (maxVehicles >= 1) {

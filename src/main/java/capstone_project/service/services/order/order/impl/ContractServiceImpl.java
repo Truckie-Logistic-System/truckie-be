@@ -63,6 +63,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -1627,7 +1629,7 @@ public class ContractServiceImpl implements ContractService {
      * - Full payment: 1 day before pickup time (earliest estimated start time)
      */
     private void setContractDeadlines(ContractEntity contract, OrderEntity order) {
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.LocalDateTime now = VietnamTimeUtils.now();
         
         // Get contract settings for deadline hours
         var contractSetting = contractSettingService.getLatestContractSetting();

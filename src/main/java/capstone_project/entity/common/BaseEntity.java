@@ -3,6 +3,7 @@ package capstone_project.entity.common;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.GenericGenerator;
@@ -14,9 +15,11 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Data
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @MappedSuperclass
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
@@ -31,6 +34,7 @@ public abstract class BaseEntity implements Serializable {
             strategy = "org.hibernate.id.UUIDGenerator"
     )
     @Column(name = "id", updatable = false, nullable = false, columnDefinition = "uuid")
+    @EqualsAndHashCode.Include
     private UUID id;
 
     // @CreatedDate - DISABLED to prevent override for demo data
@@ -57,12 +61,15 @@ public abstract class BaseEntity implements Serializable {
     @Column(name = "is_demo_data")
     private Boolean isDemoData = false;
 
+    private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    
     @PrePersist
     public void prePersist() {
         // Set createdAt to now for all non-demo data
         // Demo data should have createdAt set manually in DashboardDemoDataService
+        // Always use Vietnam timezone (UTC+7) for consistency
         if (createdAt == null || !Boolean.TRUE.equals(isDemoData)) {
-            createdAt = LocalDateTime.now();
+            createdAt = LocalDateTime.now(VIETNAM_ZONE);
         }
         if (isDemoData == null) {
             isDemoData = false;
@@ -71,7 +78,7 @@ public abstract class BaseEntity implements Serializable {
 
     @PreUpdate
     public void preUpdate() {
-        modifiedAt = LocalDateTime.now();
+        modifiedAt = LocalDateTime.now(VIETNAM_ZONE);
     }
 
 

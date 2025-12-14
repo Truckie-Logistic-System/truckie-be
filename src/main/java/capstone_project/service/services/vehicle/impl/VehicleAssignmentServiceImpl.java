@@ -49,6 +49,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -572,8 +574,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 LocalDateTime createdAt = assignment.getCreatedAt();
 
                 // Định dạng thời gian hoạt động gần nhất
-                LocalDateTime now = LocalDateTime.now();
-                LocalDate today = LocalDate.now();
+                LocalDateTime now = VietnamTimeUtils.now();
+                LocalDate today = VietnamTimeUtils.today();
                 LocalDate assignmentDate = createdAt.toLocalDate();
 
                 String formattedTime;
@@ -1214,7 +1216,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 var contract = contractEntityService.getContractByOrderId(orderId).orElse(null);
                 if (contract != null) {
                     // Set full payment deadline to 24 hours from now when driver is assigned
-                    contract.setFullPaymentDeadline(LocalDateTime.now().plusHours(24));
+                    contract.setFullPaymentDeadline(VietnamTimeUtils.now().plusHours(24));
                     contractEntityService.save(contract);
                     log.info("✅ Updated full payment deadline to +24h for order {} when driver assigned", orderId);
                 }
@@ -1460,7 +1462,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     }
 
     private String generateCode(String prefix) {
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        String timestamp = VietnamTimeUtils.formatNow("yyyyMMddHHmmss");
         String randomPart = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
         return prefix + timestamp + "-" + randomPart;
     }
@@ -1741,7 +1743,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 LocalDateTime lastAssignmentDate = lastAssignment.get().getCreatedAt();
                 long daysSinceLastAssignment = java.time.Duration.between(
                         lastAssignmentDate,
-                        LocalDateTime.now()
+                        VietnamTimeUtils.now()
                 ).toDays();
 
                 // Drivers who haven't been assigned recently get priority
@@ -2123,11 +2125,11 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             return result;
         }
 
-        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(days);
+        LocalDateTime cutoffDate = VietnamTimeUtils.now().minusDays(days);
 
         // Create tiers of activity dates to weight more recent activities more heavily
-        LocalDateTime veryRecentDate = LocalDateTime.now().minusDays(3);  // Last 3 days (high weight)
-        LocalDateTime recentDate = LocalDateTime.now().minusDays(7);      // Last week (medium weight)
+        LocalDateTime veryRecentDate = VietnamTimeUtils.now().minusDays(3);  // Last 3 days (high weight)
+        LocalDateTime recentDate = VietnamTimeUtils.now().minusDays(7);      // Last week (medium weight)
 
         for (UUID driverId : driverIds) {
             // Get assignments with dates for this driver
@@ -2213,7 +2215,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 double remainingAmount = totalContractValue - depositAmount;
                 
                 // Payment deadline: now + 1 day
-                LocalDateTime paymentDeadline = LocalDateTime.now().plusDays(1);
+                LocalDateTime paymentDeadline = VietnamTimeUtils.now().plusDays(1);
                 
                 // Get ALL order details for the entire order (not just this assignment)
                 List<OrderDetailEntity> allOrderDetails = order.getOrderDetailEntities();
@@ -2277,7 +2279,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     vehicle.getVehicleTypeEntity().getVehicleTypeName(),
                     remainingAmount,
                     paymentDeadline,
-                    LocalDateTime.now().plusDays(1), // estimated pickup date
+                    VietnamTimeUtils.now().plusDays(1), // estimated pickup date
                     allOrderDetails,
                     categoryDescription,
                     assignment.getTrackingCode(),

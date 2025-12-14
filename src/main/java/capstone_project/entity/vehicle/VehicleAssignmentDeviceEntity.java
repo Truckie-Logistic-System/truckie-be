@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -37,7 +39,7 @@ public class VehicleAssignmentDeviceEntity {
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {
-            createdAt = LocalDateTime.now();
+            createdAt = VietnamTimeUtils.now();
         }
     }
 

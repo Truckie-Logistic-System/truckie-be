@@ -34,6 +34,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.UUID;
@@ -219,7 +221,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
                             .ifPresentOrElse(transaction -> {
                                 transaction.setStatus(TransactionEnum.PAID.name());
                                 transaction.setGatewayResponse(payload);
-                                transaction.setPaymentDate(java.time.LocalDateTime.now());
+                                transaction.setPaymentDate(VietnamTimeUtils.now());
                                 transactionEntityService.save(transaction);
                                 updateContractStatusIfNeeded(transaction);
                                 

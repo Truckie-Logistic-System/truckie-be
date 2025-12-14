@@ -43,6 +43,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -199,7 +201,7 @@ public class VehicleServiceImpl implements VehicleService {
         vehicleMapper.toVehicleEntity(request, existingVehicle);
 
         if (request.currentLatitude() != null || request.currentLongitude() != null) {
-            existingVehicle.setLastUpdated(LocalDateTime.now());
+            existingVehicle.setLastUpdated(VietnamTimeUtils.now());
         }
 
         VehicleEntity updatedVehicle = vehicleEntityService.save(existingVehicle);
@@ -373,7 +375,7 @@ public class VehicleServiceImpl implements VehicleService {
                     .year(year)
                     .status(VehicleStatusEnum.ACTIVE.name())
                     .vehicleTypeEntity(vehicleTypes.get(i % vehicleTypes.size()))
-                    .createdAt(LocalDateTime.now())
+                    .createdAt(VietnamTimeUtils.now())
                     .build();
 
             try {

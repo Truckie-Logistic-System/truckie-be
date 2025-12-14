@@ -52,6 +52,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -608,7 +610,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private String generateCode(String prefix) {
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        String timestamp = VietnamTimeUtils.formatNow("yyyyMMddHHmmss");
         String randomPart = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
         return prefix + timestamp + "-" + randomPart;
     }
@@ -805,7 +807,7 @@ public class OrderServiceImpl implements OrderService {
         contractEntity.setStatus(ContractStatusEnum.CONTRACT_SIGNED.name());
         
         // Set deposit payment deadline using contract settings
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.LocalDateTime now = VietnamTimeUtils.now();
         var contractSetting = contractSettingService.getLatestContractSetting();
         if (contractSetting == null) {
             throw new NotFoundException("Contract settings not found", ErrorEnum.NOT_FOUND.getErrorCode());

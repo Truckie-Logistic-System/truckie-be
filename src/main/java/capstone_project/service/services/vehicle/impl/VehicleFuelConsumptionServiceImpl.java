@@ -32,6 +32,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -154,7 +156,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
                 .vehicleAssignmentEntity(vehicleAssignmentEntity)
                 .odometerReadingAtStart(request.odometerReadingAtStart())
                 .odometerAtStartUrl(odometerAtStartUrl)
-                .dateRecorded(LocalDateTime.now())
+                .dateRecorded(VietnamTimeUtils.now())
                 .build();
 
         final var savedEntity = vehicleFuelConsumptionEntityService.save(entity);

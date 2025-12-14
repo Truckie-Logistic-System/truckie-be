@@ -8,6 +8,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
@@ -18,6 +19,7 @@ import java.util.Set;
 @Entity
 @Table(name = "devices", schema = "public", catalog = "capstone-project")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
@@ -51,12 +53,15 @@ public class DeviceEntity extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "device_type_id")
+    @EqualsAndHashCode.Exclude
     private DeviceTypeEntity deviceTypeEntity;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_id")
+    @EqualsAndHashCode.Exclude
     private VehicleEntity vehicleEntity;
 
     @OneToMany(mappedBy = "device", fetch = FetchType.LAZY)
+    @EqualsAndHashCode.Exclude
     private Set<VehicleAssignmentDeviceEntity> vehicleAssignmentDevices = new HashSet<>();
 }

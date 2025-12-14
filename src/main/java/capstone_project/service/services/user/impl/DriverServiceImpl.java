@@ -30,6 +30,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -295,13 +297,13 @@ public class DriverServiceImpl implements DriverService {
                     .dateOfBirth(LocalDate.of(1990, 1, 1)) // Default DOB
                     .status(UserStatusEnum.ACTIVE.name())
                     .role(role)
-                    .createdAt(LocalDateTime.now())
+                    .createdAt(VietnamTimeUtils.now())
                     .build();
 
             UserEntity savedUser = userEntityService.save(user);
 
             // Generate random dates for driver documents
-            LocalDateTime dateOfIssue = LocalDateTime.now().minusYears(3 + (i % 5));
+            LocalDateTime dateOfIssue = VietnamTimeUtils.now().minusYears(3 + (i % 5));
             LocalDateTime dateOfExpiry = dateOfIssue.plusYears(5);
             LocalDateTime dateOfPassing = dateOfIssue.minusMonths(2);
 
@@ -324,7 +326,7 @@ public class DriverServiceImpl implements DriverService {
                     .dateOfPassing(dateOfPassing)
                     .status(UserStatusEnum.ACTIVE.name())
                     .user(savedUser)
-                    .createdAt(LocalDateTime.now())
+                    .createdAt(VietnamTimeUtils.now())
                     .build();
 
             DriverEntity savedDriver = driverEntityService.save(driverEntity);
