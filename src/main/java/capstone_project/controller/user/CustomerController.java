@@ -71,6 +71,18 @@ public class CustomerController {
         final var cus = customerService.updateCustomerStatusByCustomerId(customerId, status);
         return ResponseEntity.ok(ApiResponse.ok(cus));
     }
+    
+    /**
+     * API for admin to activate a customer account after OTP verification
+     * @param customerId ID of the customer to activate
+     * @return Activated customer information
+     */
+    @PatchMapping("/{customerId}/activate")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<ApiResponse<CustomerResponse>> activateCustomerAccount(@PathVariable UUID customerId) {
+        final var activatedCustomer = customerService.activateCustomerAccount(customerId);
+        return ResponseEntity.ok(ApiResponse.ok(activatedCustomer));
+    }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CustomerResponse>> updateCustomer(@PathVariable UUID id, @RequestBody UpdateCustomerRequest updateCustomerRequest) {

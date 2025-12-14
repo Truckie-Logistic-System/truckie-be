@@ -2,6 +2,7 @@ package capstone_project.dtos.response.order;
 
 import capstone_project.dtos.response.issue.SimpleIssueResponse;
 import capstone_project.dtos.response.order.seal.GetSealResponse;
+import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,5 +21,6 @@ public record StaffVehicleAssignmentResponse(
     List<GetSealResponse> seals,
     List<JourneyHistoryResponse> journeyHistories,
     List<String> photoCompletions,
-    List<SimpleIssueResponse> issues
+    List<SimpleIssueResponse> issues,
+    List<VehicleAssignmentResponse.DeviceInfo> devices
 ) {}

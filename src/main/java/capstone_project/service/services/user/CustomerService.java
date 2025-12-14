@@ -31,4 +31,13 @@ public interface CustomerService {
     CustomerResponse updateCustomerStatusByCustomerId(UUID customerId, String status);
 
     CustomerResponse updateCustomer(UUID customerId, UpdateCustomerRequest updateCustomerRequest);
+    
+    /**
+     * Activate a customer account after OTP verification (Admin only)
+     * Changes both UserEntity and CustomerEntity status to ACTIVE
+     * 
+     * @param customerId ID of the customer to activate
+     * @return Activated customer information
+     */
+    CustomerResponse activateCustomerAccount(UUID customerId);
 }

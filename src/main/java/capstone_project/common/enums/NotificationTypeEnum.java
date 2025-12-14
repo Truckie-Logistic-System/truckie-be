@@ -69,7 +69,10 @@ public enum NotificationTypeEnum {
     RETURN_PAYMENT_SUCCESS,     // Thanh toán cước trả hàng thành công
     DAMAGE_RESOLVED,            // Sự cố hư hỏng đã giải quyết
     ORDER_REJECTION_RESOLVED,   // Sự cố khách từ chối đã giải quyết
-    DRIVER_CREATED;             // Tài khoản tài xế được tạo - gửi thông tin đăng nhập (Email: YES)
+    DRIVER_CREATED,             // Tài khoản tài xế được tạo - gửi thông tin đăng nhập (Email: YES)
+    
+    // ============= STAFF NOTIFICATIONS - ACCOUNT =============
+    STAFF_CREATED;              // Tài khoản nhân viên được tạo - gửi thông tin đăng nhập (Email: YES)
 
     // Vietnamese translation method
     public String getVietnameseLabel() {
@@ -139,6 +142,7 @@ public enum NotificationTypeEnum {
             case DAMAGE_RESOLVED: return "Đã giải quyết hư hỏng";
             case ORDER_REJECTION_RESOLVED: return "Đã giải quyết từ chối";
             case DRIVER_CREATED: return "Tài khoản được tạo";
+            case STAFF_CREATED: return "Tài khoản được tạo";
             
             default: return "Thông báo";
         }

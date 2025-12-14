@@ -9,11 +9,11 @@ public class OtpEmailForgetPasswordTemplate {
                 "    <style>\n" +
                 "        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f5f7fa; margin: 0; padding: 20px; }\n" +
                 "        .container { max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); overflow: hidden; }\n" +
-                "        .header { background: linear-gradient(135deg, #1976D2 0%%, #1565C0 100%%); color: white; padding: 30px; text-align: center; }\n" +
+                "        .header { background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%); color: white; padding: 30px; text-align: center; }\n" +
                 "        .header h1 { margin: 0; font-size: 24px; font-weight: 600; }\n" +
                 "        .header .logo { font-size: 32px; font-weight: bold; margin-bottom: 10px; }\n" +
                 "        .content { padding: 30px; color: #333; }\n" +
-                "        .otp-container { background: linear-gradient(135deg, #e3f2fd 0%%, #bbdefb 100%%); border-radius: 12px; padding: 25px; margin: 25px 0; text-align: center; }\n" +
+                "        .otp-container { background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 12px; padding: 25px; margin: 25px 0; text-align: center; }\n" +
                 "        .otp { font-size: 36px; font-weight: bold; color: #1976D2; letter-spacing: 8px; margin: 0; }\n" +
                 "        .otp-label { font-size: 14px; color: #666; margin-bottom: 10px; }\n" +
                 "        .info-box { background-color: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; }\n" +

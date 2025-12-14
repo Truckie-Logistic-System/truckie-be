@@ -61,4 +61,14 @@ public interface EmailNotificationService {
      */
     void sendDriverAssignmentEmail(String driverEmail, String driverName, 
                                   String orderCode, Map<String, Object> metadata);
+    
+    /**
+     * Send staff account creation email with login credentials
+     * @param staffEmail Staff email address
+     * @param staffName Staff full name
+     * @param username Staff username
+     * @param tempPassword Temporary password
+     */
+    void sendStaffCredentialsEmail(String staffEmail, String staffName, 
+                                  String username, String tempPassword);
 }

@@ -370,8 +370,10 @@ public class RefundServiceImpl implements RefundService {
                         .status(issue.getStatus())
                         .reportedAt(issue.getReportedAt())
                         .resolvedAt(issue.getResolvedAt())
-                        .damageFinalCompensation(issue.getDamageFinalCompensation())
-                        .damageCompensationStatus(issue.getDamageCompensationStatus())
+                        // Compensation data now from IssueCompensationAssessmentEntity
+                        .finalCompensation(issue.getCompensationAssessment() != null ? 
+                                issue.getCompensationAssessment().getFinalCompensation() : null)
+                        .compensationStatus(issue.getStatus()) // Use issue status as compensation status
                         .build() : null)
                 .order(order != null ? StaffRefundResponse.OrderInfo.builder()
                         .id(order.getId())

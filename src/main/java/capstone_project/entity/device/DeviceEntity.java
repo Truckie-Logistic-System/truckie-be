@@ -1,7 +1,9 @@
 package capstone_project.entity.device;
 
 import capstone_project.entity.common.BaseEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentDeviceEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -10,6 +12,8 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "devices", schema = "public", catalog = "capstone-project")
@@ -53,4 +57,6 @@ public class DeviceEntity extends BaseEntity {
     @JoinColumn(name = "vehicle_id")
     private VehicleEntity vehicleEntity;
 
+    @OneToMany(mappedBy = "device", fetch = FetchType.LAZY)
+    private Set<VehicleAssignmentDeviceEntity> vehicleAssignmentDevices = new HashSet<>();
 }

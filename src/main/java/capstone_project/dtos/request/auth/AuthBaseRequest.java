@@ -27,6 +27,7 @@ public class AuthBaseRequest implements Serializable {
     @Email(message = "Email should be valid")
     private String email;
 
-    @NotBlank(message = "Password is required")
+    // Password is optional for staff registration but required for others
+    // It will be generated automatically for staff
     private String password;
 }

@@ -1,23 +1,33 @@
 package capstone_project.repository.entityServices.vehicle.impl;
 
+import capstone_project.entity.device.DeviceEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentDeviceEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
+import capstone_project.repository.repositories.device.DeviceRepository;
+import capstone_project.repository.repositories.vehicle.VehicleAssignmentDeviceRepository;
 import capstone_project.repository.repositories.vehicle.VehicleAssignmentRepository;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEntityService {
 
     private final VehicleAssignmentRepository vehicleAssignmentRepository;
+    private final VehicleAssignmentDeviceRepository vehicleAssignmentDeviceRepository;
+    private final DeviceRepository deviceRepository;
 
     @Override
     public VehicleAssignmentEntity save(VehicleAssignmentEntity entity) {
@@ -147,5 +157,48 @@ public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEnti
     @Override
     public Optional<VehicleAssignmentEntity> findByTrackingCode(String trackingCode) {
         return vehicleAssignmentRepository.findByTrackingCode(trackingCode);
+    }
+    
+    @Override
+    public Optional<VehicleAssignmentEntity> findByIdWithDriversAndDevices(UUID id) {
+        log.info("🔍 DEBUG: Repository - Finding vehicle assignment with devices for ID: {}", id);
+        Optional<VehicleAssignmentEntity> result = vehicleAssignmentRepository.findByIdWithDriversAndDevices(id);
+        
+        if (result.isPresent()) {
+            VehicleAssignmentEntity entity = result.get();
+            log.info("🔍 DEBUG: Repository - Found assignment: {}", entity.getId());
+            
+            // Fetch device IDs separately using native SQL, then fetch full device entities
+            try {
+                List<UUID> deviceIds = vehicleAssignmentDeviceRepository.findDeviceIdsByVehicleAssignmentId(id);
+                log.info("🔍 DEBUG: Repository - Found {} device IDs via native SQL", deviceIds.size());
+                
+                if (!deviceIds.isEmpty()) {
+                    // Fetch full device entities
+                    List<DeviceEntity> devices = deviceRepository.findAllById(deviceIds);
+                    log.info("🔍 DEBUG: Repository - Fetched {} full device entities", devices.size());
+                    
+                    // Create intermediate entities and set on assignment
+                    Set<VehicleAssignmentDeviceEntity> deviceEntities = new HashSet<>();
+                    for (DeviceEntity device : devices) {
+                        VehicleAssignmentDeviceEntity vad = new VehicleAssignmentDeviceEntity();
+                        vad.setVehicleAssignment(entity);
+                        vad.setDevice(device);
+                        deviceEntities.add(vad);
+                        log.info("🔍 DEBUG: Repository - Device: {} - {} - {}", 
+                                device.getDeviceCode(), device.getManufacturer(), device.getModel());
+                    }
+                    entity.setVehicleAssignmentDevices(deviceEntities);
+                    log.info("🔍 DEBUG: Repository - Set {} devices on entity via convenience method: {}", 
+                            entity.getDevices().size(), entity.getDevices().size());
+                }
+            } catch (Exception e) {
+                log.error("🔍 DEBUG: Failed to fetch devices: {}", e.getMessage(), e);
+            }
+        } else {
+            log.info("🔍 DEBUG: Repository - No assignment found for ID: {}", id);
+        }
+        
+        return result;
     }
 }

@@ -219,4 +219,37 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
             log.error("❌ Failed to send driver assignment email to {}: {}", driverEmail, e.getMessage(), e);
         }
     }
+    
+    @Override
+    @Async
+    @Transactional
+    public void sendStaffCredentialsEmail(String staffEmail, String staffName, 
+                                         String username, String tempPassword) {
+        try {
+            log.info("📧 Sending staff credentials email to: {}", staffEmail);
+            
+            Context context = new Context();
+            context.setVariable("staffName", staffName);
+            context.setVariable("username", username);
+            context.setVariable("tempPassword", tempPassword);
+            context.setVariable("frontendUrl", frontendUrl);
+            
+            String emailContent = templateEngine.process("emails/staff-credentials", context);
+            
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            
+            helper.setFrom(fromEmail);
+            helper.setTo(staffEmail);
+            helper.setSubject("👤 Thông tin đăng nhập tài khoản nhân viên Truckie");
+            helper.setText(emailContent, true);
+            
+            mailSender.send(message);
+            
+            log.info("✅ Staff credentials email sent successfully to: {}", staffEmail);
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to send staff credentials email to {}: {}", staffEmail, e.getMessage(), e);
+        }
+    }
 }

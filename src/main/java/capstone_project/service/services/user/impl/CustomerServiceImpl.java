@@ -257,4 +257,56 @@ public class CustomerServiceImpl implements CustomerService {
 
         return customerMapper.mapCustomerResponse(customerEntity);
     }
+    
+    @Override
+    public CustomerResponse activateCustomerAccount(UUID customerId) {
+        log.info("[activateCustomerAccount] Admin activating customer account with ID: {}", customerId);
+        
+        // Validate customerId
+        if (customerId == null) {
+            log.error("[activateCustomerAccount] Customer ID is null");
+            throw new BadRequestException(
+                    "Customer ID cannot be null",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+        
+        // Find customer entity
+        CustomerEntity customerEntity = customerEntityService.findEntityById(customerId)
+                .orElseThrow(() -> {
+                    log.error("[activateCustomerAccount] Customer not found with ID: {}", customerId);
+                    return new BadRequestException(
+                            "Customer not found with ID: " + customerId,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    );
+                });
+        
+        // Check if customer is already active
+        if (UserStatusEnum.ACTIVE.name().equals(customerEntity.getStatus())) {
+            log.info("[activateCustomerAccount] Customer account is already active: {}", customerId);
+            return customerMapper.mapCustomerResponse(customerEntity);
+        }
+        
+        // Check if customer has completed OTP verification (status should be INACTIVE)
+        if (!UserStatusEnum.INACTIVE.name().equals(customerEntity.getStatus())) {
+            log.error("[activateCustomerAccount] Customer has not completed OTP verification: {}", customerId);
+            throw new BadRequestException(
+                    "Customer must complete OTP verification before activation",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
+        
+        // Update customer status to ACTIVE
+        customerEntity.setStatus(UserStatusEnum.ACTIVE.name());
+        CustomerEntity updatedCustomer = customerEntityService.save(customerEntity);
+        
+        // Update user status to ACTIVE
+        if (updatedCustomer.getUser() != null) {
+            updatedCustomer.getUser().setStatus(UserStatusEnum.ACTIVE.name());
+            customerEntityService.save(updatedCustomer);
+        }
+        
+        log.info("[activateCustomerAccount] Customer account activated successfully: {}", customerId);
+        return customerMapper.mapCustomerResponse(updatedCustomer);
+    }
 }

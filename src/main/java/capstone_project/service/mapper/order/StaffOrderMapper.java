@@ -265,10 +265,7 @@ public class StaffOrderMapper {
                 detail.unit(),
                 detail.description(),
                 detail.status(),
-                detail.startTime(),
                 detail.estimatedStartTime(),
-                detail.endTime(),
-                detail.estimatedEndTime(),
                 detail.createdAt(),
                 detail.trackingCode(),
                 orderSize,
@@ -324,10 +321,7 @@ public class StaffOrderMapper {
                         detail.unit(),
                         detail.description(),
                         translateStatusToVietnamese(detail.status(), "ORDER_DETAIL"),
-                        detail.startTime(),
                         detail.estimatedStartTime(),
-                        detail.endTime(),
-                        detail.estimatedEndTime(),
                         detail.createdAt(),
                         detail.trackingCode(),
                         detail.orderSize(),
@@ -372,10 +366,7 @@ public class StaffOrderMapper {
                             detail.getUnit(),
                             detail.getDescription(),
                             detail.getStatus(),
-                            detail.getStartTime(),
                             detail.getEstimatedStartTime(),
-                            detail.getEndTime(),
-                            detail.getEstimatedEndTime(),
                             detail.getCreatedAt(),
                             detail.getTrackingCode(),
                             detail.getOrderSizeEntity() != null ? new SimpleOrderSizeResponse(
@@ -565,7 +556,8 @@ public class StaffOrderMapper {
                 seals,
                 journeyHistories,
                 photoCompletions,
-                issuesList
+                issuesList,
+                vehicleAssignmentResponse.devices()  // Pass devices from basicResponse
         );
     }
 
@@ -925,46 +917,35 @@ public class StaffOrderMapper {
     }
     
     /**
-     * Get device info from vehicle assignment's device_ids field
+     * Extract device information from VehicleAssignmentEntity using many-to-many relationship
      */
     private List<StaffVehicleAssignmentFullResponse.DeviceInfo> getDeviceInfoFromAssignment(VehicleAssignmentEntity entity) {
         log.info("🔍 DEBUG: Getting device info for assignment {}", entity.getId());
-        log.info("🔍 DEBUG: Raw deviceIds from entity: '{}'", entity.getDeviceIds());
         
-        if (entity == null || entity.getDeviceIds() == null || entity.getDeviceIds().trim().isEmpty()) {
-            log.info("🔍 DEBUG: No device IDs found, returning empty list");
+        if (entity == null || entity.getDevices() == null || entity.getDevices().isEmpty()) {
+            log.info("🔍 DEBUG: No devices found, returning empty list");
             return Collections.emptyList();
         }
         
         try {
-            // Parse comma-separated device IDs
-            String[] deviceIdStrings = entity.getDeviceIds().split(",");
-            log.info("🔍 DEBUG: Parsed {} device IDs: {}", deviceIdStrings.length, Arrays.toString(deviceIdStrings));
             List<StaffVehicleAssignmentFullResponse.DeviceInfo> deviceInfoList = new ArrayList<>();
             
-            for (String deviceIdStr : deviceIdStrings) {
-                try {
-                    UUID deviceId = UUID.fromString(deviceIdStr.trim());
-                    log.debug("🔍 DEBUG: Looking for device with ID: {}", deviceId);
-                    deviceEntityService.findEntityById(deviceId).ifPresent(device -> {
-                        log.debug("🔍 DEBUG: Found device: {} - {}", device.getDeviceCode(), device.getManufacturer());
-                        String deviceTypeName = device.getDeviceTypeEntity() != null 
-                                ? device.getDeviceTypeEntity().getDeviceTypeName() 
-                                : null;
-                        
-                        deviceInfoList.add(new StaffVehicleAssignmentFullResponse.DeviceInfo(
-                                device.getId(),
-                                device.getDeviceCode(),
-                                device.getManufacturer(),
-                                device.getModel(),
-                                device.getIpAddress(),
-                                device.getFirmwareVersion(),
-                                deviceTypeName
-                        ));
-                    })  ;
-                } catch (IllegalArgumentException e) {
-                    log.warn("Invalid device ID format in assignment {}: {}", entity.getId(), deviceIdStr);
-                }
+            for (capstone_project.entity.device.DeviceEntity device : entity.getDevices()) {
+                log.debug("🔍 DEBUG: Processing device: {} - {}", device.getDeviceCode(), device.getManufacturer());
+                
+                String deviceTypeName = device.getDeviceTypeEntity() != null 
+                        ? device.getDeviceTypeEntity().getDeviceTypeName() 
+                        : null;
+                
+                deviceInfoList.add(new StaffVehicleAssignmentFullResponse.DeviceInfo(
+                        device.getId(),
+                        device.getDeviceCode(),
+                        device.getManufacturer(),
+                        device.getModel(),
+                        device.getIpAddress(),
+                        device.getFirmwareVersion(),
+                        deviceTypeName
+                ));
             }
             
             log.info("🔍 DEBUG: Returning {} device infos for assignment {}", deviceInfoList.size(), entity.getId());

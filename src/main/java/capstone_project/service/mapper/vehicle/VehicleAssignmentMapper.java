@@ -26,11 +26,28 @@ public abstract class VehicleAssignmentMapper {
     @Mapping(target = "driver1", source = "driverId_1", qualifiedByName = "driverFromId")
     @Mapping(target = "driver2", source = "driverId_2", qualifiedByName = "driverFromId")
     @Mapping(target = "status", constant = "ACTIVE")  // Tự động set status là ACTIVE
+    @Mapping(target = "vehicleAssignmentDevices", ignore = true)  // Don't map devices when creating entity
+    @Mapping(target = "id", ignore = true)  // Auto-generated
+    @Mapping(target = "createdAt", ignore = true)  // Auto-generated
+    @Mapping(target = "modifiedAt", ignore = true)  // Auto-generated
+    @Mapping(target = "createdBy", ignore = true)  // Auto-generated
+    @Mapping(target = "modifiedBy", ignore = true)  // Auto-generated
+    @Mapping(target = "isDemoData", ignore = true)  // Auto-generated
+    @Mapping(target = "trackingCode", ignore = true)  // Auto-generated
     public abstract VehicleAssignmentEntity toEntity(VehicleAssignmentRequest req);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "vehicleEntity", source = "vehicleId", qualifiedByName = "vehicleFromId")
     @Mapping(target = "driver2", source = "driverId", qualifiedByName = "driverFromId")
+    @Mapping(target = "driver1", ignore = true)  // Don't update driver1 in update method
+    @Mapping(target = "vehicleAssignmentDevices", ignore = true)  // Don't update devices in update method
+    @Mapping(target = "id", ignore = true)  // Auto-generated
+    @Mapping(target = "createdAt", ignore = true)  // Auto-generated
+    @Mapping(target = "modifiedAt", ignore = true)  // Auto-generated
+    @Mapping(target = "createdBy", ignore = true)  // Auto-generated
+    @Mapping(target = "modifiedBy", ignore = true)  // Auto-generated
+    @Mapping(target = "isDemoData", ignore = true)  // Auto-generated
+    @Mapping(target = "trackingCode", ignore = true)  // Auto-generated
     public abstract void toEntity(UpdateVehicleAssignmentRequest req,
                                   @MappingTarget VehicleAssignmentEntity entity);
 
@@ -42,6 +59,7 @@ public abstract class VehicleAssignmentMapper {
     @Mapping(target = "vehicle", source = "vehicleEntity", qualifiedByName = "mapVehicleInfo")
     @Mapping(target = "driver1", source = "driver1", qualifiedByName = "mapDriverInfo")
     @Mapping(target = "driver2", source = "driver2", qualifiedByName = "mapDriverInfo")
+    @Mapping(target = "devices", source = "devices", qualifiedByName = "mapDevices")
     public abstract VehicleAssignmentResponse toResponse(VehicleAssignmentEntity entity);
 
     public abstract GetVehicleAssignmentForBillOfLandingResponse toGetVehicleAssignmentForBillOfLandingResponse(VehicleAssignmentEntity entity);
@@ -105,6 +123,40 @@ public abstract class VehicleAssignmentMapper {
             driver.getDriverLicenseNumber(),
             driver.getLicenseClass(),
             experienceYears
+        );
+    }
+    
+    @Named("mapDevices")
+    protected java.util.List<VehicleAssignmentResponse.DeviceInfo> mapDevices(java.util.Set<capstone_project.entity.device.DeviceEntity> devices) {
+        if (devices == null || devices.isEmpty()) {
+            return new java.util.ArrayList<>();
+        }
+        
+        return devices.stream()
+            .map(this::mapSingleDevice)
+            .collect(java.util.stream.Collectors.toList());
+    }
+    
+    private VehicleAssignmentResponse.DeviceInfo mapSingleDevice(capstone_project.entity.device.DeviceEntity device) {
+        if (device == null) return null;
+        
+        var deviceType = device.getDeviceTypeEntity() != null
+            ? new VehicleAssignmentResponse.DeviceTypeInfo(
+                device.getDeviceTypeEntity().getId(),
+                device.getDeviceTypeEntity().getDeviceTypeName(),
+                device.getDeviceTypeEntity().getDescription()
+            )
+            : null;
+        
+        return new VehicleAssignmentResponse.DeviceInfo(
+            device.getId(),
+            device.getDeviceCode(),
+            device.getManufacturer(),
+            device.getModel(),
+            device.getStatus(),
+            device.getIpAddress(),
+            device.getFirmwareVersion(),
+            deviceType
         );
     }
 }

@@ -105,6 +105,9 @@ public class IssueServiceImpl implements IssueService {
     private final capstone_project.repository.entityServices.offroute.OffRouteEventEntityService offRouteEventEntityService;
     private final capstone_project.service.services.refund.RefundService refundService;
     private final capstone_project.repository.entityServices.user.PenaltyHistoryEntityService penaltyHistoryEntityService;
+    
+    // ✅ DAMAGE/OFF_ROUTE compensation - unified service
+    private final capstone_project.service.CompensationService compensationService;
 
     @Override
     public GetBasicIssueResponse getBasicIssue(UUID issueId) {
@@ -184,7 +187,8 @@ public class IssueServiceImpl implements IssueService {
             entity.getTrackingCode(),
             vehicleInfo,
             driver1,
-            driver2
+            driver2,
+            new java.util.ArrayList<>()  // Empty devices list for this context
         );
     }
 
@@ -3316,165 +3320,105 @@ public class IssueServiceImpl implements IssueService {
     }
 
     // ===== DAMAGE compensation flow methods =====
+    // NOTE: These methods now delegate to CompensationService which uses IssueCompensationAssessmentEntity
     
     @Override
     @Transactional
     public GetBasicIssueResponse updateDamageCompensation(capstone_project.dtos.request.issue.UpdateDamageCompensationRequest request) {
-        log.info("📊 Updating DAMAGE compensation for issue: {}", request.issueId());
+        log.info("📊 Updating DAMAGE compensation for issue: {} (delegating to CompensationService)", request.issueId());
         
-        // 1. Find and validate issue
-        IssueEntity issue = issueEntityService.findByIdWithDetails(request.issueId())
-                .orElseThrow(() -> new NotFoundException(
-                        "Issue not found: " + request.issueId(),
-                        ErrorEnum.ISSUE_NOT_FOUND.getErrorCode()
-                ));
+        // Convert legacy UpdateDamageCompensationRequest to unified CompensationAssessmentRequest
+        capstone_project.dtos.request.issue.CompensationAssessmentRequest unifiedRequest = 
+            capstone_project.dtos.request.issue.CompensationAssessmentRequest.builder()
+                .issueId(request.issueId())
+                .issueType("DAMAGE")
+                .hasDocuments(request.damageHasDocuments())
+                .documentValue(request.damageDeclaredValue())
+                .estimatedMarketValue(request.damageEstimatedMarketValue())
+                .assessmentRatePercent(request.damageAssessmentPercent())
+                .finalCompensation(request.damageFinalCompensation())
+                .adjustReason(request.damageAdjustReason())
+                .handlerNotes(request.damageHandlerNote())
+                .fraudDetected(request.fraudDetected())
+                .fraudReason(request.fraudReason())
+                .build();
         
-        // Validate issue is DAMAGE type
-        if (issue.getIssueTypeEntity() == null || 
-            !IssueCategoryEnum.DAMAGE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
-            throw new BadRequestException(
-                    "Issue is not a DAMAGE type issue",
-                    ErrorEnum.INVALID_REQUEST.getErrorCode()
-            );
-        }
+        // Delegate to CompensationService
+        compensationService.resolveCompensation(unifiedRequest);
         
-        // 2. Get Order and Contract info
-        List<OrderDetailEntity> orderDetails = issue.getOrderDetails();
-        if (orderDetails == null || orderDetails.isEmpty()) {
-            throw new BadRequestException(
-                    "No order details found for this issue",
-                    ErrorEnum.INVALID_REQUEST.getErrorCode()
-            );
-        }
+        log.info("✅ DAMAGE compensation updated via CompensationService");
         
-        OrderEntity order = orderDetails.get(0).getOrderEntity();
-        if (order == null) {
-            throw new BadRequestException(
-                    "No order found for this issue",
-                    ErrorEnum.INVALID_REQUEST.getErrorCode()
-            );
-        }
-        
-        // Get hasInsurance from Order
-        boolean hasInsurance = Boolean.TRUE.equals(order.getHasInsurance());
-        boolean hasDocuments = Boolean.TRUE.equals(request.damageHasDocuments());
-        
-        // 3. Get freight fee from Contract (adjustedValue or totalValue)
-        java.math.BigDecimal freightFee = java.math.BigDecimal.ZERO;
-        try {
-            var contractOpt = contractEntityService.getContractByOrderId(order.getId());
-            if (contractOpt.isPresent()) {
-                var contract = contractOpt.get(); // Get the contract
-                if (contract.getAdjustedValue() != null && contract.getAdjustedValue().compareTo(java.math.BigDecimal.ZERO) > 0) {
-                    freightFee = contract.getAdjustedValue();
-                    log.info("📦 Using adjustedValue as freight fee: {}", freightFee);
-                } else if (contract.getTotalValue() != null) {
-                    freightFee = contract.getTotalValue();
-                    log.info("📦 Using totalValue as freight fee: {}", freightFee);
-                }
-            }
-        } catch (Exception e) {
-            log.warn("⚠️ Could not get contract for freight fee calculation: {}", e.getMessage());
-        }
-        
-        // 4. Determine compensation case
-        capstone_project.common.enums.DamageCompensationCaseEnum compensationCase = 
-            capstone_project.common.enums.DamageCompensationCaseEnum.determineCase(hasInsurance, hasDocuments);
-        
-        // 5. Calculate compensation based on policy
-        java.math.BigDecimal damagePercent = request.damageAssessmentPercent();
-        java.math.BigDecimal legalLimit = freightFee.multiply(java.math.BigDecimal.TEN); // 10 × cước phí
-        
-        // Determine base value for calculation
-        java.math.BigDecimal baseValue;
-        if (hasDocuments && request.damageDeclaredValue() != null) {
-            baseValue = request.damageDeclaredValue();
-        } else if (request.damageEstimatedMarketValue() != null) {
-            baseValue = request.damageEstimatedMarketValue();
-        } else {
-            // Fallback to order's total declared value
-            baseValue = order.getTotalDeclaredValue() != null ? order.getTotalDeclaredValue() : java.math.BigDecimal.ZERO;
-        }
-        
-        // Calculate estimated loss = baseValue × (damagePercent / 100)
-        java.math.BigDecimal estimatedLoss = baseValue.multiply(damagePercent)
-                .divide(java.math.BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
-        
-        // Calculate policy compensation based on case
-        java.math.BigDecimal policyCompensation;
-        if (compensationCase == capstone_project.common.enums.DamageCompensationCaseEnum.CASE1_HAS_INS_HAS_DOC) {
-            // Case 1: Full compensation without limit
-            policyCompensation = estimatedLoss;
-        } else {
-            // Case 2, 3, 4: Apply legal limit
-            policyCompensation = estimatedLoss.min(legalLimit);
-        }
-        
-        // Determine final compensation
-        java.math.BigDecimal finalCompensation;
-        if (request.damageFinalCompensation() != null) {
-            finalCompensation = request.damageFinalCompensation();
-            // Validate: final should not exceed policy for non-Case1
-            if (compensationCase != capstone_project.common.enums.DamageCompensationCaseEnum.CASE1_HAS_INS_HAS_DOC
-                && finalCompensation.compareTo(legalLimit) > 0) {
-                log.warn("⚠️ Final compensation {} exceeds legal limit {}", finalCompensation, legalLimit);
-            }
-        } else {
-            finalCompensation = policyCompensation;
-        }
-        
-        // 6. Update issue entity
-        issue.setDamageAssessmentPercent(damagePercent);
-        issue.setDamageHasDocuments(hasDocuments);
-        issue.setDamageDeclaredValue(request.damageDeclaredValue());
-        issue.setDamageEstimatedMarketValue(request.damageEstimatedMarketValue());
-        issue.setDamageFreightFee(freightFee);
-        issue.setDamageLegalLimit(legalLimit);
-        issue.setDamageEstimatedLoss(estimatedLoss);
-        issue.setDamagePolicyCompensation(policyCompensation);
-        issue.setDamageFinalCompensation(finalCompensation);
-        issue.setDamageCompensationCase(compensationCase.name());
-        issue.setDamageAdjustReason(request.damageAdjustReason());
-        issue.setDamageHandlerNote(request.damageHandlerNote());
-        
-        // Set status
-        String newStatus = request.damageCompensationStatus();
-        if (newStatus != null) {
-            issue.setDamageCompensationStatus(newStatus);
-        } else if (issue.getDamageCompensationStatus() == null) {
-            issue.setDamageCompensationStatus(
-                capstone_project.common.enums.DamageCompensationStatusEnum.PROPOSED.name()
-            );
-        }
-        
-        // Save
-        IssueEntity saved = issueEntityService.save(issue);
-        
-        log.info("✅ DAMAGE compensation updated: case={}, estimatedLoss={}, policyComp={}, finalComp={}",
-                compensationCase.name(), estimatedLoss, policyCompensation, finalCompensation);
-        
-        // Return full response
-        return getBasicIssue(saved.getId());
+        // Return full issue response
+        return getBasicIssue(request.issueId());
     }
     
     @Override
     public capstone_project.dtos.response.issue.DamageCompensationResponse getDamageCompensationDetail(UUID issueId) {
-        IssueEntity issue = issueEntityService.findByIdWithDetails(issueId)
-                .orElseThrow(() -> new NotFoundException(
-                        "Issue not found: " + issueId,
-                        ErrorEnum.ISSUE_NOT_FOUND.getErrorCode()
-                ));
+        log.info("📊 Getting DAMAGE compensation detail for issue: {} (delegating to CompensationService)", issueId);
         
-        // Validate issue is DAMAGE type
-        if (issue.getIssueTypeEntity() == null || 
-            !IssueCategoryEnum.DAMAGE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
-            throw new BadRequestException(
-                    "Issue is not a DAMAGE type issue",
-                    ErrorEnum.INVALID_REQUEST.getErrorCode()
-            );
+        // Get compensation detail from CompensationService
+        var compensationDetail = compensationService.getCompensationDetail(issueId);
+        
+        // Convert CompensationDetailResponse to legacy DamageCompensationResponse for backward compatibility
+        return convertToDamageCompensationResponse(compensationDetail);
+    }
+    
+    /**
+     * Convert unified CompensationDetailResponse to legacy DamageCompensationResponse
+     * for backward compatibility with existing frontend
+     */
+    private capstone_project.dtos.response.issue.DamageCompensationResponse convertToDamageCompensationResponse(
+            capstone_project.dtos.response.issue.CompensationDetailResponse detail) {
+        
+        if (detail == null || detail.getAssessment() == null) {
+            return null;
         }
         
-        return issueMapper.mapDamageCompensation(issue);
+        var assessment = detail.getAssessment();
+        var breakdown = detail.getCompensationBreakdown();
+        var orderContext = detail.getOrderContext();
+        
+        // Determine case and labels based on hasInsurance and hasDocuments
+        Boolean hasInsurance = orderContext != null ? orderContext.getHasInsurance() : false;
+        Boolean hasDocuments = assessment.getHasDocuments();
+        
+        String compensationCase = breakdown != null ? breakdown.getCompensationCase() : null;
+        String caseLabel = null;
+        String caseDescription = null;
+        Boolean appliesLegalLimit = null;
+        
+        if (compensationCase != null) {
+            try {
+                var caseEnum = capstone_project.common.enums.DamageCompensationCaseEnum.valueOf(compensationCase);
+                caseLabel = caseEnum.getLabel();
+                caseDescription = caseEnum.getDescription();
+                appliesLegalLimit = caseEnum.appliesLegalLimit();
+            } catch (IllegalArgumentException e) {
+                // Invalid case enum, ignore
+            }
+        }
+        
+        return new capstone_project.dtos.response.issue.DamageCompensationResponse(
+            assessment.getAssessmentRate() != null ? 
+                assessment.getAssessmentRate().multiply(java.math.BigDecimal.valueOf(100)) : null,
+            hasInsurance,
+            hasDocuments,
+            assessment.getDocumentValue(),
+            assessment.getEstimatedMarketValue(),
+            orderContext != null ? orderContext.getTransportFee() : null,
+            breakdown != null ? breakdown.getLegalLimit() : null,
+            breakdown != null ? breakdown.getGoodsCompensation() : null,
+            assessment.getCompensationByPolicy(),
+            assessment.getFinalCompensation(),
+            compensationCase,
+            caseLabel,
+            caseDescription,
+            appliesLegalLimit,
+            assessment.getAdjustReason(),
+            assessment.getHandlerNotes(),
+            detail.getIssueStatus(),
+            null // statusLabel - can be derived from issueStatus if needed
+        );
     }
     
     /**

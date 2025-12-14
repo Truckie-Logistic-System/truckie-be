@@ -103,7 +103,8 @@ public interface OrderMapper {
                 entity.getTrackingCode(),
                 vehicleInfo,
                 driver1,
-                driver2
+                driver2,
+                new java.util.ArrayList<>()  // Empty devices list for this context
         );
     }
 

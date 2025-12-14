@@ -17,6 +17,11 @@ java {
     }
 }
 
+// Configure jar file name for Railway deployment
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+    archiveFileName.set("app.jar")
+}
+
 repositories {
     mavenCentral()
 }
@@ -123,15 +128,20 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    systemProperty("java.io.tmpdir", "${project.buildDir}/tmp")
+    jvmArgs("-Xmx512m")
+}
+
 // Liquibase configuration
 liquibase {
     // Main activity: apply all changelogs to main database
     activities.register("main") {
         arguments = mapOf(
             "changelogFile" to "db/changelog/db.changelog-master.xml",
-            "url" to "jdbc:postgresql://localhost:5432/capstone-project",
+            "url" to "jdbc:postgresql://14.225.253.8:5432/truckie",
             "username" to "postgres",
-            "password" to "postgres",
+            "password" to "123",
             "driver" to "org.postgresql.Driver",
             "searchPath" to "src/main/resources"
         )
@@ -176,7 +186,34 @@ liquibase {
         )
     }
 
-    runList = "main"
+    // Sync Truckie DB: apply master changelog to production truckie database
+    activities.register("syncTruckie") {
+        arguments = mapOf(
+            "changelogFile" to "db/changelog/db.changelog-master.xml",
+            "url" to "jdbc:postgresql://14.225.253.8:5432/truckie",
+            "username" to "postgres",
+            "password" to "123",
+            "driver" to "org.postgresql.Driver",
+            "searchPath" to "src/main/resources"
+        )
+    }
+
+    // Diff Truckie: generate diff between reference DB (entities) and truckie DB
+    activities.register("diffTruckie") {
+        arguments = mapOf(
+            "changelogFile" to "db/changelog/diff/db.changelog-diff-truckie.xml",
+            "url" to "jdbc:postgresql://14.225.253.8:5432/truckie",
+            "username" to "postgres",
+            "password" to "123",
+            "referenceUrl" to "jdbc:postgresql://localhost:5432/capstone_reference",
+            "referenceUsername" to "postgres",
+            "referencePassword" to "postgres",
+            "driver" to "org.postgresql.Driver",
+            "searchPath" to "src/main/resources"
+        )
+    }
+
+    runList = project.ext.properties.getOrDefault("runList", "main") as String
 }
 
 dependencies {
