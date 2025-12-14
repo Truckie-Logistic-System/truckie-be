@@ -17,30 +17,33 @@ import java.util.UUID;
 @RestController
 @RequestMapping("${contract-setting.api.base-path}")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('ADMIN')")
 public class ContractSettingController {
 
     private final ContractSettingService contractSettingService;
 
     @GetMapping()
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<List<ContractSettingResponse>>> getAll() {
         final var result = contractSettingService.getAllContractSettingEntities();
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<ContractSettingResponse>> getById(@PathVariable UUID id) {
         final var result = contractSettingService.getContractSettingById(id);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @PostMapping()
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<ContractSettingResponse>> create(@RequestBody @Valid ContractSettingRequest request) {
         final var result = contractSettingService.createContractSetting(request);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<ContractSettingResponse>> update(@PathVariable UUID id,
                                                                       @RequestBody @Valid UpdateContractSettingRequest request) {
         final var result = contractSettingService.updateContractSetting(id, request);

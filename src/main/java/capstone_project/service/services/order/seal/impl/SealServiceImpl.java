@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -120,7 +122,7 @@ public class SealServiceImpl implements SealService {
 
         // Cập nhật SealEntity đã tìm thấy
         matchingSeal.setStatus(SealEnum.IN_USE.name());
-        matchingSeal.setSealDate(LocalDateTime.now());
+        matchingSeal.setSealDate(VietnamTimeUtils.now());
         matchingSeal.setSealAttachedImage(imageUrl);
 
         SealEntity savedSeal = sealEntityService.save(matchingSeal);

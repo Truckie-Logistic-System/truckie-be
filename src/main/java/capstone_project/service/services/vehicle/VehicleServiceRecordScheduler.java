@@ -9,6 +9,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -28,7 +30,7 @@ public class VehicleServiceRecordScheduler {
     public void updateOverdueServiceRecords() {
         log.info("Bắt đầu cập nhật trạng thái quá hạn cho service records...");
         
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = VietnamTimeUtils.now();
         
         // Tìm tất cả bản ghi PLANNED có planned_date < now
         List<VehicleServiceRecordEntity> plannedRecords = serviceRecordRepository

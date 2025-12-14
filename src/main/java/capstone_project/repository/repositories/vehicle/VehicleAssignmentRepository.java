@@ -85,10 +85,17 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
             FROM VehicleAssignmentEntity va
             LEFT JOIN FETCH va.vehicleEntity v
             LEFT JOIN FETCH v.vehicleTypeEntity vt
+            LEFT JOIN FETCH vt.fuelTypeEntity ft
             LEFT JOIN FETCH va.driver1 d1
             LEFT JOIN FETCH d1.user u1
             LEFT JOIN FETCH va.driver2 d2
             LEFT JOIN FETCH d2.user u2
+            LEFT JOIN FETCH va.vehicleAssignmentDevices vad
+            LEFT JOIN FETCH vad.device d
+            LEFT JOIN FETCH d.deviceTypeEntity dt
+            LEFT JOIN FETCH d.vehicleEntity dv
+            LEFT JOIN FETCH dv.vehicleTypeEntity dvt
+            LEFT JOIN FETCH dvt.fuelTypeEntity dvft
             WHERE va.id IN (
                 SELECT va2.id 
                 FROM VehicleAssignmentEntity va2

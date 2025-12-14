@@ -8,6 +8,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.GenericGenerator;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -121,13 +123,13 @@ public class IssueCompensationAssessmentEntity {
     
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        createdAt = VietnamTimeUtils.now();
+        updatedAt = VietnamTimeUtils.now();
     }
     
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = VietnamTimeUtils.now();
     }
     
     // === HELPER METHODS ===

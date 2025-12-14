@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
@@ -16,6 +17,7 @@ import java.util.Set;
 @Entity
 @Table(name = "vehicle_assignments", schema = "public", catalog = "capstone-project")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
@@ -34,17 +36,21 @@ public class VehicleAssignmentEntity extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_id")
+    @EqualsAndHashCode.Exclude
     private VehicleEntity vehicleEntity;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "driver_id_1")
+    @EqualsAndHashCode.Exclude
     private DriverEntity driver1;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "driver_id_2")
+    @EqualsAndHashCode.Exclude
     private DriverEntity driver2;
 
     @OneToMany(mappedBy = "vehicleAssignment", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @EqualsAndHashCode.Exclude
     private Set<VehicleAssignmentDeviceEntity> vehicleAssignmentDevices = new HashSet<>();
 
     // Convenience method to get devices from intermediate entity

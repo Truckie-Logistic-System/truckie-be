@@ -12,6 +12,8 @@ import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import jakarta.annotation.PostConstruct;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -39,7 +41,7 @@ public class VehicleServiceRecordDemoService {
         List<VehicleEntity> vehicles = vehicleRepository.findAll();
         List<VehicleServiceRecordEntity> createdRecords = new ArrayList<>();
         
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = VietnamTimeUtils.now();
         Random random = new Random();
 
         for (VehicleEntity vehicle : vehicles) {
@@ -226,7 +228,7 @@ public class VehicleServiceRecordDemoService {
         stats.put("vehiclesWithDemoData", vehiclesWithDemo);
         
         // Upcoming vs overdue
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = VietnamTimeUtils.now();
         long upcoming = demoRecords.stream()
             .filter(r -> r.getPlannedDate().isAfter(now))
             .count();
@@ -246,7 +248,7 @@ public class VehicleServiceRecordDemoService {
      */
     @Transactional
     public void updateOverdueServiceRecords() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = VietnamTimeUtils.now();
         
         // Tìm tất cả bản ghi PLANNED có planned_date < now
         List<VehicleServiceRecordEntity> plannedRecords = serviceRecordRepository

@@ -10,6 +10,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.GenericGenerator;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -77,7 +79,7 @@ public class ChatMessageEntity {
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {
-            createdAt = LocalDateTime.now();
+            createdAt = VietnamTimeUtils.now();
         }
     }
 }

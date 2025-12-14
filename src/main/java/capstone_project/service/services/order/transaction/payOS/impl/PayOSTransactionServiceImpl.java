@@ -46,6 +46,8 @@ import vn.payos.exception.PayOSException;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -707,7 +709,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     public void updateTransactionStatus(TransactionEntity transaction, TransactionEnum status, String rawCallbackPayload) {
         transaction.setStatus(status.name());
         transaction.setGatewayResponse(rawCallbackPayload);
-        transaction.setPaymentDate(java.time.LocalDateTime.now());
+        transaction.setPaymentDate(VietnamTimeUtils.now());
         transactionEntityService.save(transaction);
     }
 

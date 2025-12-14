@@ -13,6 +13,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.GenericGenerator;
 
+import capstone_project.common.utils.VietnamTimeUtils;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -103,15 +105,15 @@ public class ChatConversationEntity {
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {
-            createdAt = LocalDateTime.now();
+            createdAt = VietnamTimeUtils.now();
         }
         if (updatedAt == null) {
-            updatedAt = LocalDateTime.now();
+            updatedAt = VietnamTimeUtils.now();
         }
     }
 
     @PreUpdate
     public void preUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = VietnamTimeUtils.now();
     }
 }
