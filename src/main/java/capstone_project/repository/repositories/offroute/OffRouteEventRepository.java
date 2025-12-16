@@ -17,9 +17,9 @@ public interface OffRouteEventRepository extends JpaRepository<OffRouteEventEnti
     /**
      * Find active off-route event for a vehicle assignment
      */
-    @Query("SELECT e FROM OffRouteEventEntity e WHERE e.vehicleAssignment.id = :vehicleAssignmentId " +
-           "AND e.warningStatus NOT IN ('RESOLVED_SAFE', 'BACK_ON_ROUTE', 'ISSUE_CREATED', 'CONTACT_FAILED') " +
-           "ORDER BY e.offRouteStartTime DESC")
+    @Query(value = "SELECT e.* FROM off_route_events e WHERE e.vehicle_assignment_id = :vehicleAssignmentId " +
+           "AND e.warning_status NOT IN ('RESOLVED_SAFE', 'BACK_ON_ROUTE', 'ISSUE_CREATED', 'CONTACT_FAILED') " +
+           "ORDER BY e.off_route_start_time DESC LIMIT 1", nativeQuery = true)
     Optional<OffRouteEventEntity> findActiveByVehicleAssignmentId(@Param("vehicleAssignmentId") UUID vehicleAssignmentId);
 
     /**

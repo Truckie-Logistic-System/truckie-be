@@ -120,12 +120,12 @@ public class SizeRuleServiceImpl implements SizeRuleService {
 
         if (sizeRuleRequest == null) {
             log.error("Vehicle rule request cannot be null");
-            throw new BadRequestException("Vehicle rule request cannot be null", ErrorEnum.REQUIRED.getErrorCode());
+            throw new BadRequestException("Yêu cầu quy tắc phương tiện không được để trống", ErrorEnum.REQUIRED.getErrorCode());
         }
 
         if (sizeRuleRequest.categoryId() == null || sizeRuleRequest.vehicleTypeId() == null) {
             log.error("Category ID and Vehicle Type ID are required for creating a vehicle rule");
-            throw new BadRequestException("Category ID and Vehicle Type ID are required",
+            throw new BadRequestException("ID danh mục và ID loại phương tiện là bắt buộc",
                     ErrorEnum.REQUIRED.getErrorCode());
         }
 
@@ -135,27 +135,27 @@ public class SizeRuleServiceImpl implements SizeRuleService {
         VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findEntityById(vehicleTypeUuid)
                 .orElseThrow(() -> {
                     log.error("Vehicle type with ID {} not found", vehicleTypeUuid);
-                    return new NotFoundException("Vehicle type not found", ErrorEnum.NOT_FOUND.getErrorCode());
+                    return new NotFoundException("Không tìm thấy loại phương tiện", ErrorEnum.NOT_FOUND.getErrorCode());
                 });
 
         Optional<SizeRuleEntity> existingRule = sizeRuleEntityService.findBySizeRuleName(sizeRuleRequest.sizeRuleName());
         if (existingRule.isPresent()) {
             log.error("Vehicle rule with name '{}' already exists", sizeRuleRequest.sizeRuleName());
-            throw new BadRequestException("Vehicle rule with this name already exists",
+            throw new BadRequestException("Quy tắc phương tiện với tên này đã tồn tại",
                     ErrorEnum.ALREADY_EXISTED.getErrorCode());
         }
 
         try {
             SizeRuleEnum.valueOf(sizeRuleRequest.sizeRuleName());
         } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Invalid vehicle rule type: " + sizeRuleRequest.sizeRuleName(),
+            throw new BadRequestException("Loại quy tắc phương tiện không hợp lệ: " + sizeRuleRequest.sizeRuleName(),
                     ErrorEnum.ENUM_INVALID.getErrorCode());
         }
 
         if (!sizeRuleRequest.sizeRuleName().equalsIgnoreCase(vehicleTypeEntity.getVehicleTypeName())) {
             log.error("Vehicle rule name '{}' does not match vehicle type name '{}'",
                     sizeRuleRequest.sizeRuleName(), vehicleTypeEntity.getVehicleTypeName());
-            throw new BadRequestException("Vehicle rule name must match vehicle type name ("
+            throw new BadRequestException("Tên quy tắc phương tiện phải khớp với tên loại phương tiện ("
                     + vehicleTypeEntity.getVehicleTypeName() + ")", ErrorEnum.REQUIRED.getErrorCode());
         }
 

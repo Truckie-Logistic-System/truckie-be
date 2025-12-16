@@ -97,7 +97,7 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
                 vehicleTypeEntityService.findByVehicleTypeName(vehicleTypeRequest.vehicleTypeName());
 
         if (vehicleWithSameName.isPresent() && !vehicleWithSameName.get().getId().equals(id)) {
-            throw new BadRequestException("Vehicle type name already exists", ErrorEnum.ALREADY_EXISTED.getErrorCode());
+            throw new BadRequestException("Tên loại phương tiện đã tồn tại", ErrorEnum.ALREADY_EXISTED.getErrorCode());
         }
 
         vehicleTypeMapper.toVehicleEntity(vehicleTypeRequest, existingVehicleType);

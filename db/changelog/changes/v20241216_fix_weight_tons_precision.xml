@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="20241216-fix-weight-tons-precision" author="cascade">
+        <comment>Fix weight_tons column precision to avoid rounding: 125kg = 0.125000 ton not 0.13</comment>
+        
+        <!-- Step 1: Change column type to DECIMAL(19,6) -->
+        <modifyDataType
+                tableName="order_details"
+                columnName="weight_tons"
+                newDataType="DECIMAL(19,6)"/>
+        
+        <!-- Step 2: Recalculate weight_tons from weight_base_unit for existing data -->
+        <sql>
+            UPDATE order_details
+            SET weight_tons = CASE 
+                WHEN unit = 'Kí' THEN weight_base_unit * 0.001
+                WHEN unit = 'Yến' THEN weight_base_unit * 0.01
+                WHEN unit = 'Tạ' THEN weight_base_unit * 0.1
+                WHEN unit = 'Tấn' THEN weight_base_unit * 1
+                ELSE weight_tons
+            END
+            WHERE weight_base_unit IS NOT NULL AND unit IS NOT NULL;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

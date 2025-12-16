@@ -3,7 +3,9 @@ package capstone_project.service.services.demo;
 import capstone_project.common.enums.IssueCategoryEnum;
 import capstone_project.common.enums.VehicleStatusEnum;
 import capstone_project.dtos.request.demo.GenerateDemoDataRequest;
+import capstone_project.dtos.request.demo.RedistributeTimestampsRequest;
 import capstone_project.dtos.response.demo.DemoDataSummary;
+import capstone_project.dtos.response.demo.RedistributeTimestampsResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.issue.IssueEntity;
 import capstone_project.entity.issue.IssueTypeEntity;
@@ -1230,5 +1232,447 @@ public class DashboardDemoDataService {
         deviceType.setCreatedAt(LocalDateTime.now());
         
         return deviceTypeEntityService.save(deviceType);
+    }
+
+    /**
+     * Redistribute timestamps of demo data to December 2025 with focused demo week
+     * This enables realistic dashboard visualization for demo purposes
+     */
+    @Transactional
+    public RedistributeTimestampsResponse redistributeToDecember2025(RedistributeTimestampsRequest request) {
+        long startTime = System.currentTimeMillis();
+        log.info("📅 Starting timestamp redistribution for {}/{}", request.getTargetMonth(), request.getTargetYear());
+        
+        // Validate percentage distribution
+        if (!request.isValidPercentageDistribution()) {
+            throw new IllegalArgumentException("Percentages must sum to 100. Current: " + 
+                    (request.getPercentageBeforeDemoWeek() + request.getPercentageDemoWeek() + request.getPercentageAfterDemoWeek()));
+        }
+        
+        // Calculate date boundaries
+        LocalDate monthStart = LocalDate.of(request.getTargetYear(), request.getTargetMonth(), 1);
+        LocalDate monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth());
+        
+        LocalDate demoWeekStart = request.getDemoWeekStart() != null 
+                ? request.getDemoWeekStart() 
+                : LocalDate.of(2025, 12, 22);
+        LocalDate demoWeekEnd = request.getDemoWeekEnd() != null 
+                ? request.getDemoWeekEnd() 
+                : LocalDate.of(2025, 12, 27);
+        
+        log.info("📊 Distribution strategy: {}", request.getDistributionStrategy());
+        log.info("📆 Month range: {} to {}", monthStart, monthEnd);
+        log.info("⭐ Demo week: {} to {}", demoWeekStart, demoWeekEnd);
+        
+        Map<String, Integer> entityCounts = new java.util.LinkedHashMap<>();
+        int totalUpdated = 0;
+        
+        // Redistribute Orders
+        int ordersUpdated = redistributeOrderTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("orders", ordersUpdated);
+        totalUpdated += ordersUpdated;
+        
+        // Redistribute Transactions
+        int transactionsUpdated = redistributeTransactionTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("transactions", transactionsUpdated);
+        totalUpdated += transactionsUpdated;
+        
+        // Redistribute Issues
+        int issuesUpdated = redistributeIssueTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("issues", issuesUpdated);
+        totalUpdated += issuesUpdated;
+        
+        // Redistribute Refunds
+        int refundsUpdated = redistributeRefundTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("refunds", refundsUpdated);
+        totalUpdated += refundsUpdated;
+        
+        // Redistribute VehicleAssignments
+        int assignmentsUpdated = redistributeVehicleAssignmentTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("vehicleAssignments", assignmentsUpdated);
+        totalUpdated += assignmentsUpdated;
+        
+        // Redistribute Contracts
+        int contractsUpdated = redistributeContractTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("contracts", contractsUpdated);
+        totalUpdated += contractsUpdated;
+        
+        // Redistribute VehicleServiceRecords
+        int maintenancesUpdated = redistributeMaintenanceTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("vehicleServiceRecords", maintenancesUpdated);
+        totalUpdated += maintenancesUpdated;
+        
+        // Redistribute FuelConsumptions
+        int fuelUpdated = redistributeFuelConsumptionTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("fuelConsumptions", fuelUpdated);
+        totalUpdated += fuelUpdated;
+        
+        // Redistribute Users (customers, staff, drivers)
+        int usersUpdated = redistributeUserTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("users", usersUpdated);
+        totalUpdated += usersUpdated;
+        
+        // Redistribute Penalties
+        int penaltiesUpdated = redistributePenaltyTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("penalties", penaltiesUpdated);
+        totalUpdated += penaltiesUpdated;
+        
+        // Redistribute OrderDetails
+        int orderDetailsUpdated = redistributeOrderDetailTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("orderDetails", orderDetailsUpdated);
+        totalUpdated += orderDetailsUpdated;
+        
+        // Redistribute Vehicles
+        int vehiclesUpdated = redistributeVehicleTimestamps(monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+        entityCounts.put("vehicles", vehiclesUpdated);
+        totalUpdated += vehiclesUpdated;
+        
+        // Flush all changes to database
+        entityManager.flush();
+        
+        long duration = System.currentTimeMillis() - startTime;
+        
+        // Build distribution summary
+        int beforeCount = (int) (totalUpdated * request.getPercentageBeforeDemoWeek() / 100.0);
+        int demoWeekCount = (int) (totalUpdated * request.getPercentageDemoWeek() / 100.0);
+        int afterCount = (int) (totalUpdated * request.getPercentageAfterDemoWeek() / 100.0);
+        
+        long daysInDemoWeek = java.time.temporal.ChronoUnit.DAYS.between(demoWeekStart, demoWeekEnd) + 1;
+        int dailyAverageDemoWeek = demoWeekCount > 0 ? (int) (demoWeekCount / daysInDemoWeek) : 0;
+        
+        RedistributeTimestampsResponse.DistributionSummary distributionSummary = RedistributeTimestampsResponse.DistributionSummary.builder()
+                .beforeDemoWeek(RedistributeTimestampsResponse.PeriodStats.builder()
+                        .periodLabel("Before Demo Week")
+                        .startDate(monthStart.toString())
+                        .endDate(demoWeekStart.minusDays(1).toString())
+                        .recordCount(beforeCount)
+                        .percentage((double) request.getPercentageBeforeDemoWeek())
+                        .dailyAverage(beforeCount > 0 ? beforeCount / (int) java.time.temporal.ChronoUnit.DAYS.between(monthStart, demoWeekStart) : 0)
+                        .build())
+                .demoWeek(RedistributeTimestampsResponse.PeriodStats.builder()
+                        .periodLabel("Demo Week (FOCUSED)")
+                        .startDate(demoWeekStart.toString())
+                        .endDate(demoWeekEnd.toString())
+                        .recordCount(demoWeekCount)
+                        .percentage((double) request.getPercentageDemoWeek())
+                        .dailyAverage(dailyAverageDemoWeek)
+                        .build())
+                .afterDemoWeek(RedistributeTimestampsResponse.PeriodStats.builder()
+                        .periodLabel("After Demo Week")
+                        .startDate(demoWeekEnd.plusDays(1).toString())
+                        .endDate(monthEnd.toString())
+                        .recordCount(afterCount)
+                        .percentage((double) request.getPercentageAfterDemoWeek())
+                        .dailyAverage(afterCount > 0 ? afterCount / (int) java.time.temporal.ChronoUnit.DAYS.between(demoWeekEnd.plusDays(1), monthEnd.plusDays(1)) : 0)
+                        .build())
+                .build();
+        
+        log.info("✅ Timestamp redistribution completed: {} records updated in {}ms", totalUpdated, duration);
+        
+        return RedistributeTimestampsResponse.builder()
+                .totalRecordsUpdated(totalUpdated)
+                .entitiesUpdated(entityCounts)
+                .distributionSummary(distributionSummary)
+                .executionTimeMs(duration)
+                .targetMonth(request.getTargetMonth())
+                .targetYear(request.getTargetYear())
+                .distributionStrategy(request.getDistributionStrategy())
+                .build();
+    }
+    
+    // Helper method: Calculate new timestamp based on distribution strategy
+    private LocalDateTime calculateNewTimestamp(
+            int totalRecords,
+            int currentIndex,
+            LocalDate monthStart,
+            LocalDate monthEnd,
+            LocalDate demoWeekStart,
+            LocalDate demoWeekEnd,
+            RedistributeTimestampsRequest request) {
+        
+        double beforeDemoWeekCount = totalRecords * request.getPercentageBeforeDemoWeek() / 100.0;
+        double demoWeekCount = totalRecords * request.getPercentageDemoWeek() / 100.0;
+        
+        LocalDateTime newTimestamp;
+        
+        if (currentIndex < beforeDemoWeekCount) {
+            // Distribute in period before demo week
+            newTimestamp = distributeBetweenDates(
+                    monthStart,
+                    demoWeekStart.minusDays(1),
+                    currentIndex,
+                    (int) beforeDemoWeekCount
+            );
+        } else if (currentIndex < beforeDemoWeekCount + demoWeekCount) {
+            // Concentrate in Demo Week
+            newTimestamp = distributeBetweenDates(
+                    demoWeekStart,
+                    demoWeekEnd,
+                    (int) (currentIndex - beforeDemoWeekCount),
+                    (int) demoWeekCount
+            );
+        } else {
+            // Distribute in period after demo week
+            newTimestamp = distributeBetweenDates(
+                    demoWeekEnd.plusDays(1),
+                    monthEnd,
+                    (int) (currentIndex - beforeDemoWeekCount - demoWeekCount),
+                    totalRecords - (int) beforeDemoWeekCount - (int) demoWeekCount
+            );
+        }
+        
+        return newTimestamp;
+    }
+    
+    // Helper method: Evenly distribute records between two dates
+    private LocalDateTime distributeBetweenDates(LocalDate startDate, LocalDate endDate, int index, int total) {
+        if (total == 0) {
+            return startDate.atStartOfDay();
+        }
+        
+        long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        double positionRatio = (double) index / total;
+        long dayOffset = (long) (daysBetween * positionRatio);
+        
+        LocalDate targetDate = startDate.plusDays(Math.min(dayOffset, daysBetween - 1));
+        
+        // Add random time of day for more realistic distribution
+        int hour = randomInt(6, 20); // Business hours 6 AM - 8 PM
+        int minute = randomInt(0, 59);
+        int second = randomInt(0, 59);
+        
+        return LocalDateTime.of(targetDate, LocalTime.of(hour, minute, second));
+    }
+    
+    private int redistributeOrderTimestamps(LocalDate monthStart, LocalDate monthEnd, 
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<OrderEntity> demoOrders = orderRepository.findAll().stream()
+                .filter(o -> Boolean.TRUE.equals(o.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoOrders.size(); i++) {
+            OrderEntity order = demoOrders.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoOrders.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            order.setCreatedAt(newTimestamp);
+        }
+        
+        log.info("📦 Redistributed {} order timestamps", demoOrders.size());
+        return demoOrders.size();
+    }
+    
+    private int redistributeTransactionTimestamps(LocalDate monthStart, LocalDate monthEnd,
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<TransactionEntity> demoTransactions = transactionRepository.findAll().stream()
+                .filter(t -> Boolean.TRUE.equals(t.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoTransactions.size(); i++) {
+            TransactionEntity transaction = demoTransactions.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoTransactions.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            transaction.setCreatedAt(newTimestamp);
+            // Also update paymentDate if it's a PAID transaction
+            if ("PAID".equals(transaction.getStatus())) {
+                transaction.setPaymentDate(newTimestamp.plusHours(randomInt(1, 24)));
+            }
+        }
+        
+        log.info("💰 Redistributed {} transaction timestamps", demoTransactions.size());
+        return demoTransactions.size();
+    }
+    
+    private int redistributeIssueTimestamps(LocalDate monthStart, LocalDate monthEnd,
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<IssueEntity> demoIssues = issueRepository.findAll().stream()
+                .filter(i -> Boolean.TRUE.equals(i.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoIssues.size(); i++) {
+            IssueEntity issue = demoIssues.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoIssues.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            issue.setCreatedAt(newTimestamp);
+            issue.setReportedAt(newTimestamp);
+            // Update resolvedAt if issue is resolved
+            if ("RESOLVED".equals(issue.getStatus()) || "CLOSED".equals(issue.getStatus())) {
+                issue.setResolvedAt(newTimestamp.plusDays(randomInt(1, 3)));
+            }
+        }
+        
+        log.info("🚨 Redistributed {} issue timestamps", demoIssues.size());
+        return demoIssues.size();
+    }
+    
+    private int redistributeRefundTimestamps(LocalDate monthStart, LocalDate monthEnd,
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<RefundEntity> demoRefunds = refundRepository.findAll().stream()
+                .filter(r -> Boolean.TRUE.equals(r.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoRefunds.size(); i++) {
+            RefundEntity refund = demoRefunds.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoRefunds.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            refund.setCreatedAt(newTimestamp);
+            if (refund.getRefundDate() != null) {
+                refund.setRefundDate(newTimestamp.plusDays(randomInt(1, 5)));
+            }
+        }
+        
+        log.info("💸 Redistributed {} refund timestamps", demoRefunds.size());
+        return demoRefunds.size();
+    }
+    
+    private int redistributeVehicleAssignmentTimestamps(LocalDate monthStart, LocalDate monthEnd,
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<VehicleAssignmentEntity> demoAssignments = vehicleAssignmentRepository.findAll().stream()
+                .filter(a -> Boolean.TRUE.equals(a.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoAssignments.size(); i++) {
+            VehicleAssignmentEntity assignment = demoAssignments.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoAssignments.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            assignment.setCreatedAt(newTimestamp);
+        }
+        
+        log.info("🚛 Redistributed {} vehicle assignment timestamps", demoAssignments.size());
+        return demoAssignments.size();
+    }
+    
+    private int redistributeContractTimestamps(LocalDate monthStart, LocalDate monthEnd,
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<ContractEntity> demoContracts = contractRepository.findAll().stream()
+                .filter(c -> Boolean.TRUE.equals(c.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoContracts.size(); i++) {
+            ContractEntity contract = demoContracts.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoContracts.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            contract.setCreatedAt(newTimestamp);
+            // Update related deadlines
+            if (contract.getSigningDeadline() != null) {
+                contract.setSigningDeadline(newTimestamp.plusDays(2));
+            }
+            if (contract.getDepositPaymentDeadline() != null) {
+                contract.setDepositPaymentDeadline(newTimestamp.plusDays(3));
+            }
+            if (contract.getFullPaymentDeadline() != null) {
+                contract.setFullPaymentDeadline(newTimestamp.plusDays(7));
+            }
+        }
+        
+        log.info("📄 Redistributed {} contract timestamps", demoContracts.size());
+        return demoContracts.size();
+    }
+    
+    private int redistributeMaintenanceTimestamps(LocalDate monthStart, LocalDate monthEnd,
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<VehicleServiceRecordEntity> demoMaintenances = vehicleServiceRecordRepository.findAll().stream()
+                .filter(m -> Boolean.TRUE.equals(m.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoMaintenances.size(); i++) {
+            VehicleServiceRecordEntity maintenance = demoMaintenances.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoMaintenances.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            maintenance.setCreatedAt(newTimestamp);
+            if (maintenance.getPlannedDate() != null) {
+                maintenance.setPlannedDate(newTimestamp.plusDays(randomInt(5, 15)));
+            }
+        }
+        
+        log.info("🔧 Redistributed {} maintenance timestamps", demoMaintenances.size());
+        return demoMaintenances.size();
+    }
+    
+    private int redistributeFuelConsumptionTimestamps(LocalDate monthStart, LocalDate monthEnd,
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<VehicleFuelConsumptionEntity> demoFuelConsumptions = vehicleFuelConsumptionRepository.findAll().stream()
+                .filter(f -> Boolean.TRUE.equals(f.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoFuelConsumptions.size(); i++) {
+            VehicleFuelConsumptionEntity fuelConsumption = demoFuelConsumptions.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoFuelConsumptions.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            fuelConsumption.setCreatedAt(newTimestamp);
+            if (fuelConsumption.getDateRecorded() != null) {
+                fuelConsumption.setDateRecorded(newTimestamp);
+            }
+        }
+        
+        log.info("⛽ Redistributed {} fuel consumption timestamps", demoFuelConsumptions.size());
+        return demoFuelConsumptions.size();
+    }
+    
+    private int redistributeUserTimestamps(LocalDate monthStart, LocalDate monthEnd,
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<UserEntity> demoUsers = userRepository.findAll().stream()
+                .filter(u -> Boolean.TRUE.equals(u.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoUsers.size(); i++) {
+            UserEntity user = demoUsers.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoUsers.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            user.setCreatedAt(newTimestamp);
+        }
+        
+        log.info("👥 Redistributed {} user timestamps", demoUsers.size());
+        return demoUsers.size();
+    }
+    
+    private int redistributePenaltyTimestamps(LocalDate monthStart, LocalDate monthEnd,
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<PenaltyHistoryEntity> demoPenalties = penaltyHistoryRepository.findAll().stream()
+                .filter(p -> Boolean.TRUE.equals(p.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoPenalties.size(); i++) {
+            PenaltyHistoryEntity penalty = demoPenalties.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoPenalties.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            penalty.setCreatedAt(newTimestamp);
+        }
+        
+        log.info("⚠️ Redistributed {} penalty timestamps", demoPenalties.size());
+        return demoPenalties.size();
+    }
+    
+    private int redistributeOrderDetailTimestamps(LocalDate monthStart, LocalDate monthEnd,
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<OrderDetailEntity> demoOrderDetails = orderDetailRepository.findAll().stream()
+                .filter(od -> Boolean.TRUE.equals(od.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoOrderDetails.size(); i++) {
+            OrderDetailEntity orderDetail = demoOrderDetails.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoOrderDetails.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            orderDetail.setCreatedAt(newTimestamp);
+        }
+        
+        log.info("📦 Redistributed {} order detail timestamps", demoOrderDetails.size());
+        return demoOrderDetails.size();
+    }
+    
+    private int redistributeVehicleTimestamps(LocalDate monthStart, LocalDate monthEnd,
+            LocalDate demoWeekStart, LocalDate demoWeekEnd, RedistributeTimestampsRequest request) {
+        List<VehicleEntity> demoVehicles = vehicleRepository.findAll().stream()
+                .filter(v -> Boolean.TRUE.equals(v.getIsDemoData()))
+                .collect(Collectors.toList());
+        
+        for (int i = 0; i < demoVehicles.size(); i++) {
+            VehicleEntity vehicle = demoVehicles.get(i);
+            LocalDateTime newTimestamp = calculateNewTimestamp(
+                    demoVehicles.size(), i, monthStart, monthEnd, demoWeekStart, demoWeekEnd, request);
+            vehicle.setCreatedAt(newTimestamp);
+        }
+        
+        log.info("🚗 Redistributed {} vehicle timestamps", demoVehicles.size());
+        return demoVehicles.size();
     }
 }

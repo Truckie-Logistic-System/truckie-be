@@ -53,4 +53,19 @@ public interface DriverService {
      * @return true if license is expired
      */
     boolean isLicenseExpired(DriverEntity driver);
+
+    /**
+     * Update all drivers with realistic Vietnamese names, usernames, emails, and common password
+     * 
+     * @return List of updated drivers
+     */
+    List<DriverResponse> updateAllDriversWithRealisticData();
+
+    /**
+     * Reset all drivers' passwords to a common password
+     * 
+     * @param newPassword The new common password for all drivers
+     * @return Number of drivers updated
+     */
+    int resetAllDriverPasswords(String newPassword);
 }

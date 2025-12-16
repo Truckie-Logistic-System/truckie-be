@@ -29,11 +29,13 @@ public interface RefreshTokenEntityService extends BaseEntityService<RefreshToke
 
     /**
      * Delete expired tokens for cleanup
+     * @return number of deleted tokens
      */
-    void deleteExpiredTokens(LocalDateTime now);
+    int deleteExpiredTokens(LocalDateTime now);
 
     /**
      * Delete old revoked tokens for cleanup
+     * @return number of deleted tokens
      */
-    void deleteOldRevokedTokens(LocalDateTime cutoffDate);
+    int deleteOldRevokedTokens(LocalDateTime cutoffDate);
 }

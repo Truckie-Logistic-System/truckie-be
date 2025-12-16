@@ -4,6 +4,7 @@ import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.repository.repositories.user.DriverRepository;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DriverEntityServiceImpl implements DriverEntityService {
 
     private final DriverRepository driverRepository;
@@ -48,6 +50,24 @@ public class DriverEntityServiceImpl implements DriverEntityService {
 
     @Override
     public Optional<DriverEntity> findByPhoneNumber(String phoneNumber) {
-        return driverRepository.findByUserPhoneNumber(phoneNumber);
+        // Check for duplicates first
+        List<DriverEntity> drivers = driverRepository.findByUserPhoneNumber(phoneNumber);
+        
+        if (drivers.isEmpty()) {
+            return Optional.empty();
+        }
+        
+        if (drivers.size() > 1) {
+            log.warn("⚠️ Found {} drivers with phone number {}. Using first ACTIVE driver.", 
+                    drivers.size(), phoneNumber);
+            
+            // Prefer ACTIVE driver
+            return drivers.stream()
+                    .filter(d -> "ACTIVE".equals(d.getStatus()))
+                    .findFirst()
+                    .or(() -> Optional.of(drivers.get(0)));
+        }
+        
+        return Optional.of(drivers.get(0));
     }
 }

@@ -34,7 +34,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -112,26 +114,43 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         int vehicleIndex = 0;
 
         for (ContractRuleEntity rule : assignedRules) {
-            // Phát hiện đơn vị chủ đạo từ các orderDetail
-            String dominantUnit = rule.getOrderDetails().stream()
-                    .map(OrderDetailEntity::getUnit)
-                    .filter(Objects::nonNull)
-                    .findFirst()
-                    .orElse("Kí"); // Default là Kí
-
-            // Tính currentLoad bằng weightBaseUnit (để tương thích với dữ liệu cũ)
-            // Dữ liệu cũ: weightBaseUnit lưu theo đơn vị gốc (kg)
-            // Dữ liệu mới: weightBaseUnit lưu theo tấn (đã convert)
-            BigDecimal currentLoad = rule.getOrderDetails().stream()
+            // Tính tổng trọng lượng theo KG (convert từ weightTons)
+            // weightTons luôn lưu theo TẤN, weightBaseUnit + unit chỉ để hiển thị
+            BigDecimal totalWeightInKg = rule.getOrderDetails().stream()
                     .map(detail -> {
-                        BigDecimal baseWeight = detail.getWeightBaseUnit();
-                        if (baseWeight != null) {
-                            return baseWeight;
+                        // Dùng weightTons (luôn là tấn) để tính toán
+                        if (detail.getWeightTons() != null) {
+                            return detail.getWeightTons().multiply(BigDecimal.valueOf(1000));
                         }
-                        // Fallback về weight nếu weightBaseUnit null
-                        return detail.getWeightTons() != null ? detail.getWeightTons() : BigDecimal.ZERO;
+                        
+                        return BigDecimal.ZERO;
                     })
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            // Phát hiện đơn vị chủ đạo dựa trên số lượng kiện (majority rule)
+            Map<String, Long> unitCounts = rule.getOrderDetails().stream()
+                    .map(OrderDetailEntity::getUnit)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+            
+            String dominantUnit = unitCounts.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse("Kí");
+
+            // Convert trọng lượng về đơn vị hiển thị phù hợp
+            BigDecimal currentLoad;
+            String displayUnit;
+            
+            if (totalWeightInKg.compareTo(BigDecimal.valueOf(1000)) >= 0) {
+                // Nếu >= 1000 kg → hiển thị theo Tấn
+                currentLoad = totalWeightInKg.divide(BigDecimal.valueOf(1000), 2, RoundingMode.HALF_UP);
+                displayUnit = "Tấn";
+            } else {
+                // Nếu < 1000 kg → hiển thị theo Kg
+                currentLoad = totalWeightInKg;
+                displayUnit = "Kg";
+            }
 
             List<OrderDetailForPackingResponse> detailResponses = rule.getOrderDetails().stream()
                     .map(this::toPackingResponse)
@@ -145,7 +164,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                             .sizeRuleId(rule.getSizeRuleEntity().getId())
                             .sizeRuleName(rule.getSizeRuleEntity().getSizeRuleName())
                             .currentLoad(currentLoad)
-                            .currentLoadUnit(dominantUnit) // Sử dụng đơn vị động
+                            .currentLoadUnit(displayUnit)
                             // Vehicle dimensions for 3D visualization (in meters)
                             .maxLength(rule.getSizeRuleEntity().getMaxLength())
                             .maxWidth(rule.getSizeRuleEntity().getMaxWidth())
@@ -263,11 +282,15 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                         ErrorEnum.INVALID.getErrorCode());
             }
 
-            // Phát hiện đơn vị chủ đạo từ orderDetails (khai báo sớm để dùng cho tất cả containers)
-            String dominantUnit = orderDetails.stream()
+            // Phát hiện đơn vị chủ đạo dựa trên số lượng kiện (majority rule)
+            Map<String, Long> unitCounts = orderDetails.stream()
                     .map(OrderDetailEntity::getUnit)
                     .filter(Objects::nonNull)
-                    .findFirst()
+                    .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+            
+            String dominantUnit = unitCounts.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
                     .orElse("Kí");
 
             List<VehicleEntity> activeVehicles = vehicleEntityService.findByVehicleTypeAndStatus(
@@ -409,13 +432,27 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
                 contractRuleEntityService.save(ruleEntity);
 
+                // Convert trọng lượng về đơn vị hiển thị phù hợp
+                BigDecimal displayLoad;
+                String displayUnit;
+                
+                if (actualCurrentLoad.compareTo(BigDecimal.valueOf(1000)) >= 0) {
+                    // Nếu >= 1000 kg → hiển thị theo Tấn
+                    displayLoad = actualCurrentLoad.divide(BigDecimal.valueOf(1000), 2, RoundingMode.HALF_UP);
+                    displayUnit = "Tấn";
+                } else {
+                    // Nếu < 1000 kg → hiển thị theo Kg
+                    displayLoad = actualCurrentLoad;
+                    displayUnit = "Kg";
+                }
+
                 responses.add(
                         ContractRuleAssignResponse.builder()
                                 .vehicleIndex(vehicleIndex++)
                                 .sizeRuleId(sizeRule.getId())
                                 .sizeRuleName(sizeRule.getSizeRuleName())
-                                .currentLoad(actualCurrentLoad)
-                                .currentLoadUnit(dominantUnit) // Sử dụng đơn vị động
+                                .currentLoad(displayLoad)
+                                .currentLoadUnit(displayUnit)
                                 // Vehicle dimensions for 3D visualization (in meters)
                                 .maxLength(sizeRule.getMaxLength())
                                 .maxWidth(sizeRule.getMaxWidth())

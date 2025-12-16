@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="20241216-update-existing-order-sizes-vietnamese" author="system">
+        <comment>Update existing order sizes with Vietnamese descriptions</comment>
+        
+        <!-- SMALL_PARCEL -->
+        <update tableName="order_sizes">
+            <column name="description" value="Kiện hàng nhỏ - Phù hợp cho tài liệu, phụ kiện, hàng nhỏ gọn (tối đa 0.5m × 0.4m × 0.4m)"/>
+            <where>id = '4b74c114-7574-4531-9474-b21382d195db'</where>
+        </update>
+        
+        <!-- MEDIUM_BOX -->
+        <update tableName="order_sizes">
+            <column name="description" value="Thùng vừa - Phù hợp cho quần áo, giày dép, đồ gia dụng nhỏ (tối đa 0.9m × 0.7m × 0.7m)"/>
+            <where>id = '7ad7d6d3-5813-4dd0-b5fa-5dcd624a4755'</where>
+        </update>
+        
+        <!-- HALF_PALLET -->
+        <update tableName="order_sizes">
+            <column name="description" value="Nửa pallet - Phù hợp cho hàng công nghiệp nhỏ, thùng carton nhiều (tối đa 0.8m × 0.6m × 1.5m)"/>
+            <where>id = '54b96194-232b-40b0-b5d4-be0c76480240'</where>
+        </update>
+        
+        <!-- LARGE_BOX -->
+        <update tableName="order_sizes">
+            <column name="description" value="Thùng lớn - Phù hợp cho đồ điện tử, đồ nội thất nhỏ (tối đa 1.2m × 1.0m × 1.2m)"/>
+            <where>id = 'cf360da2-e8e2-4bbd-8d43-b7f366aaf8c3'</where>
+        </update>
+        
+        <!-- STANDARD_PALLET -->
+        <update tableName="order_sizes">
+            <column name="description" value="Pallet tiêu chuẩn - Phù hợp cho hàng công nghiệp, hàng xuất khẩu (tối đa 1.2m × 0.8m × 1.8m)"/>
+            <where>id = 'c0891e29-d22b-4d36-9e36-677978f2dd8a'</where>
+        </update>
+        
+        <!-- LARGE_PALLET -->
+        <update tableName="order_sizes">
+            <column name="description" value="Pallet lớn - Phù hợp cho hàng công nghiệp lớn, máy móc (tối đa 1.2m × 1.0m × 1.8m)"/>
+            <where>id = 'cb02ae9b-ece8-47d5-b75d-8df34384e2fe'</where>
+        </update>
+        
+        <!-- TALL_ITEM -->
+        <update tableName="order_sizes">
+            <column name="description" value="Hàng cao - Phù hợp cho tủ lạnh, tủ đứng, cột trụ (tối đa 1.2m × 1.2m × 2.2m)"/>
+            <where>id = '77c8687e-cecd-42aa-8773-54161bbcce5b'</where>
+        </update>
+        
+        <!-- LONG_ITEM -->
+        <update tableName="order_sizes">
+            <column name="description" value="Hàng dài - Phù hợp cho ống nhựa, sắt thép, thanh gỗ (tối đa 2.5m × 0.5m × 0.5m)"/>
+            <where>id = '7e9b2076-f4e3-4a20-a1e0-4e5c5b83e552'</where>
+        </update>
+    </changeSet>
+
+    <changeSet id="20241216-add-missing-order-sizes" author="system">
+        <comment>Add 6 missing order sizes for 100% coverage with Vietnamese descriptions</comment>
+        
+        <!-- MINI_PARCEL -->
+        <insert tableName="order_sizes">
+            <column name="id" value="a1b2c3d4-e5f6-4a5b-8c9d-1e2f3a4b5c6d"/>
+            <column name="min_height" valueNumeric="0.01"/>
+            <column name="max_height" valueNumeric="0.05"/>
+            <column name="min_length" valueNumeric="0.10"/>
+            <column name="max_length" valueNumeric="0.30"/>
+            <column name="min_width" valueNumeric="0.10"/>
+            <column name="max_width" valueNumeric="0.20"/>
+            <column name="description" value="Phong bì/Túi nhỏ - Phù hợp cho tài liệu, thư từ, hàng siêu nhỏ (tối đa 0.3m × 0.2m × 0.05m)"/>
+            <column name="status" value="ACTIVE"/>
+            <column name="created_at" valueDate="now()"/>
+            <column name="updated_at" valueDate="now()"/>
+        </insert>
+        
+        <!-- EXTRA_LARGE_BOX -->
+        <insert tableName="order_sizes">
+            <column name="id" value="b2c3d4e5-f6a7-4b5c-9d0e-2f3a4b5c6d7e"/>
+            <column name="min_height" valueNumeric="1.21"/>
+            <column name="max_height" valueNumeric="1.50"/>
+            <column name="min_length" valueNumeric="1.21"/>
+            <column name="max_length" valueNumeric="1.50"/>
+            <column name="min_width" valueNumeric="1.21"/>
+            <column name="max_width" valueNumeric="1.50"/>
+            <column name="description" value="Thùng siêu lớn - Phù hợp cho tủ lạnh, máy giặt, nội thất lớn (tối đa 1.5m × 1.5m × 1.5m)"/>
+            <column name="status" value="ACTIVE"/>
+            <column name="created_at" valueDate="now()"/>
+            <column name="updated_at" valueDate="now()"/>
+        </insert>
+        
+        <!-- FLAT_ITEM -->
+        <insert tableName="order_sizes">
+            <column name="id" value="c3d4e5f6-a7b8-4c5d-0e1f-3a4b5c6d7e8f"/>
+            <column name="min_height" valueNumeric="0.05"/>
+            <column name="max_height" valueNumeric="0.15"/>
+            <column name="min_length" valueNumeric="2.00"/>
+            <column name="max_length" valueNumeric="2.50"/>
+            <column name="min_width" valueNumeric="1.20"/>
+            <column name="max_width" valueNumeric="1.50"/>
+            <column name="description" value="Hàng phẳng - Phù hợp cho tấm gỗ, tấm kính, cửa, bảng quảng cáo (tối đa 2.5m × 1.5m × 0.15m)"/>
+            <column name="status" value="ACTIVE"/>
+            <column name="created_at" valueDate="now()"/>
+            <column name="updated_at" valueDate="now()"/>
+        </insert>
+        
+        <!-- CYLINDRICAL -->
+        <insert tableName="order_sizes">
+            <column name="id" value="d4e5f6a7-b8c9-4d5e-1f2a-4b5c6d7e8f9a"/>
+            <column name="min_height" valueNumeric="0.20"/>
+            <column name="max_height" valueNumeric="0.30"/>
+            <column name="min_length" valueNumeric="1.50"/>
+            <column name="max_length" valueNumeric="2.00"/>
+            <column name="min_width" valueNumeric="0.20"/>
+            <column name="max_width" valueNumeric="0.30"/>
+            <column name="description" value="Hàng hình trụ - Phù hợp cho cuộn vải, cuộn thảm, ống nhựa tròn (đường kính 0.3m × dài 2.0m)"/>
+            <column name="status" value="ACTIVE"/>
+            <column name="created_at" valueDate="now()"/>
+            <column name="updated_at" valueDate="now()"/>
+        </insert>
+        
+        <!-- IRREGULAR_SHAPE -->
+        <insert tableName="order_sizes">
+            <column name="id" value="e5f6a7b8-c9d0-4e5f-2a3b-5c6d7e8f9a0b"/>
+            <column name="min_height" valueNumeric="0.80"/>
+            <column name="max_height" valueNumeric="1.50"/>
+            <column name="min_length" valueNumeric="0.80"/>
+            <column name="max_length" valueNumeric="1.00"/>
+            <column name="min_width" valueNumeric="0.80"/>
+            <column name="max_width" valueNumeric="1.00"/>
+            <column name="description" value="Hàng hình dạng đặc biệt - Phù hợp cho xe đạp, xe máy điện, máy móc (bounding box 1.0m × 1.0m × 1.5m)"/>
+            <column name="status" value="ACTIVE"/>
+            <column name="created_at" valueDate="now()"/>
+            <column name="updated_at" valueDate="now()"/>
+        </insert>
+        
+        <!-- DOUBLE_PALLET -->
+        <insert tableName="order_sizes">
+            <column name="id" value="f6a7b8c9-d0e1-4f5a-3b4c-6d7e8f9a0b1c"/>
+            <column name="min_height" valueNumeric="0.90"/>
+            <column name="max_height" valueNumeric="1.00"/>
+            <column name="min_length" valueNumeric="2.00"/>
+            <column name="max_length" valueNumeric="2.40"/>
+            <column name="min_width" valueNumeric="1.10"/>
+            <column name="max_width" valueNumeric="1.20"/>
+            <column name="description" value="Pallet đôi - Phù hợp cho hàng công nghiệp lớn, hàng xuất khẩu trên 2 pallet ghép (tối đa 2.4m × 1.2m × 1.0m)"/>
+            <column name="status" value="ACTIVE"/>
+            <column name="created_at" valueDate="now()"/>
+            <column name="updated_at" valueDate="now()"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

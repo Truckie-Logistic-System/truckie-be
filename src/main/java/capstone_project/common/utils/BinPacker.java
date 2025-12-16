@@ -619,31 +619,49 @@ public class BinPacker {
         int vehicleIndex = 0;
 
         for (ContainerState c : used) {
-            // Phát hiện đơn vị chủ đạo từ các detail
-            String dominantUnit = c.placements.stream()
+            // Tính tổng trọng lượng theo KG (convert từ weightTons)
+            // weightTons luôn lưu theo TẤN, weightBaseUnit + unit chỉ để hiển thị
+            BigDecimal totalWeightInKg = c.placements.stream()
+                    .map(pl -> {
+                        OrderDetailEntity detail = detailMap.get(pl.box.id);
+                        if (detail == null) return BigDecimal.ZERO;
+
+                        // Dùng weightTons (luôn là tấn) để tính toán
+                        if (detail.getWeightTons() != null) {
+                            return detail.getWeightTons().multiply(BigDecimal.valueOf(1000));
+                        }
+                        
+                        return BigDecimal.ZERO;
+                    })
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            // Phát hiện đơn vị chủ đạo dựa trên số lượng kiện (majority rule)
+            Map<String, Long> unitCounts = c.placements.stream()
                     .map(pl -> {
                         OrderDetailEntity detail = detailMap.get(pl.box.id);
                         return detail != null ? detail.getUnit() : null;
                     })
                     .filter(Objects::nonNull)
-                    .findFirst()
-                    .orElse("Kí"); // Default là Kí
+                    .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+            
+            String dominantUnit = unitCounts.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse("Kí");
 
-            // Tính currentLoadPrecise bằng weightBaseUnit (tương thích với dữ liệu cũ)
-            BigDecimal currentLoadPrecise = c.placements.stream()
-                    .map(pl -> {
-                        OrderDetailEntity detail = detailMap.get(pl.box.id);
-                        if (detail == null) return BigDecimal.ZERO;
-
-                        // Ưu tiên dùng weightBaseUnit
-                        BigDecimal baseWeight = detail.getWeightBaseUnit();
-                        if (baseWeight != null) {
-                            return baseWeight;
-                        }
-                        // Fallback về weight
-                        return detail.getWeightTons() != null ? detail.getWeightTons() : BigDecimal.ZERO;
-                    })
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            // Convert trọng lượng về đơn vị hiển thị phù hợp
+            BigDecimal displayLoad;
+            String displayUnit;
+            
+            if (totalWeightInKg.compareTo(BigDecimal.valueOf(1000)) >= 0) {
+                // Nếu >= 1000 kg → hiển thị theo Tấn
+                displayLoad = totalWeightInKg.divide(BigDecimal.valueOf(1000), 2, java.math.RoundingMode.HALF_UP);
+                displayUnit = "Tấn";
+            } else {
+                // Nếu < 1000 kg → hiển thị theo Kg
+                displayLoad = totalWeightInKg;
+                displayUnit = "Kg";
+            }
 
             // assignedDetails = data chuẩn từ DB
             List<OrderDetailForPackingResponse> assigned = c.placements.stream()
@@ -680,8 +698,8 @@ public class BinPacker {
                     .vehicleIndex(vehicleIndex++)
                     .sizeRuleId(c.rule.getId())
                     .sizeRuleName(c.rule.getSizeRuleName())
-                    .currentLoad(currentLoadPrecise)
-                    .currentLoadUnit(dominantUnit) // Sử dụng đơn vị động
+                    .currentLoad(displayLoad)
+                    .currentLoadUnit(displayUnit)
                     // Vehicle dimensions for 3D visualization (in meters)
                     .maxLength(c.rule.getMaxLength())
                     .maxWidth(c.rule.getMaxWidth())

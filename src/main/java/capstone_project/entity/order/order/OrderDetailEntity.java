@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
 public class OrderDetailEntity extends BaseEntity {
     @DecimalMin(value = "0.01", message = "Trọng lượng kiện hàng phải tối thiểu 0.01 tấn")
     @DecimalMax(value = "10.0", message = "Trọng lượng kiện hàng không được vượt quá 10 tấn")
-    @Column(name = "weight_tons")
+    @Column(name = "weight_tons", precision = 19, scale = 6)
     private BigDecimal weightTons;
 
     @Column(name = "weight_base_unit")

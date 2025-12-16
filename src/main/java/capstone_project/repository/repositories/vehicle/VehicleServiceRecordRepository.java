@@ -62,11 +62,11 @@ public interface VehicleServiceRecordRepository extends BaseRepository<VehicleSe
     /**
      * Lấy record đăng kiểm gần nhất của xe (COMPLETED)
      */
-    @Query("SELECT r FROM VehicleServiceRecordEntity r " +
-           "WHERE r.vehicleEntity.id = :vehicleId " +
-           "AND r.serviceType = 'Đăng kiểm định kỳ' " +
-           "AND r.serviceStatus = 'COMPLETED' " +
-           "ORDER BY r.actualDate DESC")
+    @Query(value = "SELECT r.* FROM vehicle_service_records r " +
+           "WHERE r.vehicle_id = :vehicleId " +
+           "AND r.service_type = 'Đăng kiểm định kỳ' " +
+           "AND r.service_status = 'COMPLETED' " +
+           "ORDER BY r.actual_date DESC LIMIT 1", nativeQuery = true)
     Optional<VehicleServiceRecordEntity> findLatestCompletedInspection(@Param("vehicleId") UUID vehicleId);
 
     /**

@@ -6,6 +6,11 @@ package capstone_project.common.enums;
 public enum VehicleServiceStatusEnum {
     PLANNED,
     /**
+     * Đang thực hiện
+     */
+    IN_PROGRESS,
+    
+    /**
      * Đã hoàn thành
      */
     COMPLETED,

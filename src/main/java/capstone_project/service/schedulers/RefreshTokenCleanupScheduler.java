@@ -31,9 +31,9 @@ public class RefreshTokenCleanupScheduler {
             LocalDateTime now = LocalDateTime.now();
             log.info("[RefreshTokenCleanup] Starting cleanup of expired tokens...");
             
-            refreshTokenEntityService.deleteExpiredTokens(now);
+            int deletedCount = refreshTokenEntityService.deleteExpiredTokens(now);
             
-            log.info("[RefreshTokenCleanup] ✅ Expired tokens cleanup completed");
+            log.info("[RefreshTokenCleanup] ✅ Expired tokens cleanup completed - deleted {} tokens", deletedCount);
         } catch (Exception e) {
             log.error("[RefreshTokenCleanup] ❌ Error during expired tokens cleanup", e);
         }
@@ -51,9 +51,9 @@ public class RefreshTokenCleanupScheduler {
             LocalDateTime cutoffDate = LocalDateTime.now().minusDays(7);
             log.info("[RefreshTokenCleanup] Starting cleanup of old revoked tokens (older than 7 days)...");
             
-            refreshTokenEntityService.deleteOldRevokedTokens(cutoffDate);
+            int deletedCount = refreshTokenEntityService.deleteOldRevokedTokens(cutoffDate);
             
-            log.info("[RefreshTokenCleanup] ✅ Old revoked tokens cleanup completed");
+            log.info("[RefreshTokenCleanup] ✅ Old revoked tokens cleanup completed - deleted {} tokens", deletedCount);
         } catch (Exception e) {
             log.error("[RefreshTokenCleanup] ❌ Error during old revoked tokens cleanup", e);
         }

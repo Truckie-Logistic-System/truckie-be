@@ -163,7 +163,7 @@ public class EmailProtocolServiceImpl implements EmailProtocolService {
         } else {
             log.info("[📧 sendForgotPasswordOtp] User not found directly, trying via driver relationship...");
             // Try to find user via driver relationship
-            var driverOpt = driverRepository.findByUserEmail(email);
+            var driverOpt = driverRepository.findFirstByUserEmail(email);
             if (driverOpt.isPresent()) {
                 user = driverOpt.get().getUser();
                 log.info("[📧 sendForgotPasswordOtp] Found user via driver: {}", user.getUsername());

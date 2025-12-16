@@ -94,6 +94,11 @@ public class VehicleServiceRecordController {
         return ResponseEntity.ok(ApiResponse.ok(service.cancelRecord(id)));
     }
 
+    @PostMapping("/{id}/start")
+    public ResponseEntity<ApiResponse<VehicleServiceRecordResponse>> start(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(service.startRecord(id)));
+    }
+
     @PostMapping("/check-expiry")
     public ResponseEntity<ApiResponse<String>> triggerExpiryCheck() {
         expiryCheckService.runManualCheck();

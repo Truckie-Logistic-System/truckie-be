@@ -18,7 +18,15 @@ public interface UserRepository extends BaseRepository<UserEntity> {
      * @param username the username
      * @return the optional
      */
-    Optional<UserEntity> findByUsername(final String username);
+    Optional<UserEntity> findFirstByUsername(final String username);
+
+    /**
+     * Find all by username (for duplicate detection)
+     *
+     * @param username the username
+     * @return list of users
+     */
+    List<UserEntity> findByUsername(final String username);
 
     /**
      * Find by username or email optional.
@@ -27,7 +35,16 @@ public interface UserRepository extends BaseRepository<UserEntity> {
      * @param email    the email
      * @return the optional
      */
-    Optional<UserEntity> findByUsernameOrEmail(final String username, final String email);
+    Optional<UserEntity> findFirstByUsernameOrEmail(final String username, final String email);
+
+    /**
+     * Find all by username or email (for duplicate detection)
+     *
+     * @param username the username
+     * @param email    the email
+     * @return list of users
+     */
+    List<UserEntity> findByUsernameOrEmail(final String username, final String email);
 
     /**
      * Find by email optional.
@@ -35,10 +52,34 @@ public interface UserRepository extends BaseRepository<UserEntity> {
      * @param email    the email
      * @return the optional
      */
-    Optional<UserEntity> findByEmail(final String email);
+    Optional<UserEntity> findFirstByEmail(final String email);
 
+    /**
+     * Find all by email (for duplicate detection)
+     *
+     * @param email    the email
+     * @return list of users
+     */
+    List<UserEntity> findByEmail(final String email);
+
+    /**
+     * Find user by username with role (returns first result to avoid NonUniqueResultException)
+     * Uses JPQL with JOIN FETCH to load role eagerly
+     *
+     * @param username the username
+     * @return Optional containing user if found
+     */
     @Query("SELECT u FROM UserEntity u JOIN FETCH u.role WHERE u.username = :username")
     Optional<UserEntity> findByUsernameWithRole(@Param("username") String username);
+
+    /**
+     * Find all users with username (for duplicate detection)
+     *
+     * @param username the username
+     * @return list of users
+     */
+    @Query("SELECT u FROM UserEntity u JOIN FETCH u.role WHERE u.username = :username")
+    List<UserEntity> findAllByUsernameWithRole(@Param("username") String username);
 
     @Modifying
     @Query("UPDATE UserEntity u SET u.status = :status WHERE u.email = :email")

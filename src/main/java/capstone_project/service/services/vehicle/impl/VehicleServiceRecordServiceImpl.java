@@ -337,6 +337,40 @@ public class VehicleServiceRecordServiceImpl implements VehicleServiceRecordServ
     }
 
     @Override
+    @Transactional
+    public VehicleServiceRecordResponse startRecord(UUID id) {
+        VehicleServiceRecordEntity record = entityService.findEntityById(id).orElse(null);
+        if (record == null) {
+            throw new BadRequestException(
+                    "Không tìm thấy bản ghi dịch vụ với ID: " + id,
+                    ErrorEnum.ENTITY_NOT_FOUND.getErrorCode()
+            );
+        }
+
+        if (record.getServiceStatus() != VehicleServiceStatusEnum.PLANNED) {
+            throw new BadRequestException(
+                    "Chỉ có thể bắt đầu bản ghi có trạng thái PLANNED",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Cập nhật trạng thái service record
+        record.setServiceStatus(VehicleServiceStatusEnum.IN_PROGRESS);
+        
+        // Cập nhật trạng thái xe thành MAINTENANCE
+        VehicleEntity vehicle = record.getVehicleEntity();
+        if (vehicle != null) {
+            vehicle.setStatus(VehicleStatusEnum.MAINTENANCE.name());
+            vehicleEntityService.save(vehicle);
+            log.info("🔧 Xe {} đã chuyển sang trạng thái MAINTENANCE", vehicle.getLicensePlateNumber());
+        }
+
+        var saved = entityService.save(record);
+        log.info("▶️ Đã bắt đầu bản ghi dịch vụ ID: {} - Loại: {}", id, record.getServiceType());
+        return mapper.toResponse(saved);
+    }
+
+    @Override
     public List<String> getServiceTypes() {
         if (serviceTypesConfig == null || serviceTypesConfig.isBlank()) {
             return List.of();

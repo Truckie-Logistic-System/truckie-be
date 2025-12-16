@@ -1,6 +1,7 @@
 package capstone_project.service.services.vehicle;
 
 import capstone_project.common.enums.VehicleStatusEnum;
+import capstone_project.dtos.response.vehicle.VehicleServiceRecordResponse;
 import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.repositories.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
@@ -33,6 +35,7 @@ import java.util.Set;
 public class VehicleExpiryCheckService {
 
     private final VehicleRepository vehicleRepository;
+    private final VehicleServiceRecordService vehicleServiceRecordService;
 
     /**
      * Số ngày trước khi hết hạn để cảnh báo (mặc định 30 ngày)
@@ -57,6 +60,9 @@ public class VehicleExpiryCheckService {
     @Scheduled(cron = "0 0 1 * * ?")
     @Transactional
     public void checkVehicleExpiry() {
+        // Tạo lịch bảo trì tự động cho xe đã quá hạn bảo trì
+        createOverdueMaintenanceRecords();
+        
         log.info("🚗 [VehicleExpiryCheckService] Bắt đầu kiểm tra hạn đăng kiểm/bảo hiểm/bảo trì xe...");
         
         LocalDate today = LocalDate.now();
@@ -183,5 +189,105 @@ public class VehicleExpiryCheckService {
     public void runManualCheck() {
         log.info("🔄 [VehicleExpiryCheckService] Chạy kiểm tra thủ công...");
         checkVehicleExpiry();
+    }
+    
+    /**
+     * Tạo tự động các lịch bảo trì/đăng kiểm cho xe đã quá hạn
+     * Được gọi tự động mỗi ngày trong checkVehicleExpiry()
+     */
+    @Transactional
+    public void createOverdueMaintenanceRecords() {
+        LocalDate today = LocalDate.now();
+        log.info("📅 [VehicleExpiryCheckService] Kiểm tra và tạo lịch bảo trì/đăng kiểm quá hạn...");
+        
+        // Lấy danh sách xe có ngày bảo trì tiếp theo đã quá hạn
+        List<VehicleEntity> overdueMaintenanceVehicles = vehicleRepository.findAll().stream()
+            .filter(v -> v.getNextMaintenanceDate() != null && v.getNextMaintenanceDate().isBefore(today))
+            .filter(v -> !PROTECTED_STATUSES.contains(v.getStatus()))
+            .toList();
+        
+        // Lấy danh sách xe có ngày đăng kiểm đã quá hạn
+        List<VehicleEntity> overdueInspectionVehicles = vehicleRepository.findAll().stream()
+            .filter(v -> v.getInspectionExpiryDate() != null && v.getInspectionExpiryDate().isBefore(today))
+            .filter(v -> !PROTECTED_STATUSES.contains(v.getStatus()))
+            .toList();
+        
+        int maintenanceCreated = 0;
+        int inspectionCreated = 0;
+        
+        // Tạo lịch bảo trì quá hạn
+        for (VehicleEntity vehicle : overdueMaintenanceVehicles) {
+            // Kiểm tra xem đã có lịch bảo trì PLANNED hoặc OVERDUE nào chưa
+            List<VehicleServiceRecordResponse> existingRecords = vehicleServiceRecordService.getRecordsByVehicleId(vehicle.getId());
+            boolean hasPlannedMaintenance = existingRecords.stream()
+                .anyMatch(r -> "Bảo dưỡng định kỳ".equals(r.serviceType()) && 
+                          ("PLANNED".equals(r.serviceStatus()) || "OVERDUE".equals(r.serviceStatus())));
+            
+            if (!hasPlannedMaintenance) {
+                // Tạo lịch bảo trì mới với trạng thái OVERDUE
+                try {
+                    // Tạo request để gọi service
+                    LocalDateTime plannedDate = vehicle.getNextMaintenanceDate().atStartOfDay();
+                    capstone_project.dtos.request.vehicle.VehicleServiceRecordRequest req = new capstone_project.dtos.request.vehicle.VehicleServiceRecordRequest(
+                        "Bảo dưỡng định kỳ",
+                        "OVERDUE", // Trạng thái quá hạn
+                        plannedDate, // Ngày dự kiến là ngày đã quá hạn
+                        null, // Chưa có ngày thực hiện
+                        null, // Chưa có ngày tiếp theo
+                        "Tạo tự động cho xe quá hạn bảo trì", // Mô tả
+                        null, // Chưa có số đồng hồ công tơ mét
+                        null, // Chưa có ghi chú
+                        vehicle.getId().toString() // ID xe
+                    );
+                    
+                    vehicleServiceRecordService.createRecord(req);
+                    maintenanceCreated++;
+                    log.info("🔧 Tạo tự động lịch bảo trì quá hạn cho xe {} ({})", 
+                            vehicle.getLicensePlateNumber(), vehicle.getId());
+                } catch (Exception e) {
+                    log.error("❌ Lỗi khi tạo lịch bảo trì quá hạn cho xe {}: {}", 
+                            vehicle.getLicensePlateNumber(), e.getMessage());
+                }
+            }
+        }
+        
+        // Tạo lịch đăng kiểm quá hạn
+        for (VehicleEntity vehicle : overdueInspectionVehicles) {
+            // Kiểm tra xem đã có lịch đăng kiểm PLANNED hoặc OVERDUE nào chưa
+            List<VehicleServiceRecordResponse> existingRecords = vehicleServiceRecordService.getRecordsByVehicleId(vehicle.getId());
+            boolean hasPlannedInspection = existingRecords.stream()
+                .anyMatch(r -> "Đăng kiểm định kỳ".equals(r.serviceType()) && 
+                          ("PLANNED".equals(r.serviceStatus()) || "OVERDUE".equals(r.serviceStatus())));
+            
+            if (!hasPlannedInspection) {
+                // Tạo lịch đăng kiểm mới với trạng thái OVERDUE
+                try {
+                    // Tạo request để gọi service
+                    LocalDateTime plannedDate = vehicle.getInspectionExpiryDate().atStartOfDay();
+                    capstone_project.dtos.request.vehicle.VehicleServiceRecordRequest req = new capstone_project.dtos.request.vehicle.VehicleServiceRecordRequest(
+                        "Đăng kiểm định kỳ",
+                        "OVERDUE", // Trạng thái quá hạn
+                        plannedDate, // Ngày dự kiến là ngày đã quá hạn
+                        null, // Chưa có ngày thực hiện
+                        null, // Chưa có ngày tiếp theo
+                        "Tạo tự động cho xe quá hạn đăng kiểm", // Mô tả
+                        null, // Chưa có số đồng hồ công tơ mét
+                        null, // Chưa có ghi chú
+                        vehicle.getId().toString() // ID xe
+                    );
+                    
+                    vehicleServiceRecordService.createRecord(req);
+                    inspectionCreated++;
+                    log.info("🛠️ Tạo tự động lịch đăng kiểm quá hạn cho xe {} ({})", 
+                            vehicle.getLicensePlateNumber(), vehicle.getId());
+                } catch (Exception e) {
+                    log.error("❌ Lỗi khi tạo lịch đăng kiểm quá hạn cho xe {}: {}", 
+                            vehicle.getLicensePlateNumber(), e.getMessage());
+                }
+            }
+        }
+        
+        log.info("📅 [VehicleExpiryCheckService] Đã tạo {} lịch bảo trì và {} lịch đăng kiểm quá hạn", 
+                maintenanceCreated, inspectionCreated);
     }
 }

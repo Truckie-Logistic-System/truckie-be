@@ -396,8 +396,11 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
         // Top customers
         List<StaffDashboardResponse.TopCustomerItem> topCustomers = buildTopCustomers(filteredOrders, filteredTransactions);
         
-        // Top drivers
-        List<StaffDashboardResponse.TopDriverItem> topDrivers = buildTopDrivers(filteredAssignments);
+        // Top drivers (only COMPLETED trips)
+        List<VehicleAssignmentEntity> completedAssignments = filteredAssignments.stream()
+                .filter(a -> "COMPLETED".equals(a.getStatus()))
+                .collect(Collectors.toList());
+        List<StaffDashboardResponse.TopDriverItem> topDrivers = buildTopDrivers(completedAssignments);
 
         return StaffDashboardResponse.builder()
                 .operationalSummary(operationalSummary)
@@ -1997,7 +2000,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                             .customerName(customerName)
                             .companyName(companyName)
                             .totalOrders((long) customerOrders.size())
-                            .totalPackages(totalPackages)
+                            .totalPackages(deliveredPackages) // Fixed: Use delivered packages only
                             .totalRevenue(totalRevenue)
                             .successRate(Math.round(successRate * 100.0) / 100.0)
                             .build();
@@ -2007,9 +2010,9 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                 .collect(Collectors.toList());
     }
 
-    private List<StaffDashboardResponse.TopDriverItem> buildTopDrivers(List<VehicleAssignmentEntity> assignments) {
-        // Group assignments by driver (using driver1 as primary driver)
-        Map<UUID, List<VehicleAssignmentEntity>> assignmentsByDriver = assignments.stream()
+    private List<StaffDashboardResponse.TopDriverItem> buildTopDrivers(List<VehicleAssignmentEntity> completedAssignments) {
+        // Group COMPLETED assignments by driver (using driver1 as primary driver)
+        Map<UUID, List<VehicleAssignmentEntity>> assignmentsByDriver = completedAssignments.stream()
                 .filter(a -> a.getDriver1() != null)
                 .collect(Collectors.groupingBy(a -> a.getDriver1().getId()));
         
@@ -2025,18 +2028,16 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                     String phone = firstAssignment.getDriver1().getUser() != null ? 
                             firstAssignment.getDriver1().getUser().getPhoneNumber() : "";
                     
-                    // Calculate trip stats
-                    long totalTrips = driverAssignments.size();
-                    long completedTrips = driverAssignments.stream()
-                            .filter(a -> "COMPLETED".equals(a.getStatus()))
-                            .count();
+                    // All assignments are already COMPLETED, so count = completedTrips
+                    long completedTrips = driverAssignments.size();
+                    long totalTrips = completedTrips; // Same as completed since we only pass COMPLETED
                     
                     // For on-time calculation, we'll use a simple approach based on status
                     // Since we don't have actual/expected end times in the entity
                     long onTimeTrips = completedTrips; // Assume all completed trips are on time for now
                     
-                    double completionRate = totalTrips > 0 ? (double) completedTrips / totalTrips * 100 : 0.0;
-                    double onTimePercentage = completedTrips > 0 ? 100.0 : 0.0; // Simplified for now
+                    double completionRate = 100.0; // All trips are completed
+                    double onTimePercentage = 100.0; // Simplified for now
                     
                     return StaffDashboardResponse.TopDriverItem.builder()
                             .driverId(driverId.toString())
@@ -2591,7 +2592,7 @@ public class RoleDashboardServiceImpl implements RoleDashboardService {
                             .successRate(Math.round(successRate * 100.0) / 100.0)
                             .build();
                 })
-                .sorted(Comparator.comparingLong(CustomerDashboardResponse.TopRecipient::getTotalPackages).reversed())
+                .sorted(Comparator.comparingLong(CustomerDashboardResponse.TopRecipient::getSuccessfulPackages).reversed())
                 .limit(10)
                 .collect(Collectors.toList());
     }

@@ -516,4 +516,142 @@ public class DriverServiceImpl implements DriverService {
         }
         return driver.getDateOfExpiry().toLocalDate().isBefore(LocalDate.now());
     }
+
+    @Override
+    @Transactional
+    public List<DriverResponse> updateAllDriversWithRealisticData() {
+        log.info("🔄 Starting to update all drivers with realistic Vietnamese data");
+
+        // Vietnamese first names (common)
+        String[] firstNames = {
+            "Tài", "Hùng", "Dũng", "Minh", "Tuấn", "Hoàng", "Long", "Phúc", "Thành", "Đức",
+            "Quang", "Hải", "Nam", "Bình", "Khang", "Trung", "Vinh", "Sơn", "Kiên", "Phong",
+            "Hiếu", "Toàn", "Cường", "Lộc", "Tùng", "Hưng", "Đạt", "Nghĩa", "Thắng", "Tiến"
+        };
+
+        // Vietnamese middle names (common)
+        String[] middleNames = {
+            "Văn", "Hữu", "Đức", "Minh", "Quốc", "Thanh", "Ngọc", "Hoàng", "Anh", "Xuân"
+        };
+
+        // Vietnamese last names (common family names)
+        String[] lastNames = {
+            "Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Vũ", "Võ", "Đặng", "Bùi", "Đỗ",
+            "Hồ", "Ngô", "Dương", "Lý", "Phan", "Huỳnh", "Lương", "Trịnh", "Mai", "Đinh"
+        };
+
+        // Get all drivers
+        List<DriverEntity> allDrivers = driverEntityService.findAll();
+        List<DriverResponse> updatedDrivers = new ArrayList<>();
+
+        int index = 0;
+        for (DriverEntity driver : allDrivers) {
+            UserEntity user = driver.getUser();
+            if (user == null) {
+                log.warn("⚠️ Driver {} has no associated user, skipping", driver.getId());
+                continue;
+            }
+
+            // Generate realistic Vietnamese name
+            String firstName = firstNames[index % firstNames.length];
+            String middleName = middleNames[index % middleNames.length];
+            String lastName = lastNames[index % lastNames.length];
+            String fullName = lastName + " " + middleName + " " + firstName;
+
+            // Generate username: firstname + abbreviated middle/last (no random digits)
+            String firstNameNormalized = removeVietnameseAccents(firstName).toLowerCase();
+            String middleNameAbbr = removeVietnameseAccents(middleName).substring(0, 1).toLowerCase();
+            String lastNameAbbr = removeVietnameseAccents(lastName).substring(0, 1).toLowerCase();
+            String username = "driver" + firstNameNormalized + middleNameAbbr + lastNameAbbr;
+
+            // Generate email: firstname + abbreviated names @gmail.com (no random digits)
+            String email = firstNameNormalized + middleNameAbbr + lastNameAbbr + "@gmail.com";
+
+            // Common password for all drivers
+            String commonPassword = "driver";
+
+            // Update user entity
+            user.setFullName(fullName);
+            user.setUsername(username);
+            user.setEmail(email);
+            user.setPassword(passwordEncoder.encode(commonPassword));
+
+            userEntityService.save(user);
+
+            log.info("✅ Updated driver: {} -> username: {}, email: {}", fullName, username, email);
+
+            updatedDrivers.add(driverMapper.mapDriverResponse(driver));
+            index++;
+        }
+
+        log.info("🎉 Successfully updated {} drivers with realistic Vietnamese data", updatedDrivers.size());
+        return updatedDrivers;
+    }
+
+    /**
+     * Remove Vietnamese accents from a string
+     * @param str Input string with Vietnamese accents
+     * @return String without accents
+     */
+    private String removeVietnameseAccents(String str) {
+        if (str == null) return "";
+        
+        String result = str;
+        
+        // Lowercase vowels with accents
+        result = result.replaceAll("[àáạảãâầấậẩẫăằắặẳẵ]", "a");
+        result = result.replaceAll("[èéẹẻẽêềếệểễ]", "e");
+        result = result.replaceAll("[ìíịỉĩ]", "i");
+        result = result.replaceAll("[òóọỏõôồốộổỗơờớợởỡ]", "o");
+        result = result.replaceAll("[ùúụủũưừứựửữ]", "u");
+        result = result.replaceAll("[ỳýỵỷỹ]", "y");
+        result = result.replaceAll("[đ]", "d");
+        
+        // Uppercase vowels with accents
+        result = result.replaceAll("[ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ]", "A");
+        result = result.replaceAll("[ÈÉẸẺẼÊỀẾỆỂỄ]", "E");
+        result = result.replaceAll("[ÌÍỊỈĨ]", "I");
+        result = result.replaceAll("[ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ]", "O");
+        result = result.replaceAll("[ÙÚỤỦŨƯỪỨỰỬỮ]", "U");
+        result = result.replaceAll("[ỲÝỴỶỸ]", "Y");
+        result = result.replaceAll("[Đ]", "D");
+        
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public int resetAllDriverPasswords(String newPassword) {
+        log.info("🔄 Starting to reset all drivers' passwords");
+
+        if (newPassword == null || newPassword.trim().isEmpty()) {
+            throw new BadRequestException(
+                    "Password cannot be null or empty",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Get all drivers
+        List<DriverEntity> allDrivers = driverEntityService.findAll();
+        int updatedCount = 0;
+
+        String encodedPassword = passwordEncoder.encode(newPassword);
+
+        for (DriverEntity driver : allDrivers) {
+            UserEntity user = driver.getUser();
+            if (user == null) {
+                log.warn("⚠️ Driver {} has no associated user, skipping", driver.getId());
+                continue;
+            }
+
+            user.setPassword(encodedPassword);
+            userEntityService.save(user);
+            updatedCount++;
+
+            log.debug("✅ Updated password for driver: {}", user.getUsername());
+        }
+
+        log.info("🎉 Successfully reset passwords for {} drivers", updatedCount);
+        return updatedCount;
+    }
 }

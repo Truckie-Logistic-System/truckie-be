@@ -11,6 +11,8 @@ import capstone_project.dtos.response.auth.RefreshTokenResponse;
 import capstone_project.dtos.response.auth.UserResponse;
 import capstone_project.dtos.response.user.CustomerResponse;
 import capstone_project.dtos.response.user.DriverResponse;
+import capstone_project.dtos.response.demo.DemoUsersGenerationResponse;
+import capstone_project.dtos.response.demo.UpdateUsernamesResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -90,4 +92,22 @@ public interface RegisterService {
      * @return true if logout was successful, false otherwise
      */
     boolean logout(String refreshToken);
+
+    /**
+     * Generate demo users (drivers, customers, staff) for dashboard demo
+     * CreatedAt dates are distributed throughout December 2025 with focus on Dec 22-27
+     *
+     * @return Summary of generated users
+     */
+    DemoUsersGenerationResponse generateDemoUsers();
+
+    /**
+     * Update all existing usernames to correct format:
+     * - Customer: firstname + lastname_abbreviation (e.g., datn for Nguyễn Văn Đạt)
+     * - Driver: driver + firstname + lastname_abbreviation (e.g., driverdatn)
+     * - Staff: staff + firstname + lastname_abbreviation (e.g., staffdatn)
+     * 
+     * @return Summary of updated usernames
+     */
+    UpdateUsernamesResponse updateAllUsernamesToCorrectFormat();
 }

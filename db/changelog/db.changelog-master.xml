@@ -1732,4 +1732,10 @@
     <changeSet author="absolutedev9 (generated)" id="1765701084595-26">
         <addPrimaryKey columnNames="device_id, vehicle_assignment_id" constraintName="vehicle_assignment_devices_pkey" tableName="vehicle_assignment_devices"/>
     </changeSet>
+    
+    <!-- Fix weight_tons precision to avoid rounding -->
+    <include file="db/changelog/changes/v20241216_fix_weight_tons_precision.xml"/>
+    
+    <!-- Add complete order sizes with Vietnamese descriptions for 100% coverage -->
+    <include file="db/changelog/changes/v20241216_add_complete_order_sizes.xml"/>
 </databaseChangeLog>

@@ -80,4 +80,18 @@ public class DriverController {
         final var driver = driverService.renewDriverLicense(id, request);
         return ResponseEntity.ok(ApiResponse.ok(driver));
     }
+
+    @PostMapping("/update-realistic-data")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<DriverResponse>>> updateAllDriversWithRealisticData() {
+        final var drivers = driverService.updateAllDriversWithRealisticData();
+        return ResponseEntity.ok(ApiResponse.ok(drivers));
+    }
+
+    @PostMapping("/reset-all-passwords")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<String>> resetAllDriverPasswords(@RequestParam String newPassword) {
+        final int count = driverService.resetAllDriverPasswords(newPassword);
+        return ResponseEntity.ok(ApiResponse.ok("Đã cập nhật mật khẩu cho " + count + " tài xế"));
+    }
 }

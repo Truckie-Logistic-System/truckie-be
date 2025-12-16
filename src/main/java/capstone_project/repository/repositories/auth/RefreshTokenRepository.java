@@ -2,6 +2,7 @@ package capstone_project.repository.repositories.auth;
 
 import capstone_project.entity.auth.RefreshTokenEntity;
 import capstone_project.repository.repositories.common.BaseRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -31,12 +32,14 @@ public interface RefreshTokenRepository extends BaseRepository<RefreshTokenEntit
     /**
      * Delete all expired refresh tokens for cleanup
      */
+    @Modifying
     @Query("DELETE FROM RefreshTokenEntity rt WHERE rt.expiredAt < :now")
-    void deleteExpiredTokens(@Param("now") LocalDateTime now);
+    int deleteExpiredTokens(@Param("now") LocalDateTime now);
 
     /**
      * Delete all revoked tokens older than specified date for cleanup
      */
+    @Modifying
     @Query("DELETE FROM RefreshTokenEntity rt WHERE rt.revoked = true AND rt.createdAt < :cutoffDate")
-    void deleteOldRevokedTokens(@Param("cutoffDate") LocalDateTime cutoffDate);
+    int deleteOldRevokedTokens(@Param("cutoffDate") LocalDateTime cutoffDate);
 }

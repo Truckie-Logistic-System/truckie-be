@@ -312,10 +312,10 @@ public class DashboardServiceImpl implements DashboardService {
         for (Object[] row : results) {
             UUID driverId = UUID.fromString(row[0].toString());
             String driverName = (String) row[1];
-            int orderCount = ((Number) row[2]).intValue();
+            int tripCount = ((Number) row[2]).intValue();
             int rank = ((Number) row[3]).intValue();
 
-            topDrivers.add(new TopDriverResponse(driverId.toString(), driverName, orderCount, rank));
+            topDrivers.add(new TopDriverResponse(driverId.toString(), driverName, tripCount, rank));
         }
 
         return topDrivers;

@@ -66,9 +66,9 @@ public abstract class BaseEntity implements Serializable {
     @PrePersist
     public void prePersist() {
         // Set createdAt to now for all non-demo data
-        // Demo data should have createdAt set manually in DashboardDemoDataService
+        // Demo data should have createdAt set manually and isDemoData=true to preserve the date
         // Always use Vietnam timezone (UTC+7) for consistency
-        if (createdAt == null || !Boolean.TRUE.equals(isDemoData)) {
+        if (createdAt == null) {
             createdAt = LocalDateTime.now(VIETNAM_ZONE);
         }
         if (isDemoData == null) {

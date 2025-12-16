@@ -24,17 +24,20 @@ public class UserEntityServiceImpl implements UserEntityService {
 
     @Override
     public Optional<UserEntity> getUserByUserName(final String username) {
-        return userRepository.findByUsername(username);
+        // Use findFirstByUsername to avoid NonUniqueResultException
+        return userRepository.findFirstByUsername(username);
     }
 
     @Override
     public Optional<UserEntity> getUserByUserNameOrEmail(final String username, final String email) {
-        return userRepository.findByUsernameOrEmail(username, email);
+        // Use findFirstByUsernameOrEmail to avoid NonUniqueResultException
+        return userRepository.findFirstByUsernameOrEmail(username, email);
     }
 
     @Override
     public Optional<UserEntity> getUserByEmail(final String email) {
-        return userRepository.findByEmail(email);
+        // Use findFirstByEmail to avoid NonUniqueResultException
+        return userRepository.findFirstByEmail(email);
     }
 
     @Override

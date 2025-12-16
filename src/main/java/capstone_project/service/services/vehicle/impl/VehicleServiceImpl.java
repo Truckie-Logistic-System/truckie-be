@@ -77,7 +77,7 @@ public class VehicleServiceImpl implements VehicleService {
         return Optional.of(vehicleEntityService.findAll())
                 .filter(list -> !list.isEmpty())
                 .orElseThrow(() -> new NotFoundException(
-                        "There are no vehicles available.",
+                        "Không có phương tiện nào khả dụng",
                         ErrorEnum.NOT_FOUND.getErrorCode()))
                 .stream()
                 .map(vehicleMapper::toResponse)
@@ -192,7 +192,7 @@ public class VehicleServiceImpl implements VehicleService {
                     .filter(v -> !v.getId().equals(id))
                     .ifPresent(v -> {
                         throw new BadRequestException(
-                                "License plate number already exists",
+                                "Biển số xe đã tồn tại",
                                 ErrorEnum.ALREADY_EXISTED.getErrorCode()
                         );
                     });
@@ -216,7 +216,7 @@ public class VehicleServiceImpl implements VehicleService {
         // Basic validation
         if (request.getLatitude() == null || request.getLongitude() == null) {
             throw new BadRequestException(
-                    "Latitude and longitude cannot be null",
+                    "Vĩ độ và kinh độ không được để trống",
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
@@ -230,7 +230,7 @@ public class VehicleServiceImpl implements VehicleService {
             // Fetch vehicle details for broadcasting
             VehicleEntity vehicle = vehicleEntityService.findByVehicleId(id)
                     .orElseThrow(() -> new NotFoundException(
-                            "Vehicle not found with ID: " + id,
+                            "Không tìm thấy phương tiện với ID: " + id,
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
 
@@ -240,7 +240,7 @@ public class VehicleServiceImpl implements VehicleService {
             // Check if vehicle exists at all - if not, throw not found
             if (!vehicleEntityService.findByVehicleId(id).isPresent()) {
                 throw new NotFoundException(
-                        "Vehicle not found with ID: " + id,
+                        "Không tìm thấy phương tiện với ID: " + id,
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 );
             }
@@ -255,7 +255,7 @@ public class VehicleServiceImpl implements VehicleService {
         // Basic validation
         if (request.getLatitude() == null || request.getLongitude() == null) {
             throw new BadRequestException(
-                    "Latitude and longitude cannot be null",
+                    "Vĩ độ và kinh độ không được để trống",
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
@@ -272,7 +272,7 @@ public class VehicleServiceImpl implements VehicleService {
             // Fetch vehicle details for broadcasting
             VehicleEntity vehicle = vehicleEntityService.findByVehicleId(id)
                     .orElseThrow(() -> new NotFoundException(
-                            "Vehicle not found with ID: " + id,
+                            "Không tìm thấy phương tiện với ID: " + id,
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
 
@@ -304,7 +304,7 @@ public class VehicleServiceImpl implements VehicleService {
         for (BatchUpdateLocationRequest.VehicleLocationUpdate update : batchRequest.getUpdates()) {
             if (update.getVehicleId() == null || update.getLatitude() == null || update.getLongitude() == null) {
                 throw new BadRequestException(
-                        "Vehicle ID, latitude and longitude cannot be null in batch updates",
+                        "ID phương tiện, vĩ độ và kinh độ không được để trống trong cập nhật hàng loạt",
                         ErrorEnum.INVALID.getErrorCode()
                 );
             }
@@ -347,7 +347,7 @@ public class VehicleServiceImpl implements VehicleService {
         List<VehicleTypeEntity> vehicleTypes = vehicleTypeEntityService.findAll();
         if (vehicleTypes.isEmpty()) {
             throw new BadRequestException(
-                    "No vehicle types found in the database",
+                    "Không tìm thấy loại phương tiện trong cơ sở dữ liệu",
                     ErrorEnum.NOT_FOUND.getErrorCode()
             );
         }

@@ -282,7 +282,7 @@ public class SecurityConfigurer {
                         .requestMatchers(HttpMethod.GET, basingPriceApiBasePath + "/**").authenticated()
                         .requestMatchers(distanceRuleApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
                         .requestMatchers(basingPriceApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
-                        .requestMatchers(distanceBasePath + "/**").hasAnyAuthority("CUSTOMER","DRIVER","ADMIN","STAFF")
+                        .requestMatchers(distanceBasePath + "/**").hasAnyAuthority(RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.DRIVER.name(), RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= CONTRACT =================
                         .requestMatchers(HttpMethod.GET, contractApiBasePath + "/**").authenticated()
@@ -292,7 +292,7 @@ public class SecurityConfigurer {
 
                         // ================= PENALTY =================
                         .requestMatchers(HttpMethod.GET, penaltyApiBasePath + "/**").authenticated()
-                        .requestMatchers(penaltyApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(penaltyApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
                         // ================= DEVICE =================
                         .requestMatchers(HttpMethod.GET, deviceTypeBasePath + "/**").authenticated()
@@ -311,20 +311,20 @@ public class SecurityConfigurer {
                         .hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.DRIVER.name())
 
                         // ================= ORDER =================
-                        .requestMatchers(orderDetailApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
-                        .requestMatchers(orderBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
-                        .requestMatchers(orderSizeBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF")
+                        .requestMatchers(orderDetailApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name(), RoleTypeEnum.DRIVER.name())
+                        .requestMatchers(orderBasePath + "/**").hasAnyAuthority(RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name(), RoleTypeEnum.DRIVER.name())
+                        .requestMatchers(orderSizeBasePath + "/**").hasAnyAuthority(RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= ISSUE =================
-                        .requestMatchers(issueTypeBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
-                        .requestMatchers(issueBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
-                        .requestMatchers(issueImageBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+                        .requestMatchers(issueTypeBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name(), RoleTypeEnum.DRIVER.name())
+                        .requestMatchers(issueBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name(), RoleTypeEnum.DRIVER.name())
+                        .requestMatchers(issueImageBasePath + "/**").hasAnyAuthority(RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name(), RoleTypeEnum.DRIVER.name())
                         
                         // ================= DAMAGE RESOLUTION =================
-                        .requestMatchers(damageResolutionBasePath + "/**").hasAnyAuthority("ADMIN","STAFF")
+                        .requestMatchers(damageResolutionBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= PHOTO COMPLETION =================
-                        .requestMatchers(photoCompletionBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+                        .requestMatchers(photoCompletionBasePath + "/**").hasAnyAuthority(RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name(), RoleTypeEnum.DRIVER.name())
 
                         // ================= MANAGER & ROLE =================
                         .requestMatchers(managerApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
@@ -335,7 +335,7 @@ public class SecurityConfigurer {
                         .requestMatchers(userChatApiBasePath + "/guest/**").permitAll()
                         // Guest message sending - allow public access
                         .requestMatchers(userChatApiBasePath + "/conversations/*/messages").permitAll()
-                        .requestMatchers(userChatApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+                        .requestMatchers(userChatApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name(), RoleTypeEnum.DRIVER.name())
 
                         // ================= NOTIFICATION =================
                         .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
@@ -343,7 +343,7 @@ public class SecurityConfigurer {
                         .requestMatchers(stipulationSettingApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= SEAL =================
-                        .requestMatchers(sealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())
+                        .requestMatchers(sealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.DRIVER.name(), RoleTypeEnum.STAFF.name())
 
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 

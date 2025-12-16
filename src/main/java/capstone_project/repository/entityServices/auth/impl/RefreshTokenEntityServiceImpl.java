@@ -41,14 +41,14 @@ public class RefreshTokenEntityServiceImpl implements RefreshTokenEntityService 
 
     @Override
     @Transactional
-    public void deleteExpiredTokens(LocalDateTime now) {
-        refreshTokenRepository.deleteExpiredTokens(now);
+    public int deleteExpiredTokens(LocalDateTime now) {
+        return refreshTokenRepository.deleteExpiredTokens(now);
     }
 
     @Override
     @Transactional
-    public void deleteOldRevokedTokens(LocalDateTime cutoffDate) {
-        refreshTokenRepository.deleteOldRevokedTokens(cutoffDate);
+    public int deleteOldRevokedTokens(LocalDateTime cutoffDate) {
+        return refreshTokenRepository.deleteOldRevokedTokens(cutoffDate);
     }
 
     @Override

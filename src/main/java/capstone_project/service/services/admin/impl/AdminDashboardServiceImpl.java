@@ -244,8 +244,11 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         LocalDateTime endDate = LocalDateTime.now();
         
         try {
-            // Get all vehicle assignments in date range (created during the period)
-            List<VehicleAssignmentEntity> assignments = vehicleAssignmentRepository.findByCreatedAtBetween(startDate, endDate);
+            // Get all COMPLETED vehicle assignments in date range
+            List<VehicleAssignmentEntity> assignments = vehicleAssignmentRepository.findByCreatedAtBetween(startDate, endDate)
+                    .stream()
+                    .filter(a -> "COMPLETED".equals(a.getStatus()))
+                    .collect(Collectors.toList());
             
             // Group assignments by driver (using driver1 as primary driver)
             Map<UUID, List<VehicleAssignmentEntity>> assignmentsByDriver = assignments.stream()
@@ -265,10 +268,8 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                         String email = driverUser != null ? driverUser.getEmail() : "";
                         String avatarUrl = driverUser != null ? driverUser.getImageUrl() : "";
                         
-                        // Calculate completed trips
-                        long completedTrips = driverAssignments.stream()
-                                .filter(a -> "COMPLETED".equals(a.getStatus()))
-                                .count();
+                        // Count completed trips (all assignments in this group are already COMPLETED)
+                        long completedTrips = driverAssignments.size();
                         
                         return TopDriverResponse.builder()
                                 .driverId(driverId)

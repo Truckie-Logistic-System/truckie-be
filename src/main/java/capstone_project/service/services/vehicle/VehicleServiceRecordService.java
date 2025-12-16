@@ -47,6 +47,11 @@ public interface VehicleServiceRecordService {
     VehicleServiceRecordResponse cancelRecord(UUID id);
     
     /**
+     * Bắt đầu một record bảo trì/đăng kiểm và cập nhật trạng thái xe thành MAINTENANCE
+     */
+    VehicleServiceRecordResponse startRecord(UUID id);
+    
+    /**
      * Lấy danh sách các loại dịch vụ từ config
      */
     List<String> getServiceTypes();

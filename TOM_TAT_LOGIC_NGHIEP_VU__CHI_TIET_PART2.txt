@@ -1,0 +1,609 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    TÓM TẮT LOGIC CÁC LUỒNG NGHIỆP VỤ CHÍNH                   ║
+║                  HỆ THỐNG QUẢN LÝ VẬN CHUYỂN - TRUCKIE                       ║
+║                              PHẦN 2/2                                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+5. NGHIỆP VỤ XỬ LÝ BỒI THƯỜNG (COMPENSATION)
+================================================================================
+
+📌 MỤC ĐÍCH:
+   Xử lý bồi thường khi hàng hóa bị hư hỏng/mất mát trong quá trình vận chuyển.
+
+📋 CƠ CHẾ HOẠT ĐỘNG:
+
+   BƯỚC 1: STAFF THẨM ĐỊNH
+   
+   1.1. Thông tin hàng hóa
+   • hasDocuments: có chứng từ hợp lệ? (hóa đơn, bill...)
+   • documentValue: giá trị ghi trên chứng từ
+   • estimatedMarketValue: giá ước tính nếu không có chứng từ
+   • documentImages: ảnh chứng từ (upload Cloudinary)
+   
+   1.2. Mức độ hư hỏng
+   • assessmentRatePercent: % hư hỏng (0-100%)
+     - 50% = hỏng một nửa
+     - 100% = hỏng toàn bộ/mất hàng
+   
+   1.3. Phát hiện gian lận
+   IF fraudDetected = TRUE THEN
+       → Ban account customer (status = BANNED)
+       → Issue.status = CLOSED_FRAUD
+       → KHÔNG bồi thường
+   END IF
+
+   BƯỚC 2: TÍNH BỒI THƯỜNG HÀNG HƯ HỎNG (DAMAGE)
+   
+   Kí hiệu:
+   • V_thực_tế: Giá trị thực tế hàng
+   • V_khai_báo: declaredValue
+   • V_chứng_từ: documentValue
+   • T_hư: assessmentRate (0.0-1.0)
+   • C_total: tổng cước
+   • W_kiện: trọng lượng kiện hư
+   • W_total: tổng trọng lượng
+   
+   2.1. Xác định V_thực_tế
+   
+   IF hasDocuments = TRUE AND documentValue > 0 THEN
+       IF documentValue < declaredValue THEN
+           V_thực_tế = documentValue
+           Note = "CT < KB: Đền theo CT"
+       ELSE IF documentValue = declaredValue THEN
+           V_thực_tế = documentValue
+           Note = "CT = KB: Khớp hoàn toàn"
+       ELSE  // documentValue > declaredValue
+           V_thực_tế = declaredValue
+           Note = "CT > KB: Đền tối đa theo KB (Under-insured)"
+       END IF
+   ELSE
+       IF estimatedMarketValue > 0 THEN
+           V_thực_tế = estimatedMarketValue
+           Note = "Không CT: Dùng giá ước tính"
+       ELSE
+           V_thực_tế = declaredValue
+           Note = "Không CT: Dùng KB"
+       END IF
+   END IF
+   
+   2.2. Tính C_hư (cước vận chuyển tỷ lệ)
+   
+   weightRatio = W_kiện / W_total
+   freightRefund = C_total × weightRatio × T_hư
+   
+   Ví dụ:
+   • Cước 1,000,000 VNĐ
+   • Kiện hư 0.5 tấn / Tổng 2 tấn = 25%
+   • Hư 50%
+   → C_hư = 1,000,000 × 0.25 × 0.5 = 125,000 VNĐ
+   
+   2.3. Tính V_lỗ (giá trị mất mát)
+   
+   valueLoss = V_thực_tế × T_hư
+   
+   2.4. Tính B_hàng (bồi thường hàng hóa)
+   
+   legalLimit = C_total × 10  // Giới hạn pháp luật: 10× cước
+   
+   CASE 1: Có BH + Có CT → Không giới hạn
+   IF hasInsurance = TRUE AND hasDocuments = TRUE THEN
+       goodsCompensation = MIN(valueLoss, declaredValue)
+   
+   CASE 2: Có BH + Không CT → BH vô hiệu, áp dụng 10×
+   ELSE IF hasInsurance = TRUE AND hasDocuments = FALSE THEN
+       goodsCompensation = MIN(valueLoss, legalLimit)
+   
+   CASE 3: Không BH + Có CT → Áp dụng 10×
+   ELSE IF hasInsurance = FALSE AND hasDocuments = TRUE THEN
+       goodsCompensation = MIN(valueLoss, legalLimit)
+   
+   CASE 4: Không BH + Không CT → Áp dụng 10×
+   ELSE
+       goodsCompensation = MIN(valueLoss, legalLimit)
+   END IF
+   
+   2.5. Tính B_tổng
+   
+   totalCompensation = goodsCompensation + freightRefund
+   
+   // Fix CASE 2: Cap tổng ở legal limit
+   IF hasInsurance = TRUE AND hasDocuments = FALSE THEN
+       IF totalCompensation > legalLimit THEN
+           totalCompensation = legalLimit
+       END IF
+   END IF
+
+   BƯỚC 3: TÍNH BỒI THƯỜNG LỆCH TUYẾN (OFF_ROUTE)
+   
+   Đặc điểm:
+   • T_hư = 100% (coi như mất hàng)
+   • KHÔNG giới hạn 10× (lỗi cố ý)
+   • B_hàng = 100% V_thực_tế
+   • C_hư = 100% C_total
+   
+   totalCompensation = V_thực_tế + C_total
+
+   BƯỚC 4: TẠO REFUND
+   
+   Nếu Staff chọn "Tạo refund":
+   
+   refund = {
+       issueId, refundAmount: finalCompensation,
+       bankName, accountNumber, accountHolderName,
+       transactionCode, bankTransferImage, notes,
+       refundDate: NOW, processedByStaff
+   }
+
+   BƯỚC 5: CẬP NHẬT TRẠNG THÁI
+   
+   IF fraudDetected = TRUE THEN
+       issue.status = CLOSED_FRAUD
+       banCustomer(customer)
+   ELSE
+       issue.status = RESOLVED
+   END IF
+
+🔍 ĐIỂM ĐẶC BIỆT:
+   • Có BH + Có CT mới đền không giới hạn
+   • Giới hạn 10× = tổng cước (không phải cước tỷ lệ)
+   • So sánh CT vs KB để xác định giá trị thực
+   • OFF_ROUTE: không giới hạn, đền 100%
+   • Fraud detection → ban account tự động
+
+🎯 OUTPUT: CompensationDetailResponse với assessment, compensationBreakdown
+   (goodsCompensation, freightRefund, totalCompensation, legalLimit, case, 
+   explanation), refundInfo
+
+
+================================================================================
+6. LOGIC CHECK OFF ROUTE (PHÁT HIỆN LỆCH TUYẾN)
+================================================================================
+
+📌 MỤC ĐÍCH:
+   Giám sát GPS, phát hiện tài xế lệch tuyến, cảnh báo Staff kịp thời.
+
+📋 CƠ CHẾ HOẠT ĐỘNG:
+
+   BƯỚC 1: NHẬN VÀ XỬ LÝ GPS
+   
+   processLocationUpdate(vehicleAssignmentId, lat, lng, speed, bearing) {
+       journey = findLatestActiveJourney(vehicleAssignmentId)
+       
+       IF journey = NULL OR segments = NULL THEN
+           RETURN NULL
+       END IF
+       
+       distanceToRoute = calculateDistanceToRoute(lat, lng, segments)
+       
+       IF distanceToRoute > MAX_DISTANCE (500m) THEN
+           handleOffRoute(assignment, lat, lng, distanceToRoute)
+       ELSE
+           handleBackOnRoute(vehicleAssignmentId)
+       END IF
+   }
+
+   BƯỚC 2: TÍNH KHOẢNG CÁCH ĐẾN ROUTE
+   
+   calculateDistanceToRoute(lat, lng, segments) {
+       minDistance = INFINITY
+       
+       FOR each segment:
+           points = segment.routePolyline
+           
+           FOR i = 0 TO points.length - 1:
+               distance = distanceToLineSegment(
+                   currentPos: (lat, lng),
+                   lineSegment: (points[i], points[i+1])
+               )
+               
+               minDistance = MIN(minDistance, distance)
+           END FOR
+       END FOR
+       
+       RETURN minDistance (meters)
+   }
+   
+   • Dùng Haversine formula
+   • Tính đến tất cả segments
+   • Trả về khoảng cách ngắn nhất
+
+   BƯỚC 3: XỬ LÝ KHI LỆCH TUYẾN
+   
+   handleOffRoute(assignment, lat, lng, distanceToRoute) {
+       existingEvent = findActiveByVehicleAssignmentId(assignment.id)
+       
+       IF existingEvent EXISTS THEN
+           // Cập nhật event hiện có
+           
+           // CRITICAL: Chỉ update nếu vẫn active
+           IF warningStatus IN [ISSUE_CREATED, RESOLVED_SAFE, BACK_ON_ROUTE] THEN
+               RETURN
+           END IF
+           
+           event.previousDistanceFromRouteMeters = event.distanceFromRouteMeters
+           event.lastKnownLat = lat
+           event.lastKnownLng = lng
+           event.distanceFromRouteMeters = distanceToRoute
+           event.lastLocationUpdateAt = NOW
+           
+           checkWarningThresholds(event)
+       ELSE
+           // Tạo event mới
+           newEvent = {
+               vehicleAssignment, order,
+               offRouteStartTime: NOW,
+               lastKnownLat, lastKnownLng,
+               distanceFromRouteMeters: distanceToRoute,
+               lastLocationUpdateAt: NOW,
+               warningStatus: NONE,
+               canContactDriver: NULL,
+               gracePeriodExtensionCount: 0
+           }
+           save(newEvent)
+       END IF
+   }
+
+   BƯỚC 4: HỆ THỐNG CẢNH BÁO PHÂN CẤP
+   
+   checkWarningThresholds(event) {
+       // CRITICAL: Không cảnh báo nếu không active
+       IF warningStatus IN [ISSUE_CREATED, RESOLVED_SAFE, BACK_ON_ROUTE] THEN
+           RETURN
+       END IF
+       
+       durationMinutes = NOW - offRouteStartTime
+       minutesSinceLastContact = NOW - contactedAt
+       
+       YELLOW WARNING (5 phút):
+       IF warningStatus = NONE AND durationMinutes >= 5 THEN
+           event.warningStatus = YELLOW_SENT
+           event.yellowWarningSentAt = NOW
+           sendWarningToStaff(event, "YELLOW")
+       END IF
+       
+       RED WARNING (10 phút):
+       IF warningStatus = YELLOW_SENT THEN
+           shouldSendRed = FALSE
+           
+           IF contactedAt = NULL THEN
+               // Chưa liên hệ → dùng tổng thời gian
+               shouldSendRed = durationMinutes >= 10
+           ELSE
+               // Đã liên hệ → dùng thời gian từ lần cuối
+               shouldSendRed = minutesSinceLastContact >= 10
+           END IF
+           
+           IF shouldSendRed THEN
+               event.warningStatus = RED_SENT
+               event.redWarningSentAt = NOW
+               sendWarningToStaff(event, "RED")
+           END IF
+       END IF
+   }
+
+   BƯỚC 5: GỬI CẢNH BÁO QUA WEBSOCKET
+   
+   sendWarningToStaff(event, severity) {
+       payload = {
+           type: "OFF_ROUTE_WARNING",
+           severity: "YELLOW" or "RED",
+           offRouteEventId, vehicleAssignmentId, orderId, orderCode,
+           offRouteDurationMinutes,
+           lastKnownLocation: {lat, lng},
+           distanceFromRouteMeters,
+           driver: {id, fullName, phoneNumber},
+           vehicle: {licensePlate, model},
+           customer: {fullName, phoneNumber}
+       }
+       
+       websocketService.sendToStaff("/topic/off-route-warnings", payload)
+       
+       // Gửi notification database
+       createNotification(
+           type: "OFF_ROUTE_WARNING",
+           severity, message, staff
+       )
+   }
+
+   BƯỚC 6: STAFF XÁC NHẬN LIÊN HỆ
+   
+   confirmContact(offRouteEventId, canContactDriver, reason) {
+       event = findById(offRouteEventId)
+       
+       event.canContactDriver = canContactDriver
+       event.contactedAt = NOW
+       event.contactReason = reason
+       
+       IF canContactDriver = TRUE THEN
+           event.warningStatus = RESOLVED_SAFE
+           event.resolvedAt = NOW
+           event.resolutionReason = "Staff confirmed driver is safe"
+       ELSE
+           // Driver không liên lạc được
+           
+           IF gracePeriodExtensionCount < MAX_EXTENSIONS (3) THEN
+               // Gia hạn grace period
+               event.gracePeriodExtensionCount++
+               event.warningStatus = YELLOW_SENT  // Reset về YELLOW
+               event.yellowWarningSentAt = NOW
+               event.contactedAt = NOW  // Reset timer
+               
+               sendWarningToStaff(event, "GRACE_PERIOD_EXTENDED")
+           ELSE
+               // Hết gia hạn → tạo Issue tự động
+               createRunawayIssue(event)
+           END IF
+       END IF
+   }
+
+   BƯỚC 7: TẠO ISSUE TỰ ĐỘNG
+   
+   createRunawayIssue(event) {
+       issue = {
+           order: event.order,
+           vehicleAssignment: event.vehicleAssignment,
+           issueType: "RUNAWAY_DRIVER",
+           status: "PENDING",
+           description: "Driver off-route >10 minutes, cannot contact",
+           createdAt: NOW,
+           offRouteEventId: event.id
+       }
+       save(issue)
+       
+       event.warningStatus = ISSUE_CREATED
+       event.issueCreatedAt = NOW
+       
+       sendNotificationToManagement(issue)
+   }
+
+   BƯỚC 8: XỬ LÝ KHI VỀ ĐÚNG TUYẾN
+   
+   handleBackOnRoute(vehicleAssignmentId) {
+       event = findActiveByVehicleAssignmentId(vehicleAssignmentId)
+       
+       IF event EXISTS AND warningStatus NOT IN [ISSUE_CREATED, BACK_ON_ROUTE] THEN
+           event.warningStatus = BACK_ON_ROUTE
+           event.resolvedAt = NOW
+           event.resolutionReason = "Driver returned to route"
+           save(event)
+           
+           sendNotificationToStaff(event, "BACK_ON_ROUTE")
+       END IF
+   }
+
+   BƯỚC 9: JOB KIỂM TRA ĐỊNH KỲ (Every 1 minute)
+   
+   @Scheduled(cron = "0 * * * * *")
+   checkActiveOffRouteEvents() {
+       activeEvents = findAllActiveEvents()
+       
+       FOR each event:
+           checkWarningThresholds(event)
+       END FOR
+   }
+
+🔍 ĐIỂM ĐẶC BIỆT:
+   • Ngưỡng: 500m, cảnh báo vàng 5 phút, đỏ 10 phút
+   • Sau liên hệ → reset timer (tính từ contactedAt)
+   • Gia hạn tối đa 3 lần (mỗi lần reset về YELLOW)
+   • Tự động tạo Issue nếu hết gia hạn
+   • WebSocket real-time cho Staff
+   • Job định kỳ 1 phút kiểm tra
+
+🎯 OUTPUT: OffRouteEventDetailResponse với offRouteStartTime, 
+   offRouteDurationMinutes, lastKnownLocation, distanceFromRouteMeters,
+   warningStatus, contactInfo, gracePeriodInfo
+
+
+================================================================================
+7. LOGIC TÍNH NHIÊN LIỆU TIÊU THỤ (FUEL CONSUMPTION)
+================================================================================
+
+📌 MỤC ĐÍCH:
+   Tính toán nhiên liệu tiêu thụ thực tế của xe sau mỗi chuyến hàng.
+
+📋 CƠ CHẾ HOẠT ĐỘNG:
+
+   BƯỚC 1: TÀI XẾ UPLOAD ẢNH ĐỒNG HỒ
+   
+   Tại 3 thời điểm:
+   • BEFORE_TRIP: trước khi xuất phát
+   • AFTER_TRIP: sau khi hoàn thành giao hàng
+   • AFTER_RETURN: sau khi trả hàng về (nếu có)
+   
+   uploadOdometerImage(assignmentId, imageFile, recordType) {
+       // Upload ảnh lên Cloudinary
+       imageUrl = cloudinaryService.uploadImage(imageFile)
+       
+       record = {
+           vehicleAssignment,
+           recordType: "BEFORE_TRIP" / "AFTER_TRIP" / "AFTER_RETURN",
+           odometerImageUrl: imageUrl,
+           recordedAt: NOW,
+           uploadedByDriver: currentDriver
+       }
+       save(record)
+   }
+
+   BƯỚC 2: TÍNH NHIÊN LIỆU QUA ĐỒNG HỒ (Ưu tiên)
+   
+   calculateFuelConsumptionByOdometer(assignmentId) {
+       beforeRecord = findByType(assignmentId, "BEFORE_TRIP")
+       afterRecord = findByType(assignmentId, "AFTER_TRIP")
+       returnRecord = findByType(assignmentId, "AFTER_RETURN")
+       
+       IF beforeRecord = NULL OR afterRecord = NULL THEN
+           THROW "Missing odometer records"
+       END IF
+       
+       // Parse số km từ ảnh (hoặc Staff nhập manual)
+       startOdometer = beforeRecord.odometerReading
+       endOdometer = returnRecord?.odometerReading ?? afterRecord.odometerReading
+       
+       totalDistanceKm = endOdometer - startOdometer
+       
+       IF totalDistanceKm <= 0 OR totalDistanceKm > 10000 THEN
+           THROW "Invalid distance: " + totalDistanceKm
+       END IF
+       
+       // Lấy base fuel rate từ vehicleType
+       vehicle = assignment.vehicle
+       baseFuelRate = vehicle.vehicleType.fuelConsumptionRate  // lít/100km
+       
+       IF baseFuelRate = NULL OR baseFuelRate <= 0 THEN
+           THROW "Missing fuel rate for vehicle type"
+       END IF
+       
+       // Tính nhiên liệu với load factor
+       journey = assignment.journey
+       deliveryDistance = journey.totalDistanceKm ?? 0
+       returnDistance = totalDistanceKm - deliveryDistance
+       
+       // Giả định: 60% full load (có hàng), 40% empty (không hàng)
+       FULL_LOAD_FACTOR = 1.2   // Tăng 20% khi có hàng
+       EMPTY_LOAD_FACTOR = 0.8  // Giảm 20% khi không hàng
+       
+       fuelForDelivery = (deliveryDistance / 100) × baseFuelRate × FULL_LOAD_FACTOR
+       fuelForReturn = (returnDistance / 100) × baseFuelRate × EMPTY_LOAD_FACTOR
+       
+       totalFuelConsumed = fuelForDelivery + fuelForReturn
+       
+       IF totalFuelConsumed <= 0 OR totalFuelConsumed > 10000 THEN
+           THROW "Invalid fuel consumption"
+       END IF
+       
+       // Lưu kết quả
+       fuelRecord = {
+           vehicleAssignment, vehicle, journey,
+           calculationMethod: "ODOMETER_BASED",
+           startOdometerReading: startOdometer,
+           endOdometerReading: endOdometer,
+           totalDistanceTraveled: totalDistanceKm,
+           baseFuelConsumptionRate: baseFuelRate,
+           fullLoadFactor: 1.2,
+           emptyLoadFactor: 0.8,
+           deliveryDistanceKm: deliveryDistance,
+           returnDistanceKm: returnDistance,
+           fuelUsedForDelivery: fuelForDelivery,
+           fuelUsedForReturn: fuelForReturn,
+           totalFuelConsumed: totalFuelConsumed,
+           recordedAt: NOW
+       }
+       save(fuelRecord)
+       
+       // Cập nhật trạng thái
+       updateOrderStatus(order, "FUEL_RECORDED")
+       updateVehicleStatus(vehicle, "AVAILABLE")
+       
+       RETURN fuelRecord
+   }
+
+   BƯỚC 3: TÍNH NHIÊN LIỆU QUA SEGMENT (Fallback)
+   
+   calculateFuelConsumptionBySegments(assignmentId) {
+       journey = findJourneyByAssignment(assignmentId)
+       segments = journey.segments
+       
+       IF segments.isEmpty THEN
+           THROW "No segments found"
+       END IF
+       
+       vehicle = assignment.vehicle
+       baseFuelRate = vehicle.vehicleType.fuelConsumptionRate
+       
+       totalFuel = 0
+       totalDistance = 0
+       
+       FOR each segment IN segments:
+           segmentDistance = segment.distanceKm
+           
+           // Xác định load factor theo segment type
+           IF segment.type = "PICKUP" OR segment.type = "DELIVERY" THEN
+               loadFactor = 1.2  // Có hàng
+           ELSE IF segment.type = "RETURN" THEN
+               loadFactor = 0.8  // Không hàng
+           ELSE
+               loadFactor = 1.0  // Mặc định
+           END IF
+           
+           segmentFuel = (segmentDistance / 100) × baseFuelRate × loadFactor
+           totalFuel += segmentFuel
+           totalDistance += segmentDistance
+       END FOR
+       
+       fuelRecord = {
+           vehicleAssignment, vehicle, journey,
+           calculationMethod: "SEGMENT_BASED",
+           totalDistanceTraveled: totalDistance,
+           baseFuelConsumptionRate: baseFuelRate,
+           totalFuelConsumed: totalFuel,
+           calculationNote: "Fallback: Odometer not available",
+           recordedAt: NOW
+       }
+       save(fuelRecord)
+       
+       RETURN fuelRecord
+   }
+
+   BƯỚC 4: XỬ LÝ LỖI VÀ FALLBACK
+   
+   recordFuelConsumption(assignmentId) {
+       TRY {
+           // Ưu tiên phương pháp odometer
+           RETURN calculateFuelConsumptionByOdometer(assignmentId)
+       }
+       CATCH (MissingOdometerException e) {
+           LOG.warn("Odometer missing, using segment-based calculation")
+           RETURN calculateFuelConsumptionBySegments(assignmentId)
+       }
+       CATCH (InvalidDataException e) {
+           LOG.error("Invalid odometer data, using segment-based calculation")
+           RETURN calculateFuelConsumptionBySegments(assignmentId)
+       }
+       CATCH (Exception e) {
+           LOG.error("Fuel calculation failed", e)
+           THROW e
+       }
+   }
+
+   BƯỚC 5: CẬP NHẬT TRẠNG THÁI
+   
+   Sau khi tính xong:
+   
+   • Order.status → FUEL_RECORDED
+   • Vehicle.status → AVAILABLE
+   • VehicleAssignment.fuelConsumptionRecorded → TRUE
+   • Journey.fuelConsumptionCalculated → TRUE
+
+🔍 ĐIỂM ĐẶC BIỆT:
+   • Ưu tiên odometer (chính xác hơn)
+   • Fallback segment-based nếu thiếu ảnh
+   • Load factor: 60% full (1.2×), 40% empty (0.8×)
+   • Validate khoảng hợp lý: 0-10,000 km, 0-10,000 lít
+   • Tự động cập nhật trạng thái order và vehicle
+   • Lưu cả 2 phương pháp để so sánh
+
+🎯 OUTPUT: VehicleFuelConsumptionRecord với:
+   • calculationMethod: "ODOMETER_BASED" hoặc "SEGMENT_BASED"
+   • totalDistanceTraveled, totalFuelConsumed
+   • breakdown: deliveryDistance, returnDistance, fuelForEach
+   • baseFuelRate, loadFactors
+   • odometerReadings (nếu có)
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                              KẾT LUẬN                                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Hệ thống Truckie triển khai 7 luồng nghiệp vụ phức tạp với logic chặt chẽ:
+
+1. BinPacker: Tối ưu 3D bin packing với 3 chiến lược thông minh
+2. Pricing: Công thức tính giá linh hoạt với nhiều phụ phí
+3. Driver Assignment: Chấm điểm đa yếu tố, cân bằng workload
+4. Return Shipping: Tính cước trả hàng chính xác theo từng kiện
+5. Compensation: 4 cases bồi thường rõ ràng, phát hiện gian lận
+6. Off-route: 3-tier warning, grace period, auto issue creation
+7. Fuel Consumption: Odometer-first với segment-based fallback
+
+Tất cả đều có validation chặt, error handling đầy đủ, và audit trail chi tiết.

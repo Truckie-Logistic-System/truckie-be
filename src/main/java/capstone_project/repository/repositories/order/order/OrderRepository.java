@@ -176,18 +176,17 @@ public interface OrderRepository extends BaseRepository<OrderEntity> {
                               SELECT\s
                                   d.id AS driverId,
                                   u.full_name AS driverName,
-                                  COUNT(o.id) AS orderCount,
-                                  RANK() OVER (ORDER BY COUNT(o.id) DESC) AS rank
-                              FROM orders o
-                                       JOIN order_details od ON o.id = od.order_id
-                                       JOIN vehicle_assignments va ON od.vehicle_assignment_id = va.id
+                                  COUNT(DISTINCT va.id) AS tripCount,
+                                  RANK() OVER (ORDER BY COUNT(DISTINCT va.id) DESC) AS rank
+                              FROM vehicle_assignments va
                                        LEFT JOIN drivers d ON va.driver_id_1 = d.id OR va.driver_id_2 = d.id
                                        JOIN users u ON d.user_id = u.id
-                              WHERE (:year IS NULL OR EXTRACT(YEAR FROM o.created_at) = :year)
-                                AND (:month IS NULL OR EXTRACT(MONTH FROM o.created_at) = :month)
+                              WHERE va.status = 'COMPLETED'
+                                AND (:year IS NULL OR EXTRACT(YEAR FROM va.created_at) = :year)
+                                AND (:month IS NULL OR EXTRACT(MONTH FROM va.created_at) = :month)
                               GROUP BY d.id, u.full_name
                           )
-                          SELECT driverId, driverName, orderCount, rank
+                          SELECT driverId, driverName, tripCount, rank
                           FROM ranked
                           WHERE rank <= :amount
                           ORDER BY rank, driverName ASC;

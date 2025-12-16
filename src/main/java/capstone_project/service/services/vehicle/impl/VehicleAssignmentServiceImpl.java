@@ -178,6 +178,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                         ErrorEnum.VEHICLE_NOT_FOUND.getMessage(),
                         ErrorEnum.VEHICLE_NOT_FOUND.getErrorCode()
                 ));
+                
+        // Kiểm tra trạng thái xe trước khi phân công
+        validateVehicleAvailability(vehicle);
 
         driverEntityService.findEntityById(UUID.fromString(req.driverId_1())).orElseThrow(() -> new NotFoundException(
                 "Driver 1 not found with DRIVER ID: " + req.driverId_1(),
@@ -2169,6 +2172,28 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     /**
      * Create notifications for both customer and driver when assignment is created
      */
+    /**
+     * Kiểm tra trạng thái xe có phù hợp để phân công không
+     * @param vehicle xe cần kiểm tra
+     * @throws BadRequestException nếu xe đang ở trạng thái không thể phân công
+     */
+    private void validateVehicleAvailability(VehicleEntity vehicle) {
+        Set<String> unavailableStatuses = Set.of(
+                VehicleStatusEnum.MAINTENANCE.name(),
+                VehicleStatusEnum.INSPECTION_EXPIRED.name(),
+                VehicleStatusEnum.INSURANCE_EXPIRED.name(),
+                VehicleStatusEnum.BREAKDOWN.name(),
+                VehicleStatusEnum.ACCIDENT.name()
+        );
+        
+        if (unavailableStatuses.contains(vehicle.getStatus())) {
+            throw new BadRequestException(
+                    "Xe không thể phân công do đang ở trạng thái: " + vehicle.getStatus(),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+    }
+
     private void createAssignmentNotifications(VehicleAssignmentEntity assignment, List<UUID> orderDetailIds) {
         try {
             // Get first order detail to find the order and customer

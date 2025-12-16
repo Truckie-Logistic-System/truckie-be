@@ -18,6 +18,8 @@ import capstone_project.dtos.response.auth.RefreshTokenResponse;
 import capstone_project.dtos.response.auth.UserResponse;
 import capstone_project.dtos.response.user.CustomerResponse;
 import capstone_project.dtos.response.user.DriverResponse;
+import capstone_project.dtos.response.demo.DemoUsersGenerationResponse;
+import capstone_project.dtos.response.demo.UpdateUsernamesResponse;
 import capstone_project.entity.auth.RefreshTokenEntity;
 import capstone_project.entity.auth.RoleEntity;
 import capstone_project.entity.auth.UserEntity;
@@ -27,6 +29,9 @@ import capstone_project.repository.entityServices.auth.RefreshTokenEntityService
 import capstone_project.repository.entityServices.auth.RoleEntityService;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.List;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.service.mapper.user.CustomerMapper;
 import capstone_project.service.mapper.user.DriverMapper;
@@ -49,10 +54,8 @@ import java.time.format.DateTimeParseException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -970,5 +973,498 @@ public class RegisterServiceImpl implements RegisterService {
         }
         
         return null;
+    }
+
+    @Override
+    @Transactional
+    public DemoUsersGenerationResponse generateDemoUsers() {
+        log.info("🎯 Starting demo users generation for December 2025");
+
+        // Vietnamese first names
+        String[] firstNames = {
+            "Minh", "Hùng", "Tài", "Dũng", "Tuấn", "Hoàng", "Long", "Phúc", "Thành", "Đức",
+            "Quang", "Hải", "Nam", "Bình", "Khang", "Trung", "Vinh", "Sơn", "Kiên", "Phong",
+            "Hiếu", "Toàn", "Cường", "Lộc", "Tùng", "Hưng", "Đạt", "Nghĩa", "Thắng", "Tiến",
+            "Anh", "Linh", "Hương", "Lan", "Mai", "Nga", "Hà", "Thu", "Trang", "Thảo"
+        };
+
+        // Vietnamese middle names
+        String[] middleNames = {
+            "Văn", "Hữu", "Đức", "Minh", "Quốc", "Thanh", "Ngọc", "Hoàng", "Anh", "Xuân",
+            "Thị", "Kim", "Phương", "Thu", "Hồng"
+        };
+
+        // Vietnamese last names
+        String[] lastNames = {
+            "Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Vũ", "Võ", "Đặng", "Bùi", "Đỗ",
+            "Hồ", "Ngô", "Dương", "Lý", "Phan", "Huỳnh", "Lương", "Trịnh", "Mai", "Đinh"
+        };
+
+        // Phone prefixes
+        String[] phonePrefix = {"090", "091", "093", "094", "097", "098", "032", "033", "034", "035", "036", "037", "038", "039"};
+
+        // Company/organization names for customers
+        String[] companyNames = {
+            "CÔNG TY TNHH THƯƠNG MẠI", "CÔNG TY CỔ PHẦN SẢN XUẤT", "CÔNG TY TNHH LOGISTICS",
+            "CÔNG TY CỔ PHẦN VẬN TẢI", "CÔNG TY TNHH XUẤT NHẬP KHẨU", "CÔNG TY CỔ PHẦN PHÂN PHỐI",
+            "CÔNG TY TNHH ĐIỆN TỬ", "CÔNG TY CỔ PHẦN THỰC PHẨM", "CÔNG TY TNHH DỆT MAY",
+            "CÔNG TY CỔ PHẦN CƠ KHÍ"
+        };
+
+        // TPHCM addresses only
+        String[] hcmAddresses = {
+            "227 Nguyễn Văn Cừ, Quận 5, TP.HCM",
+            "123 Lê Lợi, Quận 1, TP.HCM",
+            "456 Nguyễn Huệ, Quận 1, TP.HCM",
+            "789 Điện Biên Phủ, Quận 3, TP.HCM",
+            "321 Cách Mạng Tháng 8, Quận 10, TP.HCM",
+            "654 Lý Thường Kiệt, Quận Tân Bình, TP.HCM",
+            "987 Trường Chinh, Quận 12, TP.HCM",
+            "147 Võ Văn Tần, Quận 3, TP.HCM",
+            "258 Hai Bà Trưng, Quận 1, TP.HCM",
+            "369 Nguyễn Thị Minh Khai, Quận 3, TP.HCM"
+        };
+
+        Random random = new Random();
+        Map<String, Integer> usersByDate = new LinkedHashMap<>();
+        
+        // Common password
+        String commonPassword = "truckie123";
+
+        // Get roles
+        RoleEntity customerRole = roleEntityService.findByRoleName(RoleTypeEnum.CUSTOMER.name())
+                .orElseThrow(() -> new BadRequestException("Role CUSTOMER not found", ErrorEnum.ROLE_NOT_FOUND.getErrorCode()));
+        RoleEntity driverRole = roleEntityService.findByRoleName(RoleTypeEnum.DRIVER.name())
+                .orElseThrow(() -> new BadRequestException("Role DRIVER not found", ErrorEnum.ROLE_NOT_FOUND.getErrorCode()));
+        RoleEntity staffRole = roleEntityService.findByRoleName(RoleTypeEnum.STAFF.name())
+                .orElseThrow(() -> new BadRequestException("Role STAFF not found", ErrorEnum.ROLE_NOT_FOUND.getErrorCode()));
+
+        int customerCount = 0;
+        int driverCount = 0;
+        int staffCount = 0;
+
+        // Track used usernames to ensure uniqueness
+        Set<String> usedUsernames = new HashSet<>();
+        Set<String> usedEmails = new HashSet<>();
+
+        // Generate Customers (40 users) - distributed throughout December
+        for (int i = 1; i <= 40; i++) {
+            LocalDateTime createdAt = generateDecemberDate(i, 40, random);
+            String dateKey = createdAt.toLocalDate().toString();
+            usersByDate.put(dateKey, usersByDate.getOrDefault(dateKey, 0) + 1);
+
+            String firstName = firstNames[random.nextInt(firstNames.length)];
+            String middleName = middleNames[random.nextInt(middleNames.length)];
+            String lastName = lastNames[random.nextInt(lastNames.length)];
+            String fullName = lastName + " " + middleName + " " + firstName;
+            
+            // Generate username: firstname + last name abbreviation (e.g., datnv for Nguyễn Văn Đạt)
+            String firstNameNormalized = removeVietnameseAccents(firstName).toLowerCase();
+            String lastNameAbbr = removeVietnameseAccents(lastName).substring(0, 1).toLowerCase();
+            String baseUsername = firstNameNormalized + lastNameAbbr;
+            
+            // Ensure uniqueness by adding suffix only if needed
+            String username = baseUsername;
+            int suffix = 1;
+            while (usedUsernames.contains(username)) {
+                username = baseUsername + suffix;
+                suffix++;
+            }
+            usedUsernames.add(username);
+            
+            String email = username + "@gmail.com";
+            usedEmails.add(email);
+            
+            String phoneNumber = phonePrefix[random.nextInt(phonePrefix.length)] + String.format("%07d", 1000000 + i);
+            boolean gender = random.nextBoolean();
+            LocalDate dob = LocalDate.of(1985 + random.nextInt(20), 1 + random.nextInt(12), 1 + random.nextInt(28));
+
+            UserEntity user = UserEntity.builder()
+                    .username(username)
+                    .email(email)
+                    .password(passwordEncoder.encode(commonPassword))
+                    .fullName(fullName)
+                    .phoneNumber(phoneNumber)
+                    .gender(gender)
+                    .dateOfBirth(dob)
+                    .status(UserStatusEnum.ACTIVE.name())
+                    .role(customerRole)
+                    .createdAt(createdAt)
+                    .isDemoData(true)
+                    .build();
+
+            UserEntity savedUser = userEntityService.save(user);
+
+            // Create CustomerEntity with realistic company info
+            String companyName = companyNames[random.nextInt(companyNames.length)] + " " + 
+                                removeVietnameseAccents(lastName).toUpperCase() + " " + removeVietnameseAccents(firstName).toUpperCase();
+            String businessLicenseNumber = String.format("%010d", 1000000000L + random.nextInt(900000000));
+            String businessAddress = hcmAddresses[random.nextInt(hcmAddresses.length)];
+            
+            CustomerEntity customer = CustomerEntity.builder()
+                    .user(savedUser)
+                    .companyName(companyName)
+                    .businessLicenseNumber(businessLicenseNumber)
+                    .businessAddress(businessAddress)
+                    .representativeName(fullName)
+                    .representativePhone(phoneNumber)
+                    .status(UserStatusEnum.ACTIVE.name())
+                    .createdAt(createdAt)
+                    .isDemoData(true)
+                    .build();
+
+            customerEntityService.save(customer);
+            customerCount++;
+        }
+
+        // Generate Drivers (35 users) - more concentrated on Dec 22-27
+        for (int i = 1; i <= 35; i++) {
+            LocalDateTime createdAt = generateDecemberDateWithFocus(i, 35, random);
+            String dateKey = createdAt.toLocalDate().toString();
+            usersByDate.put(dateKey, usersByDate.getOrDefault(dateKey, 0) + 1);
+
+            String firstName = firstNames[random.nextInt(firstNames.length)];
+            String middleName = middleNames[random.nextInt(middleNames.length)];
+            String lastName = lastNames[random.nextInt(lastNames.length)];
+            String fullName = lastName + " " + middleName + " " + firstName;
+            
+            // Generate username: driver + firstname + last name abbreviation (e.g., driverdatnv for Nguyễn Văn Đạt)
+            String firstNameNormalized = removeVietnameseAccents(firstName).toLowerCase();
+            String lastNameAbbr = removeVietnameseAccents(lastName).substring(0, 1).toLowerCase();
+            String baseUsername = "driver" + firstNameNormalized + lastNameAbbr;
+            
+            // Ensure uniqueness by adding suffix only if needed
+            String username = baseUsername;
+            int suffix = 1;
+            while (usedUsernames.contains(username)) {
+                username = baseUsername + suffix;
+                suffix++;
+            }
+            usedUsernames.add(username);
+            
+            // Driver email with numbers for uniqueness
+            String baseEmail = firstNameNormalized + lastNameAbbr;
+            String email = baseEmail + i + "@gmail.com";
+            usedEmails.add(email);
+            
+            String phoneNumber = phonePrefix[random.nextInt(phonePrefix.length)] + String.format("%07d", 2000000 + i);
+            boolean gender = random.nextInt(100) < 85; // 85% male drivers
+            LocalDate dob = LocalDate.of(1980 + random.nextInt(15), 1 + random.nextInt(12), 1 + random.nextInt(28));
+
+            UserEntity user = UserEntity.builder()
+                    .username(username)
+                    .email(email)
+                    .password(passwordEncoder.encode(commonPassword))
+                    .fullName(fullName)
+                    .phoneNumber(phoneNumber)
+                    .gender(gender)
+                    .dateOfBirth(dob)
+                    .status(UserStatusEnum.ACTIVE.name())
+                    .role(driverRole)
+                    .createdAt(createdAt)
+                    .isDemoData(true)
+                    .build();
+
+            UserEntity savedUser = userEntityService.save(user);
+
+            // Create DriverEntity with realistic license info
+            String licenseNumber = String.format("%02d", random.nextInt(89) + 10) + "ASX" + String.format("%06d", 100000 + i);
+            String identityNumber = String.format("%012d", 100000000000L + random.nextInt(900000000));
+            String cardSerialNumber = "HCM-CA-" + String.format("%08d", 10000000 + i);
+            String placeOfIssue = "TP.HCM"; // Only TPHCM
+            
+            LocalDateTime dateOfIssue = createdAt.minusYears(2 + random.nextInt(3));
+            LocalDateTime dateOfExpiry = dateOfIssue.plusYears(5);
+            LocalDateTime dateOfPassing = dateOfIssue.minusMonths(3);
+            String[] licenseClasses = {"B2", "C", "D", "E"};
+            String licenseClass = licenseClasses[random.nextInt(licenseClasses.length)];
+
+            DriverEntity driver = DriverEntity.builder()
+                    .user(savedUser)
+                    .driverLicenseNumber(licenseNumber)
+                    .identityNumber(identityNumber)
+                    .cardSerialNumber(cardSerialNumber)
+                    .placeOfIssue(placeOfIssue)
+                    .dateOfIssue(dateOfIssue)
+                    .dateOfExpiry(dateOfExpiry)
+                    .dateOfPassing(dateOfPassing)
+                    .licenseClass(licenseClass)
+                    .status(UserStatusEnum.ACTIVE.name())
+                    .createdAt(createdAt)
+                    .isDemoData(true)
+                    .build();
+
+            driverEntityService.save(driver);
+            driverCount++;
+        }
+
+        // Generate Staff (15 users) - moderate distribution
+        for (int i = 1; i <= 15; i++) {
+            LocalDateTime createdAt = generateDecemberDate(i, 15, random);
+            String dateKey = createdAt.toLocalDate().toString();
+            usersByDate.put(dateKey, usersByDate.getOrDefault(dateKey, 0) + 1);
+
+            String firstName = firstNames[random.nextInt(firstNames.length)];
+            String middleName = middleNames[random.nextInt(middleNames.length)];
+            String lastName = lastNames[random.nextInt(lastNames.length)];
+            String fullName = lastName + " " + middleName + " " + firstName;
+            
+            // Generate username: staff + firstname + last name abbreviation (e.g., staffdatnv for Nguyễn Văn Đạt)
+            String firstNameNormalized = removeVietnameseAccents(firstName).toLowerCase();
+            String lastNameAbbr = removeVietnameseAccents(lastName).substring(0, 1).toLowerCase();
+            String baseUsername = "staff" + firstNameNormalized + lastNameAbbr;
+            
+            // Ensure uniqueness by adding suffix only if needed
+            String username = baseUsername;
+            int suffix = 1;
+            while (usedUsernames.contains(username)) {
+                username = baseUsername + suffix;
+                suffix++;
+            }
+            usedUsernames.add(username);
+            
+            String email = username + "@truckie.vn";
+            usedEmails.add(email);
+            
+            String phoneNumber = phonePrefix[random.nextInt(phonePrefix.length)] + String.format("%07d", 3000000 + i);
+            boolean gender = random.nextBoolean();
+            LocalDate dob = LocalDate.of(1990 + random.nextInt(10), 1 + random.nextInt(12), 1 + random.nextInt(28));
+
+            UserEntity user = UserEntity.builder()
+                    .username(username)
+                    .email(email)
+                    .password(passwordEncoder.encode(commonPassword))
+                    .fullName(fullName)
+                    .phoneNumber(phoneNumber)
+                    .gender(gender)
+                    .dateOfBirth(dob)
+                    .status(UserStatusEnum.ACTIVE.name())
+                    .role(staffRole)
+                    .createdAt(createdAt)
+                    .isDemoData(true)
+                    .build();
+
+            userEntityService.save(user);
+            staffCount++;
+        }
+
+        int totalUsers = customerCount + driverCount + staffCount;
+
+        log.info("✅ Demo users generation completed: {} customers, {} drivers, {} staff = {} total users",
+                customerCount, driverCount, staffCount, totalUsers);
+
+        return DemoUsersGenerationResponse.builder()
+                .totalCustomersCreated(customerCount)
+                .totalDriversCreated(driverCount)
+                .totalStaffCreated(staffCount)
+                .totalUsersCreated(totalUsers)
+                .usersByDate(usersByDate)
+                .message("Successfully generated " + totalUsers + " demo users for December 2025 dashboard demo")
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public UpdateUsernamesResponse updateAllUsernamesToCorrectFormat() {
+        log.info("🔄 Starting username format update for all users");
+        long startTime = System.currentTimeMillis();
+
+        Map<String, String> usernameChanges = new LinkedHashMap<>();
+        int customerCount = 0;
+        int driverCount = 0;
+        int staffCount = 0;
+
+        // Get all users
+        List<UserEntity> allUsers = userEntityService.findAll();
+        
+        for (UserEntity user : allUsers) {
+            String roleName = user.getRole().getRoleName();
+            
+            // Skip ADMIN users - don't update their usernames
+            if ("ADMIN".equals(roleName)) {
+                continue;
+            }
+            
+            String oldUsername = user.getUsername();
+            String newUsername = generateCorrectUsername(user);
+            
+            // Always update username and email to correct format (remove condition check)
+            // Check if new username already exists
+            Optional<UserEntity> existingUser = userEntityService.getUserByUserName(newUsername);
+            if (existingUser.isPresent() && !existingUser.get().getId().equals(user.getId())) {
+                // Add suffix to make it unique (but not if it's the same user)
+                int suffix = 1;
+                String uniqueUsername = newUsername;
+                while (userEntityService.getUserByUserName(uniqueUsername).isPresent() && 
+                       !userEntityService.getUserByUserName(uniqueUsername).get().getId().equals(user.getId())) {
+                    uniqueUsername = newUsername + suffix;
+                    suffix++;
+                }
+                newUsername = uniqueUsername;
+            }
+            
+            // Generate new email with number for drivers
+            String newEmail = generateCorrectEmail(user, newUsername, roleName);
+            
+            // Update both username and email
+            user.setUsername(newUsername);
+            user.setEmail(newEmail);
+            userEntityService.save(user);
+            usernameChanges.put(oldUsername, newUsername + " (email: " + newEmail + ")");
+                
+                // Count by role (already filtered out ADMIN above)
+                switch (roleName) {
+                    case "CUSTOMER":
+                        customerCount++;
+                        break;
+                    case "DRIVER":
+                        driverCount++;
+                        break;
+                    case "STAFF":
+                        staffCount++;
+                        break;
+                }
+                
+                log.info("Updated username: {} -> {} ({})", oldUsername, newUsername, roleName);
+        }
+
+        int totalUpdated = customerCount + driverCount + staffCount;
+        long executionTime = System.currentTimeMillis() - startTime;
+
+        log.info("✅ Username update completed: {} customers, {} drivers, {} staff = {} total users updated in {}ms",
+                customerCount, driverCount, staffCount, totalUpdated, executionTime);
+
+        return UpdateUsernamesResponse.builder()
+                .totalCustomersUpdated(customerCount)
+                .totalDriversUpdated(driverCount)
+                .totalStaffUpdated(staffCount)
+                .totalUsersUpdated(totalUpdated)
+                .usernameChanges(usernameChanges)
+                .executionTimeMs(executionTime)
+                .message("Successfully updated " + totalUpdated + " usernames to correct format")
+                .build();
+    }
+
+    /**
+     * Generate correct username format based on user's full name and role
+     */
+    private String generateCorrectUsername(UserEntity user) {
+        String fullName = user.getFullName();
+        String roleName = user.getRole().getRoleName();
+        
+        if (fullName == null || fullName.trim().isEmpty()) {
+            return user.getUsername(); // Keep original if no full name
+        }
+        
+        // Parse Vietnamese full name: "Họ Tên_đệm Tên"
+        String[] nameParts = fullName.trim().split("\\s+");
+        if (nameParts.length < 2) {
+            return user.getUsername(); // Keep original if invalid name format
+        }
+        
+        String lastName = nameParts[0]; // Họ
+        String firstName = nameParts[nameParts.length - 1]; // Tên
+        
+        String firstNameNormalized = removeVietnameseAccents(firstName).toLowerCase();
+        String lastNameAbbr = removeVietnameseAccents(lastName).substring(0, 1).toLowerCase();
+        
+        // Handle middle name if exists (for names with 3+ parts)
+        String baseUsername;
+        if (nameParts.length >= 3) {
+            String middleName = nameParts[1]; // Tên đệm (first middle name)
+            String middleNameAbbr = removeVietnameseAccents(middleName).substring(0, 1).toLowerCase();
+            baseUsername = firstNameNormalized + lastNameAbbr + middleNameAbbr;
+        } else {
+            baseUsername = firstNameNormalized + lastNameAbbr;
+        }
+        
+        // Add role prefix for staff and driver
+        switch (roleName) {
+            case "DRIVER":
+                return "driver" + baseUsername;
+            case "STAFF":
+                return "staff" + baseUsername;
+            case "CUSTOMER":
+            default:
+                return baseUsername;
+        }
+    }
+
+    /**
+     * Generate correct email format based on username and role
+     */
+    private String generateCorrectEmail(UserEntity user, String username, String roleName) {
+        switch (roleName) {
+            case "DRIVER":
+                // For drivers: add a number to email for uniqueness
+                String baseEmail = username.replace("driver", ""); // Remove driver prefix for email
+                return baseEmail + user.getId().toString().substring(0, 3) + "@gmail.com";
+            case "STAFF":
+                return username + "@truckie.vn";
+            case "CUSTOMER":
+            default:
+                return username + "@gmail.com";
+        }
+    }
+
+    /**
+     * Remove Vietnamese accents from a string
+     */
+    private String removeVietnameseAccents(String str) {
+        if (str == null) return "";
+        
+        String result = str;
+        
+        // Lowercase vowels with accents
+        result = result.replaceAll("[àáạảãâầấậẩẫăằắặẳẵ]", "a");
+        result = result.replaceAll("[èéẹẻẽêềếệểễ]", "e");
+        result = result.replaceAll("[ìíịỉĩ]", "i");
+        result = result.replaceAll("[òóọỏõôồốộổỗơờớợởỡ]", "o");
+        result = result.replaceAll("[ùúụủũưừứựửữ]", "u");
+        result = result.replaceAll("[ỳýỵỷỹ]", "y");
+        result = result.replaceAll("[đ]", "d");
+        
+        // Uppercase vowels with accents
+        result = result.replaceAll("[ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ]", "A");
+        result = result.replaceAll("[ÈÉẸẺẼÊỀẾỆỂỄ]", "E");
+        result = result.replaceAll("[ÌÍỊỈĨ]", "I");
+        result = result.replaceAll("[ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ]", "O");
+        result = result.replaceAll("[ÙÚỤỦŨƯỪỨỰỬỮ]", "U");
+        result = result.replaceAll("[ỲÝỴỶỸ]", "Y");
+        result = result.replaceAll("[Đ]", "D");
+        
+        return result;
+    }
+
+    /**
+     * Generate dates distributed throughout December 2025
+     */
+    private LocalDateTime generateDecemberDate(int index, int total, Random random) {
+        // Spread throughout December 1-31
+        int day = 1 + (index * 30 / total) + random.nextInt(2);
+        if (day > 31) day = 31;
+        
+        int hour = 8 + random.nextInt(12); // 8am - 8pm
+        int minute = random.nextInt(60);
+        int second = random.nextInt(60);
+        
+        return LocalDateTime.of(2025, 12, day, hour, minute, second);
+    }
+
+    /**
+     * Generate dates with 60% concentration on Dec 22-27, rest distributed
+     */
+    private LocalDateTime generateDecemberDateWithFocus(int index, int total, Random random) {
+        // 60% of users created between Dec 22-27
+        if (random.nextDouble() < 0.6) {
+            int day = 22 + random.nextInt(6); // Dec 22-27
+            int hour = 8 + random.nextInt(12);
+            int minute = random.nextInt(60);
+            int second = random.nextInt(60);
+            return LocalDateTime.of(2025, 12, day, hour, minute, second);
+        } else {
+            // Rest distributed throughout December
+            return generateDecemberDate(index, total, random);
+        }
     }
 }

@@ -160,13 +160,13 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
     /**
      * Tìm vehicle assignment gần nhất của tài xế (driver1)
      */
-    @Query("SELECT va FROM VehicleAssignmentEntity va WHERE va.driver1.id = :driverId ORDER BY va.createdAt DESC")
+    @Query(value = "SELECT va.* FROM vehicle_assignments va WHERE va.driver_id_1 = :driverId ORDER BY va.created_at DESC LIMIT 1", nativeQuery = true)
     Optional<VehicleAssignmentEntity> findLatestAssignmentByDriver1Id(@Param("driverId") UUID driverId);
 
     /**
      * Tìm vehicle assignment gần nhất của tài xế (driver2)
      */
-    @Query("SELECT va FROM VehicleAssignmentEntity va WHERE va.driver2.id = :driverId ORDER BY va.createdAt DESC")
+    @Query(value = "SELECT va.* FROM vehicle_assignments va WHERE va.driver_id_2 = :driverId ORDER BY va.created_at DESC LIMIT 1", nativeQuery = true)
     Optional<VehicleAssignmentEntity> findLatestAssignmentByDriver2Id(@Param("driverId") UUID driverId);
 
     /**

@@ -141,13 +141,13 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
         final var vehicleAssignmentEntity = vehicleAssignmentEntityService.findById(request.vehicleAssignmentId())
                 .orElseThrow(() -> new NotFoundException(
-                        "Vehicle assignment not found with ID: " + request.vehicleAssignmentId(),
+                        "Không tìm thấy phân công xe với ID: " + request.vehicleAssignmentId(),
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
         final var existingEntity = vehicleFuelConsumptionEntityService.findByVehicleAssignmentId(request.vehicleAssignmentId());
 
         if (existingEntity.isPresent()) {
-            throw new IllegalStateException("Fuel consumption record already exists for vehicle assignment ID: " + request.vehicleAssignmentId());
+            throw new IllegalStateException("Thông tin tiêu thụ nhiên liệu đã tồn tại cho phân công xe ID: " + request.vehicleAssignmentId());
         }
 
         final var odometerAtStartUrl = uploadImage(request.odometerAtStartImage(), "vehicle-fuel/odometer-start");
@@ -193,7 +193,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
         final var entity = vehicleFuelConsumptionEntityService.findEntityById(request.id())
                 .orElseThrow(() -> new NotFoundException(
-                        "Vehicle fuel consumption not found with ID: " + request.id(),
+                        "Không tìm thấy thông tin tiêu thụ nhiên liệu với ID: " + request.id(),
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
         final var companyInvoiceImageUrl = uploadImage(request.companyInvoiceImage(), "vehicle-fuel/invoices");
@@ -210,17 +210,17 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
         final var entity = vehicleFuelConsumptionEntityService.findEntityById(request.id())
                 .orElseThrow(() -> new NotFoundException(
-                        "Vehicle fuel consumption not found with ID: " + request.id(),
+                        "Không tìm thấy thông tin tiêu thụ nhiên liệu với ID: " + request.id(),
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
         final var odometerAtEndUrl = uploadImage(request.odometerAtEndImage(), "vehicle-fuel/odometer-end");
 
         // Ensure both odometer readings are not null
         if (request.odometerReadingAtEnd() == null) {
-            throw new IllegalArgumentException("Odometer reading at end cannot be null");
+            throw new IllegalArgumentException("Số đồng hồ công tơ mét lúc kết thúc không được để trống");
         }
         if (entity.getOdometerReadingAtStart() == null) {
-            throw new IllegalArgumentException("Odometer reading at start is null in the database");
+            throw new IllegalArgumentException("Số đồng hồ công tơ mét lúc bắt đầu không được để trống trong cơ sở dữ liệu");
         }
 
         final var distanceTraveled = request.odometerReadingAtEnd().subtract(entity.getOdometerReadingAtStart());
@@ -236,7 +236,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
                 request.odometerReadingAtEnd(),
                 distanceTraveled);
 
-        // ✅ Use journey-based calculation with load factors + odo distance validation
+        // ✅ IMPROVED: Prioritize odometer-based calculation over segment-based
         BigDecimal fuelVolume;
 
         BigDecimal effectiveBaseConsumption;
@@ -250,7 +250,8 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
         BigDecimal effectiveWeightLimit = vehicleWeightLimit != null ? vehicleWeightLimit : new BigDecimal("5");
 
-        fuelVolume = calculateFuelConsumptionWithLoad(
+        // 🎯 NEW APPROACH: Odometer-based calculation with load factor adjustment
+        fuelVolume = calculateFuelConsumptionOdometerBased(
                 entity.getVehicleAssignmentEntity().getId(),
                 effectiveBaseConsumption,
                 effectiveWeightLimit,
@@ -412,8 +413,86 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     }
 
     /**
-     * ✅ NEW: Calculate fuel consumption based on journey segments and cargo load
-     * Takes into account different load weights across different segments of the journey
+     * ✅ NEW: Calculate fuel consumption based on odometer distance with average load factor
+     * More accurate than segment-based calculation as it uses actual traveled distance
+     * 
+     * @param vehicleAssignmentId The vehicle assignment ID
+     * @param baseFuelConsumption Base fuel consumption rate (L/100km)
+     * @param vehicleWeightLimit Vehicle weight limit in tons
+     * @param actualDistanceKm Actual distance from odometer readings
+     * @return Calculated fuel volume in liters
+     */
+    private BigDecimal calculateFuelConsumptionOdometerBased(
+            UUID vehicleAssignmentId,
+            BigDecimal baseFuelConsumption,
+            BigDecimal vehicleWeightLimit,
+            BigDecimal actualDistanceKm) {
+
+        try {
+            // Get all order details for this assignment to calculate average load
+            var orderDetails = orderDetailEntityService.findByVehicleAssignmentId(vehicleAssignmentId);
+
+            if (orderDetails.isEmpty()) {
+                log.info("ℹ️ No order details found for assignment {}, using base fuel consumption", vehicleAssignmentId);
+                return actualDistanceKm.multiply(baseFuelConsumption)
+                        .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            }
+
+            // Calculate total cargo weight (excluding returned/cancelled packages)
+            var validOrderDetails = orderDetails.stream()
+                    .filter(od -> !("RETURNED".equals(od.getStatus()) || "CANCELLED".equals(od.getStatus())))
+                    .collect(java.util.stream.Collectors.toList());
+
+            BigDecimal totalWeightTons = validOrderDetails.stream()
+                    .map(OrderDetailEntity::getWeightTons)
+                    .filter(w -> w != null)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            // Convert tons to kg for load factor calculation
+            BigDecimal totalWeightKg = totalWeightTons.multiply(new BigDecimal("1000"));
+
+            // Calculate average load factor for the entire trip
+            // Assumption: truck carries full load for ~60% of journey (pickup to delivery)
+            // and empty for ~40% (carrier to pickup, delivery to carrier)
+            BigDecimal fullLoadFactor = calculateLoadFactor(totalWeightKg, vehicleWeightLimit);
+            BigDecimal emptyLoadFactor = BigDecimal.ONE;
+            
+            // Weighted average: 60% full load + 40% empty
+            BigDecimal averageLoadFactor = fullLoadFactor.multiply(new BigDecimal("0.6"))
+                    .add(emptyLoadFactor.multiply(new BigDecimal("0.4")));
+
+            // Calculate fuel consumption with average load factor
+            BigDecimal fuelVolume = actualDistanceKm
+                    .multiply(baseFuelConsumption)
+                    .multiply(averageLoadFactor)
+                    .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+
+            log.info("🎯 Odometer-based fuel calculation: vehicleAssignment={}, actualDistanceKm={}, totalWeightKg={}, fullLoadFactor={}, averageLoadFactor={}, baseConsumptionLPer100km={}, fuelVolumeL={}",
+                    vehicleAssignmentId,
+                    actualDistanceKm,
+                    totalWeightKg,
+                    fullLoadFactor.setScale(3, RoundingMode.HALF_UP),
+                    averageLoadFactor.setScale(3, RoundingMode.HALF_UP),
+                    baseFuelConsumption,
+                    fuelVolume);
+
+            return fuelVolume;
+
+        } catch (Exception e) {
+            log.error("❌ Error in odometer-based fuel calculation: {}, falling back to simple calculation", e.getMessage(), e);
+            // Fallback to simple calculation
+            BigDecimal simpleFuel = actualDistanceKm.multiply(baseFuelConsumption)
+                    .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+
+            log.info("ℹ️ Simple fuel calculation (fallback): distanceKm={}, baseConsumptionLPer100km={}, fuelVolumeL={}",
+                    actualDistanceKm, baseFuelConsumption, simpleFuel);
+            return simpleFuel;
+        }
+    }
+
+    /**
+     * ✅ LEGACY: Calculate fuel consumption based on journey segments and cargo load
+     * Kept as fallback method if odometer-based calculation fails
      * 
      * @param vehicleAssignmentId The vehicle assignment ID
      * @param baseFuelConsumption Base fuel consumption rate (L/100km)
