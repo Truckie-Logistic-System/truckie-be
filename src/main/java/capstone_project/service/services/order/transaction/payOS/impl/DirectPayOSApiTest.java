@@ -35,8 +35,8 @@ public class DirectPayOSApiTest {
                   "orderCode": %d,
                   "amount": 2000,
                   "description": "Test payment",
-                  "returnUrl": "http://localhost:5173/payment/return",
-                  "cancelUrl": "http://localhost:5173/payment/return"
+                  "returnUrl": "http://14.225.253.8:3000/payment/return",
+                  "cancelUrl": "http://14.225.253.8:3000/payment/return"
                 }
                 """, orderCode);
 

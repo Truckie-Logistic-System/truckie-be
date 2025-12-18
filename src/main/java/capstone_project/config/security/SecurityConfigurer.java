@@ -204,6 +204,7 @@ public class SecurityConfigurer {
                 "http://localhost:3001",
                 "http://localhost:5173",
                 "http://localhost:5174",
+                "http://14.225.253.8:3000",
                 "https://truckie-fe.vercel.app",
                 "https://www.truckie.com"
         ));

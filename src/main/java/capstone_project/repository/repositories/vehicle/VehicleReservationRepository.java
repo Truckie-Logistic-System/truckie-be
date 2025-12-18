@@ -30,16 +30,14 @@ public interface VehicleReservationRepository extends BaseRepository<VehicleRese
      * Check if a vehicle has any RESERVED reservation on a specific date (excluding a specific order)
      * Used to check availability when suggesting vehicles
      */
-    @Query("""
-        SELECT EXISTS (
-            SELECT 1
-            FROM VehicleReservationEntity r
-            WHERE r.vehicleEntity.id = :vehicleId
-            AND r.tripDate = :tripDate
-            AND r.status = 'RESERVED'
-            AND r.orderEntity.id != :excludeOrderId
-        )
-    """)
+    @Query(value = """
+        SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END
+        FROM vehicle_reservations r
+        WHERE r.vehicle_id = :vehicleId
+        AND r.trip_date = :tripDate
+        AND r.status = 'RESERVED'
+        AND r.order_id != :excludeOrderId
+    """, nativeQuery = true)
     boolean existsReservedByVehicleAndDateExcludingOrder(
             @Param("vehicleId") UUID vehicleId,
             @Param("tripDate") LocalDate tripDate,
@@ -49,15 +47,13 @@ public interface VehicleReservationRepository extends BaseRepository<VehicleRese
      * Check if a vehicle has any RESERVED reservation on a specific date
      * Used to check availability when suggesting vehicles (no order exclusion)
      */
-    @Query("""
-        SELECT EXISTS (
-            SELECT 1
-            FROM VehicleReservationEntity r
-            WHERE r.vehicleEntity.id = :vehicleId
-            AND r.tripDate = :tripDate
-            AND r.status = 'RESERVED'
-        )
-    """)
+    @Query(value = """
+        SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END
+        FROM vehicle_reservations r
+        WHERE r.vehicle_id = :vehicleId
+        AND r.trip_date = :tripDate
+        AND r.status = 'RESERVED'
+    """, nativeQuery = true)
     boolean existsReservedByVehicleAndDate(
             @Param("vehicleId") UUID vehicleId,
             @Param("tripDate") LocalDate tripDate);
