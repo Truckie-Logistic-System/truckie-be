@@ -16,13 +16,18 @@ import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.services.order.order.ContractService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 import org.xhtmlrenderer.pdf.ITextRenderer;
 
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -176,14 +181,16 @@ public class PdfGenerationService {
                 ITextRenderer renderer = new ITextRenderer();
 
                 // Add Times New Roman font (serif - matches frontend)
+                String tnr = fontFromClasspathToTempPath("fonts/TimesNewRoman.ttf");
                 renderer.getFontResolver().addFont(
-                        "src/main/resources/fonts/TimesNewRoman.ttf",
+                        tnr,
                         com.lowagie.text.pdf.BaseFont.IDENTITY_H,
                         com.lowagie.text.pdf.BaseFont.EMBEDDED
                 );
                 // Also add DejaVu Sans as fallback
+                String dejavu = fontFromClasspathToTempPath("fonts/DejaVuSans.ttf");
                 renderer.getFontResolver().addFont(
-                        "src/main/resources/fonts/DejaVuSans.ttf",
+                        dejavu,
                         com.lowagie.text.pdf.BaseFont.IDENTITY_H,
                         com.lowagie.text.pdf.BaseFont.EMBEDDED
                 );
@@ -206,4 +213,19 @@ public class PdfGenerationService {
             throw new RuntimeException("Error generating Contract PDF", e);
         }
     }
+
+    private String fontFromClasspathToTempPath(String classpathLocation) throws Exception {
+        ClassPathResource res = new ClassPathResource(classpathLocation); // ví dụ "fonts/TimesNewRoman.ttf"
+        if (!res.exists()) {
+            throw new IllegalStateException("Font not found in classpath: " + classpathLocation);
+        }
+
+        try (InputStream in = res.getInputStream()) {
+            Path tmp = Files.createTempFile("font-", "-" + Path.of(classpathLocation).getFileName().toString());
+            Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
+            tmp.toFile().deleteOnExit();
+            return tmp.toAbsolutePath().toString();
+        }
+    }
+
 }
