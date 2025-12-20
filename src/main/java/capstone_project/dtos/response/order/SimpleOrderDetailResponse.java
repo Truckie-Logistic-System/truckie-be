@@ -14,5 +14,6 @@ public record SimpleOrderDetailResponse(
     LocalDateTime createdAt,
     String trackingCode,
     SimpleOrderSizeResponse orderSize,
-    UUID vehicleAssignmentId
+    UUID vehicleAssignmentId,
+    BigDecimal declaredValue
 ) {}

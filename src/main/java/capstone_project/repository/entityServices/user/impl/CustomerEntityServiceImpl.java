@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -23,17 +24,26 @@ public class CustomerEntityServiceImpl implements CustomerEntityService {
 
     @Override
     public List<CustomerEntity> findAllByRepresentativeNameLike(String name) {
-        return customerRepository.findByRepresentativeNameContainingIgnoreCase(name);
+        List<CustomerEntity> customers = customerRepository.findByRepresentativeNameContainingIgnoreCase(name);
+        // Sort by createdAt descending (newest first)
+        customers.sort(Comparator.comparing(CustomerEntity::getCreatedAt).reversed());
+        return customers;
     }
 
     @Override
     public List<CustomerEntity> findAllByCompanyNameLike(String companyName) {
-        return customerRepository.findByCompanyNameContainingIgnoreCase(companyName);
+        List<CustomerEntity> customers = customerRepository.findByCompanyNameContainingIgnoreCase(companyName);
+        // Sort by createdAt descending (newest first)
+        customers.sort(Comparator.comparing(CustomerEntity::getCreatedAt).reversed());
+        return customers;
     }
 
     @Override
     public List<CustomerEntity> findByUser_Role_RoleName(String userRoleRoleName) {
-        return customerRepository.findByUser_Role_RoleName(userRoleRoleName);
+        List<CustomerEntity> customers = customerRepository.findByUser_Role_RoleName(userRoleRoleName);
+        // Sort by createdAt descending (newest first)
+        customers.sort(Comparator.comparing(CustomerEntity::getCreatedAt).reversed());
+        return customers;
     }
 
     @Override
@@ -63,7 +73,10 @@ public class CustomerEntityServiceImpl implements CustomerEntityService {
 
     @Override
     public List<CustomerEntity> findAll() {
-        return customerRepository.findAll();
+        List<CustomerEntity> customers = customerRepository.findAll();
+        // Sort by createdAt descending (newest first)
+        customers.sort(Comparator.comparing(CustomerEntity::getCreatedAt).reversed());
+        return customers;
     }
 
 

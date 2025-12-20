@@ -269,7 +269,8 @@ public class DriverOrderMapper {
                 detail.createdAt(),
                 detail.trackingCode(),
                 orderSize,
-                detail.vehicleAssignmentId()  // Only store ID reference
+                detail.vehicleAssignmentId(),  // Only store ID reference
+                detail.declaredValue()  // Add declared value
         );
     }
 

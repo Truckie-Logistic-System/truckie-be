@@ -5,6 +5,7 @@ import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.enums.UnitEnum;
 import capstone_project.dtos.request.order.CreateOrderAndDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
+import capstone_project.dtos.request.order.UpdateOrderAndDetailRequest;
 import capstone_project.dtos.request.order.StaffCancelOrderRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.*;
@@ -255,6 +256,21 @@ public class OrderController {
     @PreAuthorize("hasRole('STAFF') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<String>>> getStaffCancellationReasons() {
         final var result = orderService.getStaffCancellationReasons();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Comprehensive order update for customers - updates both order info and order details
+     * Only allowed for orders with status PENDING or PROCESSING
+     * Supports adding, updating, and removing order details
+     * 
+     * @param request the comprehensive update request
+     * @return updated order response
+     */
+    @PutMapping("/comprehensive")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<CreateOrderResponse>> updateOrderComprehensive(@Valid @RequestBody UpdateOrderAndDetailRequest request) {
+        final var result = orderService.updateOrderComprehensive(request);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }

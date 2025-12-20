@@ -18,5 +18,6 @@ public record StaffOrderDetailResponse(
     LocalDateTime createdAt,
     String trackingCode,
     SimpleOrderSizeResponse orderSize,
-    UUID vehicleAssignmentId  // Changed from full object to ID reference
+    UUID vehicleAssignmentId,  // Changed from full object to ID reference
+    BigDecimal declaredValue
 ) {}

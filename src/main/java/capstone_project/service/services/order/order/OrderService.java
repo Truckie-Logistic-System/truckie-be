@@ -5,6 +5,7 @@ import capstone_project.common.enums.UnitEnum;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.CreateOrderRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
+import capstone_project.dtos.request.order.UpdateOrderAndDetailRequest;
 import capstone_project.dtos.response.order.*;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
@@ -134,4 +135,14 @@ public interface OrderService {
      * @return success status
      */
     boolean cancelOrderUnified(UUID orderId, OrderCancellationContext context);
+
+    /**
+     * Comprehensive order update for customers - updates both order info and order details
+     * Only allowed for orders with status PENDING or PROCESSING
+     * Supports adding, updating, and removing order details
+     * 
+     * @param request the comprehensive update request
+     * @return updated order response
+     */
+    CreateOrderResponse updateOrderComprehensive(UpdateOrderAndDetailRequest request);
 }

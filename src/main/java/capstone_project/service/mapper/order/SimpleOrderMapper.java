@@ -164,11 +164,14 @@ public class SimpleOrderMapper {
                 response.createdAt(),
                 response.status(),
                 deliveryAddress,
+                response.deliveryAddress() != null ? response.deliveryAddress().id().toString() : null,  // Add delivery address ID
                 pickupAddress,
+                response.pickupAddress() != null ? response.pickupAddress().id().toString() : null,      // Add pickup address ID
                 response.sender().getRepresentativeName(),
                 response.sender().getRepresentativePhone(),
                 response.sender().getCompanyName(),
                 response.category().categoryName().name(),
+                response.category().id().toString(),  // Add category ID
                 response.category().description(), // Add category description
                 response.hasInsurance(),
                 response.totalInsuranceFee(),
@@ -325,7 +328,8 @@ public class SimpleOrderMapper {
                 detail.createdAt(),
                 detail.trackingCode(),
                 orderSize,
-                vehicleAssignmentId  // Pass the UUID directly
+                vehicleAssignmentId,  // Pass the UUID directly
+                detail.declaredValue()  // Add declared value
         );
     }
 

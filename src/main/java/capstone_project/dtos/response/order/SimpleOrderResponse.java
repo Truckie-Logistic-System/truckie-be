@@ -17,11 +17,14 @@ public record SimpleOrderResponse(
     LocalDateTime createdAt,
     String status,
     String deliveryAddress,
+    String deliveryAddressId,    // ID for form prefill
     String pickupAddress,
+    String pickupAddressId,      // ID for form prefill
     String senderName,
     String senderPhone,
     String senderCompanyName,
     String categoryName,
+    String categoryId,           // ID for form prefill
     String categoryDescription, // Category description from backend
     Boolean hasInsurance,           // Khách hàng có mua bảo hiểm hay không
     BigDecimal totalInsuranceFee,   // Tổng phí bảo hiểm (đã bao gồm VAT)

@@ -1,0 +1,44 @@
+package capstone_project.dtos.request.order;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import org.hibernate.validator.constraints.UUID;
+
+import java.time.LocalDateTime;
+
+public record UpdateOrderInfoRequest(
+        @NotBlank(message = "Notes cannot be blank")
+        String notes,
+
+        @NotBlank(message = "Receiver name cannot be blank")
+        String receiverName,
+
+        @NotBlank(message = "Receiver phone cannot be blank")
+        String receiverPhone,
+
+        @NotBlank(message = "Receiver identity cannot be blank")
+        String receiverIdentity,
+
+        @NotBlank(message = "Package description cannot be blank")
+        String packageDescription,
+
+        @NotNull(message = "Estimate start time cannot be null")
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+        LocalDateTime estimateStartTime,
+
+        @NotBlank(message = "Delivery address ID cannot be blank")
+        @UUID(message = "Delivery address ID must be a valid UUID")
+        String deliveryAddressId,
+
+        @NotBlank(message = "Pickup address ID cannot be blank")
+        @UUID(message = "Pickup address ID must be a valid UUID")
+        String pickupAddressId,
+
+        @NotBlank(message = "Category ID cannot be blank")
+        @UUID(message = "Category ID must be a valid UUID")
+        String categoryId,
+
+        // Khách hàng có mua bảo hiểm hay không
+        Boolean hasInsurance
+) {}

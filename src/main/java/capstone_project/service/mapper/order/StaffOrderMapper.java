@@ -269,7 +269,8 @@ public class StaffOrderMapper {
                 detail.createdAt(),
                 detail.trackingCode(),
                 orderSize,
-                detail.vehicleAssignmentId()  // Only store ID reference
+                detail.vehicleAssignmentId(),  // Only store ID reference
+                detail.declaredValue()  // Add declared value
         );
     }
 
@@ -325,7 +326,8 @@ public class StaffOrderMapper {
                         detail.createdAt(),
                         detail.trackingCode(),
                         detail.orderSize(),
-                        detail.vehicleAssignmentId()
+                        detail.vehicleAssignmentId(),
+                        detail.declaredValue()
                 ))
                 .collect(Collectors.toList());
         
@@ -360,27 +362,31 @@ public class StaffOrderMapper {
             if (orderDetails == null || orderDetails.isEmpty()) return Collections.emptyList();
             
             return orderDetails.stream()
-                    .map(detail -> new StaffOrderDetailResponse(
-                            detail.getTrackingCode(),
-                            detail.getWeightBaseUnit(),
-                            detail.getUnit(),
-                            detail.getDescription(),
-                            detail.getStatus(),
-                            detail.getEstimatedStartTime(),
-                            detail.getCreatedAt(),
-                            detail.getTrackingCode(),
-                            detail.getOrderSizeEntity() != null ? new SimpleOrderSizeResponse(
-                                    detail.getOrderSizeEntity().getId().toString(),
-                                    detail.getOrderSizeEntity().getDescription(),
-                                    detail.getOrderSizeEntity().getMinLength(),
-                                    detail.getOrderSizeEntity().getMaxLength(),
-                                    detail.getOrderSizeEntity().getMinHeight(),
-                                    detail.getOrderSizeEntity().getMaxHeight(),
-                                    detail.getOrderSizeEntity().getMinWidth(),
-                                    detail.getOrderSizeEntity().getMaxWidth()
-                            ) : null,
-                            vehicleAssignmentId
-                    ))
+                    .map(detail -> {
+                        SimpleOrderSizeResponse orderSizeResponse = detail.getOrderSizeEntity() != null ? new SimpleOrderSizeResponse(
+                                detail.getOrderSizeEntity().getId().toString(),
+                                detail.getOrderSizeEntity().getDescription(),
+                                detail.getOrderSizeEntity().getMinLength(),
+                                detail.getOrderSizeEntity().getMaxLength(),
+                                detail.getOrderSizeEntity().getMinHeight(),
+                                detail.getOrderSizeEntity().getMaxHeight(),
+                                detail.getOrderSizeEntity().getMinWidth(),
+                                detail.getOrderSizeEntity().getMaxWidth()
+                        ) : null;
+                        return new StaffOrderDetailResponse(
+                                detail.getTrackingCode(),
+                                detail.getWeightBaseUnit(),
+                                detail.getUnit(),
+                                detail.getDescription(),
+                                detail.getStatus(),
+                                detail.getEstimatedStartTime(),
+                                detail.getCreatedAt(),
+                                detail.getTrackingCode(),
+                                orderSizeResponse,
+                                detail.getVehicleAssignmentEntity() != null ? detail.getVehicleAssignmentEntity().getId() : null,
+                                detail.getDeclaredValue()
+                        );
+                    })
                     .collect(Collectors.toList());
         } catch (Exception e) {
             log.warn("Could not fetch order details for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());

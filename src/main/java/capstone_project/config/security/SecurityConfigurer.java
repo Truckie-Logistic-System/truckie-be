@@ -339,6 +339,7 @@ public class SecurityConfigurer {
                         .requestMatchers(userChatApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name(), RoleTypeEnum.DRIVER.name())
 
                         // ================= NOTIFICATION =================
+                        .requestMatchers(HttpMethod.GET, contractSettingApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name(), RoleTypeEnum.CUSTOMER.name())
                         .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(weightUnitSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(stipulationSettingApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.STAFF.name())

@@ -22,7 +22,7 @@ public class ContractSettingController {
     private final ContractSettingService contractSettingService;
 
     @GetMapping()
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF', 'CUSTOMER')")
     public ResponseEntity<ApiResponse<List<ContractSettingResponse>>> getAll() {
         final var result = contractSettingService.getAllContractSettingEntities();
         return ResponseEntity.ok(ApiResponse.ok(result));
