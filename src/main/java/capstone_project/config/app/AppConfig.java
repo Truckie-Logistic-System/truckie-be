@@ -33,7 +33,7 @@ public class AppConfig {
             config.addAllowedOrigin("http://localhost:3001");
             config.addAllowedOrigin("http://localhost:5173");
             config.addAllowedOrigin("http://localhost:5174");
-            config.addAllowedOrigin("http://14.225.253.8:3000");
+            config.addAllowedOrigin("https://truckie.io.vn");
         }
 
         config.addAllowedHeader("*");
