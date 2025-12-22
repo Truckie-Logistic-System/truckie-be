@@ -5,7 +5,6 @@ import capstone_project.dtos.request.chat.ChatMessageRequest;
 import capstone_project.dtos.request.chat.PriceEstimateRequest;
 import capstone_project.dtos.response.chat.ChatMessageResponse;
 import capstone_project.service.services.ai.GeminiService.ChatMessage;
-import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.setting.CarrierSettingService;
 import capstone_project.dtos.response.setting.CarrierSettingResponse;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +18,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -31,17 +30,17 @@ public class ChatService {
 
     private final GeminiService geminiService;
     private final PriceCalculationService priceCalculationService;
-    private final RedisService redisService;
     private final CarrierSettingService carrierSettingService;
     private final PricingDataService pricingDataService;
     private final CustomerDataService customerDataService;
     private final OrderTrackingService orderTrackingService;
     private final CustomerAnalyticsService customerAnalyticsService;
 
+    private final Map<String, String> chatHistoryStore = new ConcurrentHashMap<>();
+    private final Map<String, String> personalityStore = new ConcurrentHashMap<>();
+
     private static final String SESSION_KEY_PREFIX = "chat:session:";
-    private static final long SESSION_TTL_HOURS = 24;
     private static final String PERSONALITY_KEY_PREFIX = "chat:personality:";
-    private static final long PERSONALITY_TTL_DAYS = 30;
 
     /**
      * Xử lý message từ user
@@ -533,7 +532,7 @@ public class ChatService {
         } else {
             key = SESSION_KEY_PREFIX + userId + ":" + sessionId;
         }
-        String historyJson = redisService.getString(key);
+        String historyJson = chatHistoryStore.get(key);
 
         if (historyJson == null || historyJson.isEmpty()) {
             return new ArrayList<>();
@@ -586,7 +585,7 @@ public class ChatService {
                 .map(msg -> msg.getRole() + ":::" + msg.getContent().replace(":::", "").replace("||", ""))
                 .collect(Collectors.joining("||"));
 
-        redisService.saveString(key, historyJson, SESSION_TTL_HOURS, TimeUnit.HOURS);
+        chatHistoryStore.put(key, historyJson);
     }
 
     /**
@@ -623,7 +622,7 @@ public class ChatService {
      */
     public void setPersonality(String userId, String personality) {
         String key = PERSONALITY_KEY_PREFIX + userId;
-        redisService.saveString(key, personality, PERSONALITY_TTL_DAYS, TimeUnit.DAYS);
+        personalityStore.put(key, personality);
         log.info("✅ Set personality for user {}: {}", userId, personality);
     }
 
@@ -635,7 +634,7 @@ public class ChatService {
             return "FRIENDLY"; // Default for guests
         }
         String key = PERSONALITY_KEY_PREFIX + userId;
-        String personality = redisService.getString(key);
+        String personality = personalityStore.get(key);
         return personality != null ? personality : "FRIENDLY";
     }
 

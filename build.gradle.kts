@@ -56,10 +56,8 @@ dependencies {
     // LIQUIBASE - Database Migration
     implementation("org.liquibase:liquibase-core:4.29.2")
 
-    // Redis & Cache
-    implementation("org.springframework.boot:spring-boot-starter-data-redis:3.5.4")
+    // Cache (Redis removed)
     implementation("org.springframework.boot:spring-boot-starter-cache:3.5.4")
-    implementation("org.apache.commons:commons-pool2:2.12.1")
 
     // SECURITY / AUTH
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")

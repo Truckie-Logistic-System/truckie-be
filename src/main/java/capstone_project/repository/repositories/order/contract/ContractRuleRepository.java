@@ -2,8 +2,8 @@ package capstone_project.repository.repositories.order.contract;
 
 import capstone_project.entity.order.contract.ContractRuleEntity;
 import capstone_project.repository.repositories.common.BaseRepository;
-import io.lettuce.core.dynamic.annotation.Param;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;

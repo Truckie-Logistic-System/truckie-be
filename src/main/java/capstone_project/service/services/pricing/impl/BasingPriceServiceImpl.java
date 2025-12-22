@@ -11,7 +11,6 @@ import capstone_project.entity.pricing.BasingPriceEntity;
 import capstone_project.repository.entityServices.pricing.BasingPriceEntityService;
 import capstone_project.service.mapper.order.BasingPriceMapper;
 import capstone_project.service.services.pricing.BasingPriceService;
-import capstone_project.service.services.redis.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,21 +26,9 @@ public class BasingPriceServiceImpl implements BasingPriceService {
 
     private final BasingPriceEntityService basingPriceEntityService;
     private final BasingPriceMapper basingPriceMapper;
-    private final RedisService redisService;
-
-    private static final String BASING_PRICE_ALL_CACHE_KEY = "basing-prices:all";
-    private static final String BASING_PRICE_BY_ID_CACHE_KEY_PREFIX = "basing-price:";
 
     @Override
     public List<GetBasingPriceResponse> getBasingPrices() {
-
-        List<BasingPriceEntity> basingPrices = redisService.getList(BASING_PRICE_ALL_CACHE_KEY, BasingPriceEntity.class);
-        if (basingPrices != null && !basingPrices.isEmpty()) {
-            
-            return basingPrices.stream()
-                    .map(basingPriceMapper::toGetBasingPriceResponse)
-                    .toList();
-        }
 
         List<BasingPriceEntity> pricingEntities = basingPriceEntityService.findAll();
         if (pricingEntities.isEmpty()) {
@@ -51,9 +38,6 @@ public class BasingPriceServiceImpl implements BasingPriceService {
                     ErrorEnum.NOT_FOUND.getErrorCode()
             );
         }
-
-        redisService.save(BASING_PRICE_ALL_CACHE_KEY, pricingEntities);
-
         return pricingEntities.stream()
                 .map(basingPriceMapper::toGetBasingPriceResponse)
                 .toList();
@@ -69,24 +53,13 @@ public class BasingPriceServiceImpl implements BasingPriceService {
                     ErrorEnum.REQUIRED.getErrorCode()
             );
         }
-        String cacheKey = BASING_PRICE_BY_ID_CACHE_KEY_PREFIX + id;
-        BasingPriceEntity cachedEntity = redisService.get(cacheKey, BasingPriceEntity.class);
+        BasingPriceEntity basingPriceEntity = basingPriceEntityService.findEntityById(id)
+                .orElseThrow(() -> new NotFoundException(
+                        "Basing price not found",
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
 
-        if (cachedEntity != null) {
-            
-            return basingPriceMapper.toGetBasingPriceResponse(cachedEntity);
-        } else {
-
-            BasingPriceEntity basingPriceEntity = basingPriceEntityService.findEntityById(id)
-                    .orElseThrow(() -> new NotFoundException(
-                            "Basing price not found",
-                            ErrorEnum.NOT_FOUND.getErrorCode()
-                    ));
-
-            redisService.save(cacheKey, basingPriceEntity);
-
-            return basingPriceMapper.toGetBasingPriceResponse(basingPriceEntity);
-        }
+        return basingPriceMapper.toGetBasingPriceResponse(basingPriceEntity);
     }
 
     @Override
@@ -128,8 +101,6 @@ public class BasingPriceServiceImpl implements BasingPriceService {
 
         BasingPriceEntity savedEntity = basingPriceEntityService.save(basingPriceEntity);
 
-        redisService.delete(BASING_PRICE_ALL_CACHE_KEY);
-
         return basingPriceMapper.toBasingPriceResponse(savedEntity);
     }
 
@@ -153,9 +124,6 @@ public class BasingPriceServiceImpl implements BasingPriceService {
         basingPriceMapper.toBasingPriceEntity(basingPriceRequest, existingEntity);
 
         BasingPriceEntity savedEntity = basingPriceEntityService.save(existingEntity);
-
-        redisService.delete(BASING_PRICE_ALL_CACHE_KEY);
-        redisService.delete(BASING_PRICE_BY_ID_CACHE_KEY_PREFIX + id);
 
         return basingPriceMapper.toBasingPriceResponse(savedEntity);
     }

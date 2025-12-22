@@ -10,7 +10,6 @@ import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.user.AddressMapper;
-import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.user.AddressService;
 import capstone_project.common.utils.AddressUtil;
 import capstone_project.common.utils.UserContextUtils;
@@ -21,8 +20,6 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 @Service
 @Slf4j
@@ -33,27 +30,10 @@ public class AddressServiceImpl implements AddressService {
     private final CustomerEntityService customerEntityService;
     private final AddressMapper addressMapper;
     private final VietMapGeocodingServiceImpl geocodingService;
-    private final RedisService redisService;
     private final UserContextUtils userContextUtils;
-
-    private static final String ALL_ADDRESSES_CACHE_KEY = "addresses:all";
-    private static final String ADDRESS_CACHE_KEY_PREFIX = "address:";
-    private static final String GEOCODING_CACHE_KEY_PREFIX = "geocoding:";
-    private static final String CUSTOMER_ADDRESSES_CACHE_KEY_PREFIX = "customer_addresses:";
 
     @Override
     public List<AddressResponse> getAllAddresses() {
-
-        // Check cache first for AddressResponse DTOs
-        try {
-            List<AddressResponse> cachedAddresses = redisService.getList(ALL_ADDRESSES_CACHE_KEY, AddressResponse.class);
-            if (cachedAddresses != null && !cachedAddresses.isEmpty()) {
-                
-                return cachedAddresses;
-            }
-        } catch (Exception e) {
-            log.warn("Error retrieving addresses from cache, falling back to database", e);
-        }
 
         // Fetch from database
         List<AddressEntity> entities = addressEntityService.findAll();
@@ -70,15 +50,6 @@ public class AddressServiceImpl implements AddressService {
         List<AddressResponse> addressResponses = entities.stream()
                 .map(this::safeMapToResponse)
                 .toList();
-
-        // Cache the DTOs (not entities)
-        try {
-            redisService.save(ALL_ADDRESSES_CACHE_KEY, addressResponses);
-            redisService.expire(ALL_ADDRESSES_CACHE_KEY, 1, TimeUnit.HOURS);
-            
-        } catch (Exception e) {
-            log.warn("Error caching addresses, continuing without cache", e);
-        }
 
         return addressResponses;
     }
@@ -104,18 +75,6 @@ public class AddressServiceImpl implements AddressService {
     @Override
     public AddressResponse calculateLatLong(String address) {
 
-        // Check cache for geocoding result
-        String geocodingCacheKey = GEOCODING_CACHE_KEY_PREFIX + address.hashCode();
-        try {
-            AddressResponse cachedResult = redisService.get(geocodingCacheKey, AddressResponse.class);
-            if (cachedResult != null) {
-                
-                return cachedResult;
-            }
-        } catch (Exception e) {
-            log.warn("Error retrieving geocoding from cache", e);
-        }
-
         Optional<GeocodingResponse> geocodingResult = geocodingService.geocodeAddress(address);
 
         AddressResponse response;
@@ -125,14 +84,6 @@ public class AddressServiceImpl implements AddressService {
         } else {
             log.warn("Could not resolve coordinates via API, using fallback for address: {}", address);
             response = AddressUtil.buildFallbackResponse(address);
-        }
-
-        // Cache the geocoding result
-        try {
-            redisService.save(geocodingCacheKey, response);
-            redisService.expire(geocodingCacheKey, 24, TimeUnit.HOURS);
-        } catch (Exception e) {
-            log.warn("Error caching geocoding result", e);
         }
 
         return response;
@@ -174,19 +125,6 @@ public class AddressServiceImpl implements AddressService {
 
             AddressEntity saved = addressEntityService.save(addressEntity);
             AddressResponse response = safeMapToResponse(saved);
-
-            // Invalidate caches
-            invalidateAddressCaches();
-            invalidateCustomerAddressesCache(currentCustomerId.toString());
-
-            // Cache the new address
-            try {
-                String addressCacheKey = ADDRESS_CACHE_KEY_PREFIX + saved.getId();
-                redisService.save(addressCacheKey, response);
-                redisService.expire(addressCacheKey, 30, TimeUnit.MINUTES);
-            } catch (Exception e) {
-                log.warn("Error caching new address", e);
-            }
 
             return response;
 
@@ -240,51 +178,17 @@ public class AddressServiceImpl implements AddressService {
         AddressEntity updated = addressEntityService.save(existing);
         AddressResponse response = safeMapToResponse(updated);
 
-        // 6. Invalidate caches
-        invalidateAddressCaches();
-        invalidateCustomerAddressesCache(oldCustomerId);
-        invalidateCustomerAddressesCache(currentCustomerId.toString());
-
-        // 7. Update cache with new data
-        try {
-            String addressCacheKey = ADDRESS_CACHE_KEY_PREFIX + id;
-            redisService.save(addressCacheKey, response);
-            redisService.expire(addressCacheKey, 30, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            log.warn("Error updating address cache", e);
-        }
-
         return response;
     }
 
     @Override
     public AddressResponse getAddressById(UUID id) {
 
-        // Check cache first
-        String cacheKey = ADDRESS_CACHE_KEY_PREFIX + id;
-        try {
-            AddressResponse cachedAddress = redisService.get(cacheKey, AddressResponse.class);
-            if (cachedAddress != null) {
-                
-                return cachedAddress;
-            }
-        } catch (Exception e) {
-            log.warn("Error retrieving address from cache for ID: {}", id, e);
-        }
-
         Optional<AddressEntity> addressEntity = addressEntityService.findEntityById(id);
 
         return addressEntity
                 .map(entity -> {
                     AddressResponse response = safeMapToResponse(entity);
-                    // Cache the result
-                    try {
-                        redisService.save(cacheKey, response);
-                        redisService.expire(cacheKey, 30, TimeUnit.MINUTES);
-                        
-                    } catch (Exception e) {
-                        log.warn("Error caching address for ID: {}", id, e);
-                    }
                     return response;
                 })
                 .orElseThrow(() -> {
@@ -330,27 +234,6 @@ public class AddressServiceImpl implements AddressService {
                     entity.getLongitude(),
                     customerId
             );
-        }
-    }
-
-    private void invalidateAddressCaches() {
-        try {
-            redisService.delete(ALL_ADDRESSES_CACHE_KEY);
-            
-        } catch (Exception e) {
-            log.warn("Error invalidating addresses cache", e);
-        }
-    }
-
-    private void invalidateCustomerAddressesCache(String customerId) {
-        if (customerId != null) {
-            try {
-                String customerCacheKey = CUSTOMER_ADDRESSES_CACHE_KEY_PREFIX + customerId;
-                redisService.delete(customerCacheKey);
-                
-            } catch (Exception e) {
-                log.warn("Error invalidating customer addresses cache", e);
-            }
         }
     }
 

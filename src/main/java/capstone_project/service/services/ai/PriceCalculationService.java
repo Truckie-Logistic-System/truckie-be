@@ -17,7 +17,6 @@ import capstone_project.repository.entityServices.pricing.BasingPriceEntityServi
 import capstone_project.repository.entityServices.pricing.DistanceRuleEntityService;
 import capstone_project.repository.entityServices.pricing.SizeRuleEntityService;
 import capstone_project.service.services.pricing.UnifiedPricingService;
-import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.setting.CarrierSettingService;
 import capstone_project.dtos.response.setting.CarrierSettingResponse;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -48,7 +46,6 @@ public class PriceCalculationService {
     private final CategoryPricingDetailEntityService categoryPricingDetailService;
     private final OrderDetailEntityService orderDetailEntityService;
     private final UnifiedPricingService unifiedPricingService;
-    private final RedisService redisService;
 
     /**
      * Tính giá vận chuyển dựa trên weight, distance
@@ -909,86 +906,135 @@ public class PriceCalculationService {
         }
     }
     
+    private VehicleAllocation findOptimalVehicleAllocation(BigDecimal totalWeight, BigDecimal distance, List<SizeRuleEntity> allVehicles) {
+        List<SizeRuleEntity> sortedVehicles = allVehicles.stream()
+                .sorted(Comparator.comparing(SizeRuleEntity::getMaxWeight))
+                .toList();
+
+        Map<SizeRuleEntity, BigDecimal> vehicleCosts = calculateAllVehicleCosts(distance, sortedVehicles);
+
+        Map<BigDecimal, VehicleAllocation> dp = new HashMap<>();
+        dp.put(BigDecimal.ZERO, new VehicleAllocation(new HashMap<>(), ""));
+
+        boolean improved = true;
+        int iteration = 0;
+
+        while (improved && iteration < 10) {
+            improved = false;
+            iteration++;
+
+            List<BigDecimal> currentWeights = new ArrayList<>(dp.keySet());
+
+            for (BigDecimal currentWeight : currentWeights) {
+                VehicleAllocation currentAllocation = dp.get(currentWeight);
+
+                for (SizeRuleEntity vehicle : sortedVehicles) {
+                    BigDecimal vehicleCapacity = vehicle.getMaxWeight().multiply(BigDecimal.valueOf(1000));
+                    BigDecimal newWeight = currentWeight.add(vehicleCapacity);
+
+                    if (newWeight.compareTo(totalWeight.add(sortedVehicles.get(sortedVehicles.size() - 1)
+                            .getMaxWeight().multiply(BigDecimal.valueOf(1000)))) > 0) {
+                        continue;
+                    }
+
+                    Map<SizeRuleEntity, Integer> newVehicleCounts = new HashMap<>(currentAllocation.getVehicleCounts());
+                    newVehicleCounts.put(vehicle, newVehicleCounts.getOrDefault(vehicle, 0) + 1);
+
+                    String newDesc = buildDescription(newVehicleCounts);
+                    VehicleAllocation newAllocation = new VehicleAllocation(newVehicleCounts, newDesc);
+
+                    BigDecimal newCost = calculateTotalCostFromMap(newVehicleCounts, vehicleCosts);
+
+                    VehicleAllocation existing = dp.get(newWeight);
+                    if (existing == null) {
+                        dp.put(newWeight, newAllocation);
+                        improved = true;
+                    } else {
+                        BigDecimal existingCost = calculateTotalCostFromMap(existing.getVehicleCounts(), vehicleCosts);
+                        if (newCost.compareTo(existingCost) < 0) {
+                            dp.put(newWeight, newAllocation);
+                            improved = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        VehicleAllocation bestAllocation = null;
+        BigDecimal minCost = BigDecimal.valueOf(Double.MAX_VALUE);
+
+        for (Map.Entry<BigDecimal, VehicleAllocation> entry : dp.entrySet()) {
+            if (entry.getKey().compareTo(totalWeight) >= 0) {
+                BigDecimal cost = calculateTotalCostFromMap(entry.getValue().getVehicleCounts(), vehicleCosts);
+                if (cost.compareTo(minCost) < 0) {
+                    minCost = cost;
+                    bestAllocation = entry.getValue();
+                }
+            }
+        }
+
+        if (bestAllocation == null) {
+            return new VehicleAllocation(Map.of(sortedVehicles.get(sortedVehicles.size() - 1),
+                    calculateNumberOfVehicles(totalWeight, sortedVehicles.get(sortedVehicles.size() - 1)
+                            .getMaxWeight().multiply(BigDecimal.valueOf(1000)))),
+                    buildDescription(Map.of(sortedVehicles.get(sortedVehicles.size() - 1),
+                            calculateNumberOfVehicles(totalWeight, sortedVehicles.get(sortedVehicles.size() - 1)
+                                    .getMaxWeight().multiply(BigDecimal.valueOf(1000))))));
+        }
+
+        return bestAllocation;
+    }
+
     /**
      * Find optimal vehicle allocation using efficient cost optimization
      * Uses dynamic programming approach with pruning for performance
      * Enhanced with caching and telemetry for optimization
-     */
-    private VehicleAllocation findOptimalVehicleAllocation(BigDecimal totalWeight, BigDecimal distance, List<SizeRuleEntity> availableVehicles) {
-        long startTime = System.currentTimeMillis();
-        log.info("🔍 Starting DP cost optimization for {} tons, {} km", totalWeight.divide(BigDecimal.valueOf(1000)), distance);
-        
-        // Check DP result cache first (biggest optimization - skip entire DP algorithm)
-        String dpCacheKey = "dp:result:" + totalWeight.intValue() + ":" + distance.intValue();
-        String cachedResult = redisService.getString(dpCacheKey);
-        
-        if (cachedResult != null && !cachedResult.isEmpty()) {
-            // Parse cached result: description|vehicleCount
-            String[] parts = cachedResult.split("\\|");
-            if (parts.length == 2) {
-                String description = parts[0];
-                int vehicleCount = Integer.parseInt(parts[1]);
-                
-                // Reconstruct VehicleAllocation from description
-                VehicleAllocation cachedAllocation = reconstructAllocationFromDescription(description, availableVehicles);
-                
-                long totalTime = System.currentTimeMillis() - startTime;
-                log.info("🎯 DP CACHE HIT in {}ms: {} tons → {} (cached)", 
-                        totalTime, totalWeight.divide(BigDecimal.valueOf(1000)), description);
-                
-                return cachedAllocation;
-            }
         }
+    }
+    
+    // Build up solutions using proper unbounded knapsack DP
+    boolean improved = true;
+    int iteration = 0;
+    
+    while (improved && iteration < 10) { // Limit iterations to prevent infinite loops
+        improved = false;
+        iteration++;
+        log.info("🔄 DP iteration {} - exploring {} existing entries", iteration, dp.size());
         
-        // Cache miss - proceed with full DP algorithm
-        log.info("❌ DP CACHE MISS - running full DP algorithm");
+        // Get all current weights to explore (copy to avoid concurrent modification)
+        List<BigDecimal> currentWeights = new ArrayList<>(dp.keySet());
         
-        // Sort vehicles by capacity for better DP performance
-        List<SizeRuleEntity> sortedVehicles = availableVehicles.stream()
-                .sorted(Comparator.comparing(SizeRuleEntity::getMaxWeight))
-                .collect(Collectors.toList());
-        
-        // Dynamic programming: Map<remainingWeight, bestAllocation>
-        Map<BigDecimal, VehicleAllocation> dp = new LinkedHashMap<>();
-        dp.put(BigDecimal.ZERO, new VehicleAllocation(new HashMap<>(), ""));
-        
-        // Pre-calculate vehicle costs with Redis caching for performance
-        Map<SizeRuleEntity, BigDecimal> vehicleCosts = new HashMap<>();
-        int cacheHits = 0;
-        int cacheMisses = 0;
-        
-        for (SizeRuleEntity vehicle : sortedVehicles) {
-            String cacheKey = "vehicle:cost:" + vehicle.getId() + ":" + distance.intValue();
+        for (BigDecimal currentWeight : currentWeights) {
+            VehicleAllocation currentAllocation = dp.get(currentWeight);
             
-            // Try to get from cache first
-            String cachedCost = redisService.getString(cacheKey);
-            if (cachedCost != null && !cachedCost.isEmpty()) {
-                vehicleCosts.put(vehicle, new BigDecimal(cachedCost));
-                cacheHits++;
-                log.debug("🎯 Cache HIT for vehicle {} at {}km", vehicle.getSizeRuleName(), distance);
-            } else {
-                // Calculate and cache
-                long calcStart = System.currentTimeMillis();
-                UnifiedPricingService.UnifiedPriceResult pricingResult = unifiedPricingService.calculatePrice(
-                        vehicle.getId(), distance, 1, null);
-                long calcTime = System.currentTimeMillis() - calcStart;
+            // Try adding each vehicle type
+            for (SizeRuleEntity vehicle : sortedVehicles) {
+                BigDecimal vehicleCapacity = vehicle.getMaxWeight().multiply(BigDecimal.valueOf(1000));
+                BigDecimal newWeight = currentWeight.add(vehicleCapacity);
                 
-                if (pricingResult.isSuccess()) {
-                    BigDecimal cost = pricingResult.getAdjustedPriceForOneVehicle();
-                    vehicleCosts.put(vehicle, cost);
-                    
-                    // Cache for 24 hours
-                    redisService.saveString(cacheKey, cost.toString(), 24, TimeUnit.HOURS);
-                    cacheMisses++;
-                    log.info("💰 Calculated & cached cost for {}: {} VND ({}ms)", 
-                            vehicle.getSizeRuleName(), cost.intValue(), calcTime);
-                } else {
-                    log.error("❌ Failed to calculate cost for {}: {}", 
-                            vehicle.getSizeRuleName(), pricingResult.getErrorMessage());
+                // Don't exceed total weight by more than the largest vehicle capacity
+                if (newWeight.compareTo(totalWeight.add(sortedVehicles.get(sortedVehicles.size() - 1).getMaxWeight().multiply(BigDecimal.valueOf(1000)))) > 0) {
+                    continue;
                 }
-            }
-        }
-        
+                
+                // Create new allocation
+                Map<SizeRuleEntity, Integer> newVehicleCounts = new HashMap<>(currentAllocation.getVehicleCounts());
+                newVehicleCounts.put(vehicle, newVehicleCounts.getOrDefault(vehicle, 0) + 1);
+                
+                String newDesc = buildDescription(newVehicleCounts);
+                VehicleAllocation newAllocation = new VehicleAllocation(newVehicleCounts, newDesc);
+                
+                BigDecimal newCost = calculateTotalCostFromMap(newVehicleCounts, vehicleCosts);
+                
+                // Update DP if this is better for the weight
+                VehicleAllocation existing = dp.get(newWeight);
+                if (existing == null) {
+                    dp.put(newWeight, newAllocation);
+                    improved = true;
+                    log.info("🆕 DP added: {} kg = {} (cost: {},000 VND)", newWeight, newDesc, newCost.intValue());
+                } else {
+                    BigDecimal existingCost = calculateTotalCostFromMap(existing.getVehicleCounts(), vehicleCosts);
+                    if (newCost.compareTo(existingCost) < 0) {
         log.info("📊 Vehicle cost cache stats: {} hits, {} misses, hit rate: {:.1f}%", 
                 cacheHits, cacheMisses, 
                 (cacheHits + cacheMisses) > 0 ? (cacheHits * 100.0 / (cacheHits + cacheMisses)) : 0);
@@ -1075,13 +1121,8 @@ public class PriceCalculationService {
             bestAllocation = findGreedyAllocation(totalWeight, sortedVehicles);
         }
         
-        // Cache the final DP result for future requests
-        String dpResultCacheKey = "dp:result:" + totalWeight.intValue() + ":" + distance.intValue();
-        String dpCacheValue = bestAllocation.getDescription() + "|" + bestAllocation.getTotalVehicleCount();
-        redisService.saveString(dpResultCacheKey, dpCacheValue, 1, TimeUnit.HOURS);
-        
         long totalTime = System.currentTimeMillis() - startTime;
-        log.info("✅ DP optimization completed in {}ms: {} tons → {} (cache saved)", 
+        log.info("✅ DP optimization completed in {}ms: {} tons → {}",
                 totalTime, totalWeight.divide(BigDecimal.valueOf(1000)), bestAllocation.getDescription());
         
         return bestAllocation;
@@ -1159,6 +1200,35 @@ public class PriceCalculationService {
             }
         }
         return totalCost;
+    }
+
+    private Map<SizeRuleEntity, BigDecimal> calculateAllVehicleCosts(BigDecimal distance, List<SizeRuleEntity> allVehicles) {
+        Map<SizeRuleEntity, BigDecimal> vehicleCosts = new HashMap<>();
+        for (SizeRuleEntity vehicle : allVehicles) {
+            BigDecimal cost = calculateSingleVehiclePrice(vehicle, distance);
+            if (cost != null) {
+                vehicleCosts.put(vehicle, cost);
+            }
+        }
+        return vehicleCosts;
+    }
+
+    private BigDecimal calculateSingleVehiclePrice(SizeRuleEntity vehicle, BigDecimal distance) {
+        try {
+            PriceEstimateRequest request = new PriceEstimateRequest(
+                    distance,
+                    vehicle.getMaxWeight().multiply(BigDecimal.valueOf(1000)),
+                    null,
+                    null
+            );
+            PriceEstimateResult result = estimatePriceForSpecificVehicle(request, vehicle);
+            if (!result.isSuccess() || result.getEstimatedPrice() == null) {
+                return null;
+            }
+            return BigDecimal.valueOf(result.getEstimatedPrice());
+        } catch (Exception e) {
+            return null;
+        }
     }
     
     /**
