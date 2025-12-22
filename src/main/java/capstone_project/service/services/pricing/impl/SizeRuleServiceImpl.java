@@ -183,16 +183,7 @@ public class SizeRuleServiceImpl implements SizeRuleService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-        if (updateSizeRuleRequest.sizeRuleName() != null) {
-            try {
-                SizeRuleEnum.valueOf(updateSizeRuleRequest.sizeRuleName());
-            } catch (IllegalArgumentException e) {
-                throw new BadRequestException(
-                        "Invalid vehicle rule type: " + updateSizeRuleRequest.sizeRuleName(),
-                        ErrorEnum.ENUM_INVALID.getErrorCode()
-                );
-            }
-        }
+        // sizeRuleName should not be updated, it's commented out in UpdateSizeRuleRequest
 
         sizeRuleMapper.toSizeRuleEntity(updateSizeRuleRequest, existingEntity);
 

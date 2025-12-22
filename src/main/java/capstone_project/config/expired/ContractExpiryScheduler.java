@@ -16,7 +16,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,7 +48,6 @@ public class ContractExpiryScheduler {
      * - Full payment: 1 day before pickup time (earliest estimated start time)
      */
     @Scheduled(fixedRate = 600000) // Runs every 10 minutes
-    @Transactional
     public void checkExpiredContracts() {
 
         LocalDateTime now = LocalDateTime.now();
@@ -87,7 +85,8 @@ public class ContractExpiryScheduler {
                     cancelOrderAndContract(
                             contract, 
                             "Hợp đồng hết hạn ký - đã quá 24 giờ kể từ khi tạo hợp đồng",
-                            "signing deadline"
+                            "signing deadline",
+                            List.of(OrderStatusEnum.CONTRACT_DRAFT.name())
                     );
                 } catch (Exception e) {
                     log.error("Failed to cancel order for contract {} due to expired signing deadline: {}", 
@@ -121,7 +120,8 @@ public class ContractExpiryScheduler {
                     cancelOrderAndContract(
                             contract, 
                             "Hợp đồng hết hạn thanh toán cọc - đã quá 24 giờ kể từ khi ký hợp đồng",
-                            "deposit payment deadline"
+                            "deposit payment deadline",
+                            List.of(OrderStatusEnum.CONTRACT_SIGNED.name())
                     );
                 } catch (Exception e) {
                     log.error("Failed to cancel order for contract {} due to expired deposit payment deadline: {}", 
@@ -157,7 +157,8 @@ public class ContractExpiryScheduler {
                     cancelOrderAndContract(
                             contract, 
                             "Hợp đồng hết hạn thanh toán toàn bộ - đã quá thời gian lấy hàng",
-                            "full payment deadline"
+                            "full payment deadline",
+                            List.of(OrderStatusEnum.ASSIGNED_TO_DRIVER.name())
                     );
                 } catch (Exception e) {
                     log.error("Failed to cancel order for contract {} due to expired full payment deadline: {}", 
@@ -173,11 +174,24 @@ public class ContractExpiryScheduler {
     /**
      * Cancel both order and contract due to expired deadline using unified cancellation
      */
-    private void cancelOrderAndContract(ContractEntity contract, String reason, String deadlineType) {
-        // Get the associated order
-        OrderEntity order = contract.getOrderEntity();
-        if (order == null) {
+    private void cancelOrderAndContract(
+            ContractEntity contract,
+            String reason,
+            String deadlineType,
+            List<String> expectedOrderStatuses
+    ) {
+        // Get the associated orderId (safe even if orderEntity is a Hibernate proxy)
+        OrderEntity contractOrder = contract.getOrderEntity();
+        if (contractOrder == null || contractOrder.getId() == null) {
             log.warn("Contract {} has no associated order", contract.getId());
+            return;
+        }
+
+        // Load order explicitly to avoid LazyInitializationException (scheduler may run without open session)
+        OrderEntity order = orderEntityService.findEntityById(contractOrder.getId())
+                .orElse(null);
+        if (order == null) {
+            log.warn("Contract {} references missing order {}", contract.getId(), contractOrder.getId());
             return;
         }
         
@@ -186,7 +200,6 @@ public class ContractExpiryScheduler {
         String currentStatus = order.getStatus();
         List<String> paidStatuses = List.of(
                 OrderStatusEnum.ON_PLANNING.name(),
-                OrderStatusEnum.ASSIGNED_TO_DRIVER.name(),
                 OrderStatusEnum.FULLY_PAID.name(),
                 OrderStatusEnum.PICKING_UP.name(),
                 OrderStatusEnum.ON_DELIVERED.name(),
@@ -199,6 +212,18 @@ public class ContractExpiryScheduler {
         if (paidStatuses.contains(currentStatus)) {
             log.warn("⚠️ Skipping cancellation for order {} (contract {}). Order is in status {} which indicates payment was completed. Contract status may need manual update.", 
                     order.getOrderCode(), contract.getId(), currentStatus);
+            return;
+        }
+
+        if (expectedOrderStatuses != null && !expectedOrderStatuses.isEmpty() && !expectedOrderStatuses.contains(currentStatus)) {
+            log.warn(
+                    "⚠️ Skipping cancellation for order {} (contract {}). Deadline type {} triggered but order status is {} (expected {}).",
+                    order.getOrderCode(),
+                    contract.getId(),
+                    deadlineType,
+                    currentStatus,
+                    expectedOrderStatuses
+            );
             return;
         }
 
@@ -234,7 +259,8 @@ public class ContractExpiryScheduler {
                 OrderStatusEnum.PENDING.name(),
                 OrderStatusEnum.PROCESSING.name(),
                 OrderStatusEnum.CONTRACT_DRAFT.name(),
-                OrderStatusEnum.CONTRACT_SIGNED.name()
+                OrderStatusEnum.CONTRACT_SIGNED.name(),
+                OrderStatusEnum.ASSIGNED_TO_DRIVER.name()
         );
         
         // Check if order has already progressed past cancellable stages

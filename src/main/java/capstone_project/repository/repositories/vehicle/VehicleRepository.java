@@ -3,9 +3,9 @@ package capstone_project.repository.repositories.vehicle;
 import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.repository.repositories.common.BaseRepository;
-import io.lettuce.core.dynamic.annotation.Param;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;

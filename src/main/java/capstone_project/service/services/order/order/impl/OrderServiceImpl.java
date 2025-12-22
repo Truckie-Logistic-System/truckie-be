@@ -1376,6 +1376,7 @@ public class OrderServiceImpl implements OrderService {
                         OrderStatusEnum.PROCESSING.name(),
                         OrderStatusEnum.CONTRACT_DRAFT.name(),
                         OrderStatusEnum.CONTRACT_SIGNED.name(),
+                        OrderStatusEnum.ASSIGNED_TO_DRIVER.name(),
                         OrderStatusEnum.ON_PLANNING.name()
                 );
                 break;

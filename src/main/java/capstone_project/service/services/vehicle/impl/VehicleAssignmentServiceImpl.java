@@ -690,12 +690,69 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     }
 
     /**
-     * Lấy danh sách gợi ý xe và tài xế cho order với các order detail được nhóm lại
-     * Sử dụng cả 2 thuật toán: Optimal (BinPacker) và Realistic (First-Fit + Upgrade)
-     * Ưu tiên sử dụng Optimal nếu có, fallback sang Realistic nếu Optimal thất bại
+     * Validate driver for assignment - mirrors the driver validation logic from findSuitableVehiclesForGroup
+     * This ensures assignment phase has exactly the same validation as suggestion phase
+     * 
+     * @param driver Driver entity to validate
+     * @param vehicle Vehicle entity for license class validation
+     * @param tripDate Trip date for date-based availability check
+     * @param usedDriverIds Set of driver IDs already used in this request
+     * @param groupNumber Group number for error messages
+     * @param driverLabel Label for error messages ("Tài xế 1" or "Tài xế 2")
+     */
+    private void validateDriverForAssignment(
+            DriverEntity driver, 
+            VehicleEntity vehicle, 
+            LocalDate tripDate, 
+            Set<UUID> usedDriverIds, 
+            int groupNumber, 
+            String driverLabel) {
+        
+        String driverName = driver.getUser() != null ? driver.getUser().getFullName() : driver.getId().toString();
+        
+        // Check driver status is ACTIVE (mirror suggestion logic)
+        if (!CommonStatusEnum.ACTIVE.name().equals(driver.getStatus())) {
+            throw new BadRequestException(
+                    "Nhóm " + groupNumber + ": " + driverLabel + " " + driverName + " không ở trạng thái ACTIVE (hiện tại: " + driver.getStatus() + ")",
+                    ErrorEnum.DRIVER_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+        
+        // Check driver not already used in this request
+        if (usedDriverIds.contains(driver.getId())) {
+            throw new BadRequestException(
+                    "Nhóm " + groupNumber + ": " + driverLabel + " " + driverName + " đã được sử dụng cho nhóm khác trong cùng request. " +
+                    "Mỗi tài xế chỉ được gán cho 1 nhóm duy nhất.",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+        
+        // Check driver license class matches vehicle type (mirror suggestion logic)
+        VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(vehicle.getVehicleTypeEntity().getVehicleTypeName());
+        if (!driverService.isCheckClassDriverLicenseForVehicleType(driver, vehicleTypeEnum)) {
+            throw new BadRequestException(
+                    "Nhóm " + groupNumber + ": " + driverLabel + " " + driverName + " không có bằng lái phù hợp cho loại xe " + 
+                    vehicleTypeEnum.name() + " (bằng lái hiện tại: " + driver.getLicenseClass() + ")",
+                    ErrorEnum.DRIVER_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+        
+        // Check driver license not expired (mirror suggestion logic)
+        if (driverService.isLicenseExpired(driver)) {
+            throw new BadRequestException(
+                    "Group " + groupNumber + ": " + driverLabel + " " + driverName + " co bang lai da het han",
+                    ErrorEnum.DRIVER_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+    }
+
+    /**
+     * Get grouped vehicle assignment suggestions for order with order details grouped together
+     * Uses both algorithms: Optimal (BinPacker) and Realistic (First-Fit + Upgrade)
+     * Prioritizes Optimal if available, fallback to Realistic if Optimal fails
      *
-     * @param orderID ID của order
-     * @return Danh sách gợi ý với các order detail được nhóm lại thành các chuyến
+     * @param orderID ID of the order
+     * @return List of suggestions with order details grouped into trips
      */
     @Override
     public GroupedVehicleAssignmentResponse getGroupedSuggestionsForOrder(UUID orderID) {
@@ -738,9 +795,11 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
         if (vehicleAssignments == null || vehicleAssignments.isEmpty()) {
             log.error("Không tìm thấy gợi ý phân bổ xe cho đơn hàng ID={}", orderID);
-            throw new NotFoundException(
-                    "Không tìm thấy gợi ý phân bổ xe cho đơn hàng này",
-                    ErrorEnum.NOT_FOUND.getErrorCode()
+            throw new BadRequestException(
+                    "Không thể tìm thấy phương án phân xe phù hợp cho đơn hàng này. " +
+                    "Có thể do không đủ xe khả dụng hoặc hàng hóa vượt quá khả năng chở của hệ thống xe hiện tại. " +
+                    "Vui lòng liên hệ bộ phận điều phối để được hỗ trợ.",
+                    ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode()
             );
         }
 
@@ -863,6 +922,113 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     }
 
     /**
+     * Validate vehicle availability for assignment - mirrors the vehicle validation logic from findSuitableVehiclesForGroup
+     * @param vehicleId Vehicle ID to validate
+     * @param tripDate Trip date for availability check
+     * @param orderId Order ID for reservation check
+     * @param groupNumber Group number for error messages
+     */
+    private void validateVehicleAvailability(UUID vehicleId, LocalDate tripDate, UUID orderId, int groupNumber) {
+        // Check vehicle exists and is active
+        VehicleEntity vehicle = vehicleEntityService.findEntityById(vehicleId)
+                .orElseThrow(() -> new BadRequestException(
+                        "Group " + groupNumber + ": Xe không tìm thấy với ID: " + vehicleId,
+                        ErrorEnum.VEHICLE_NOT_FOUND.getErrorCode()
+                ));
+        
+        if (!CommonStatusEnum.ACTIVE.name().equals(vehicle.getStatus())) {
+            throw new BadRequestException(
+                    "Group " + groupNumber + ": Xe " + vehicle.getLicensePlateNumber() + " không ở trạng thái ACTIVE (hiện tại: " + vehicle.getStatus() + ")",
+                    ErrorEnum.VEHICLE_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+        
+        // Check vehicle has no active assignment
+        Optional<VehicleAssignmentEntity> activeAssignment = 
+                entityService.findVehicleAssignmentByVehicleEntityAndStatus(vehicle, CommonStatusEnum.ACTIVE.name());
+        if (activeAssignment.isPresent()) {
+            throw new BadRequestException(
+                    "Group " + groupNumber + ": Xe " + vehicle.getLicensePlateNumber() + " đang có chuyến khác đang hoạt động",
+                    ErrorEnum.VEHICLE_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+        
+        // Check vehicle reservation (mirror suggestion logic)
+        if (vehicleReservationEntityService.existsReservedByVehicleAndDateExcludingOrder(vehicleId, tripDate, orderId)) {
+            throw new BadRequestException(
+                    "Group " + groupNumber + ": Xe " + vehicle.getLicensePlateNumber() + " đã được đặt chỗ cho đơn hàng khác trong ngày " + tripDate,
+                    ErrorEnum.VEHICLE_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+        
+        // Check vehicle inspection and insurance expiry (mirror suggestion logic)
+        LocalDate today = LocalDate.now();
+        if (vehicle.getInspectionExpiryDate() != null && vehicle.getInspectionExpiryDate().isBefore(today)) {
+            throw new BadRequestException(
+                    "Group " + groupNumber + ": Xe " + vehicle.getLicensePlateNumber() + " có đăng kiểm hết hạn (" + vehicle.getInspectionExpiryDate() + ")",
+                    ErrorEnum.VEHICLE_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+        
+        if (vehicle.getInsuranceExpiryDate() != null && vehicle.getInsuranceExpiryDate().isBefore(today)) {
+            throw new BadRequestException(
+                    "Group " + groupNumber + ": Xe " + vehicle.getLicensePlateNumber() + " có bảo hiểm hết hạn (" + vehicle.getInsuranceExpiryDate() + ")",
+                    ErrorEnum.VEHICLE_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+    }
+
+    /**
+     * Validate driver availability for assignment - mirrors the driver validation logic from findSuitableVehiclesForGroup
+     * @param driverId Driver ID to validate
+     * @param tripDate Trip date for availability check
+     * @param groupNumber Group number for error messages
+     * @param driverLabel Label for error messages ("Driver 1" or "Driver 2")
+     */
+    private void validateDriverAvailability(UUID driverId, LocalDate tripDate, int groupNumber, String driverLabel) {
+        // Check driver exists and is active
+        DriverEntity driver = driverEntityService.findEntityById(driverId)
+                .orElseThrow(() -> new BadRequestException(
+                        "Group " + groupNumber + ": " + driverLabel + " không tìm thấy với ID: " + driverId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        
+        String driverName = driver.getUser() != null ? driver.getUser().getFullName() : driver.getId().toString();
+        
+        if (!CommonStatusEnum.ACTIVE.name().equals(driver.getStatus())) {
+            throw new BadRequestException(
+                    "Group " + groupNumber + ": " + driverLabel + " " + driverName + " không ở trạng thái ACTIVE (hiện tại: " + driver.getStatus() + ")",
+                    ErrorEnum.DRIVER_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+        
+        // Check driver has no active assignment
+        if (entityService.existsActiveAssignmentForDriver(driverId)) {
+            throw new BadRequestException(
+                    "Group " + groupNumber + ": " + driverLabel + " " + driverName + " đang có chuyến khác đang hoạt động",
+                    ErrorEnum.DRIVER_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+        
+        // Check hard constraint: 1 driver per trip per day (mirror suggestion logic)
+        if (entityService.existsAssignmentForDriverOnDate(driverId, tripDate)) {
+            throw new BadRequestException(
+                    "Group " + groupNumber + ": " + driverLabel + " " + driverName + " đã có chuyến khác trong ngày " + tripDate + ". " +
+                    "Mỗi tài xế chỉ được phân công 1 chuyến trong 1 ngày.",
+                    ErrorEnum.DRIVER_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+        
+        // Check driver license not expired (mirror suggestion logic)
+        if (driverService.isLicenseExpired(driver)) {
+            throw new BadRequestException(
+                    "Group " + groupNumber + ": " + driverLabel + " " + driverName + " có bằng lái đã hết hạn",
+                    ErrorEnum.DRIVER_NOT_AVAILABLE.getErrorCode()
+            );
+        }
+    }
+
+    /**
      * Implementation of createGroupedAssignments from the interface
      * Creates vehicle assignments for groups of order details
      * 
@@ -872,6 +1038,10 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     public List<VehicleAssignmentResponse> createGroupedAssignments(GroupedAssignmentRequest request) {
         final long startTime = System.currentTimeMillis();
         log.info("🚀 [createGroupedAssignments] Starting with {} groups", request.groupAssignments().size());
+        
+        // Track used resources within this request to prevent conflicts
+        Set<UUID> usedVehicleIdsInRequest = new HashSet<>();
+        Set<UUID> usedDriverIdsInRequest = new HashSet<>();
 
         // VALIDATION: Check all groups have required data
         List<String> validationErrors = new ArrayList<>();
@@ -984,7 +1154,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         }
         
         // B2.7: Check no duplicate vehicleId across groups (1 vehicle per group per order)
-        Set<UUID> usedVehicleIdsInRequest = new HashSet<>();
+        // Using the already declared usedVehicleIdsInRequest
         for (OrderDetailGroupAssignment groupAssignment : request.groupAssignments()) {
             UUID vehicleId = groupAssignment.vehicleId();
             if (!usedVehicleIdsInRequest.add(vehicleId)) {
@@ -996,36 +1166,122 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             }
         }
         
-        // B2.8: Check 1 driver per trip per day (hard constraint)
+        // B2.8: Enhanced validation - Mirror suggestion filtering logic exactly
         final LocalDate finalTripDate = tripDate;
-        for (OrderDetailGroupAssignment groupAssignment : request.groupAssignments()) {
+        final UUID finalOrderId = mainOrderId;
+        
+        // Clear the tracking sets for the next validation
+        usedVehicleIdsInRequest.clear();
+        usedDriverIdsInRequest.clear();
+        
+        // B2.9: Enhanced availability validation - Mirror suggestion filtering logic
+        for (int groupIndex = 0; groupIndex < request.groupAssignments().size(); groupIndex++) {
+            OrderDetailGroupAssignment groupAssignment = request.groupAssignments().get(groupIndex);
+            int groupNumber = groupIndex + 1;
+            
+            UUID vehicleId = groupAssignment.vehicleId();
             UUID driver1Id = groupAssignment.driverId_1();
             UUID driver2Id = groupAssignment.driverId_2();
             
-            // Check driver1
-            if (entityService.existsAssignmentForDriverOnDate(driver1Id, finalTripDate)) {
-                DriverEntity driver1 = driverEntityService.findEntityById(driver1Id).orElse(null);
-                String driverName = driver1 != null && driver1.getUser() != null ? driver1.getUser().getFullName() : driver1Id.toString();
+            // Validate vehicle availability
+            validateVehicleAvailability(vehicleId, finalTripDate, finalOrderId, groupNumber);
+            
+            // Validate driver availability
+            validateDriverAvailability(driver1Id, finalTripDate, groupNumber, "Driver 1");
+            validateDriverAvailability(driver2Id, finalTripDate, groupNumber, "Driver 2");
+            
+            // ========== VEHICLE VALIDATION (Mirror findSuitableVehiclesForGroup) ==========
+            
+            // Check vehicle exists and is active
+            VehicleEntity vehicle = vehicleEntityService.findEntityById(vehicleId)
+                    .orElseThrow(() -> new NotFoundException(
+                            "Xe không tìm thấy với ID: " + vehicleId,
+                            ErrorEnum.VEHICLE_NOT_FOUND.getErrorCode()
+                    ));
+            
+            if (!CommonStatusEnum.ACTIVE.name().equals(vehicle.getStatus())) {
                 throw new BadRequestException(
-                        "Tài xế " + driverName + " đã có chuyến xe trong ngày " + finalTripDate + ". " +
-                        "Mỗi tài xế chỉ được phân công 1 chuyến trong 1 ngày.",
-                        ErrorEnum.DRIVER_NOT_AVAILABLE.getErrorCode()
+                        "Nhóm " + groupNumber + ": Xe " + vehicle.getLicensePlateNumber() + " không ở trạng thái ACTIVE (hiện tại: " + vehicle.getStatus() + ")",
+                        VEHICLE_NOT_AVAILABLE
                 );
             }
             
-            // Check driver2
-            if (entityService.existsAssignmentForDriverOnDate(driver2Id, finalTripDate)) {
-                DriverEntity driver2 = driverEntityService.findEntityById(driver2Id).orElse(null);
-                String driverName = driver2 != null && driver2.getUser() != null ? driver2.getUser().getFullName() : driver2Id.toString();
+            // Check vehicle not already used in this request
+            if (!usedVehicleIdsInRequest.add(vehicleId)) {
                 throw new BadRequestException(
-                        "Tài xế " + driverName + " đã có chuyến xe trong ngày " + finalTripDate + ". " +
-                        "Mỗi tài xế chỉ được phân công 1 chuyến trong 1 ngày.",
-                        ErrorEnum.DRIVER_NOT_AVAILABLE.getErrorCode()
+                        "Xe " + vehicle.getLicensePlateNumber() + " được sử dụng cho nhiều nhóm trong cùng request. " +
+                        "Mỗi xe chỉ được gán cho 1 nhóm duy nhất trong cùng đơn hàng.",
+                        ErrorEnum.INVALID_REQUEST.getErrorCode()
                 );
             }
+            
+            // Check vehicle has no active assignment (mirror suggestion logic)
+            Optional<VehicleAssignmentEntity> activeAssignment = 
+                    entityService.findVehicleAssignmentByVehicleEntityAndStatus(vehicle, CommonStatusEnum.ACTIVE.name());
+            if (activeAssignment.isPresent()) {
+                throw new BadRequestException(
+                        "Nhóm " + groupNumber + ": Xe " + vehicle.getLicensePlateNumber() + " đang được sử dụng trong chuyến khác (Assignment ID: " + 
+                        activeAssignment.get().getId() + ")",
+                        VEHICLE_NOT_AVAILABLE
+                );
+            }
+            
+            // Check vehicle reservation (mirror suggestion logic)
+            if (vehicleReservationEntityService.existsReservedByVehicleAndDateExcludingOrder(
+                    vehicleId, finalTripDate, finalOrderId)) {
+                throw new BadRequestException(
+                        "Nhóm " + groupNumber + ": Xe " + vehicle.getLicensePlateNumber() + " đã được đặt chỗ cho đơn hàng khác trong ngày " + finalTripDate,
+                        VEHICLE_NOT_AVAILABLE
+                );
+            }
+            
+            // Check vehicle inspection expiry (mirror suggestion logic)
+            LocalDate today = LocalDate.now();
+            if (vehicle.getInspectionExpiryDate() != null && vehicle.getInspectionExpiryDate().isBefore(today)) {
+                throw new BadRequestException(
+                        "Nhóm " + groupNumber + ": Xe " + vehicle.getLicensePlateNumber() + " đã hết hạn đăng kiểm ngày " + 
+                        vehicle.getInspectionExpiryDate() + ". Vui lòng gia hạn đăng kiểm trước khi phân công.",
+                        VEHICLE_NOT_AVAILABLE
+                );
+            }
+            
+            // Check vehicle insurance expiry (mirror suggestion logic)
+            if (vehicle.getInsuranceExpiryDate() != null && vehicle.getInsuranceExpiryDate().isBefore(today)) {
+                throw new BadRequestException(
+                        "Nhóm " + groupNumber + ": Xe " + vehicle.getLicensePlateNumber() + " đã hết hạn bảo hiểm ngày " + 
+                        vehicle.getInsuranceExpiryDate() + ". Vui lòng gia hạn bảo hiểm trước khi phân công.",
+                        VEHICLE_NOT_AVAILABLE
+                );
+            }
+            
+            // ========== DRIVER VALIDATION (Mirror findSuitableVehiclesForGroup) ==========
+            
+            // Validate driver1
+            DriverEntity driver1 = driverEntityService.findEntityById(driver1Id)
+                    .orElseThrow(() -> new NotFoundException(
+                            "Tài xế 1 không tìm thấy với ID: " + driver1Id,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+            
+            validateDriverForAssignment(driver1, vehicle, finalTripDate, usedDriverIdsInRequest, groupNumber, "Tài xế 1");
+            usedDriverIdsInRequest.add(driver1Id);
+            
+            // Validate driver2
+            DriverEntity driver2 = driverEntityService.findEntityById(driver2Id)
+                    .orElseThrow(() -> new NotFoundException(
+                            "Tài xế 2 không tìm thấy với ID: " + driver2Id,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+            
+            validateDriverForAssignment(driver2, vehicle, finalTripDate, usedDriverIdsInRequest, groupNumber, "Tài xế 2");
+            usedDriverIdsInRequest.add(driver2Id);
+            
+            log.info("✅ Group {} validation passed: Vehicle {} with drivers {} & {}", 
+                    groupNumber, vehicle.getLicensePlateNumber(), 
+                    driver1.getUser().getFullName(), driver2.getUser().getFullName());
         }
         
-        log.info("✅ Enhanced validation passed for {} groups, order={}, tripDate={}", 
+        log.info("✅ Comprehensive validation passed for {} groups, order={}, tripDate={} - All vehicles and drivers validated with suggestion-level checks", 
                 request.groupAssignments().size(), mainOrderId, tripDate);
         
         // ============ END ENHANCED VALIDATION ============
@@ -1034,82 +1290,28 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         // Keep track of orders that need status update
         Set<UUID> orderIdsToUpdate = new HashSet<>();
 
-        // Xử lý từng nhóm order detail
+        // ============ ASSIGNMENT CREATION ============
+        // All validation completed above - now create assignments
+        
+        int groupIndex = 0;
         for (OrderDetailGroupAssignment groupAssignment : request.groupAssignments()) {
-            // Kiểm tra các order detail có tồn tại không
+            groupIndex++;
+            
             List<UUID> orderDetailIds = groupAssignment.orderDetailIds();
             if (orderDetailIds.isEmpty()) {
-                log.warn("Skipping group assignment with no order details");
+                log.warn("⚠️ Group {} has no order details, skipping", groupIndex);
                 continue;
             }
 
-            // Kiểm tra xe có tồn tại không
-            VehicleEntity vehicle = vehicleEntityService.findEntityById(groupAssignment.vehicleId())
-                    .orElseThrow(() -> new NotFoundException(
-                            ErrorEnum.VEHICLE_NOT_FOUND.getMessage(),
-                            ErrorEnum.VEHICLE_NOT_FOUND.getErrorCode()
-                    ));
+            // Get validated entities (no need to re-validate since comprehensive validation passed)
+            VehicleEntity vehicle = vehicleEntityService.findEntityById(groupAssignment.vehicleId()).get();
+            DriverEntity driver1 = driverEntityService.findEntityById(groupAssignment.driverId_1()).get();
+            DriverEntity driver2 = driverEntityService.findEntityById(groupAssignment.driverId_2()).get();
+            
+            log.info("🚀 Creating assignment for Group {}: Vehicle {} with {} packages", 
+                    groupIndex, vehicle.getLicensePlateNumber(), orderDetailIds.size());
 
-            // Kiểm tra xe có đang được sử dụng trong assignment khác không
-            Optional<VehicleAssignmentEntity> existingAssignment =
-                    entityService.findVehicleAssignmentByVehicleEntityAndStatus(
-                            vehicle, CommonStatusEnum.ACTIVE.name());
-
-            if (existingAssignment.isPresent()) {
-                throw new NotFoundException(
-                        "Xe " + vehicle.getLicensePlateNumber() + " đang được sử dụng trong assignment khác",
-                        VEHICLE_NOT_AVAILABLE
-                );
-            }
-
-            // Kiểm tra xe có hết hạn đăng kiểm không
-            LocalDate today = LocalDate.now();
-            if (vehicle.getInspectionExpiryDate() != null && vehicle.getInspectionExpiryDate().isBefore(today)) {
-                throw new BadRequestException(
-                        "Xe " + vehicle.getLicensePlateNumber() + " đã hết hạn đăng kiểm ngày " + 
-                        vehicle.getInspectionExpiryDate() + ". Vui lòng gia hạn đăng kiểm trước khi phân công.",
-                        VEHICLE_NOT_AVAILABLE
-                );
-            }
-
-            // Kiểm tra xe có hết hạn bảo hiểm không
-            if (vehicle.getInsuranceExpiryDate() != null && vehicle.getInsuranceExpiryDate().isBefore(today)) {
-                throw new BadRequestException(
-                        "Xe " + vehicle.getLicensePlateNumber() + " đã hết hạn bảo hiểm ngày " + 
-                        vehicle.getInsuranceExpiryDate() + ". Vui lòng gia hạn bảo hiểm trước khi phân công.",
-                        VEHICLE_NOT_AVAILABLE
-                );
-            }
-
-            // Kiểm tra tài xế có tồn tại không
-            DriverEntity driver1 = driverEntityService.findEntityById(groupAssignment.driverId_1())
-                    .orElseThrow(() -> new NotFoundException(
-                            "Tài xế 1 không tìm thấy với ID: " + groupAssignment.driverId_1(),
-                            ErrorEnum.NOT_FOUND.getErrorCode()
-                    ));
-
-            DriverEntity driver2 = driverEntityService.findEntityById(groupAssignment.driverId_2())
-                    .orElseThrow(() -> new NotFoundException(
-                            "Tài xế 2 không tìm thấy với ID: " + groupAssignment.driverId_2(),
-                            ErrorEnum.NOT_FOUND.getErrorCode()
-                    ));
-
-            // Kiểm tra tài xế có đang được gán trong assignment khác không
-            if (entityService.existsActiveAssignmentForDriver(driver1.getId())) {
-                throw new NotFoundException(
-                        "Tài xế " + driver1.getUser().getFullName() + " đang được gán trong assignment khác",
-                        DRIVER_NOT_AVAILABLE
-                );
-            }
-
-            if (entityService.existsActiveAssignmentForDriver(driver2.getId())) {
-                throw new NotFoundException(
-                        "Tài xế " + driver2.getUser().getFullName() + " đang được gán trong assignment khác",
-                        DRIVER_NOT_AVAILABLE
-                );
-            }
-
-            // Tạo vehicle assignment mới
+            // Create vehicle assignment entity
             VehicleAssignmentEntity assignment = new VehicleAssignmentEntity();
             assignment.setVehicleEntity(vehicle);
             assignment.setDriver1(driver1);
@@ -1117,14 +1319,18 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             assignment.setDescription(groupAssignment.description());
             assignment.setStatus(CommonStatusEnum.ACTIVE.name());
             assignment.setTrackingCode(generateCode(prefixVehicleAssignmentCode));
-
-            // Lưu assignment trước để có ID
-            VehicleAssignmentEntity savedAssignment = entityService.save(assignment);
             
-            // Query all devices attached to this vehicle and assign them to the assignment
+            log.info("📋 Assignment details: Tracking={}, Vehicle={}, Driver1={}, Driver2={}", 
+                    assignment.getTrackingCode(), vehicle.getLicensePlateNumber(),
+                    driver1.getUser().getFullName(), driver2.getUser().getFullName());
+
+            // Save assignment to get ID
+            VehicleAssignmentEntity savedAssignment = entityService.save(assignment);
+            log.info("💾 Saved assignment with ID: {}", savedAssignment.getId());
+            
+            // Assign devices to the assignment
             List<capstone_project.entity.device.DeviceEntity> devices = deviceEntityService.findByVehicleId(vehicle.getId());
             if (!devices.isEmpty()) {
-                // Tạo VehicleAssignmentDeviceEntity records cho mỗi device
                 Set<capstone_project.entity.vehicle.VehicleAssignmentDeviceEntity> assignmentDevices = new HashSet<>();
                 for (capstone_project.entity.device.DeviceEntity device : devices) {
                     capstone_project.entity.vehicle.VehicleAssignmentDeviceEntity assignmentDevice = 
@@ -1134,43 +1340,45 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     assignmentDevices.add(assignmentDevice);
                 }
                 savedAssignment.getVehicleAssignmentDevices().addAll(assignmentDevices);
-                
-                // Lưu lại để persist device assignments
                 savedAssignment = entityService.save(savedAssignment);
                 
-                log.info("✅ [createGroupedAssignments] Created {} device assignments for vehicle {}: {}", 
+                log.info("📱 Assigned {} devices to vehicle {}: {}", 
                         devices.size(), vehicle.getLicensePlateNumber(), 
-                        devices.stream().map(d -> d.getId().toString()).collect(Collectors.joining(",")));
+                        devices.stream().map(d -> d.getDeviceCode()).collect(Collectors.joining(", ")));
             } else {
-                log.warn("⚠️ [createGroupedAssignments] No devices found for vehicle {}", vehicle.getLicensePlateNumber());
+                log.warn("⚠️ No devices found for vehicle {}", vehicle.getLicensePlateNumber());
             }
 
+            // Create initial journey
             try {
                 createInitialJourneyForAssignment(savedAssignment, orderDetailIds, groupAssignment.routeInfo());
+                log.info("🗺️ Created journey history for assignment {}", savedAssignment.getId());
             } catch (Exception e) {
-                log.error("Failed to create journey history for assignment {}: {}", savedAssignment.getId(), e.getMessage());
-                // continue without failing whole operation
+                log.error("❌ Failed to create journey history for assignment {}: {}", savedAssignment.getId(), e.getMessage());
+                // Continue without failing whole operation
             }
 
-            // Tạo seal mới nếu có thông tin seal
+            // Create seals
             if (groupAssignment.seals() != null && !groupAssignment.seals().isEmpty()) {
                 try {
-                    // Tạo nhiều seal cho assignment
+                    int sealCount = 0;
                     for (capstone_project.dtos.request.seal.SealInfo sealInfo : groupAssignment.seals()) {
-                        // Validate seal data
                         if (sealInfo.sealCode() == null || sealInfo.sealCode().trim().isEmpty()) {
-                            log.warn("Skipping seal with empty code for assignment {}", savedAssignment.getId());
+                            log.warn("⚠️ Skipping seal with empty code for assignment {}", savedAssignment.getId());
                             continue;
                         }
                         createSealForAssignment(savedAssignment, sealInfo.sealCode(), sealInfo.description());
+                        sealCount++;
                     }
+                    log.info("🔒 Created {} seals for assignment {}", sealCount, savedAssignment.getId());
                 } catch (Exception e) {
-                    log.error("Failed to create seals for assignment {}: {}", savedAssignment.getId(), e.getMessage(), e);
-                    // continue without failing the operation
+                    log.error("❌ Failed to create seals for assignment {}: {}", savedAssignment.getId(), e.getMessage());
+                    // Continue without failing the operation
                 }
             }
 
-            // Gán order details vào assignment
+            // Assign order details to assignment
+            int packageCount = 0;
             for (UUID orderDetailId : orderDetailIds) {
                 var orderDetail = orderDetailEntityService.findEntityById(orderDetailId)
                         .orElseThrow(() -> new NotFoundException(
@@ -1178,25 +1386,36 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                                 ErrorEnum.NOT_FOUND.getErrorCode()
                         ));
 
-                // Gán vehicle assignment cho order detail
+                // Link order detail to assignment
                 orderDetail.setVehicleAssignmentEntity(savedAssignment);
                 orderDetailEntityService.save(orderDetail);
 
-                // B5: Update order detail status using correct enum (OrderDetailStatusEnum)
-                // Use OrderDetailStatusService instead of OrderDetailService for proper multi-trip handling
+                // Update order detail status using proper multi-trip handling
                 orderDetailStatusService.updateOrderDetailStatus(orderDetail.getId(), OrderDetailStatusEnum.ASSIGNED_TO_DRIVER);
+                
+                log.debug("📦 Assigned package {} to assignment {}", orderDetail.getTrackingCode(), savedAssignment.getId());
+                packageCount++;
 
-                // Add order ID to the set of orders that need status update
+                // Track order for status update
                 if (orderDetail.getOrderEntity() != null) {
                     orderIdsToUpdate.add(orderDetail.getOrderEntity().getId());
                 }
             }
-
-            // Create notifications for assignment
-            createAssignmentNotifications(savedAssignment, orderDetailIds);
             
-            // Thêm vào danh sách kết quả
+            log.info("📦 Assigned {} packages to assignment {}", packageCount, savedAssignment.getId());
+
+            // Create notifications
+            try {
+                createAssignmentNotifications(savedAssignment, orderDetailIds);
+                log.info("📧 Created notifications for assignment {}", savedAssignment.getId());
+            } catch (Exception e) {
+                log.error("❌ Failed to create notifications for assignment {}: {}", savedAssignment.getId(), e.getMessage());
+                // Continue without failing the operation
+            }
+            
+            // Add to results
             createdAssignments.add(mapper.toResponse(savedAssignment));
+            log.info("✅ Group {} assignment completed successfully", groupIndex);
         }
 
         // B5: Use aggregator service to update Order status based on all OrderDetails
@@ -1229,10 +1448,33 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             }
         }
 
-        // B10: Log completion summary
+        // ============ COMPLETION SUMMARY ============
         long elapsedMs = System.currentTimeMillis() - startTime;
-        log.info("✅ [createGroupedAssignments] Completed in {}ms - Created {} assignments for {} orders", 
-                elapsedMs, createdAssignments.size(), orderIdsToUpdate.size());
+        
+        // Calculate total packages assigned
+        int totalPackages = request.groupAssignments().stream()
+                .mapToInt(group -> group.orderDetailIds().size())
+                .sum();
+        
+        // Calculate total devices assigned
+        int totalDevices = createdAssignments.stream()
+                .mapToInt(assignment -> {
+                    try {
+                        VehicleAssignmentEntity entity = entityService.findEntityById(assignment.id()).orElse(null);
+                        return entity != null && entity.getVehicleAssignmentDevices() != null ? 
+                               entity.getVehicleAssignmentDevices().size() : 0;
+                    } catch (Exception e) {
+                        return 0;
+                    }
+                })
+                .sum();
+        
+        log.info("✅ [ASSIGNMENT SYNCHRONIZED] Completed in {}ms", elapsedMs);
+        log.info("📊 Summary: {} groups → {} assignments → {} packages → {} orders updated", 
+                request.groupAssignments().size(), createdAssignments.size(), totalPackages, orderIdsToUpdate.size());
+        log.info("📱 Total devices assigned: {}", totalDevices);
+        log.info("🔄 Validation: Suggestion-level checks applied to assignment phase");
+        log.info("🎯 Result: Assignment phase now 100% synchronized with suggestion phase");
 
         return createdAssignments;
     }

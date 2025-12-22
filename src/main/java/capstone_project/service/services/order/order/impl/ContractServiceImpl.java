@@ -750,8 +750,11 @@ public class ContractServiceImpl implements ContractService {
         }
 
         if (optimal == null && realistic == null) {
-            log.warn("[getBothOptimalAndRealisticAssignVehiclesResponse] Both optimal and realistic are null for orderId={}", orderId);
-            return null;
+            log.error("[getBothOptimalAndRealisticAssignVehiclesResponse] Both optimal and realistic failed for orderId={}", orderId);
+            throw new BadRequestException(
+                "Không thể tìm thấy phương án phân xe phù hợp cho đơn hàng này. Vui lòng kiểm tra lại thông tin đơn hàng hoặc liên hệ bộ phận hỗ trợ.",
+                ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode()
+            );
         }
 
         log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] SUCCESS for orderId={}", orderId);
@@ -850,9 +853,11 @@ public class ContractServiceImpl implements ContractService {
                     usedVehicles.put(upgradedRule.getId(),
                             usedVehicles.getOrDefault(upgradedRule.getId(), 0) + 1);
                 } else {
-                    log.error("Không có xe nào đủ khả dụng để chở cho order {}", orderId);
+                    // Generate detailed error message about missing vehicles
+                    String detailedError = generateVehicleShortageErrorMessage(orderId, assignment, availableVehicles, usedVehicles, sortedSizeRules);
+                    log.error("Vehicle shortage for order {}: {}", orderId, detailedError);
                     throw new BadRequestException(
-                            ErrorEnum.NO_VEHICLE_AVAILABLE.getMessage(),
+                            detailedError,
                             ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode()
                     );
                 }
@@ -881,6 +886,79 @@ public class ContractServiceImpl implements ContractService {
             }
         }
         return null;
+    }
+
+    /**
+     * Generate detailed error message about vehicle shortage
+     * @param orderId Order ID
+     * @param assignment Current assignment that failed
+     * @param availableVehicles Map of available vehicles by rule ID
+     * @param usedVehicles Map of used vehicles by rule ID
+     * @param sortedSizeRules List of sorted size rules
+     * @return Detailed error message in Vietnamese
+     */
+    private String generateVehicleShortageErrorMessage(UUID orderId, 
+                                                      ContractRuleAssignResponse assignment,
+                                                      Map<UUID, Integer> availableVehicles,
+                                                      Map<UUID, Integer> usedVehicles,
+                                                      List<SizeRuleEntity> sortedSizeRules) {
+        StringBuilder errorMessage = new StringBuilder();
+        errorMessage.append("Không đủ xe để phân công cho đơn hàng ").append(orderId).append(". ");
+        
+        // Find the required vehicle type for this assignment
+        SizeRuleEntity requiredRule = sortedSizeRules.stream()
+            .filter(rule -> rule.getId().equals(assignment.getSizeRuleId()))
+            .findFirst()
+            .orElse(null);
+            
+        if (requiredRule != null) {
+            String vehicleTypeName = requiredRule.getVehicleTypeEntity() != null ? 
+                requiredRule.getVehicleTypeEntity().getVehicleTypeName() : "Unknown";
+            errorMessage.append("Cần xe loại ").append(vehicleTypeName)
+                       .append(" (").append(requiredRule.getSizeRuleName()).append(") ");
+            
+            int available = availableVehicles.getOrDefault(requiredRule.getId(), 0);
+            int used = usedVehicles.getOrDefault(requiredRule.getId(), 0);
+            
+            errorMessage.append("nhưng chỉ có ").append(available).append(" xe khả dụng, ")
+                       .append("đã sử dụng ").append(used).append(" xe. ");
+        }
+        
+        // Check if upgrade is possible
+        boolean canUpgrade = false;
+        for (SizeRuleEntity rule : sortedSizeRules) {
+            int available = availableVehicles.getOrDefault(rule.getId(), 0);
+            int used = usedVehicles.getOrDefault(rule.getId(), 0);
+            if (used < available) {
+                canUpgrade = true;
+                break;
+            }
+        }
+        
+        if (!canUpgrade) {
+            errorMessage.append("Tất cả các loại xe đều đã hết. ");
+            
+            // List all vehicle types and their availability
+            errorMessage.append("Tình trạng xe hiện tại: ");
+            for (SizeRuleEntity rule : sortedSizeRules) {
+                String vehicleTypeName = rule.getVehicleTypeEntity() != null ? 
+                    rule.getVehicleTypeEntity().getVehicleTypeName() : "Unknown";
+                int available = availableVehicles.getOrDefault(rule.getId(), 0);
+                int used = usedVehicles.getOrDefault(rule.getId(), 0);
+                
+                errorMessage.append(vehicleTypeName).append(" (")
+                           .append(used).append("/").append(available).append("), ");
+            }
+            
+            // Remove trailing comma and space
+            if (errorMessage.length() > 2) {
+                errorMessage.setLength(errorMessage.length() - 2);
+            }
+        }
+        
+        errorMessage.append(". Vui lòng liên hệ bộ phận điều phối để được hỗ trợ.");
+        
+        return errorMessage.toString();
     }
 
 //    public List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId) {
