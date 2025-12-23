@@ -72,10 +72,15 @@ public class IssueWebSocketService {
             
             // Extract only needed fields from issue to avoid Hibernate proxy serialization
             var issueData = new java.util.HashMap<String, Object>();
-            issueData.put("id", issue.getId());
-            issueData.put("issueCode", issue.getIssueCode());
-            issueData.put("status", issue.getStatus());
-            issueData.put("description", issue.getDescription());
+            issueData.put("id", issue.id());
+            issueData.put("status", issue.status());
+            issueData.put("description", issue.description());
+            if (issue.oldSeal() != null) {
+                issueData.put("oldSealCode", issue.oldSeal().sealCode());
+            }
+            if (issue.newSeal() != null) {
+                issueData.put("newSealCode", issue.newSeal().sealCode());
+            }
             
             notification.put("issue", issueData);
             notification.put("timestamp", java.time.Instant.now().toString());
