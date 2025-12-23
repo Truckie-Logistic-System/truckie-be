@@ -223,6 +223,14 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
             throw new IllegalArgumentException("Số đồng hồ công tơ mét lúc bắt đầu không được để trống trong cơ sở dữ liệu");
         }
 
+        // Validate: Final odometer must be greater than initial odometer
+        if (request.odometerReadingAtEnd().compareTo(entity.getOdometerReadingAtStart()) <= 0) {
+            throw new IllegalArgumentException(
+                String.format("Số km cuối (%.1f) phải lớn hơn số km đầu (%.1f)",
+                    request.odometerReadingAtEnd().doubleValue(),
+                    entity.getOdometerReadingAtStart().doubleValue()));
+        }
+
         final var distanceTraveled = request.odometerReadingAtEnd().subtract(entity.getOdometerReadingAtStart());
 
         final var vehicleType = entity.getVehicleAssignmentEntity().getVehicleEntity().getVehicleTypeEntity();
