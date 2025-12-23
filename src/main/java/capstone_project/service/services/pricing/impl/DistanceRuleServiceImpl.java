@@ -12,7 +12,6 @@ import capstone_project.service.mapper.order.DistanceRuleMapper;
 import capstone_project.service.services.pricing.DistanceRuleService;
 import capstone_project.service.services.pricing.DistanceRuleMetadataCalculator;
 import capstone_project.service.services.pricing.DistanceRuleValidator;
-import capstone_project.service.services.redis.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,23 +27,11 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
 
     private final DistanceRuleEntityService distanceRuleEntityService;
     private final DistanceRuleMapper distanceRuleMapper;
-    private final RedisService redisService;
     private final DistanceRuleMetadataCalculator metadataCalculator;
     private final DistanceRuleValidator validator;
 
-    private static final String DISTANCE_RULE_ALL_CACHE_KEY = "distances:all";
-    private static final String DISTANCE_RULE_BY_ID_CACHE_KEY_PREFIX = "distance:";
-
     @Override
     public List<DistanceRuleResponse> getAllDistanceRules() {
-
-        List<DistanceRuleEntity> cachedDistanceRules = redisService.getList(DISTANCE_RULE_ALL_CACHE_KEY, DistanceRuleEntity.class);
-        if (cachedDistanceRules != null && !cachedDistanceRules.isEmpty()) {
-            return cachedDistanceRules.stream()
-                    .map(distanceRuleMapper::toDistanceRuleResponse)
-                    .toList();
-        }
-
         List<DistanceRuleEntity> distanceRuleEntities = distanceRuleEntityService.findAll();
         if (distanceRuleEntities.isEmpty()) {
             log.warn("[getAllDistanceRules] No distance rules found");
@@ -56,8 +43,6 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
 
         // Ensure metadata is up to date
         metadataCalculator.calculateMetadataForAll(distanceRuleEntities);
-
-        redisService.save(DISTANCE_RULE_ALL_CACHE_KEY, distanceRuleEntities);
 
         return distanceRuleEntities.stream()
                 .map(distanceRuleMapper::toDistanceRuleResponse)
@@ -72,23 +57,13 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
             throw new BadRequestException("Pricing tier ID is required", ErrorEnum.REQUIRED.getErrorCode());
         }
 
-        String cacheKey = DISTANCE_RULE_BY_ID_CACHE_KEY_PREFIX + id;
-        DistanceRuleEntity cachedEntity = redisService.get(cacheKey, DistanceRuleEntity.class);
+        DistanceRuleEntity entity = distanceRuleEntityService.findEntityById(id)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
 
-        if (cachedEntity != null) {
-            
-            return distanceRuleMapper.toDistanceRuleResponse(cachedEntity);
-        } else {
-            DistanceRuleEntity entity = distanceRuleEntityService.findEntityById(id)
-                    .orElseThrow(() -> new NotFoundException(
-                            ErrorEnum.NOT_FOUND.getMessage(),
-                            ErrorEnum.NOT_FOUND.getErrorCode()
-                    ));
-
-            redisService.save(cacheKey, entity);
-
-            return distanceRuleMapper.toDistanceRuleResponse(entity);
-        }
+        return distanceRuleMapper.toDistanceRuleResponse(entity);
     }
 
     @Override
@@ -130,9 +105,6 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
                 .collect(java.util.stream.Collectors.toList());
         metadataCalculator.calculateMetadataForAll(allActiveRules);
         allActiveRules.forEach(distanceRuleEntityService::save);
-
-        // Clear cache
-        clearAllCache();
 
         log.info("Created distance rule: {} ({})", savedEntity.getDisplayName(), savedEntity.getId());
         return distanceRuleMapper.toDistanceRuleResponse(savedEntity);
@@ -179,9 +151,6 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
                 .collect(java.util.stream.Collectors.toList());
         metadataCalculator.calculateMetadataForAll(allActiveRules);
         allActiveRules.forEach(distanceRuleEntityService::save);
-
-        // Clear cache
-        clearAllCache();
 
         log.info("Updated distance rule: {} ({})", savedEntity.getDisplayName(), savedEntity.getId());
         return distanceRuleMapper.toDistanceRuleResponse(savedEntity);
@@ -232,19 +201,6 @@ public class DistanceRuleServiceImpl implements DistanceRuleService {
         // Validate minimum rules requirement
         validator.validateMinimumRules(distanceRuleEntityService.findAll());
 
-        // Clear cache
-        clearAllCache();
-
         log.info("Deleted distance rule: {}", id);
-    }
-
-    private void clearAllCache() {
-        redisService.delete(DISTANCE_RULE_ALL_CACHE_KEY);
-        
-        // Clear all individual caches
-        List<DistanceRuleEntity> allRules = distanceRuleEntityService.findAll();
-        allRules.forEach(rule -> {
-            redisService.delete(DISTANCE_RULE_BY_ID_CACHE_KEY_PREFIX + rule.getId());
-        });
     }
 }

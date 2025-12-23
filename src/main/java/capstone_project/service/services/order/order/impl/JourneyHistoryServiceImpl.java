@@ -12,8 +12,6 @@ import capstone_project.repository.entityServices.order.order.JourneyHistoryEnti
 import capstone_project.repository.repositories.order.order.JourneyHistoryRepository;
 import capstone_project.service.mapper.order.JourneyHistoryMapper;
 import capstone_project.service.services.order.order.JourneyHistoryService;
-
-import capstone_project.service.services.redis.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,10 +29,6 @@ public class JourneyHistoryServiceImpl implements JourneyHistoryService {
     private final JourneyHistoryEntityService entityService;
     private final JourneyHistoryRepository repository;
     private final JourneyHistoryMapper mapper;
-    private final RedisService redis;
-
-    private static final String KEY_ALL = "journeyHistory:all";
-    private static final String KEY_ID  = "journeyHistory:"; // + uuid
 
     @Override
     public List<JourneyHistoryResponse> getAll() {
@@ -72,9 +66,6 @@ public class JourneyHistoryServiceImpl implements JourneyHistoryService {
 
         JourneyHistoryResponse response = mapper.toResponse(saved);
 
-        redis.delete(KEY_ALL);
-        redis.save(KEY_ID + saved.getId(), response);
-
         return response;
     }
 
@@ -92,9 +83,6 @@ public class JourneyHistoryServiceImpl implements JourneyHistoryService {
         JourneyHistoryEntity updated = entityService.save(entity);
         JourneyHistoryResponse response = mapper.toResponse(updated);
 
-        redis.delete(KEY_ALL);
-        redis.save(KEY_ID + id, response);
-
         return response;
     }
 
@@ -109,9 +97,6 @@ public class JourneyHistoryServiceImpl implements JourneyHistoryService {
             );
         }
         repository.deleteById(id);
-
-        redis.delete(KEY_ALL);
-        redis.delete(KEY_ID + id);
     }
 
     @Override

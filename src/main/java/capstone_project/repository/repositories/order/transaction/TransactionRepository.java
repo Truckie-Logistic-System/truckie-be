@@ -2,8 +2,8 @@ package capstone_project.repository.repositories.order.transaction;
 
 import capstone_project.entity.order.transaction.TransactionEntity;
 import capstone_project.repository.repositories.common.BaseRepository;
-import io.lettuce.core.dynamic.annotation.Param;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

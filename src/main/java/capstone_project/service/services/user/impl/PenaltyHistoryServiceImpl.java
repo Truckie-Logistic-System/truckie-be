@@ -8,7 +8,6 @@ import capstone_project.entity.user.driver.PenaltyHistoryEntity;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
 import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
 import capstone_project.service.mapper.user.PenaltyHistoryMapper;
-import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.user.PenaltyHistoryService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -26,11 +25,6 @@ public class PenaltyHistoryServiceImpl implements PenaltyHistoryService {
     private final PenaltyHistoryEntityService entityService;
     private final PenaltyHistoryRepository penaltyHistoryRepository;
     private final PenaltyHistoryMapper mapper;
-    private final RedisService redis; // optional cache
-
-    private static final String CACHE_ALL = "penalties:all";
-    private static final String CACHE_BY_ID = "penalty:";
-    private static final String CACHE_BY_DRIVER_ID = "penalties:driver:";
 
     @Override
     public List<PenaltyHistoryResponse> getAll() {

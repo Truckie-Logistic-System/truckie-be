@@ -25,27 +25,27 @@ public record SizeRuleRequest(
         BigDecimal maxWeight,
 
         @NotNull(message = "Min length is required")
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Min length must be >= 0")
         BigDecimal minLength,
 
         @NotNull(message = "Max length is required")
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Max length must be >= 0")
         BigDecimal maxLength,
 
         @NotNull(message = "Min width is required")
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Min width must be >= 0")
         BigDecimal minWidth,
 
         @NotNull(message = "Max width is required")
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Max width must be >= 0")
         BigDecimal maxWidth,
 
         @NotNull(message = "Min height is required")
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Min height must be >= 0")
         BigDecimal minHeight,
 
         @NotNull(message = "Max height is required")
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Max height must be >= 0")
         BigDecimal maxHeight,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")

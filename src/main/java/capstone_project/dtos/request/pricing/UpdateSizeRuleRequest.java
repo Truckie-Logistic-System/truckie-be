@@ -11,31 +11,31 @@ import java.time.LocalDateTime;
 
 public record UpdateSizeRuleRequest(
 
-        @EnumValidator(enumClass = SizeRuleEnum.class, message = "Invalid vehicle rule name")
-        String sizeRuleName,
+//        @EnumValidator(enumClass = SizeRuleEnum.class, message = "Invalid vehicle rule name")
+//        String sizeRuleName,
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Min weight must be >= 0")
         BigDecimal minWeight,
 
         @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
         BigDecimal maxWeight,
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Min length must be >= 0")
         BigDecimal minLength,
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Max length must be >= 0")
         BigDecimal maxLength,
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Min width must be >= 0")
         BigDecimal minWidth,
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Max width must be >= 0")
         BigDecimal maxWidth,
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Min height must be >= 0")
         BigDecimal minHeight,
 
-        @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")
+        @DecimalMin(value = "0.0", inclusive = true, message = "Max height must be >= 0")
         BigDecimal maxHeight,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
