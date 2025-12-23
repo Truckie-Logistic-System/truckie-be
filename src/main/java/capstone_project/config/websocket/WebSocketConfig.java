@@ -35,9 +35,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // Get all allowed origins - fallback to "*" if empty
+        String[] allowedOriginsArray = corsProperties.getAllowedOrigins() != null && !corsProperties.getAllowedOrigins().isEmpty()
+                ? corsProperties.getAllowedOrigins().toArray(new String[0])
+                : new String[]{"*"};
+
         // Chat endpoint (unchanged)
         registry.addEndpoint("/chat")
-                .setAllowedOrigins(corsProperties.getAllowedOrigins().get(0));
+                .setAllowedOrigins(allowedOriginsArray);
 
         // Vehicle tracking endpoint with JWT handshake interceptor (for mobile clients)
         registry.addEndpoint("/vehicle-tracking")
@@ -55,18 +60,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                     }
                 })
                 .addInterceptors(jwtHandshakeInterceptor)
-                .setAllowedOrigins(corsProperties.getAllowedOrigins().get(0));
+                .setAllowedOrigins(allowedOriginsArray);
 
         // Additional vehicle tracking endpoint with SockJS support (for browser clients)
         // This endpoint doesn't require JWT during handshake, will authenticate via STOMP CONNECT instead
         registry.addEndpoint("/vehicle-tracking-browser")
-                .setAllowedOrigins(corsProperties.getAllowedOrigins().get(0))
+                .setAllowedOrigins(allowedOriginsArray)
                 .withSockJS();
 
         // Issue tracking endpoint with SockJS support (for staff browser clients)
         // This endpoint doesn't require JWT during handshake, will authenticate via STOMP CONNECT instead
         registry.addEndpoint("/ws")
-                .setAllowedOrigins(corsProperties.getAllowedOrigins().get(0))
+                .setAllowedOrigins(allowedOriginsArray)
                 .withSockJS();
     }
 

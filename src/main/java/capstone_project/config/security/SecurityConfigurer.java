@@ -206,8 +206,11 @@ public class SecurityConfigurer {
                 "http://localhost:5174",
                 "http://localhost:8080",
                 "http://14.225.253.8:3000",
+                "http://14.225.253.8",
                 "https://truckie-fe.vercel.app",
-                "https://www.truckie.com"
+                "https://www.truckie.com",
+                "https://truckie.io.vn",
+                "https://api.truckie.io.vn"
         ));
         
         // SECURITY: Only allow necessary HTTP methods

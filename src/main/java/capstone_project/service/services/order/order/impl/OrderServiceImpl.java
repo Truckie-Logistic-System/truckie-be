@@ -1002,12 +1002,11 @@ public class OrderServiceImpl implements OrderService {
 
         List<OrderEntity> ordersByDriverId = orderEntityService.findOrdersByDriverId(driverId);
 
+        // Return empty list if no orders found - don't throw exception
+        // This allows mobile app to show empty state instead of error
         if (ordersByDriverId.isEmpty()) {
-            
-            throw new BadRequestException(
-                    ErrorEnum.NOT_FOUND.getMessage() + " Cannot found orders from " + driverId,
-                    ErrorEnum.NOT_FOUND.getErrorCode()
-            );
+            log.info("No orders found for driver: {}", driverId);
+            return Collections.emptyList();
         }
 
         return ordersByDriverId.stream()
