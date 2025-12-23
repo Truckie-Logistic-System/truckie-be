@@ -1987,7 +1987,8 @@ public class IssueServiceImpl implements IssueService {
         issue.setReturnJourney(returnJourney);
 
         // Set payment deadline from configuration (driver cannot wait too long)
-        issue.setPaymentDeadline(java.time.LocalDateTime.now().plusMinutes(returnPaymentDeadlineMinutes));
+        // ✅ FIXED: Use Asia/Ho_Chi_Minh timezone explicitly to ensure correct deadline regardless of server timezone
+        issue.setPaymentDeadline(java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).plusMinutes(returnPaymentDeadlineMinutes));
 
         // Update issue status to IN_PROGRESS
         issue.setStatus(IssueEnum.IN_PROGRESS.name());

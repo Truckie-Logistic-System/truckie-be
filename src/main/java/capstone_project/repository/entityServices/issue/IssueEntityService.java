@@ -26,6 +26,8 @@ public interface IssueEntityService extends BaseEntityService<IssueEntity, UUID>
 
     Optional<IssueEntity> findByIdWithDetails(UUID id);
     
+    Optional<IssueEntity> findByIdWithIssueImages(UUID id);
+    
     /**
      * Find all ORDER_REJECTION issues that are IN_PROGRESS
      * Optimized query for ReturnPaymentTimeoutScheduler

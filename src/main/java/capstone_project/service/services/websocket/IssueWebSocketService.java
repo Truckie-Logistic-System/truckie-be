@@ -103,16 +103,21 @@ public class IssueWebSocketService {
      * @param vehicleAssignmentId Vehicle assignment ID
      * @param returnJourneyId Return journey ID
      * @param orderId Order ID
+     * @param oldSealCode Old seal code (if available)
+     * @param newSealCode New seal code (if available)
      */
     public void sendReturnPaymentSuccessNotification(
             java.util.UUID driverId,
             java.util.UUID issueId,
             java.util.UUID vehicleAssignmentId,
             java.util.UUID returnJourneyId,
-            java.util.UUID orderId) {
+            java.util.UUID orderId,
+            String oldSealCode,
+            String newSealCode) {
 
         log.info("📤 [RETURN_PAYMENT_SUCCESS] Preparing to send notification to driver: {}", driverId);
         log.info("   issueId: {}, vehicleAssignmentId: {}, orderId: {}", issueId, vehicleAssignmentId, orderId);
+        log.info("   oldSealCode: {}, newSealCode: {}", oldSealCode, newSealCode);
 
         try {
             // Create notification payload
@@ -120,7 +125,7 @@ public class IssueWebSocketService {
             notification.put("type", "RETURN_PAYMENT_SUCCESS");
             notification.put("priority", "HIGH");
             notification.put("title", "Khách hàng đã thanh toán");
-            notification.put("message", "Khách hàng đã thanh toán cước trả hàng. Vui lòng tiến hành trả hàng về điểm pickup.");
+            notification.put("message", "Khách hàng đã thanh toán cước trả hàng. Vui lòng báo cáo seal đã gỡ và chờ staff gán seal mới để tiến hành trả hàng về điểm pickup.");
             notification.put("issueId", issueId.toString());
             notification.put("vehicleAssignmentId", vehicleAssignmentId.toString());
             if (returnJourneyId != null) {
@@ -129,6 +134,27 @@ public class IssueWebSocketService {
             if (orderId != null) {
                 notification.put("orderId", orderId.toString());
             }
+            
+            // ✅ Add seal data to notification payload (similar to SEAL_ASSIGNMENT)
+            // This allows driver to see seal info and proceed with seal confirmation after reporting seal removal
+            if (oldSealCode != null || newSealCode != null) {
+                var issueData = new java.util.HashMap<String, Object>();
+                issueData.put("id", issueId.toString());
+                if (oldSealCode != null) {
+                    var oldSealData = new java.util.HashMap<String, Object>();
+                    oldSealData.put("sealCode", oldSealCode);
+                    issueData.put("oldSeal", oldSealData);
+                    log.info("   Added oldSeal to notification: {}", oldSealCode);
+                }
+                if (newSealCode != null) {
+                    var newSealData = new java.util.HashMap<String, Object>();
+                    newSealData.put("sealCode", newSealCode);
+                    issueData.put("newSeal", newSealData);
+                    log.info("   Added newSeal to notification: {}", newSealCode);
+                }
+                notification.put("issue", issueData);
+            }
+            
             notification.put("timestamp", java.time.Instant.now().toString());
             
             String topic = "/topic/driver/" + driverId + "/notifications";

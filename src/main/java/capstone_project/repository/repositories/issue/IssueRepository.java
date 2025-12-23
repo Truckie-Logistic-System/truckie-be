@@ -95,6 +95,11 @@ public interface IssueRepository extends BaseRepository<IssueEntity> {
             "WHERE i.id = :id")
     Optional<IssueEntity> findByIdWithReroutedJourney(@Param("id") UUID id);
     
+    @Query("SELECT i FROM IssueEntity i " +
+            "LEFT JOIN FETCH i.issueImages " +
+            "WHERE i.id = :id")
+    Optional<IssueEntity> findByIdWithIssueImages(@Param("id") UUID id);
+    
     @Query("SELECT COUNT(i) FROM IssueEntity i " +
             "WHERE i.vehicleAssignmentEntity.driver1.id = :driverId " +
             "OR i.vehicleAssignmentEntity.driver2.id = :driverId")

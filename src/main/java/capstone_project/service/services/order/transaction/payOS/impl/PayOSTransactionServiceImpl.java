@@ -1189,13 +1189,27 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                     
                     log.info("📤 [DRIVER_NOTIFICATION] Sending RETURN_PAYMENT_SUCCESS to driver: {}", driverId);
                     
-                    // Send via WebSocket to driver
+                    // Extract seal codes from issue if available
+                    String oldSealCode = null;
+                    String newSealCode = null;
+                    if (issue.getOldSeal() != null) {
+                        oldSealCode = issue.getOldSeal().getSealCode();
+                        log.info("   Old seal code: {}", oldSealCode);
+                    }
+                    if (issue.getNewSeal() != null) {
+                        newSealCode = issue.getNewSeal().getSealCode();
+                        log.info("   New seal code: {}", newSealCode);
+                    }
+                    
+                    // Send via WebSocket to driver with seal data
                     issueWebSocketService.sendReturnPaymentSuccessNotification(
                             driverId,
                             issue.getId(),
                             vehicleAssignment.getId(),
                             returnJourneyId,
-                            orderId
+                            orderId,
+                            oldSealCode,
+                            newSealCode
                     );
                     
                     log.info("✅ [DRIVER_NOTIFICATION] Successfully called sendReturnPaymentSuccessNotification");

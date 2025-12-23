@@ -84,9 +84,17 @@ public class IssueEntityServiceImpl implements IssueEntityService {
         // ✅ Fetch reroutedJourney for REROUTE issues (includes journey segments)
         Optional<IssueEntity> rerouteJourneyOpt = issueRepository.findByIdWithReroutedJourney(id);
         
+        // ✅ Fetch issue images for PENALTY and DAMAGE issues
+        Optional<IssueEntity> issueImagesOpt = issueRepository.findByIdWithIssueImages(id);
+        
         // Return the issue - all related entities are now loaded in Hibernate session
         // The original issueOpt will have access to all fetched entities through session cache
         return issueOpt;
+    }
+    
+    @Override
+    public Optional<IssueEntity> findByIdWithIssueImages(UUID id) {
+        return issueRepository.findByIdWithIssueImages(id);
     }
     
     @Override
