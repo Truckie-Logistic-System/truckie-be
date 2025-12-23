@@ -69,7 +69,15 @@ public class IssueWebSocketService {
                 "Nhân viên %s đã gán seal mới %s để thay thế seal cũ %s. Vui lòng gắn seal mới và chụp ảnh xác nhận.",
                 staffName, newSealCode, oldSealCode
             ));
-            notification.put("issue", issue);
+            
+            // Extract only needed fields from issue to avoid Hibernate proxy serialization
+            var issueData = new java.util.HashMap<String, Object>();
+            issueData.put("id", issue.getId());
+            issueData.put("issueCode", issue.getIssueCode());
+            issueData.put("status", issue.getStatus());
+            issueData.put("description", issue.getDescription());
+            
+            notification.put("issue", issueData);
             notification.put("timestamp", java.time.Instant.now().toString());
             
             // Send to specific driver via user-specific topic
