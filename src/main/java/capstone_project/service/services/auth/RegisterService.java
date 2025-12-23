@@ -110,4 +110,20 @@ public interface RegisterService {
      * @return Summary of updated usernames
      */
     UpdateUsernamesResponse updateAllUsernamesToCorrectFormat();
+
+    /**
+     * Check if username is available for registration
+     * 
+     * @param username the username to check
+     * @return true if username is available, false if already exists
+     */
+    boolean isUsernameAvailable(String username);
+
+    /**
+     * Check if email is available for registration
+     * 
+     * @param email the email to check
+     * @return true if email is available, false if already exists
+     */
+    boolean isEmailAvailable(String email);
 }

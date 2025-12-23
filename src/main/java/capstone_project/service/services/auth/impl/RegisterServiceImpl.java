@@ -1467,4 +1467,20 @@ public class RegisterServiceImpl implements RegisterService {
             return generateDecemberDate(index, total, random);
         }
     }
+
+    @Override
+    public boolean isUsernameAvailable(String username) {
+        if (username == null || username.isBlank()) {
+            return false;
+        }
+        return userEntityService.getUserByUserName(username).isEmpty();
+    }
+
+    @Override
+    public boolean isEmailAvailable(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        return userEntityService.getUserByEmail(email).isEmpty();
+    }
 }

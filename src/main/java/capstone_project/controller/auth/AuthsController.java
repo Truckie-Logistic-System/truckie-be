@@ -129,4 +129,16 @@ public class AuthsController {
 
         return ResponseEntity.ok(ApiResponse.ok(refreshTokenResponse));
     }
+
+    @GetMapping("/check-username")
+    public ResponseEntity<ApiResponse<Boolean>> checkUsernameAvailability(@RequestParam String username) {
+        boolean isAvailable = registerService.isUsernameAvailable(username);
+        return ResponseEntity.ok(ApiResponse.ok(isAvailable));
+    }
+
+    @GetMapping("/check-email")
+    public ResponseEntity<ApiResponse<Boolean>> checkEmailAvailability(@RequestParam String email) {
+        boolean isAvailable = registerService.isEmailAvailable(email);
+        return ResponseEntity.ok(ApiResponse.ok(isAvailable));
+    }
 }

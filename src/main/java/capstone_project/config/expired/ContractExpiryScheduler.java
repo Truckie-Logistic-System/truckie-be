@@ -150,7 +150,8 @@ public class ContractExpiryScheduler {
                 return;
             }
 
-            log.info("Found {} contracts with expired full payment deadlines", expiredContracts.size());
+            // Note: Don't log count here - many contracts may be filtered out (e.g., orders in ON_PLANNING)
+            // Only log when actually cancelling individual orders
 
             for (ContractEntity contract : expiredContracts) {
                 try {
@@ -196,7 +197,8 @@ public class ContractExpiryScheduler {
         }
         
         // Skip orders that have already been paid and moved to ON_PLANNING or later stages
-        // This indicates the payment was completed but contract status wasn't updated
+        // ON_PLANNING means deposit was paid and order is waiting for driver assignment
+        // This is normal flow - contract stays in DEPOSITED status until full payment
         String currentStatus = order.getStatus();
         List<String> paidStatuses = List.of(
                 OrderStatusEnum.ON_PLANNING.name(),
@@ -210,8 +212,7 @@ public class ContractExpiryScheduler {
         );
         
         if (paidStatuses.contains(currentStatus)) {
-            log.warn("⚠️ Skipping cancellation for order {} (contract {}). Order is in status {} which indicates payment was completed. Contract status may need manual update.", 
-                    order.getOrderCode(), contract.getId(), currentStatus);
+            // This is normal - deposit was paid, order is progressing. No warning needed.
             return;
         }
 
