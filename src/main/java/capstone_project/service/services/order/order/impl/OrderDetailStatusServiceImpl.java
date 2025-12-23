@@ -653,7 +653,7 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
      * ║  Priority │ Status           │ Condition       │ Reason                   ║
      * ╠═══════════════════════════════════════════════════════════════════════════╣
      * ║  1 (HIGH) │ COMPENSATION     │ ANY             │ Bồi thường đã xử lý      ║
-     * ║  2        │ IN_TROUBLES      │ ANY             │ Có issue cần attention   ║
+     * ║  2        │ IN_TROUBLES      │ ALL             │ TẤT CẢ packages có issue ║
      * ║  3        │ CANCELLED        │ ALL             │ Toàn bộ packages đã hủy  ║
      * ║  4        │ RETURNING        │ ALL active      │ Đang trả toàn bộ hàng    ║
      * ║  5        │ RETURNED         │ ALL active      │ Đã trả toàn bộ hàng      ║
@@ -670,10 +670,10 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
      *    - Highest priority as it indicates financial resolution
      *    - Example: 1 COMPENSATION + 2 DELIVERED → Order COMPENSATION
      * 
-     * 2. IN_TROUBLES (ANY): If ANY package has issue → Order = IN_TROUBLES
-     *    - Signals staff attention needed, blocks order completion
-     *    - Live tracking still works for other trips
-     *    - Example: 1 IN_TROUBLES + 2 DELIVERED → Order IN_TROUBLES
+     * 2. IN_TROUBLES (ALL): Order chỉ IN_TROUBLES khi TẤT CẢ packages đều IN_TROUBLES
+     *    - Nếu chỉ một số packages gặp sự cố, order vẫn tiếp tục với packages còn lại
+     *    - Staff track từng package IN_TROUBLES riêng lẻ qua vehicle assignment
+     *    - Example: 1 IN_TROUBLES + 2 DELIVERED → Order DELIVERED (không phải IN_TROUBLES)
      * 
      * 3. CANCELLED (ALL): Only if ALL packages cancelled → Order = CANCELLED
      *    - Partial cancellation ignored, continue with active packages
@@ -752,13 +752,14 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
         }
         
         // ═══════════════════════════════════════════════════════════════
-        // PRIORITY 2: IN_TROUBLES (Active Problem - ANY)
+        // PRIORITY 2: IN_TROUBLES (Active Problem - ALL)
         // ═══════════════════════════════════════════════════════════════
-        // If ANY package has IN_TROUBLES → Order = IN_TROUBLES
-        // This signals staff attention is needed
-        // Live tracking still works for other trips (order is still "active")
-        if (inTroublesCount > 0) {
-            log.debug("📊 Order status = IN_TROUBLES ({}/{} packages)", inTroublesCount, totalCount);
+        // Order chỉ chuyển sang IN_TROUBLES khi TẤT CẢ packages đều IN_TROUBLES
+        // Logic: Nếu chỉ một số packages gặp sự cố trong chuyến xe, order vẫn tiếp tục
+        // bình thường với các packages còn lại (không bị block toàn bộ order)
+        // Staff có thể track từng package IN_TROUBLES riêng lẻ thông qua vehicle assignment
+        if (inTroublesCount == totalCount && inTroublesCount > 0) {
+            log.debug("📊 Order status = IN_TROUBLES (ALL {}/{} packages)", inTroublesCount, totalCount);
             return OrderDetailStatusEnum.IN_TROUBLES;
         }
         

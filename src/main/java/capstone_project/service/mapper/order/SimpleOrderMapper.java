@@ -343,7 +343,7 @@ public class SimpleOrderMapper {
         SimpleStaffResponse staffResponse = null;
         if (issue.staff() != null) {
             staffResponse = new SimpleStaffResponse(
-                    issue.staff().getId(),
+                    UUID.fromString(issue.staff().getId()),
                     issue.staff().getFullName(),
                     issue.staff().getPhoneNumber()
             );
@@ -523,7 +523,7 @@ public class SimpleOrderMapper {
         if (issue.staff() != null) {
             var s = issue.staff();
             staffResponse = new SimpleStaffResponse(
-                    s.getId(),
+                    UUID.fromString(s.getId()),
                     s.getFullName(),
                     s.getPhoneNumber()
             );

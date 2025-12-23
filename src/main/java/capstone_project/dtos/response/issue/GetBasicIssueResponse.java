@@ -7,7 +7,7 @@ import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.dtos.response.refund.GetRefundResponse;
 import capstone_project.dtos.response.order.JourneySegmentResponse;
 import capstone_project.dtos.response.order.JourneyHistoryResponse;
-import capstone_project.entity.auth.UserEntity;
+import capstone_project.dtos.response.auth.UserResponse;
 import capstone_project.entity.issue.IssueTypeEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import jakarta.validation.constraints.NotBlank;
@@ -28,7 +28,7 @@ public record GetBasicIssueResponse (
         LocalDateTime reportedAt,
         LocalDateTime resolvedAt,
         VehicleAssignmentResponse vehicleAssignmentEntity,
-        UserEntity staff,
+        UserResponse staff,
         GetIssueTypeResponse issueTypeEntity,
         
         // Seal replacement specific fields (nullable for non-seal issues)

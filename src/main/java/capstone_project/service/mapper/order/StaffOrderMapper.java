@@ -826,7 +826,7 @@ public class StaffOrderMapper {
         if (issue.staff() != null) {
             var s = issue.staff();
             staffResponse = new SimpleStaffResponse(
-                    s.getId(),
+                    UUID.fromString(s.getId()),
                     s.getFullName(),
                     s.getPhoneNumber()
             );

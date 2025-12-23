@@ -16,7 +16,8 @@ import java.util.List;
 @Mapper(componentModel = "spring", uses = {
     capstone_project.service.mapper.vehicle.VehicleAssignmentMapper.class,
     capstone_project.service.mapper.order.JourneyHistoryMapper.class,
-    capstone_project.service.mapper.order.SealMapper.class
+    capstone_project.service.mapper.order.SealMapper.class,
+    capstone_project.service.mapper.user.UserMapper.class
 })
 public interface IssueMapper {
     GetIssueTypeResponse toIssueTypeResponse(IssueTypeEntity issueType);
@@ -26,6 +27,7 @@ public interface IssueMapper {
     @Mapping(source = "issueTypeEntity.issueCategory", target = "issueCategory")
     @Mapping(source = "issueTypeEntity", target = "issueTypeEntity")
     @Mapping(source = "vehicleAssignmentEntity", target = "vehicleAssignmentEntity")
+    @Mapping(source = "staff", target = "staff")
     @Mapping(target = "orderDetail", expression = "java(mapOrderDetail(issue))")
     @Mapping(target = "issueImages", expression = "java(mapIssueImages(issue))")
     @Mapping(target = "sender", expression = "java(mapSender(issue))")
