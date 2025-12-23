@@ -141,16 +141,12 @@ public class IssueWebSocketService {
                 var issueData = new java.util.HashMap<String, Object>();
                 issueData.put("id", issueId.toString());
                 if (oldSealCode != null) {
-                    var oldSealData = new java.util.HashMap<String, Object>();
-                    oldSealData.put("sealCode", oldSealCode);
-                    issueData.put("oldSeal", oldSealData);
-                    log.info("   Added oldSeal to notification: {}", oldSealCode);
+                    issueData.put("oldSealCode", oldSealCode);
+                    log.info("   Added oldSealCode to notification: {}", oldSealCode);
                 }
                 if (newSealCode != null) {
-                    var newSealData = new java.util.HashMap<String, Object>();
-                    newSealData.put("sealCode", newSealCode);
-                    issueData.put("newSeal", newSealData);
-                    log.info("   Added newSeal to notification: {}", newSealCode);
+                    issueData.put("newSealCode", newSealCode);
+                    log.info("   Added newSealCode to notification: {}", newSealCode);
                 }
                 notification.put("issue", issueData);
             }
