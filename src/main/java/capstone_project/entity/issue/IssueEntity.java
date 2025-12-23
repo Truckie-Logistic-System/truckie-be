@@ -11,6 +11,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
@@ -21,6 +22,7 @@ import java.util.List;
 @Entity
 @Table(name = "issues", schema = "public", catalog = "capstone-project")
 @Data
+@EqualsAndHashCode(callSuper = false)
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
@@ -45,11 +47,10 @@ public class    IssueEntity extends BaseEntity {
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 
-    // ✅ CRITICAL: Changed from VARCHAR(20) to VARCHAR(500) to support JSON format
+    // ✅ CRITICAL: Changed to TEXT to support large JSON format without size limit
     // Format: {"orderDetailId1":"STATUS1","orderDetailId2":"STATUS2"}
     // This is needed for combined issue reports where different packages have different statuses
-    @Size(max = 500)
-    @Column(name = "trip_status_at_report", length = 500)
+    @Column(name = "trip_status_at_report", columnDefinition = "TEXT")
     private String tripStatusAtReport;
 
     @ManyToOne(fetch = FetchType.LAZY)
