@@ -71,12 +71,12 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
     @Value("${offroute.max-distance-meters:500.0}")
     private double maxDistanceOnRouteMeters;
 
-    // Thời gian cảnh báo lệch tuyến (phút) – cấu hình qua application properties
-    @Value("${offroute.warning.yellow-minutes:5}")
-    private double yellowWarningMinutes;
+    // Thời gian cảnh báo lệch tuyến (giây) – cấu hình qua application properties
+    @Value("${offroute.warning.yellow-seconds:5}")
+    private long yellowWarningSeconds;
 
-    @Value("${offroute.warning.red-minutes:10}")
-    private double redWarningMinutes;
+    @Value("${offroute.warning.red-seconds:10}")
+    private long redWarningSeconds;
 
     // Contact confirmation flow configuration
     @Value("${offroute.contact.grace-period-minutes:20}")
@@ -310,9 +310,9 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
     /**
      * Check warning thresholds and send warnings if needed
      * Simplified flow:
-     * - NONE -> YELLOW after yellowWarningMinutes
-     * - YELLOW -> RED after redWarningMinutes (from start)
-     * - After confirm contact on RED: reset to YELLOW, then RED again after redWarningMinutes from last contact
+     * - NONE -> YELLOW after yellowWarningSeconds
+     * - YELLOW -> RED after redWarningSeconds (from start)
+     * - After confirm contact on RED: reset to YELLOW, then RED again after redWarningSeconds from last contact
      */
     private void checkWarningThresholds(OffRouteEventEntity event) {
         // CRITICAL FIX: Check if event is still active before processing warnings
@@ -323,13 +323,13 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
             return;
         }
         
-        long durationMinutes = event.getOffRouteDurationMinutes();
+        long durationSeconds = event.getOffRouteDurationSeconds();
         OffRouteWarningStatus currentStatus = event.getWarningStatus();
 
         // Calculate time since last contact (if any) for re-sending RED
-        long minutesSinceLastContact = 0;
+        long secondsSinceLastContact = 0;
         if (event.getContactedAt() != null) {
-            minutesSinceLastContact = Duration.between(event.getContactedAt(), LocalDateTime.now()).toMinutes();
+            secondsSinceLastContact = Duration.between(event.getContactedAt(), LocalDateTime.now()).toSeconds();
         }
 
         // Check for RED warning
@@ -340,10 +340,10 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
             
             if (event.getContactedAt() == null) {
                 // Never contacted - use total off-route duration
-                shouldSendRed = durationMinutes >= redWarningMinutes;
+                shouldSendRed = durationSeconds >= redWarningSeconds;
             } else {
                 // Was contacted before - use time since last contact
-                shouldSendRed = minutesSinceLastContact >= redWarningMinutes;
+                shouldSendRed = secondsSinceLastContact >= redWarningSeconds;
             }
             
             if (shouldSendRed) {
@@ -356,7 +356,7 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
             }
         }
         // Check for YELLOW warning (only from NONE status)
-        else if (durationMinutes >= yellowWarningMinutes && currentStatus == OffRouteWarningStatus.NONE) {
+        else if (durationSeconds >= yellowWarningSeconds && currentStatus == OffRouteWarningStatus.NONE) {
             event.setWarningStatus(OffRouteWarningStatus.YELLOW_SENT);
             event.setYellowWarningSentAt(LocalDateTime.now());
             offRouteEventEntityService.save(event);
@@ -391,7 +391,7 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
                 .offRouteEventId(event.getId())
                 .vehicleAssignmentId(assignment.getId())
                 .orderId(order.getId())
-                .offRouteDurationMinutes(event.getOffRouteDurationMinutes())
+                .offRouteDurationSeconds(event.getOffRouteDurationSeconds())
                 .lastKnownLocation(OffRouteWarningPayload.LocationInfo.builder()
                     .lat(event.getLastKnownLat())
                     .lng(event.getLastKnownLng())
@@ -658,7 +658,7 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
             "• Tài xế: %s\n" +
             "• Biển số xe: %s\n" +
             "• Mã đơn hàng: %s\n" +
-            "• Thời gian lệch tuyến: %d phút\n" +
+            "• Thời gian lệch tuyến: %d giây\n" +
             "• Khoảng cách lệch khỏi tuyến: %.0f mét\n" +
             "• Số lần đã liên hệ: %d lần\n\n" +
             "⚠️ Nhân viên đã xác nhận liên hệ nhưng tài xế vẫn tiếp tục lệch tuyến.\n" +
@@ -666,7 +666,7 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
             driverName,
             vehiclePlate,
             orderCode,
-            event.getOffRouteDurationMinutes(),
+            event.getOffRouteDurationSeconds(),
             event.getDistanceFromRouteMeters() != null ? event.getDistanceFromRouteMeters() : 0.0,
             event.getContactedAt() != null ? 1 : 0
         );
@@ -929,7 +929,7 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
         return OffRouteEventDetailResponse.builder()
             .id(event.getId())
             .warningStatus(event.getWarningStatus().name())
-            .offRouteDurationMinutes(event.getOffRouteDurationMinutes())
+            .offRouteDurationSeconds(event.getOffRouteDurationSeconds())
             .offRouteStartTime(event.getOffRouteStartTime())
             .canContactDriver(event.getCanContactDriver())
             .contactNotes(event.getContactNotes())

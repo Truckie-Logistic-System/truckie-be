@@ -3208,7 +3208,7 @@ public class IssueServiceImpl implements IssueService {
             eventInfo = capstone_project.dtos.response.issue.OffRouteRunawayDetailResponse.OffRouteEventInfo.builder()
                     .eventId(event.getId())
                     .detectedAt(event.getOffRouteStartTime())
-                    .offRouteDurationMinutes(event.getOffRouteDurationMinutes())
+                    .offRouteDurationSeconds(event.getOffRouteDurationSeconds())
                     .distanceFromRouteMeters(event.getDistanceFromRouteMeters() != null ? java.math.BigDecimal.valueOf(event.getDistanceFromRouteMeters()) : null)
                     .warningStatus(event.getWarningStatus() != null ? event.getWarningStatus().name() : null)
                     .canContactDriver(event.getCanContactDriver())

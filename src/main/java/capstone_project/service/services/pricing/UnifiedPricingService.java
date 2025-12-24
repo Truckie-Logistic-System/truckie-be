@@ -69,17 +69,21 @@ public class UnifiedPricingService {
                     .map(TierCalculationResult::getSubtotal)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            // 3. Apply category adjustment to ONE vehicle price (CRITICAL: before multiplying by vehicles)
-            BigDecimal adjustedPriceForOneVehicle = applyCategoryAdjustment(basePriceForOneVehicle, categoryId);
+            // 3. Multiply by number of vehicles FIRST
+            BigDecimal totalBasePriceAllVehicles = basePriceForOneVehicle.multiply(BigDecimal.valueOf(numberOfVehicles));
 
-            // 4. Multiply by number of vehicles
-            BigDecimal totalPrice = adjustedPriceForOneVehicle.multiply(BigDecimal.valueOf(numberOfVehicles));
+            // 4. Apply category adjustment to TOTAL (multiplier × total + extraFee once)
+            // CRITICAL: extraFee is added ONCE for the entire order, not per vehicle
+            BigDecimal adjustedTotal = applyCategoryAdjustmentToTotal(totalBasePriceAllVehicles, categoryId);
+            
+            // Store adjusted price for one vehicle (for display purposes only)
+            BigDecimal adjustedPriceForOneVehicle = basePriceForOneVehicle.multiply(getCategoryMultiplier(categoryId));
 
             // 5. Round to nearest 1000 VND (matches AI chatbot)
-            totalPrice = roundToNearestThousand(totalPrice);
+            BigDecimal totalPrice = roundToNearestThousand(adjustedTotal);
 
-            log.info("✅ Unified pricing result: {} VND (base: {}, adjusted: {}, vehicles: {})", 
-                    totalPrice, basePriceForOneVehicle, adjustedPriceForOneVehicle, numberOfVehicles);
+            log.info("✅ Unified pricing result: {} VND (basePerVehicle: {}, totalBase: {}, adjusted: {}, vehicles: {})", 
+                    totalPrice, basePriceForOneVehicle, totalBasePriceAllVehicles, adjustedTotal, numberOfVehicles);
 
             return UnifiedPriceResult.success(totalPrice, basePriceForOneVehicle, adjustedPriceForOneVehicle, tierResults);
 
@@ -142,7 +146,7 @@ public class UnifiedPricingService {
     }
 
     /**
-     * Apply category adjustment (multiplier + extra fee)
+     * Apply category adjustment (multiplier + extra fee) - DEPRECATED, use applyCategoryAdjustmentToTotal
      */
     private BigDecimal applyCategoryAdjustment(BigDecimal basePrice, UUID categoryId) {
         if (categoryId == null) {
@@ -174,6 +178,59 @@ public class UnifiedPricingService {
                 category.getCategoryName().name(), basePrice, multiplier, extraFee, adjustedPrice);
 
         return adjustedPrice;
+    }
+
+    /**
+     * Apply category adjustment to TOTAL price (multiplier × total + extraFee once)
+     * IMPORTANT: extraFee is applied ONCE per order, not per vehicle
+     */
+    private BigDecimal applyCategoryAdjustmentToTotal(BigDecimal totalBasePrice, UUID categoryId) {
+        if (categoryId == null) {
+            return totalBasePrice;
+        }
+
+        CategoryEntity category = categoryEntityService.findEntityById(categoryId).orElse(null);
+        if (category == null) {
+            log.warn("⚠️ Category not found: {}", categoryId);
+            return totalBasePrice;
+        }
+
+        CategoryPricingDetailEntity pricingDetail = categoryPricingDetailService.findByCategoryId(categoryId);
+        if (pricingDetail == null) {
+            log.warn("⚠️ No pricing detail for category: {}", category.getCategoryName().name());
+            return totalBasePrice;
+        }
+
+        BigDecimal multiplier = pricingDetail.getPriceMultiplier() != null 
+                ? pricingDetail.getPriceMultiplier() 
+                : BigDecimal.ONE;
+        BigDecimal extraFee = pricingDetail.getExtraFee() != null 
+                ? pricingDetail.getExtraFee() 
+                : BigDecimal.ZERO;
+
+        // CORRECT: (totalBasePrice × multiplier) + extraFee (extraFee only once)
+        BigDecimal adjustedPrice = totalBasePrice.multiply(multiplier).add(extraFee);
+
+        log.debug("🏷️ Category adjustment to TOTAL for {}: {} × {} + {} = {} VND", 
+                category.getCategoryName().name(), totalBasePrice, multiplier, extraFee, adjustedPrice);
+
+        return adjustedPrice;
+    }
+
+    /**
+     * Get category multiplier only (for display purposes)
+     */
+    private BigDecimal getCategoryMultiplier(UUID categoryId) {
+        if (categoryId == null) {
+            return BigDecimal.ONE;
+        }
+
+        CategoryPricingDetailEntity pricingDetail = categoryPricingDetailService.findByCategoryId(categoryId);
+        if (pricingDetail == null || pricingDetail.getPriceMultiplier() == null) {
+            return BigDecimal.ONE;
+        }
+
+        return pricingDetail.getPriceMultiplier();
     }
 
     /**

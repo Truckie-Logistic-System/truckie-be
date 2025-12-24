@@ -1755,9 +1755,44 @@ public class ContractServiceImpl implements ContractService {
             contract.setDescription(request.description());
             contract.setCustomDepositPercent(request.customDepositPercent());
             
-            // Calculate total price for the contract
-            PriceCalculationResponse totalPriceResponse = calculateTotalPrice(contract, distanceKm, vehicleCountMap);
-            BigDecimal grandTotal = totalPriceResponse.getGrandTotal();
+            // Create and save payment breakdown snapshot
+            // Priority: Use priceDetailsSnapshot from request (from frontend preview) if available
+            // This ensures the exported contract has the EXACT same data as shown in preview
+            String snapshotJson;
+            BigDecimal grandTotal;
+            
+            if (request.priceDetailsSnapshot() != null && !request.priceDetailsSnapshot().isBlank()) {
+                // Use snapshot from frontend preview - ensures consistency with what user saw
+                snapshotJson = request.priceDetailsSnapshot();
+                
+                // Extract grandTotal from snapshot to set on contract.totalValue
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    com.fasterxml.jackson.databind.JsonNode snapshotNode = objectMapper.readTree(snapshotJson);
+                    grandTotal = snapshotNode.has("grandTotal") 
+                        ? new BigDecimal(snapshotNode.get("grandTotal").asText())
+                        : calculateTotalPrice(contract, distanceKm, vehicleCountMap).getGrandTotal();
+                } catch (Exception e) {
+                    log.warn("⚠️ Failed to parse grandTotal from snapshot, falling back to calculation: {}", e.getMessage());
+                    grandTotal = calculateTotalPrice(contract, distanceKm, vehicleCountMap).getGrandTotal();
+                }
+                
+                log.info("✅ Using payment breakdown snapshot from frontend preview for contract: {}", request.contractId());
+            } else {
+                // Fallback: Calculate snapshot on backend (for backward compatibility)
+                PriceCalculationResponse totalPriceResponse = calculateTotalPrice(contract, distanceKm, vehicleCountMap);
+                grandTotal = totalPriceResponse.getGrandTotal();
+                snapshotJson = createPaymentBreakdownSnapshot(
+                        contract,
+                        order,
+                        assignResult,
+                        distanceKm,
+                        totalPriceResponse
+                );
+                log.info("✅ Payment breakdown snapshot created on backend for contract PDF generation: {}", request.contractId());
+            }
+            
+            // Set totalValue from calculated grandTotal
             contract.setTotalValue(grandTotal);
             
             // Set contract deadlines properly
@@ -1768,17 +1803,8 @@ public class ContractServiceImpl implements ContractService {
             UserEntity staffUser = new UserEntity();
             staffUser.setId(staffUserId);
             contract.setStaff(staffUser);
-
-            // Create and save payment breakdown snapshot
-            String snapshotJson = createPaymentBreakdownSnapshot(
-                    contract,
-                    order,
-                    assignResult,
-                    distanceKm,
-                    totalPriceResponse
-            );
+            
             contract.setPaymentBreakdownSnapshot(snapshotJson);
-            log.info("✅ Payment breakdown snapshot created for contract PDF generation: {}", request.contractId());
 
             ContractEntity updated = contractEntityService.save(contract);
 

@@ -67,7 +67,7 @@ public class OffRouteRunawayDetailResponse {
     public static class OffRouteEventInfo {
         private UUID eventId;
         private LocalDateTime detectedAt;
-        private Long offRouteDurationMinutes;
+        private Long offRouteDurationSeconds;
         private BigDecimal distanceFromRouteMeters;
         private String warningStatus;
         private Boolean canContactDriver;

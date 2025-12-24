@@ -30,6 +30,8 @@ public record GenerateContractPdfRequest(
         String description,
         // Custom deposit percentage (1-100). Null means use global setting from contract_settings
         @Min(value = 1, message = "Custom deposit percent must be at least 1%")
-        BigDecimal customDepositPercent
+        BigDecimal customDepositPercent,
+        // Price details snapshot JSON from frontend preview - to ensure consistency
+        String priceDetailsSnapshot
 ) {
 }

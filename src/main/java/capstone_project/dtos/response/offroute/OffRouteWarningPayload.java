@@ -23,7 +23,7 @@ public class OffRouteWarningPayload {
     private UUID offRouteEventId;
     private UUID vehicleAssignmentId;
     private UUID orderId;
-    private long offRouteDurationMinutes;
+    private long offRouteDurationSeconds;
     private LocationInfo lastKnownLocation;
     
     // Driver info

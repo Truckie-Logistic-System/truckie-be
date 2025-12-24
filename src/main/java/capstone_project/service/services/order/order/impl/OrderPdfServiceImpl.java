@@ -162,10 +162,12 @@ public class OrderPdfServiceImpl implements OrderPdfService {
                         Collectors.summingInt(a -> 1)
                 ));
 
+        // Calculate LIVE data for preview - ALWAYS calculate fresh data
+        // When exporting, the frontend sends the preview snapshot to ensure consistency
         BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
-
-        PriceCalculationResponse result =
-                contractService.calculateTotalPrice(contract, distanceKm, vehicleCountMap);
+        PriceCalculationResponse result = contractService.calculateTotalPrice(contract, distanceKm, vehicleCountMap);
+        
+        log.info("🔄 Calculating LIVE data for contract preview: {}", contractId);
 
         FullContractPDFResponse response = FullContractPDFResponse.builder()
                 .contractId(contractId.toString())

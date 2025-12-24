@@ -107,13 +107,13 @@ public class OffRouteEventEntity extends BaseEntity {
     private LocalDateTime gracePeriodExpiresAt;
 
     /**
-     * Calculate duration in minutes since off-route started
+     * Calculate duration in seconds since off-route started
      */
-    public long getOffRouteDurationMinutes() {
+    public long getOffRouteDurationSeconds() {
         if (offRouteStartTime == null) {
             return 0;
         }
-        return java.time.Duration.between(offRouteStartTime, LocalDateTime.now()).toMinutes();
+        return java.time.Duration.between(offRouteStartTime, LocalDateTime.now()).toSeconds();
     }
 
     /**

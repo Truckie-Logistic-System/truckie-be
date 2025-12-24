@@ -148,6 +148,111 @@ public class PdfGenerationService {
             }
             context.setVariable("vehicleTotals", vehicleTotals);
             
+            // NEW: Calculate individual vehicles for display
+            // Each vehicle type may have multiple vehicles, each with the same price tiers
+            // Steps = numVehicles * numUniqueTiers, so numUniqueTiers = steps.size / numVehicles
+            List<Map<String, Object>> individualVehicles = new java.util.ArrayList<>();
+            List<BigDecimal> vehicleCostsList = new java.util.ArrayList<>();
+            int globalVehicleIndex = 0;
+            
+            for (Map.Entry<String, List<CalculationStep>> entry : groupedSteps.entrySet()) {
+                String sizeRuleName = entry.getKey();
+                List<CalculationStep> steps = entry.getValue();
+                
+                // Find unique price tiers (by distanceRange + unitPrice)
+                Map<String, CalculationStep> uniqueTiers = new java.util.LinkedHashMap<>();
+                for (CalculationStep step : steps) {
+                    String tierKey = step.getDistanceRange() + "_" + step.getUnitPrice();
+                    if (!uniqueTiers.containsKey(tierKey)) {
+                        uniqueTiers.put(tierKey, step);
+                    }
+                }
+                
+                int numUniqueTiers = uniqueTiers.size();
+                int numVehicles = steps.size() / numUniqueTiers;
+                
+                List<CalculationStep> tiersPerVehicle = new java.util.ArrayList<>(uniqueTiers.values());
+                BigDecimal costPerVehicle = tiersPerVehicle.stream()
+                        .map(CalculationStep::getSubtotal)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+                for (int i = 0; i < numVehicles; i++) {
+                    globalVehicleIndex++;
+                    Map<String, Object> vehicleInfo = new HashMap<>();
+                    vehicleInfo.put("vehicleIndex", globalVehicleIndex);
+                    vehicleInfo.put("sizeRuleName", sizeRuleName);
+                    vehicleInfo.put("tiers", tiersPerVehicle);
+                    vehicleInfo.put("costPerVehicle", costPerVehicle);
+                    individualVehicles.add(vehicleInfo);
+                    vehicleCostsList.add(costPerVehicle);
+                }
+            }
+            context.setVariable("individualVehicles", individualVehicles);
+            context.setVariable("vehicleCostsList", vehicleCostsList);
+            
+            // NEW: Create data for table display - unique tiers per vehicle type with correct vehicle count
+            List<Map<String, Object>> tableVehicleTypes = new java.util.ArrayList<>();
+            for (Map.Entry<String, List<CalculationStep>> entry : groupedSteps.entrySet()) {
+                String sizeRuleName = entry.getKey();
+                List<CalculationStep> steps = entry.getValue();
+                
+                // Find unique price tiers (by distanceRange + unitPrice)
+                Map<String, CalculationStep> uniqueTiers = new java.util.LinkedHashMap<>();
+                for (CalculationStep step : steps) {
+                    String tierKey = step.getDistanceRange() + "_" + step.getUnitPrice();
+                    if (!uniqueTiers.containsKey(tierKey)) {
+                        uniqueTiers.put(tierKey, step);
+                    }
+                }
+                
+                int numUniqueTiers = uniqueTiers.size();
+                int numVehicles = steps.size() / numUniqueTiers;
+                List<CalculationStep> tiersPerVehicle = new java.util.ArrayList<>(uniqueTiers.values());
+                
+                Map<String, Object> vehicleType = new HashMap<>();
+                vehicleType.put("sizeRuleName", sizeRuleName);
+                vehicleType.put("numVehicles", numVehicles);
+                vehicleType.put("tiers", tiersPerVehicle);
+                tableVehicleTypes.add(vehicleType);
+            }
+            context.setVariable("tableVehicleTypes", tableVehicleTypes);
+            
+            // Calculate actual distance (unique tiers only, not multiplied by vehicles)
+            BigDecimal actualDistance = BigDecimal.ZERO;
+            if (!groupedSteps.isEmpty()) {
+                List<CalculationStep> firstGroupSteps = groupedSteps.values().iterator().next();
+                Map<String, CalculationStep> uniqueTiersForDistance = new java.util.LinkedHashMap<>();
+                for (CalculationStep step : firstGroupSteps) {
+                    String tierKey = step.getDistanceRange() + "_" + step.getUnitPrice();
+                    if (!uniqueTiersForDistance.containsKey(tierKey)) {
+                        uniqueTiersForDistance.put(tierKey, step);
+                    }
+                }
+                actualDistance = uniqueTiersForDistance.values().stream()
+                        .map(CalculationStep::getAppliedKm)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+            }
+            context.setVariable("actualDistance", actualDistance);
+            
+            // Calculate transport total (A) from formula: baseTotal * categoryMultiplier + categoryExtraFee
+            // Note: We don't have promotionDiscount - adjustedValue is the final price if set
+            BigDecimal baseTotal = result.getSteps().stream()
+                    .map(CalculationStep::getSubtotal)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal afterMultiplier = baseTotal.multiply(result.getCategoryMultiplier() != null ? result.getCategoryMultiplier() : BigDecimal.ONE);
+            BigDecimal transportTotal = afterMultiplier.add(result.getCategoryExtraFee() != null ? result.getCategoryExtraFee() : BigDecimal.ZERO);
+            context.setVariable("transportTotal", transportTotal);
+            
+            // Calculate insurance total (B)
+            BigDecimal insuranceTotal = (result.getHasInsurance() != null && result.getHasInsurance()) 
+                    ? (result.getInsuranceFee() != null ? result.getInsuranceFee() : BigDecimal.ZERO) 
+                    : BigDecimal.ZERO;
+            context.setVariable("insuranceTotal", insuranceTotal);
+            
+            // Calculate grand total from formula (A + B)
+            BigDecimal calculatedGrandTotal = transportTotal.add(insuranceTotal);
+            context.setVariable("calculatedGrandTotal", calculatedGrandTotal);
+            
 //            context.setVariable("summary", result.getSummary());
             context.setVariable("distanceKm", distanceKm);
 

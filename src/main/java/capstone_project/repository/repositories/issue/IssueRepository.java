@@ -53,6 +53,7 @@ public interface IssueRepository extends BaseRepository<IssueEntity> {
             "LEFT JOIN FETCH va.driver2 " +
             "LEFT JOIN FETCH i.affectedSegment " +
             "LEFT JOIN FETCH i.reroutedJourney " +
+            "LEFT JOIN FETCH i.issueImages " +
             "WHERE i.id = :id")
     Optional<IssueEntity> findByIdWithVehicle(@Param("id") UUID id);
     

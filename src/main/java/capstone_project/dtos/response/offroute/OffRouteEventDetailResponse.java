@@ -21,7 +21,7 @@ import java.util.UUID;
 public class OffRouteEventDetailResponse {
     private UUID id;
     private String warningStatus;
-    private long offRouteDurationMinutes;
+    private long offRouteDurationSeconds;
     private LocalDateTime offRouteStartTime;
     private Boolean canContactDriver;
     private String contactNotes;

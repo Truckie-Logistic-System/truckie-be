@@ -66,7 +66,7 @@ public class IssueEntityServiceImpl implements IssueEntityService {
 
     @Override
     public Optional<IssueEntity> findByIdWithDetails(UUID id) {
-        // Fetch with vehicle and drivers first
+        // Fetch with vehicle, drivers, and issueImages in one query
         Optional<IssueEntity> issueOpt = issueRepository.findByIdWithVehicle(id);
         if (issueOpt.isEmpty()) {
             return Optional.empty();
@@ -84,11 +84,8 @@ public class IssueEntityServiceImpl implements IssueEntityService {
         // ✅ Fetch reroutedJourney for REROUTE issues (includes journey segments)
         Optional<IssueEntity> rerouteJourneyOpt = issueRepository.findByIdWithReroutedJourney(id);
         
-        // ✅ Fetch issue images for PENALTY and DAMAGE issues
-        Optional<IssueEntity> issueImagesOpt = issueRepository.findByIdWithIssueImages(id);
-        
-        // Return the issue - all related entities are now loaded in Hibernate session
-        // The original issueOpt will have access to all fetched entities through session cache
+        // Return the issue - issueImages is now loaded in the main query (findByIdWithVehicle)
+        // Other related entities are loaded in Hibernate session cache and will be accessible
         return issueOpt;
     }
     

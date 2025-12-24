@@ -6,10 +6,12 @@ import capstone_project.dtos.request.auth.RegisterUserRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.user.DriverCreatedResponse;
 import capstone_project.dtos.response.user.DriverResponse;
+import capstone_project.dtos.response.user.DuplicateUserCleanupResponse;
 import capstone_project.dtos.response.auth.UserResponse;
 import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.service.services.auth.RegisterService;
 import capstone_project.service.services.driver.DriverOnboardingService;
+import capstone_project.service.services.user.UserCleanupService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,7 @@ public class AccountsManagerController {
 
     private final RegisterService registerService;
     private final DriverOnboardingService driverOnboardingService;
+    private final UserCleanupService userCleanupService;
 
     /**
      * Register response entity.
@@ -75,5 +78,28 @@ public class AccountsManagerController {
     public ResponseEntity<ApiResponse<DriverResponse>> registerDriver(@RequestBody @Valid RegisterDriverRequest registerDriverRequest) {
         final var register = registerService.registerDriver(registerDriverRequest);
         return ResponseEntity.ok(ApiResponse.ok(register));
+    }
+
+    /**
+     * Cleanup duplicate users - find and remove users with the same username.
+     * For each duplicate group, keeps the oldest (first created) user and deletes the rest.
+     * Also deletes associated customer and driver records.
+     * 
+     * @param dryRun if true, only report what would be deleted without actually deleting (default: true for safety)
+     * @return Response containing details about deleted users
+     */
+    @DeleteMapping("/users/cleanup-duplicates")
+    public ResponseEntity<ApiResponse<DuplicateUserCleanupResponse>> cleanupDuplicateUsers(
+            @RequestParam(defaultValue = "true") boolean dryRun) {
+        log.info("[cleanupDuplicateUsers] Starting duplicate user cleanup. DryRun: {}", dryRun);
+        
+        DuplicateUserCleanupResponse response = userCleanupService.cleanupDuplicateUsers(dryRun);
+        
+        log.info("[cleanupDuplicateUsers] Completed. Found {} duplicate groups, {} users {}", 
+                response.getTotalDuplicateGroupsFound(), 
+                response.getTotalUsersDeleted(),
+                dryRun ? "would be deleted" : "deleted");
+        
+        return ResponseEntity.ok(ApiResponse.ok(response));
     }
 }
