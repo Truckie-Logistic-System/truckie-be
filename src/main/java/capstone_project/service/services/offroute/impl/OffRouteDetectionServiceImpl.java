@@ -73,10 +73,10 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
 
     // Thời gian cảnh báo lệch tuyến (phút) – cấu hình qua application properties
     @Value("${offroute.warning.yellow-minutes:5}")
-    private int yellowWarningMinutes;
+    private double yellowWarningMinutes;
 
     @Value("${offroute.warning.red-minutes:10}")
-    private int redWarningMinutes;
+    private double redWarningMinutes;
 
     // Contact confirmation flow configuration
     @Value("${offroute.contact.grace-period-minutes:20}")

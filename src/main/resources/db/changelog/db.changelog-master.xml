@@ -76,4 +76,7 @@
     <!-- STEP 20: Sync database schema with entity code -->
     <include file="db/migration/V20251213_8__Sync_Database_With_Entity_Code.sql"/>
 
+    <!-- STEP 21: Add payment breakdown snapshot to contracts for historical accuracy -->
+    <include file="db/changelog/changes/add-payment-breakdown-snapshot-to-contracts.xml"/>
+
 </databaseChangeLog>

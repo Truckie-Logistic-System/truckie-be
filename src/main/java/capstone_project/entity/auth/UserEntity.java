@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
@@ -16,6 +17,7 @@ import java.util.List;
 @Entity
 @Table(name = "users", schema = "public", catalog = "capstone-project")
 @Data
+@ToString(exclude = {"refreshTokens"})
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor

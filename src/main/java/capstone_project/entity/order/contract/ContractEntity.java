@@ -9,6 +9,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -49,6 +51,13 @@ public class ContractEntity extends BaseEntity {
     // NULL means use global setting, otherwise use this value (0-100)
     @Column(name = "custom_deposit_percent", precision = 5, scale = 2)
     private BigDecimal customDepositPercent;
+
+    // Payment breakdown snapshot - stores all pricing details at contract creation time
+    // This ensures historical accuracy even if system rates/settings change later
+    // Includes: vehicles, prices, distances, multipliers, surcharges, insurance rates, etc.
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payment_breakdown_snapshot", columnDefinition = "jsonb")
+    private String paymentBreakdownSnapshot;
 
     @Column(name = "attach_file_url", length = Integer.MAX_VALUE)
     private String attachFileUrl;

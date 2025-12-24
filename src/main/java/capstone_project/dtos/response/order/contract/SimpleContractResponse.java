@@ -13,5 +13,6 @@ public record SimpleContractResponse(
     String description,
     String attachFileUrl,
     String status,
-    String staffName
+    String staffName,
+    String paymentBreakdownSnapshot  // JSON string containing PaymentBreakdownSnapshot
 ) {}

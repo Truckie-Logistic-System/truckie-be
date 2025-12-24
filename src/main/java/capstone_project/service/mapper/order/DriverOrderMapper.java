@@ -318,7 +318,8 @@ public class DriverOrderMapper {
                 contract.description(),
                 contract.attachFileUrl(),
                 contract.status(),
-                staffName
+                staffName,
+                null  // Driver doesn't need snapshot
         );
     }
 

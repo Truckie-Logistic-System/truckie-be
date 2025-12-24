@@ -687,7 +687,8 @@ public class StaffOrderMapper {
                 contract.description(),
                 contract.attachFileUrl(),
                 contract.status(),
-                staffName
+                staffName,
+                contract.paymentBreakdownSnapshot()  // Add snapshot
         );
     }
 

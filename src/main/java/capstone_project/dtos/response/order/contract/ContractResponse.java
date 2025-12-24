@@ -14,6 +14,7 @@ public record ContractResponse (
     String attachFileUrl,
     String status,
     String orderId,
-    String staffId
+    String staffId,
+    String paymentBreakdownSnapshot  // JSON string containing PaymentBreakdownSnapshot
 ) {
 }

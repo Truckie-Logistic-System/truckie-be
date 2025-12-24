@@ -12,6 +12,7 @@ import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
 import capstone_project.dtos.request.order.contract.GenerateContractPdfRequest;
 import capstone_project.dtos.response.order.contract.*;
+import capstone_project.dtos.response.setting.ContractSettingResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.order.contract.ContractEntity;
@@ -57,6 +58,7 @@ import capstone_project.service.services.pricing.InsuranceCalculationService;
 import capstone_project.service.services.notification.NotificationService;
 import capstone_project.service.services.notification.NotificationBuilder;
 import capstone_project.dtos.request.notification.CreateNotificationRequest;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -724,26 +726,26 @@ public class ContractServiceImpl implements ContractService {
     @Override
     @Transactional(readOnly = true)
     public BothOptimalAndRealisticAssignVehiclesResponse getBothOptimalAndRealisticAssignVehiclesResponse(UUID orderId) {
-        log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] START for orderId={}", orderId);
+        // log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] START for orderId={}", orderId);
         
         List<ContractRuleAssignResponse> optimal = null;
         List<ContractRuleAssignResponse> realistic = null;
 
         try {
-            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] Calling assignVehiclesOptimal...");
+            // log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] Calling assignVehiclesOptimal...");
             optimal = assignVehiclesOptimal(orderId);
-            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] assignVehiclesOptimal completed, result size: {}", 
-                    optimal != null ? optimal.size() : "null");
+            // log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] assignVehiclesOptimal completed, result size: {}", 
+            //         optimal != null ? optimal.size() : "null");
         } catch (Exception e) {
-            log.error("[getBothOptimalAndRealisticAssignVehiclesResponse] Optimal assignment failed for orderId={}", orderId, e);
+            // log.error("[getBothOptimalAndRealisticAssignVehiclesResponse] Optimal assignment failed for orderId={}", orderId, e);
             throw e; // Re-throw to return proper error response
         }
 
         try {
-            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] Calling assignVehiclesWithAvailability...");
+            // log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] Calling assignVehiclesWithAvailability...");
             realistic = assignVehiclesWithAvailability(orderId);
-            log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] assignVehiclesWithAvailability completed, result size: {}", 
-                    realistic != null ? realistic.size() : "null");
+            // log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] assignVehiclesWithAvailability completed, result size: {}", 
+            //         realistic != null ? realistic.size() : "null");
         } catch (Exception e) {
             log.error("[getBothOptimalAndRealisticAssignVehiclesResponse] Realistic assignment failed for orderId={}", orderId, e);
             throw e; // Re-throw to return proper error response
@@ -757,7 +759,7 @@ public class ContractServiceImpl implements ContractService {
             );
         }
 
-        log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] SUCCESS for orderId={}", orderId);
+        // log.info("[getBothOptimalAndRealisticAssignVehiclesResponse] SUCCESS for orderId={}", orderId);
         return new BothOptimalAndRealisticAssignVehiclesResponse(optimal, realistic);
     }
 
@@ -794,7 +796,7 @@ public class ContractServiceImpl implements ContractService {
     @Override
     @Transactional(readOnly = true)
     public List<ContractRuleAssignResponse> assignVehiclesWithAvailability(UUID orderId) {
-        log.info("[assignVehiclesWithAvailability] START for orderId={}", orderId);
+        // log.info("[assignVehiclesWithAvailability] START for orderId={}", orderId);
         List<ContractRuleAssignResponse> optimal = assignVehiclesOptimal(orderId);
 
         OrderEntity orderEntity = orderEntityService.findEntityById(orderId)
@@ -1281,16 +1283,19 @@ public class ContractServiceImpl implements ContractService {
             BigDecimal vehicleTotal = pricingResult.getTotalPrice();
             total = total.add(vehicleTotal);
 
-            // Build calculation steps for each distance tier
-            for (UnifiedPricingService.TierCalculationResult tierResult : pricingResult.getTierResults()) {
-                steps.add(PriceCalculationResponse.CalculationStep.builder()
-                        .sizeRuleName(sizeRule.getSizeRuleName())
-                        .numOfVehicles(numOfVehicles)
-                        .distanceRange(tierResult.getDistanceRange())
-                        .unitPrice(tierResult.getUnitPrice())
-                        .appliedKm(tierResult.getAppliedKm())
-                        .subtotal(tierResult.getSubtotal().multiply(BigDecimal.valueOf(numOfVehicles)))
-                        .build());
+            // Build calculation steps for EACH VEHICLE separately (not grouped)
+            // This allows frontend to display "Xe 1", "Xe 2" individually
+            for (int vehicleIndex = 0; vehicleIndex < numOfVehicles; vehicleIndex++) {
+                for (UnifiedPricingService.TierCalculationResult tierResult : pricingResult.getTierResults()) {
+                    steps.add(PriceCalculationResponse.CalculationStep.builder()
+                            .sizeRuleName(sizeRule.getSizeRuleName())
+                            .numOfVehicles(1)  // Each step represents 1 vehicle
+                            .distanceRange(tierResult.getDistanceRange())
+                            .unitPrice(tierResult.getUnitPrice())
+                            .appliedKm(tierResult.getAppliedKm())
+                            .subtotal(tierResult.getSubtotal())  // Price for 1 vehicle only
+                            .build());
+                }
             }
 
             log.info("✅ Vehicle {} ({}x): {} VND with {} tiers", 
@@ -1426,11 +1431,129 @@ public class ContractServiceImpl implements ContractService {
         return vietMapDistanceService.calculateDistance(from, to, vehicleType);
     }
 
+    /**
+     * Create payment breakdown snapshot JSON for contract
+     * Captures all pricing details at the moment of contract creation/confirmation
+     */
+    private String createPaymentBreakdownSnapshot(
+            ContractEntity contract,
+            OrderEntity order,
+            List<ContractRuleAssignResponse> assignResult,
+            BigDecimal distanceKm,
+            PriceCalculationResponse priceCalc) throws Exception {
+        
+        log.info("📸 Creating payment breakdown snapshot for contract: {}", contract.getId());
+        
+        Map<UUID, Integer> vehicleCountMap = assignResult.stream()
+                .collect(Collectors.groupingBy(
+                        ContractRuleAssignResponse::getSizeRuleId,
+                        Collectors.summingInt(a -> 1)
+                ));
+
+        // Get deposit percentage and VAT rate from global settings
+        ContractSettingResponse latestSetting = contractSettingService.getLatestContractSetting();
+        BigDecimal depositPercent = latestSetting != null && latestSetting.depositPercent() != null
+                ? latestSetting.depositPercent()
+                : BigDecimal.valueOf(30); // Default 30%
+        
+        BigDecimal vatRate = latestSetting != null && latestSetting.vatRate() != null
+                ? latestSetting.vatRate()
+                : BigDecimal.valueOf(0.10); // Default 10%
+
+        // Calculate effective total FIRST (adjusted value takes priority)
+        BigDecimal effectiveTotal = contract.getAdjustedValue() != null 
+                ? contract.getAdjustedValue() 
+                : priceCalc.getGrandTotal();
+        
+        // Calculate deposit amount based on effective total (not grandTotal)
+        BigDecimal depositAmount = effectiveTotal
+                .multiply(depositPercent)
+                .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+        
+        BigDecimal remainingAmount = effectiveTotal.subtract(depositAmount);
+
+        // Build vehicle assignments for snapshot
+        List<PaymentBreakdownSnapshot.VehicleAssignment> vehicleAssignments = assignResult.stream()
+                .map(assign -> {
+                    SizeRuleEntity sizeRule = sizeRuleEntityService.findEntityById(assign.getSizeRuleId())
+                            .orElse(null);
+                    
+                    String vehicleTypeName = "";
+                    if (sizeRule != null && sizeRule.getVehicleTypeEntity() != null) {
+                        vehicleTypeName = sizeRule.getVehicleTypeEntity().getVehicleTypeName();
+                    }
+
+                    return PaymentBreakdownSnapshot.VehicleAssignment.builder()
+                            .vehicleId(null)
+                            .vehicleTypeName(vehicleTypeName)
+                            .licensePlate(null)
+                            .sizeRuleName(assign.getSizeRuleName())
+                            .pricePerKm(BigDecimal.ZERO)
+                            .quantity(1)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        // Convert calculation steps to snapshot format
+        List<PaymentBreakdownSnapshot.CalculationStep> snapshotSteps = priceCalc.getSteps().stream()
+                .map(step -> PaymentBreakdownSnapshot.CalculationStep.builder()
+                        .sizeRuleName(step.getSizeRuleName())
+                        .numOfVehicles(step.getNumOfVehicles())
+                        .distanceRange(step.getDistanceRange())
+                        .unitPrice(step.getUnitPrice())
+                        .appliedKm(step.getAppliedKm())
+                        .subtotal(step.getSubtotal())
+                        .build())
+                .collect(Collectors.toList());
+
+        // Calculate effective total and remaining amount
+        // (Already calculated above)
+
+        // Build snapshot DTO
+        PaymentBreakdownSnapshot snapshot = PaymentBreakdownSnapshot.builder()
+                .totalPrice(priceCalc.getTotalPrice())
+                .totalBeforeAdjustment(priceCalc.getTotalBeforeAdjustment())
+                .categoryExtraFee(priceCalc.getCategoryExtraFee())
+                .categoryMultiplier(priceCalc.getCategoryMultiplier())
+                .promotionDiscount(priceCalc.getPromotionDiscount())
+                .finalTotal(priceCalc.getFinalTotal())
+                .totalTollFee(priceCalc.getTotalTollFee())
+                .totalTollCount(priceCalc.getTotalTollCount())
+                .vehicleType(priceCalc.getVehicleType())
+                .totalDeclaredValue(priceCalc.getTotalDeclaredValue())
+                .insuranceFee(priceCalc.getInsuranceFee())
+                .insuranceRate(priceCalc.getInsuranceRate())
+                .vatRate(vatRate)  // Use VAT rate from contract settings
+                .hasInsurance(priceCalc.getHasInsurance())
+                .grandTotal(priceCalc.getGrandTotal())
+                .steps(snapshotSteps)
+                .vehicleAssignments(vehicleAssignments)
+                .distanceKm(distanceKm)
+                .depositPercent(depositPercent)
+                .depositAmount(depositAmount)
+                .remainingAmount(remainingAmount)
+                .adjustedValue(contract.getAdjustedValue())
+                .effectiveTotal(effectiveTotal)
+                .snapshotDate(java.time.LocalDateTime.now().toString())
+                .snapshotVersion("1.0")
+                .build();
+
+        // Serialize to JSON
+        ObjectMapper objectMapper = new ObjectMapper();
+        String snapshotJson = objectMapper.writeValueAsString(snapshot);
+        
+        log.info("✅ Payment breakdown snapshot created successfully with grandTotal: {} VND", priceCalc.getGrandTotal());
+        log.info("📝 Snapshot JSON length: {} characters", snapshotJson.length());
+        
+        return snapshotJson;
+    }
+
     // CONTRACT TO CLOUD
 
     @Override
+    @Transactional
     public ContractResponse uploadContractFile(ContractFileUploadRequest req) throws IOException {
-
+        log.info("📤 Uploading contract file for contractId={}", req.contractId());
         // Get original filename and extension
         String originalFilename = req.file().getOriginalFilename();
         String fileExtension = "";
@@ -1466,6 +1589,43 @@ public class ContractServiceImpl implements ContractService {
         ContractEntity ce = contractEntityService.findEntityById(req.contractId())
                 .orElseThrow(() -> new RuntimeException("Contract not found by id: " + req.contractId()));
 
+        OrderEntity order = ce.getOrderEntity();
+        if (order == null) {
+            throw new BadRequestException("Contract has no associated order", ErrorEnum.INVALID.getErrorCode());
+        }
+
+        // Calculate and create payment breakdown snapshot
+        try {
+            log.info("📸 Creating payment breakdown snapshot for contract: {}", req.contractId());
+            
+            // Get vehicle assignments
+            List<ContractRuleAssignResponse> assignResult = assignVehiclesWithAvailability(order.getId());
+            
+            Map<UUID, Integer> vehicleCountMap = assignResult.stream()
+                    .collect(Collectors.groupingBy(
+                            ContractRuleAssignResponse::getSizeRuleId,
+                            Collectors.summingInt(a -> 1)
+                    ));
+
+            // Calculate distance
+            BigDecimal distanceKm = calculateDistanceKm(
+                    order.getPickupAddress(), 
+                    order.getDeliveryAddress()
+            );
+
+            // Calculate price with full breakdown
+            PriceCalculationResponse priceCalc = calculateTotalPrice(ce, distanceKm, vehicleCountMap);
+
+            // Create snapshot using the new helper method
+            String snapshotJson = createPaymentBreakdownSnapshot(ce, order, assignResult, distanceKm, priceCalc);
+            ce.setPaymentBreakdownSnapshot(snapshotJson);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to create payment breakdown snapshot: {}", e.getMessage(), e);
+            // CRITICAL: This is a fatal error - snapshot is required
+            throw new RuntimeException("Failed to create payment breakdown snapshot: " + e.getMessage(), e);
+        }
+
         // save DB
         ce.setAttachFileUrl(fileUrl);
         ce.setDescription(req.description());
@@ -1484,7 +1644,6 @@ public class ContractServiceImpl implements ContractService {
 
         // Update order status to CONTRACT_DRAFT
         if (ce.getOrderEntity() != null) {
-            OrderEntity order = ce.getOrderEntity();
             OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
             order.setStatus(OrderStatusEnum.CONTRACT_DRAFT.name());
             orderEntityService.save(order);
@@ -1609,6 +1768,17 @@ public class ContractServiceImpl implements ContractService {
             UserEntity staffUser = new UserEntity();
             staffUser.setId(staffUserId);
             contract.setStaff(staffUser);
+
+            // Create and save payment breakdown snapshot
+            String snapshotJson = createPaymentBreakdownSnapshot(
+                    contract,
+                    order,
+                    assignResult,
+                    distanceKm,
+                    totalPriceResponse
+            );
+            contract.setPaymentBreakdownSnapshot(snapshotJson);
+            log.info("✅ Payment breakdown snapshot created for contract PDF generation: {}", request.contractId());
 
             ContractEntity updated = contractEntityService.save(contract);
 
