@@ -401,195 +401,839 @@
 ================================================================================
 
 📌 MỤC ĐÍCH:
-   Tính toán nhiên liệu tiêu thụ thực tế của xe sau mỗi chuyến hàng.
+   Tính toán nhiên liệu tiêu thụ thực tế của xe sau mỗi chuyến hàng,
+   phục vụ quản lý chi phí vận hành và đối soát với hóa đơn nhiên liệu.
+
+📋 FLOW TỔNG QUAN:
+
+   ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+   │  Tài xế upload  │────▶│  Staff xác nhận │────▶│   Tính toán     │
+   │   ảnh odometer  │     │   số km (nếu    │     │   fuel volume   │
+   │   (start/end)   │     │   cần thiết)    │     │                 │
+   └─────────────────┘     └─────────────────┘     └─────────────────┘
+            │                                               │
+            ▼                                               ▼
+   ┌─────────────────┐                           ┌─────────────────┐
+   │  Auto-update    │                           │  Cập nhật       │
+   │  OrderDetail →  │                           │  Order/Vehicle  │
+   │  PICKING_UP     │                           │  status         │
+   └─────────────────┘                           └─────────────────┘
 
 📋 CƠ CHẾ HOẠT ĐỘNG:
 
-   BƯỚC 1: TÀI XẾ UPLOAD ẢNH ĐỒNG HỒ
+   BƯỚC 1: TÀI XẾ UPLOAD ẢNH ĐỒNG HỒ (ODOMETER)
    
-   Tại 3 thời điểm:
-   • BEFORE_TRIP: trước khi xuất phát
-   • AFTER_TRIP: sau khi hoàn thành giao hàng
-   • AFTER_RETURN: sau khi trả hàng về (nếu có)
+   ⏱️ XỬ LÝ: ĐỒNG BỘ (Synchronous) - Blocking call
+   🧵 LUỒNG: Single-threaded (Main HTTP thread)
    
-   uploadOdometerImage(assignmentId, imageFile, recordType) {
-       // Upload ảnh lên Cloudinary
-       imageUrl = cloudinaryService.uploadImage(imageFile)
+   Tại 2 thời điểm bắt buộc:
+   • odometerAtStart: Trước khi xuất phát (upload lần đầu)
+   • odometerAtEnd: Sau khi hoàn thành giao hàng (upload lần cuối)
+   
+   createVehicleFuelConsumption(request) {
+       // ⚡ SYNC: Validate vehicle assignment tồn tại
+       vehicleAssignment = findById(request.vehicleAssignmentId)
        
-       record = {
+       // ⚡ SYNC: Check không có record trùng
+       IF existingRecord.isPresent THEN
+           THROW "Đã tồn tại record cho assignment này"
+       END IF
+       
+       // ⚡ SYNC: Upload ảnh lên Cloudinary (blocking I/O)
+       odometerAtStartUrl = cloudinaryService.uploadImage(
+           request.odometerAtStartImage, 
+           "vehicle-fuel/odometer-start"
+       )
+       
+       // ⚡ SYNC: Lưu record với transaction
+       @Transactional
+       entity = {
            vehicleAssignment,
-           recordType: "BEFORE_TRIP" / "AFTER_TRIP" / "AFTER_RETURN",
-           odometerImageUrl: imageUrl,
-           recordedAt: NOW,
-           uploadedByDriver: currentDriver
+           odometerReadingAtStart: request.odometerReadingAtStart,
+           odometerAtStartUrl: odometerAtStartUrl,
+           dateRecorded: NOW
        }
-       save(record)
+       savedEntity = save(entity)
+       
+       // ⚡ SYNC: Auto-update các trạng thái liên quan
+       TRY {
+           // Cập nhật OrderDetail → PICKING_UP
+           orderDetailStatusService.updateOrderDetailStatusByAssignment(
+               request.vehicleAssignmentId,
+               OrderDetailStatusEnum.PICKING_UP
+           )
+           
+           // Cập nhật Vehicle → IN_TRANSIT
+           vehicle.status = VehicleStatusEnum.IN_TRANSIT
+           vehicleEntityService.save(vehicle)
+       } CATCH (Exception e) {
+           // ⚠️ Non-critical: Log warning, không fail main operation
+           LOG.warn("Failed to update related statuses: " + e.message)
+       }
+       
+       RETURN mapToResponse(savedEntity)
    }
 
-   BƯỚC 2: TÍNH NHIÊN LIỆU QUA ĐỒNG HỒ (Ưu tiên)
+   BƯỚC 2: TÍNH NHIÊN LIỆU KHI UPLOAD ẢNH KẾT THÚC
    
-   calculateFuelConsumptionByOdometer(assignmentId) {
-       beforeRecord = findByType(assignmentId, "BEFORE_TRIP")
-       afterRecord = findByType(assignmentId, "AFTER_TRIP")
-       returnRecord = findByType(assignmentId, "AFTER_RETURN")
+   ⏱️ XỬ LÝ: ĐỒNG BỘ (Synchronous) với @Transactional
+   🧵 LUỒNG: Single-threaded (Main HTTP thread)
+   📊 ĐỘ PHỨC TẠP: O(n) với n = số order details
+   
+   updateFinalReading(request) {
+       entity = findById(request.fuelConsumptionId)
        
-       IF beforeRecord = NULL OR afterRecord = NULL THEN
-           THROW "Missing odometer records"
+       // ⚡ SYNC: Upload ảnh odometer kết thúc
+       odometerAtEndUrl = cloudinaryService.uploadImage(
+           request.odometerAtEndImage,
+           "vehicle-fuel/odometer-end"
+       )
+       
+       // Validate khoảng cách hợp lệ
+       distanceTraveled = request.odometerReadingAtEnd - entity.odometerReadingAtStart
+       
+       IF distanceTraveled <= 0 THEN
+           THROW "Số km kết thúc phải lớn hơn số km bắt đầu"
        END IF
        
-       // Parse số km từ ảnh (hoặc Staff nhập manual)
-       startOdometer = beforeRecord.odometerReading
-       endOdometer = returnRecord?.odometerReading ?? afterRecord.odometerReading
-       
-       totalDistanceKm = endOdometer - startOdometer
-       
-       IF totalDistanceKm <= 0 OR totalDistanceKm > 10000 THEN
-           THROW "Invalid distance: " + totalDistanceKm
+       IF distanceTraveled > 10000 THEN
+           THROW "Khoảng cách di chuyển không hợp lệ (>10,000km)"
        END IF
        
-       // Lấy base fuel rate từ vehicleType
-       vehicle = assignment.vehicle
-       baseFuelRate = vehicle.vehicleType.fuelConsumptionRate  // lít/100km
+       // ═══════════════════════════════════════════════════════════
+       // TÍNH TOÁN NHIÊN LIỆU - 2 PHƯƠNG PHÁP
+       // ═══════════════════════════════════════════════════════════
        
-       IF baseFuelRate = NULL OR baseFuelRate <= 0 THEN
-           THROW "Missing fuel rate for vehicle type"
+       vehicleType = assignment.vehicle.vehicleType
+       baseFuelConsumption = vehicleType.averageFuelConsumptionLPer100km  // L/100km
+       vehicleWeightLimit = vehicleType.weightLimitTon
+       
+       // PHƯƠNG PHÁP 1: ODOMETER-BASED (Ưu tiên - Chính xác hơn)
+       fuelVolume = calculateFuelConsumptionOdometerBased(
+           vehicleAssignmentId,
+           baseFuelConsumption,
+           vehicleWeightLimit,
+           distanceTraveled
+       )
+       
+       // Nếu thất bại → FALLBACK sang Segment-based
+       IF fuelVolume = NULL OR fuelVolume <= 0 THEN
+           fuelVolume = calculateFuelConsumptionWithLoad(
+               vehicleAssignmentId,
+               baseFuelConsumption,
+               vehicleWeightLimit,
+               distanceTraveled
+           )
        END IF
        
-       // Tính nhiên liệu với load factor
-       journey = assignment.journey
-       deliveryDistance = journey.totalDistanceKm ?? 0
-       returnDistance = totalDistanceKm - deliveryDistance
+       // Cập nhật entity
+       entity.odometerReadingAtEnd = request.odometerReadingAtEnd
+       entity.odometerAtEndUrl = odometerAtEndUrl
+       entity.distanceTraveled = distanceTraveled
+       entity.fuelVolume = fuelVolume
+       save(entity)
        
-       // Giả định: 60% full load (có hàng), 40% empty (không hàng)
-       FULL_LOAD_FACTOR = 1.2   // Tăng 20% khi có hàng
-       EMPTY_LOAD_FACTOR = 0.8  // Giảm 20% khi không hàng
+       // ⚡ SYNC: Cascade status updates
+       updateRelatedStatuses(entity)
        
-       fuelForDelivery = (deliveryDistance / 100) × baseFuelRate × FULL_LOAD_FACTOR
-       fuelForReturn = (returnDistance / 100) × baseFuelRate × EMPTY_LOAD_FACTOR
-       
-       totalFuelConsumed = fuelForDelivery + fuelForReturn
-       
-       IF totalFuelConsumed <= 0 OR totalFuelConsumed > 10000 THEN
-           THROW "Invalid fuel consumption"
-       END IF
-       
-       // Lưu kết quả
-       fuelRecord = {
-           vehicleAssignment, vehicle, journey,
-           calculationMethod: "ODOMETER_BASED",
-           startOdometerReading: startOdometer,
-           endOdometerReading: endOdometer,
-           totalDistanceTraveled: totalDistanceKm,
-           baseFuelConsumptionRate: baseFuelRate,
-           fullLoadFactor: 1.2,
-           emptyLoadFactor: 0.8,
-           deliveryDistanceKm: deliveryDistance,
-           returnDistanceKm: returnDistance,
-           fuelUsedForDelivery: fuelForDelivery,
-           fuelUsedForReturn: fuelForReturn,
-           totalFuelConsumed: totalFuelConsumed,
-           recordedAt: NOW
-       }
-       save(fuelRecord)
-       
-       // Cập nhật trạng thái
-       updateOrderStatus(order, "FUEL_RECORDED")
-       updateVehicleStatus(vehicle, "AVAILABLE")
-       
-       RETURN fuelRecord
+       RETURN mapToResponse(entity)
    }
 
-   BƯỚC 3: TÍNH NHIÊN LIỆU QUA SEGMENT (Fallback)
+   BƯỚC 3: CÔNG THỨC TÍNH NHIÊN LIỆU CHI TIẾT
    
-   calculateFuelConsumptionBySegments(assignmentId) {
-       journey = findJourneyByAssignment(assignmentId)
-       segments = journey.segments
+   ╔═══════════════════════════════════════════════════════════════════════╗
+   ║              PHƯƠNG PHÁP 1: ODOMETER-BASED (ƯU TIÊN)                  ║
+   ╚═══════════════════════════════════════════════════════════════════════╝
+   
+   calculateFuelConsumptionOdometerBased(assignmentId, baseFuel, weightLimit, actualDistanceKm) {
        
-       IF segments.isEmpty THEN
-           THROW "No segments found"
+       // Lấy tất cả order details của assignment
+       orderDetails = findByVehicleAssignmentId(assignmentId)
+       
+       IF orderDetails.isEmpty THEN
+           // Không có hàng → dùng công thức đơn giản
+           RETURN actualDistanceKm × baseFuel / 100
        END IF
        
-       vehicle = assignment.vehicle
-       baseFuelRate = vehicle.vehicleType.fuelConsumptionRate
+       // Tính tổng trọng lượng hàng (loại bỏ RETURNED/CANCELLED)
+       totalCargoWeight = orderDetails.stream()
+           .filter(od -> od.status NOT IN ["RETURNED", "CANCELLED"])
+           .map(od -> od.weight ?? 0)
+           .sum()
+       
+       // Tính Load Factor dựa trên % tải trọng
+       loadRatio = totalCargoWeight / vehicleWeightLimit
+       
+       // ═══════════════════════════════════════════════════════════
+       // LOAD FACTOR CALCULATION (Tiêu thụ nhiên liệu theo tải trọng)
+       // ═══════════════════════════════════════════════════════════
+       //
+       //   loadRatio     loadFactor    Giải thích
+       //   ─────────     ──────────    ───────────────────────────
+       //   0%            1.0           Xe không (baseline)
+       //   25%           1.05          Tăng 5% cho 1/4 tải
+       //   50%           1.10          Tăng 10% cho 1/2 tải
+       //   75%           1.15          Tăng 15% cho 3/4 tải
+       //   100%          1.20          Tăng 20% cho full tải
+       //   >100%         1.25          Quá tải, max factor
+       //
+       // Công thức: loadFactor = 1.0 + (loadRatio × 0.2)
+       // Giới hạn: 1.0 ≤ loadFactor ≤ 1.25
+       // ═══════════════════════════════════════════════════════════
+       
+       loadFactor = 1.0 + (MIN(loadRatio, 1.25) × 0.2)
+       loadFactor = MAX(1.0, MIN(loadFactor, 1.25))
+       
+       // Công thức cuối cùng
+       fuelVolume = (actualDistanceKm × baseFuel × loadFactor) / 100
+       
+       LOG.info("📊 Odometer-based fuel calc: distance={}km, baseFuel={}L/100km, " +
+                "cargoWeight={}T, loadRatio={}, loadFactor={}, fuelVolume={}L",
+                actualDistanceKm, baseFuel, totalCargoWeight, loadRatio, loadFactor, fuelVolume)
+       
+       RETURN fuelVolume
+   }
+   
+   ╔═══════════════════════════════════════════════════════════════════════╗
+   ║           PHƯƠNG PHÁP 2: SEGMENT-BASED (FALLBACK LEGACY)              ║
+   ╚═══════════════════════════════════════════════════════════════════════╝
+   
+   calculateFuelConsumptionWithLoad(assignmentId, baseFuel, weightLimit, odoDistanceKm) {
+       
+       // Lấy journey và segments
+       journey = findLatestByVehicleAssignmentId(assignmentId)
+       
+       IF journey = NULL THEN
+           // Fallback: dùng công thức đơn giản
+           RETURN odoDistanceKm × baseFuel / 100
+       END IF
+       
+       segments = journey.segments.sortBy(segmentOrder)
+       orderDetails = findByVehicleAssignmentId(assignmentId)
        
        totalFuel = 0
-       totalDistance = 0
        
        FOR each segment IN segments:
            segmentDistance = segment.distanceKm
            
-           // Xác định load factor theo segment type
-           IF segment.type = "PICKUP" OR segment.type = "DELIVERY" THEN
-               loadFactor = 1.2  // Có hàng
-           ELSE IF segment.type = "RETURN" THEN
-               loadFactor = 0.8  // Không hàng
-           ELSE
-               loadFactor = 1.0  // Mặc định
-           END IF
+           // Xác định loại segment
+           segmentType = segment.segmentType  // PICKUP, DELIVERY, RETURN, etc.
            
-           segmentFuel = (segmentDistance / 100) × baseFuelRate × loadFactor
+           // Tính cargo weight cho segment này
+           cargoWeight = determineCargoWeightForSegment(segment, segmentType, orderDetails)
+           
+           // Tính load ratio và factor cho từng segment
+           loadRatio = cargoWeight / vehicleWeightLimit
+           loadFactor = 1.0 + (MIN(loadRatio, 1.0) × 0.2)
+           
+           // Tính fuel cho segment
+           segmentFuel = (segmentDistance × baseFuel × loadFactor) / 100
            totalFuel += segmentFuel
-           totalDistance += segmentDistance
+           
+           LOG.info("📍 Segment {}: type={}, distance={}km, cargo={}T, factor={}, fuel={}L",
+                    segment.segmentOrder, segmentType, segmentDistance, 
+                    cargoWeight, loadFactor, segmentFuel)
        END FOR
        
-       fuelRecord = {
-           vehicleAssignment, vehicle, journey,
-           calculationMethod: "SEGMENT_BASED",
-           totalDistanceTraveled: totalDistance,
-           baseFuelConsumptionRate: baseFuelRate,
-           totalFuelConsumed: totalFuel,
-           calculationNote: "Fallback: Odometer not available",
-           recordedAt: NOW
-       }
-       save(fuelRecord)
+       RETURN totalFuel
+   }
+   
+   // Helper: Xác định trọng lượng hàng cho từng loại segment
+   determineCargoWeightForSegment(segment, segmentType, orderDetails) {
+       SWITCH segmentType:
+           CASE "PICKUP":
+               // Đang đi lấy hàng → xe có thể đã có hàng trước đó
+               RETURN calculatePartialLoad(orderDetails, segment)
+               
+           CASE "DELIVERY":
+               // Đang giao hàng → xe chở đầy
+               RETURN SUM(orderDetails.filter(od -> od.status = "IN_TRANSIT").weight)
+               
+           CASE "RETURN":
+           CASE "RETURN_TO_ORIGIN":
+               // Quay về → xe rỗng hoặc chở hàng trả lại
+               returnedDetails = orderDetails.filter(od -> od.status = "RETURNED")
+               RETURN SUM(returnedDetails.weight) ?? 0
+               
+           DEFAULT:
+               RETURN 0
+       END SWITCH
+   }
+
+   BƯỚC 4: CẬP NHẬT TRẠNG THÁI CASCADE
+   
+   ⏱️ XỬ LÝ: ĐỒNG BỘ (Synchronous) trong cùng Transaction
+   🔒 TRANSACTION: @Transactional đảm bảo atomicity
+   
+   updateRelatedStatuses(fuelEntity) {
+       vehicleAssignment = fuelEntity.vehicleAssignment
+       orderId = vehicleAssignment.orderDetails[0].order.id
        
-       RETURN fuelRecord
+       // STEP 1: Cập nhật tất cả OrderDetail → DELIVERED
+       FOR each orderDetail IN vehicleAssignment.orderDetails:
+           IF orderDetail.status NOT IN ["RETURNED", "CANCELLED"] THEN
+               orderDetail.status = "DELIVERED"
+               save(orderDetail)
+               
+               // ⚡ ASYNC: WebSocket notification (Fire-and-forget)
+               orderDetailStatusWebSocketService.notifyStatusChange(orderDetail)
+           END IF
+       END FOR
+       
+       // STEP 2: Kiểm tra tất cả assignments đã hoàn thành chưa
+       allAssignments = findAllByOrderId(orderId)
+       
+       allCompleted = allAssignments.stream().allMatch(assignment -> {
+           fuelRecord = findByVehicleAssignmentId(assignment.id)
+           RETURN fuelRecord.isPresent AND fuelRecord.odometerReadingAtEnd != NULL
+       })
+       
+       // STEP 3: Nếu tất cả hoàn thành → Order → SUCCESSFUL
+       IF allCompleted THEN
+           order = findOrderById(orderId)
+           order.status = OrderStatusEnum.SUCCESSFUL
+           save(order)
+           
+           LOG.info("✅ Order {} marked as SUCCESSFUL - all fuel records complete", orderId)
+           
+           // ⚡ ASYNC: WebSocket notification
+           orderStatusWebSocketService.notifyStatusChange(order)
+       END IF
+       
+       // STEP 4: Cập nhật Vehicle → AVAILABLE
+       vehicle = vehicleAssignment.vehicle
+       vehicle.status = VehicleStatusEnum.AVAILABLE
+       save(vehicle)
    }
 
-   BƯỚC 4: XỬ LÝ LỖI VÀ FALLBACK
+   BƯỚC 5: UPLOAD HÓA ĐƠN NHIÊN LIỆU (TÙY CHỌN)
    
-   recordFuelConsumption(assignmentId) {
-       TRY {
-           // Ưu tiên phương pháp odometer
-           RETURN calculateFuelConsumptionByOdometer(assignmentId)
-       }
-       CATCH (MissingOdometerException e) {
-           LOG.warn("Odometer missing, using segment-based calculation")
-           RETURN calculateFuelConsumptionBySegments(assignmentId)
-       }
-       CATCH (InvalidDataException e) {
-           LOG.error("Invalid odometer data, using segment-based calculation")
-           RETURN calculateFuelConsumptionBySegments(assignmentId)
-       }
-       CATCH (Exception e) {
-           LOG.error("Fuel calculation failed", e)
-           THROW e
-       }
+   ⏱️ XỬ LÝ: ĐỒNG BỘ (Synchronous)
+   📝 MỤC ĐÍCH: Đối soát chi phí với công ty nhiên liệu
+   
+   updateInvoiceImage(request) {
+       entity = findById(request.fuelConsumptionId)
+       
+       // Upload ảnh hóa đơn
+       invoiceUrl = cloudinaryService.uploadImage(
+           request.companyInvoiceImage,
+           "vehicle-fuel/invoices"
+       )
+       
+       entity.companyInvoiceImageUrl = invoiceUrl
+       entity.notes = request.notes
+       save(entity)
+       
+       RETURN mapToResponse(entity)
    }
-
-   BƯỚC 5: CẬP NHẬT TRẠNG THÁI
-   
-   Sau khi tính xong:
-   
-   • Order.status → FUEL_RECORDED
-   • Vehicle.status → AVAILABLE
-   • VehicleAssignment.fuelConsumptionRecorded → TRUE
-   • Journey.fuelConsumptionCalculated → TRUE
 
 🔍 ĐIỂM ĐẶC BIỆT:
-   • Ưu tiên odometer (chính xác hơn)
-   • Fallback segment-based nếu thiếu ảnh
-   • Load factor: 60% full (1.2×), 40% empty (0.8×)
-   • Validate khoảng hợp lý: 0-10,000 km, 0-10,000 lít
-   • Tự động cập nhật trạng thái order và vehicle
-   • Lưu cả 2 phương pháp để so sánh
 
-🎯 OUTPUT: VehicleFuelConsumptionRecord với:
-   • calculationMethod: "ODOMETER_BASED" hoặc "SEGMENT_BASED"
-   • totalDistanceTraveled, totalFuelConsumed
-   • breakdown: deliveryDistance, returnDistance, fuelForEach
-   • baseFuelRate, loadFactors
-   • odometerReadings (nếu có)
+   ✅ Validation chặt chẽ:
+   • Khoảng cách: 0 < distance ≤ 10,000 km
+   • Fuel volume: 0 < fuel ≤ 10,000 lít
+   • Số km kết thúc > số km bắt đầu
+
+   ✅ Load Factor thông minh:
+   • Dựa trên % tải trọng thực tế
+   • Range: 1.0 (xe rỗng) → 1.25 (quá tải)
+   • Tính riêng cho từng segment (nếu dùng segment-based)
+
+   ✅ Fallback mechanism:
+   • Ưu tiên: Odometer-based (chính xác hơn)
+   • Fallback: Segment-based (nếu thiếu dữ liệu)
+   • Final fallback: Công thức đơn giản (distance × baseFuel / 100)
+
+   ✅ Transaction safety:
+   • @Transactional đảm bảo atomicity
+   • Rollback nếu có lỗi trong quá trình update
+
+   ✅ Status cascade:
+   • OrderDetail → DELIVERED
+   • Order → SUCCESSFUL (khi tất cả assignments hoàn thành)
+   • Vehicle → AVAILABLE
+
+🎯 OUTPUT: VehicleFuelConsumptionResponse với:
+   • id, vehicleAssignmentId
+   • odometerReadingAtStart, odometerReadingAtEnd
+   • distanceTraveled (km)
+   • fuelVolume (lít)
+   • odometerAtStartUrl, odometerAtEndUrl
+   • companyInvoiceImageUrl (nếu có)
+   • dateRecorded, notes
+
+
+================================================================================
+8. XỬ LÝ ĐỒNG BỘ/BẤT ĐỒNG BỘ & ĐƠN LUỒNG/ĐA LUỒNG
+================================================================================
+
+📌 MỤC ĐÍCH:
+   Làm rõ cách hệ thống xử lý các tác vụ theo từng phương thức,
+   đảm bảo hiệu năng và tính nhất quán dữ liệu.
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    TỔNG QUAN KIẾN TRÚC XỬ LÝ                                 │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌─────────────┐     ┌─────────────┐     ┌─────────────┐                   │
+│   │   HTTP      │────▶│   Service   │────▶│  Database   │                   │
+│   │   Request   │     │   Layer     │     │  (MySQL)    │                   │
+│   │  (Spring)   │◀────│  @Service   │◀────│  @Transact  │                   │
+│   └─────────────┘     └─────────────┘     └─────────────┘                   │
+│         │                   │                                                │
+│         │                   ▼                                                │
+│         │         ┌─────────────┐     ┌─────────────┐                       │
+│         │         │  Cloudinary │     │  WebSocket  │                       │
+│         │         │  (Upload)   │     │  (Real-time)│                       │
+│         │         │   SYNC      │     │   ASYNC     │                       │
+│         │         └─────────────┘     └─────────────┘                       │
+│         │                                    │                               │
+│         │                   ┌────────────────┼───────────────┐              │
+│         │                   ▼                ▼               ▼              │
+│         │         ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│         │         │  Scheduled  │  │  Firebase   │  │  Mobile     │        │
+│         │         │  Tasks      │  │  Push       │  │  Clients    │        │
+│         │         │  (Cron)     │  │  (ASYNC)    │  │             │        │
+│         └────────▶└─────────────┘  └─────────────┘  └─────────────┘        │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+8.1. PHÂN LOẠI XỬ LÝ ĐỒNG BỘ (SYNCHRONOUS)
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 ĐỊNH NGHĨA:
+   • Request chờ đợi response trước khi tiếp tục
+   • Blocking I/O: Thread bị block cho đến khi hoàn thành
+   • Đảm bảo tính nhất quán dữ liệu (ACID)
+
+📋 CÁC TÁC VỤ XỬ LÝ ĐỒNG BỘ:
+
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ TÁC VỤ                          │ LÝ DO ĐỒNG BỘ                        │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Database CRUD operations        │ Đảm bảo ACID, data integrity         │
+   │ Cloudinary image upload         │ Cần URL ngay để lưu DB               │
+   │ Price calculation               │ Response cần kết quả ngay            │
+   │ BinPacker algorithm             │ Tính toán CPU-bound, cần kết quả     │
+   │ Driver assignment scoring       │ Response cần danh sách gợi ý         │
+   │ Contract creation               │ Transaction phức tạp, nhiều bảng     │
+   │ Order status update             │ Cần confirm trước khi tiếp tục       │
+   │ Payment validation              │ Critical path, không được lỗi        │
+   │ Authentication/Authorization    │ Security, cần verify trước khi cho   │
+   │ Fuel consumption calculation    │ Cần kết quả ngay để update status    │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+📋 PATTERN SỬ DỤNG:
+
+   1. DATABASE TRANSACTION (Spring @Transactional):
+   
+   @Service
+   @Transactional  // <-- Đảm bảo atomic operation
+   public class OrderServiceImpl {
+       
+       public OrderResponse createOrder(OrderRequest request) {
+           // ⚡ SYNC: Tất cả operations trong 1 transaction
+           Order order = saveOrder(request);
+           OrderDetails details = saveOrderDetails(order, request.details);
+           Contract contract = createContract(order);
+           
+           // Nếu 1 bước lỗi → rollback toàn bộ
+           return mapToResponse(order);
+       }
+   }
+
+   2. BLOCKING I/O (Cloudinary upload):
+   
+   public String uploadImage(MultipartFile file, String folder) {
+       // ⚡ SYNC: Thread blocked until upload completes
+       // Timeout: 30 seconds
+       Map result = cloudinary.uploader().upload(file.getBytes(), 
+           ObjectUtils.asMap("folder", folder));
+       
+       return (String) result.get("secure_url");
+   }
+
+   3. CPU-BOUND CALCULATION (BinPacker):
+   
+   public List<ContractRuleAssignResponse> assignVehiclesOptimal(UUID orderId) {
+       // ⚡ SYNC: CPU-intensive, single-threaded
+       // Complexity: O(n × m × r) với n=items, m=bins, r=rotations
+       
+       List<BoxItem> items = prepareBoxItems(orderId);
+       List<SizeRule> bins = getAvailableSizeRules();
+       
+       // Thuật toán 3D bin packing
+       return binPacker.pack(items, bins);  // Blocking
+   }
+
+═══════════════════════════════════════════════════════════════════════════════
+8.2. PHÂN LOẠI XỬ LÝ BẤT ĐỒNG BỘ (ASYNCHRONOUS)
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 ĐỊNH NGHĨA:
+   • Request không chờ đợi kết quả
+   • Non-blocking: Thread được giải phóng ngay
+   • Phù hợp cho I/O-bound tasks, notifications
+
+📋 CÁC TÁC VỤ XỬ LÝ BẤT ĐỒNG BỘ:
+
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ TÁC VỤ                          │ IMPLEMENTATION                       │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ WebSocket notifications         │ SimpMessagingTemplate (Fire-forget)  │
+   │ Firebase push notifications     │ @Async + CompletableFuture           │
+   │ Email sending                   │ @Async + Queue                       │
+   │ Off-route event monitoring      │ @Scheduled (1 minute interval)       │
+   │ Payment deadline checking       │ @Scheduled (hourly)                  │
+   │ GPS location processing         │ WebSocket receive (non-blocking)     │
+   │ Audit logging                   │ @Async (background logging)          │
+   │ Report generation               │ @Async + callback                    │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+📋 PATTERN SỬ DỤNG:
+
+   1. WEBSOCKET NOTIFICATIONS (Fire-and-forget):
+   
+   @Service
+   public class OrderStatusWebSocketService {
+       @Autowired
+       private SimpMessagingTemplate messagingTemplate;
+       
+       public void notifyStatusChange(Order order) {
+           // ⚡ ASYNC: Non-blocking, gửi và quên
+           // Không chờ client nhận được
+           messagingTemplate.convertAndSend(
+               "/topic/orders/" + order.getId(),
+               new OrderStatusEvent(order.getStatus())
+           );
+       }
+   }
+
+   2. FIREBASE PUSH NOTIFICATION (@Async):
+   
+   @Service
+   public class NotificationService {
+       
+       @Async("asyncExecutor")  // <-- Chạy trên thread pool riêng
+       public CompletableFuture<Void> sendPushNotification(
+           String deviceToken, String title, String body
+       ) {
+           // ⚡ ASYNC: Chạy background, không block main thread
+           Message message = Message.builder()
+               .setToken(deviceToken)
+               .setNotification(Notification.builder()
+                   .setTitle(title)
+                   .setBody(body)
+                   .build())
+               .build();
+           
+           FirebaseMessaging.getInstance().sendAsync(message);
+           return CompletableFuture.completedFuture(null);
+       }
+   }
+
+   3. SCHEDULED TASKS (@Scheduled):
+   
+   @Service
+   public class OffRouteMonitoringJob {
+       
+       @Scheduled(cron = "0 * * * * *")  // Every 1 minute
+       public void checkActiveOffRouteEvents() {
+           // ⚡ ASYNC: Chạy định kỳ trên thread riêng
+           List<OffRouteEvent> events = findAllActiveEvents();
+           
+           for (OffRouteEvent event : events) {
+               checkWarningThresholds(event);  // Check và gửi cảnh báo
+           }
+       }
+       
+       @Scheduled(cron = "0 0 * * * *")  // Every hour
+       public void checkPaymentDeadlines() {
+           // ⚡ ASYNC: Check các payment quá hạn
+           List<Transaction> overduePayments = findOverduePayments();
+           processOverduePayments(overduePayments);
+       }
+   }
+
+   4. GPS LOCATION PROCESSING (WebSocket receive):
+   
+   @Controller
+   public class LocationWebSocketController {
+       
+       @MessageMapping("/location-update")
+       public void handleLocationUpdate(LocationUpdateMessage message) {
+           // ⚡ ASYNC: Nhận từ WebSocket, xử lý background
+           // Không block client
+           
+           offRouteService.processLocationUpdate(
+               message.getVehicleAssignmentId(),
+               message.getLat(),
+               message.getLng(),
+               message.getSpeed(),
+               message.getBearing()
+           );
+       }
+   }
+
+═══════════════════════════════════════════════════════════════════════════════
+8.3. XỬ LÝ ĐƠN LUỒNG (SINGLE-THREADED)
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 ĐỊNH NGHĨA:
+   • Một thread xử lý một request từ đầu đến cuối
+   • Không có race condition
+   • Đơn giản, dễ debug
+
+📋 CÁC TÁC VỤ ĐƠN LUỒNG:
+
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ TÁC VỤ                          │ LÝ DO ĐƠN LUỒNG                      │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ HTTP Request handling           │ 1 thread/request (Tomcat)            │
+   │ Database transaction            │ Connection per thread                │
+   │ BinPacker algorithm             │ Stateful, sequential                 │
+   │ Price calculation               │ Sequential steps                     │
+   │ Contract PDF generation         │ Sequential rendering                 │
+   │ Compensation calculation        │ Business logic sequence              │
+   │ Fuel consumption calculation    │ Step-by-step calculation             │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+📋 SPRING MVC THREAD MODEL:
+
+   ┌──────────────────────────────────────────────────────────────────────┐
+   │                                                                      │
+   │   Client Request                                                     │
+   │        │                                                             │
+   │        ▼                                                             │
+   │   ┌─────────────────┐                                               │
+   │   │ Tomcat Thread   │  ← Lấy 1 thread từ pool (default: 200)       │
+   │   │ Pool            │                                               │
+   │   └────────┬────────┘                                               │
+   │            │                                                         │
+   │            ▼                                                         │
+   │   ┌─────────────────┐                                               │
+   │   │ DispatcherServlet│                                              │
+   │   └────────┬────────┘                                               │
+   │            │                                                         │
+   │            ▼                                                         │
+   │   ┌─────────────────┐    ┌─────────────────┐                        │
+   │   │ Controller      │───▶│ Service         │                        │
+   │   │ @RestController │    │ @Service        │                        │
+   │   └─────────────────┘    └────────┬────────┘                        │
+   │                                   │                                  │
+   │                                   ▼                                  │
+   │                          ┌─────────────────┐                        │
+   │                          │ Repository      │                        │
+   │                          │ @Repository     │                        │
+   │                          └────────┬────────┘                        │
+   │                                   │                                  │
+   │                                   ▼                                  │
+   │                          ┌─────────────────┐                        │
+   │                          │ Database        │                        │
+   │                          │ Connection      │                        │
+   │                          └─────────────────┘                        │
+   │                                                                      │
+   │   🔑 TẤT CẢ CHẠY TRÊN CÙNG 1 THREAD!                                │
+   │                                                                      │
+   └──────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+8.4. XỬ LÝ ĐA LUỒNG (MULTI-THREADED)
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 ĐỊNH NGHĨA:
+   • Nhiều thread xử lý song song
+   • Tăng throughput, tận dụng CPU đa nhân
+   • Cần chú ý thread-safety, race condition
+
+📋 CÁC TÁC VỤ ĐA LUỒNG:
+
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ TÁC VỤ                          │ THREAD POOL                          │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ HTTP Request handling           │ Tomcat Thread Pool (200 threads)     │
+   │ @Async methods                  │ Custom ThreadPoolTaskExecutor        │
+   │ @Scheduled jobs                 │ ScheduledThreadPoolExecutor          │
+   │ WebSocket connections           │ Netty Event Loop (if used)           │
+   │ Parallel stream processing      │ ForkJoinPool.commonPool()            │
+   │ CompletableFuture               │ Custom executor                      │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+📋 CẤU HÌNH THREAD POOL:
+
+   @Configuration
+   @EnableAsync
+   public class AsyncConfig {
+       
+       @Bean("asyncExecutor")
+       public Executor asyncExecutor() {
+           ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+           
+           executor.setCorePoolSize(5);        // Số thread tối thiểu
+           executor.setMaxPoolSize(20);        // Số thread tối đa
+           executor.setQueueCapacity(100);     // Hàng đợi chờ xử lý
+           executor.setThreadNamePrefix("Async-");
+           executor.setRejectedExecutionHandler(
+               new ThreadPoolExecutor.CallerRunsPolicy()  // Fallback
+           );
+           executor.initialize();
+           
+           return executor;
+       }
+       
+       @Bean("scheduledExecutor")
+       public TaskScheduler taskScheduler() {
+           ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+           scheduler.setPoolSize(5);
+           scheduler.setThreadNamePrefix("Scheduled-");
+           return scheduler;
+       }
+   }
+
+📋 XỬ LÝ CONCURRENT ACCESS:
+
+   1. PESSIMISTIC LOCKING (Database level):
+   
+   @Lock(LockModeType.PESSIMISTIC_WRITE)
+   @Query("SELECT v FROM VehicleEntity v WHERE v.id = :id")
+   Optional<VehicleEntity> findByIdWithLock(@Param("id") UUID id);
+   
+   // Sử dụng khi update vehicle status
+   public void updateVehicleStatus(UUID vehicleId, String newStatus) {
+       VehicleEntity vehicle = vehicleRepository.findByIdWithLock(vehicleId)
+           .orElseThrow(() -> new NotFoundException("Vehicle not found"));
+       
+       vehicle.setStatus(newStatus);
+       vehicleRepository.save(vehicle);
+   }
+
+   2. OPTIMISTIC LOCKING (@Version):
+   
+   @Entity
+   public class OrderEntity {
+       @Version
+       private Long version;  // Auto-increment on update
+       
+       // Nếu 2 thread update cùng lúc → OptimisticLockException
+   }
+
+   3. THREAD-SAFE COLLECTIONS:
+   
+   // Cho off-route event tracking
+   private final ConcurrentHashMap<UUID, OffRouteEvent> activeEvents 
+       = new ConcurrentHashMap<>();
+   
+   public void trackEvent(UUID vehicleAssignmentId, OffRouteEvent event) {
+       activeEvents.put(vehicleAssignmentId, event);
+   }
+
+   4. SYNCHRONIZED METHODS:
+   
+   // Cho driver assignment scoring (tránh assign duplicate)
+   public synchronized List<DriverSuggestion> getDriverSuggestions(
+       UUID vehicleId, LocalDate tripDate
+   ) {
+       // Đảm bảo chỉ 1 thread tính điểm tại 1 thời điểm
+       return calculateDriverScores(vehicleId, tripDate);
+   }
+
+═══════════════════════════════════════════════════════════════════════════════
+8.5. MA TRẬN TỔNG HỢP THEO TỪNG NGHIỆP VỤ
+═══════════════════════════════════════════════════════════════════════════════
+
+┌────────────────────────┬──────────┬──────────────┬────────────────────────────┐
+│ NGHIỆP VỤ              │ SYNC/    │ SINGLE/      │ GHI CHÚ                    │
+│                        │ ASYNC    │ MULTI        │                            │
+├────────────────────────┼──────────┼──────────────┼────────────────────────────┤
+│ 1. BinPacker           │ SYNC     │ SINGLE       │ CPU-bound, sequential      │
+│    - Prepare data      │ SYNC     │ SINGLE       │ DB read                    │
+│    - Pack algorithm    │ SYNC     │ SINGLE       │ Complex calculation        │
+│    - Return result     │ SYNC     │ SINGLE       │ Response to client         │
+├────────────────────────┼──────────┼──────────────┼────────────────────────────┤
+│ 2. Pricing             │ SYNC     │ SINGLE       │ Sequential calculation     │
+│    - Base price        │ SYNC     │ SINGLE       │ Lookup basing_price        │
+│    - Surcharges        │ SYNC     │ SINGLE       │ Formula calculation        │
+│    - Total             │ SYNC     │ SINGLE       │ Sum all components         │
+├────────────────────────┼──────────┼──────────────┼────────────────────────────┤
+│ 3. Driver Assignment   │ SYNC     │ SINGLE       │ Scoring algorithm          │
+│    - Filter drivers    │ SYNC     │ SINGLE       │ DB query                   │
+│    - Calculate scores  │ SYNC     │ SINGLE       │ Multi-factor scoring       │
+│    - Sort & select     │ SYNC     │ SINGLE       │ Top-N selection            │
+├────────────────────────┼──────────┼──────────────┼────────────────────────────┤
+│ 4. Return Shipping     │ SYNC     │ SINGLE       │ Transaction-based          │
+│    - Calculate fee     │ SYNC     │ SINGLE       │ Reuse pricing logic        │
+│    - Create transaction│ SYNC     │ SINGLE       │ DB write                   │
+├────────────────────────┼──────────┼──────────────┼────────────────────────────┤
+│ 5. Compensation        │ SYNC     │ SINGLE       │ Complex business logic     │
+│    - Assessment        │ SYNC     │ SINGLE       │ Staff input                │
+│    - Calculation       │ SYNC     │ SINGLE       │ 4 cases logic              │
+│    - Create refund     │ SYNC     │ SINGLE       │ Transaction                │
+├────────────────────────┼──────────┼──────────────┼────────────────────────────┤
+│ 6. Off-Route Detection │ MIXED    │ MIXED        │ Real-time monitoring       │
+│    - GPS receive       │ ASYNC    │ MULTI        │ WebSocket (concurrent)     │
+│    - Distance calc     │ SYNC     │ SINGLE       │ Haversine formula          │
+│    - Warning send      │ ASYNC    │ MULTI        │ WebSocket broadcast        │
+│    - Scheduled check   │ ASYNC    │ SINGLE       │ @Scheduled (1 min)         │
+├────────────────────────┼──────────┼──────────────┼────────────────────────────┤
+│ 7. Fuel Consumption    │ SYNC     │ SINGLE       │ Transaction-based          │
+│    - Upload image      │ SYNC     │ SINGLE       │ Cloudinary blocking        │
+│    - Calculate fuel    │ SYNC     │ SINGLE       │ Formula calculation        │
+│    - Update statuses   │ SYNC     │ SINGLE       │ Cascade updates            │
+│    - WebSocket notify  │ ASYNC    │ MULTI        │ Fire-and-forget            │
+├────────────────────────┼──────────┼──────────────┼────────────────────────────┤
+│ CROSS-CUTTING          │          │              │                            │
+│    - HTTP Requests     │ SYNC     │ MULTI        │ Tomcat thread pool (200)   │
+│    - DB Transactions   │ SYNC     │ SINGLE       │ 1 connection/thread        │
+│    - WebSocket out     │ ASYNC    │ MULTI        │ Fire-and-forget            │
+│    - Push notification │ ASYNC    │ MULTI        │ @Async thread pool         │
+│    - Scheduled jobs    │ ASYNC    │ SINGLE       │ 1 job = 1 thread           │
+│    - Audit logging     │ ASYNC    │ MULTI        │ Background logging         │
+└────────────────────────┴──────────┴──────────────┴────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+8.6. BEST PRACTICES & PITFALLS
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ BEST PRACTICES:
+
+   1. Transaction Management:
+      • Giữ transaction ngắn gọn
+      • Không gọi external API trong transaction
+      • Sử dụng @Transactional(readOnly = true) cho read-only operations
+
+   2. Async Processing:
+      • Sử dụng @Async cho I/O-bound tasks (email, push notification)
+      • Cấu hình thread pool phù hợp với workload
+      • Xử lý exception trong async methods
+
+   3. Concurrency Control:
+      • Sử dụng optimistic locking cho high-contention entities
+      • Pessimistic locking cho critical updates (payment, status)
+      • Avoid deadlocks: lock theo thứ tự nhất định
+
+   4. WebSocket:
+      • Fire-and-forget cho notifications
+      • Không chờ ACK từ client
+      • Retry mechanism ở client side
+
+❌ PITFALLS TO AVOID:
+
+   1. N+1 Query Problem:
+      • Sử dụng @EntityGraph hoặc JOIN FETCH
+      • Batch fetching cho collections
+
+   2. Long-running Transactions:
+      • Tách upload ảnh ra khỏi main transaction
+      • Sử dụng saga pattern cho distributed transactions
+
+   3. Thread Starvation:
+      • Không block async thread pool với sync operations
+      • Monitor thread pool metrics
+
+   4. Race Conditions:
+      • Double-check locking cho singleton operations
+      • Sử dụng database constraints (unique, check)
 
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
@@ -599,11 +1243,31 @@
 Hệ thống Truckie triển khai 7 luồng nghiệp vụ phức tạp với logic chặt chẽ:
 
 1. BinPacker: Tối ưu 3D bin packing với 3 chiến lược thông minh
-2. Pricing: Công thức tính giá linh hoạt với nhiều phụ phí
-3. Driver Assignment: Chấm điểm đa yếu tố, cân bằng workload
-4. Return Shipping: Tính cước trả hàng chính xác theo từng kiện
-5. Compensation: 4 cases bồi thường rõ ràng, phát hiện gian lận
-6. Off-route: 3-tier warning, grace period, auto issue creation
-7. Fuel Consumption: Odometer-first với segment-based fallback
+   → SYNC + SINGLE-THREADED (CPU-bound, sequential algorithm)
 
-Tất cả đều có validation chặt, error handling đầy đủ, và audit trail chi tiết.
+2. Pricing: Công thức tính giá linh hoạt với nhiều phụ phí
+   → SYNC + SINGLE-THREADED (Sequential calculation)
+
+3. Driver Assignment: Chấm điểm đa yếu tố, cân bằng workload
+   → SYNC + SINGLE-THREADED (Scoring algorithm)
+
+4. Return Shipping: Tính cước trả hàng chính xác theo từng kiện
+   → SYNC + SINGLE-THREADED (Transaction-based)
+
+5. Compensation: 4 cases bồi thường rõ ràng, phát hiện gian lận
+   → SYNC + SINGLE-THREADED (Complex business logic)
+
+6. Off-route: 3-tier warning, grace period, auto issue creation
+   → MIXED: GPS receive (ASYNC/MULTI), Calculation (SYNC/SINGLE), 
+     Warning send (ASYNC/MULTI), Scheduled check (ASYNC/SINGLE)
+
+7. Fuel Consumption: Odometer-first với load factor thông minh
+   → SYNC + SINGLE-THREADED (Calculation + Transaction)
+   → ASYNC cho WebSocket notifications
+
+Tất cả đều có:
+• Validation chặt chẽ
+• Error handling đầy đủ
+• Audit trail chi tiết
+• Transaction safety với @Transactional
+• Thread-safe cho concurrent access
