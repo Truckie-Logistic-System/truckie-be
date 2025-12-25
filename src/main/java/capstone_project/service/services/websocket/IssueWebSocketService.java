@@ -23,12 +23,6 @@ public class IssueWebSocketService {
     public void broadcastNewIssue(GetBasicIssueResponse issue) {
 
         try {
-            // Debug log to verify issueImages is included
-            log.info("📢 Broadcasting new issue: id={}, category={}, issueImages={}", 
-                    issue.id(), 
-                    issue.issueCategory(),
-                    issue.issueImages() != null ? issue.issueImages().size() + " images: " + issue.issueImages() : "null");
-            
             messagingTemplate.convertAndSend("/topic/issues/new", issue);
             
         } catch (Exception e) {
