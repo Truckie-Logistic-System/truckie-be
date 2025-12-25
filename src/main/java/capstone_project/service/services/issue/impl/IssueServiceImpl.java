@@ -1498,6 +1498,7 @@ public class IssueServiceImpl implements IssueService {
                 .vehicleAssignmentEntity(vehicleAssignment)
                 .staff(null)
                 .issueTypeEntity(issueType)
+                .issueImages(new java.util.ArrayList<>()) // Initialize empty list for bidirectional relationship
                 .build();
 
         // Save issue
@@ -1521,6 +1522,10 @@ public class IssueServiceImpl implements IssueService {
                         .build();
 
                 issueImageEntityService.save(imageEntity);
+                
+                // ✅ CRITICAL: Add to saved entity's list to ensure bidirectional relationship
+                // This ensures getBasicIssue() can see the image in same transaction
+                saved.getIssueImages().add(imageEntity);
 
             } catch (Exception e) {
                 log.error("❌ Error uploading penalty image: {}", e.getMessage(), e);
@@ -1538,8 +1543,22 @@ public class IssueServiceImpl implements IssueService {
 
         penaltyHistoryEntityService.save(penaltyHistory);
 
-        // Fetch full issue with all nested objects
-        GetBasicIssueResponse response = getBasicIssue(saved.getId());
+        // Debug: Log the saved entity's issueImages before mapping
+        log.info("📋 PENALTY saved entity - issueImages list size: {}", 
+                saved.getIssueImages() != null ? saved.getIssueImages().size() : "null");
+        if (saved.getIssueImages() != null && !saved.getIssueImages().isEmpty()) {
+            for (var img : saved.getIssueImages()) {
+                log.info("📋 PENALTY saved entity - image URL: {}", img.getImageUrl());
+            }
+        }
+
+        // ✅ Map directly from saved entity which has issueImages already populated
+        // Don't use getBasicIssue() as it may not see the newly added images in same transaction
+        GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(saved);
+        
+        // Debug log to verify issueImages is mapped
+        log.info("📋 PENALTY issue response - issueImages: {}", 
+                response.issueImages() != null ? response.issueImages().size() + " images: " + response.issueImages() : "null");
 
         // Broadcast penalty issue to staff
         issueWebSocketService.broadcastNewIssue(response);
