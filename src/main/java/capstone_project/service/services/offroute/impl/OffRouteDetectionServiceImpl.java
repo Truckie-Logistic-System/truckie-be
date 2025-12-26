@@ -453,11 +453,6 @@ public class OffRouteDetectionServiceImpl implements OffRouteDetectionService {
         OffRouteEventEntity event = offRouteEventEntityService.findById(eventId)
             .orElseThrow(() -> new RuntimeException("Off-route event not found: " + eventId));
         
-        if (event.getWarningStatus() != OffRouteWarningStatus.YELLOW_SENT && 
-            event.getWarningStatus() != OffRouteWarningStatus.RED_SENT) {
-            throw new RuntimeException("Can only confirm contact for events with warning status");
-        }
-        
         // Simplified flow: Just update contact timestamp, keep tracking
         // Don't change status - allow system to continue monitoring and send RED again if still off-route
         event.setContactedAt(LocalDateTime.now());
