@@ -42,6 +42,8 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
     private final NotificationService notificationService;
     private final UserEntityService userEntityService;
     private final capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService vehicleAssignmentEntityService;
+    private final capstone_project.repository.entityServices.order.conformation.PackingProofImageEntityService packingProofImageEntityService;
+    private final capstone_project.repository.entityServices.order.order.SealEntityService sealEntityService;
     
     @PersistenceContext
     private EntityManager entityManager;
@@ -307,6 +309,23 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
         try {
             switch (newStatus) {
                 case PICKING_UP -> {
+                    // 📸 Get packing proof images for this vehicle assignment
+                    List<String> packingProofImageUrls = packingProofImageEntityService
+                        .findByVehicleAssignmentEntity(vehicleAssignment)
+                        .stream()
+                        .map(img -> img.getImageUrl())
+                        .filter(url -> url != null && !url.isEmpty())
+                        .toList();
+                    
+                    // 🔐 Get seal information for this vehicle assignment
+                    String sealCode = null;
+                    String sealImageUrl = null;
+                    var inUseSeal = sealEntityService.findByVehicleAssignment(vehicleAssignment, "IN_USE");
+                    if (inUseSeal != null) {
+                        sealCode = inUseSeal.getSealCode();
+                        sealImageUrl = inUseSeal.getSealAttachedImage();
+                    }
+                    
                     // Customer notification: Driver started picking up (Email: YES)
                     notificationService.createNotification(NotificationBuilder.buildPickingUpStarted(
                         order.getSender().getUser().getId(),
@@ -319,10 +338,14 @@ public class OrderDetailStatusServiceImpl implements OrderDetailStatusService {
                         vehicleTypeDescription,
                         vehicleAssignmentTrackingCode,
                         order.getId(),
-                        vehicleAssignment.getId()
+                        vehicleAssignment.getId(),
+                        packingProofImageUrls,
+                        sealCode,
+                        sealImageUrl
                     ));
-                    log.info("✅ Sent PICKING_UP notification for trip {} with {} packages", 
-                        vehicleAssignmentTrackingCode, packagesForNotification.size());
+                    log.info("✅ Sent PICKING_UP notification for trip {} with {} packages, {} packing images, seal: {}", 
+                        vehicleAssignmentTrackingCode, packagesForNotification.size(), 
+                        packingProofImageUrls.size(), sealCode != null ? sealCode : "N/A");
                 }
                 
                 case ON_DELIVERED -> {

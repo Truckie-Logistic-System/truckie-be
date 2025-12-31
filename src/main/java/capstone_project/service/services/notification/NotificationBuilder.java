@@ -658,6 +658,7 @@ public class NotificationBuilder {
     /**
      * PICKING_UP_STARTED - Tài xế bắt đầu lấy hàng (cho Customer - Email: YES)
      * Updated to include vehicleAssignmentTrackingCode for display
+     * Updated to include packing proof images and seal image for email
      */
     public static CreateNotificationRequest buildPickingUpStarted(
         UUID userId,
@@ -670,7 +671,10 @@ public class NotificationBuilder {
         String vehicleTypeDescription,
         String vehicleAssignmentTrackingCode,
         UUID orderId,
-        UUID vehicleAssignmentId
+        UUID vehicleAssignmentId,
+        List<String> packingProofImageUrls,
+        String sealCode,
+        String sealImageUrl
     ) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("orderCode", orderCode);
@@ -709,6 +713,19 @@ public class NotificationBuilder {
                 packages.add(packageInfo);
             }
             metadata.put("packages", packages);
+        }
+        
+        // 📸 Add packing proof images for email display
+        if (packingProofImageUrls != null && !packingProofImageUrls.isEmpty()) {
+            metadata.put("packingProofImages", packingProofImageUrls);
+        }
+        
+        // 🔐 Add seal information for email display
+        if (sealCode != null && !sealCode.isEmpty()) {
+            metadata.put("sealCode", sealCode);
+        }
+        if (sealImageUrl != null && !sealImageUrl.isEmpty()) {
+            metadata.put("sealImageUrl", sealImageUrl);
         }
         
         String description = String.format(

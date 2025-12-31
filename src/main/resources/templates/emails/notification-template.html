@@ -463,6 +463,46 @@
                         </table>
                     </div>
                     
+                    <!-- 📸 Packing Proof Images Section (for PICKING_UP_STARTED) -->
+                    <div th:if="${metadata['packingProofImages'] != null and metadata['packingProofImages'].size() > 0}" style="margin-top: 20px;">
+                        <div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 12px;">
+                            📦 Hình ảnh đóng gói hàng hóa
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                            <div th:each="imgUrl, iterStat : ${metadata['packingProofImages']}" 
+                                 style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 150px;">
+                                <img th:src="${imgUrl}" 
+                                     th:alt="'Ảnh đóng gói ' + ${iterStat.index + 1}"
+                                     style="width: 100%; height: 120px; object-fit: cover; display: block;"/>
+                                <div style="padding: 6px; text-align: center; font-size: 11px; color: #64748b; background: #f8fafc;">
+                                    Ảnh <span th:text="${iterStat.index + 1}"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 🔐 Seal Image Section (for PICKING_UP_STARTED) -->
+                    <div th:if="${metadata['sealImageUrl'] != null and metadata['sealCode'] != null}" style="margin-top: 20px;">
+                        <div style="font-size: 14px; font-weight: 600; color: #4f46e5; margin-bottom: 12px;">
+                            🔐 Seal niêm phong
+                        </div>
+                        <div style="display: flex; align-items: flex-start; gap: 15px; padding: 15px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px;">
+                            <div style="border: 2px solid #4f46e5; border-radius: 8px; overflow: hidden; flex-shrink: 0;">
+                                <img th:src="${metadata['sealImageUrl']}" 
+                                     alt="Hình ảnh seal"
+                                     style="width: 150px; height: 120px; object-fit: cover; display: block;"/>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-size: 13px; color: #64748b; margin-bottom: 5px;">Mã seal:</div>
+                                <div style="font-size: 18px; font-weight: 700; color: #4f46e5; letter-spacing: 1px;" th:text="${metadata['sealCode']}">SEAL-123456</div>
+                                <div style="margin-top: 10px; font-size: 12px; color: #64748b; line-height: 1.5;">
+                                    Seal này được sử dụng để niêm phong hàng hóa của bạn. 
+                                    Vui lòng kiểm tra tình trạng seal khi nhận hàng.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div th:if="${metadata['sealCode'] != null and metadata['issueCode'] == null and metadata['vehicleAssignmentTrackingCode'] == null}" style="margin-top: 15px;">
                         <table class="package-table">
                             <thead>
