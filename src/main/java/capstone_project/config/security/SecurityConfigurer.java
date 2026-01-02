@@ -356,14 +356,14 @@ public class SecurityConfigurer {
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class)
-                // oauth2
-                .oauth2Login(oauth2Login -> oauth2Login
-                        .successHandler((request, response, authentication) -> {
-                            response.setStatus(HttpServletResponse.SC_OK);
-                            response.setContentType("application/json");
-                            response.getWriter().write("{\"message\":\"Login successful!\"}");
-                        })
-                )
+                // oauth2 - Disabled for Railway deployment
+//                .oauth2Login(oauth2Login -> oauth2Login
+//                        .successHandler((request, response, authentication) -> {
+//                            response.setStatus(HttpServletResponse.SC_OK);
+//                            response.setContentType("application/json");
+//                            response.getWriter().write("{\"message\":\"Login successful!\"}");
+//                        })
+//                )
                 // logout
                 .logout(logout -> logout
                         .logoutUrl("/api/v1/auths/logout")
