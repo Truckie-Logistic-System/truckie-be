@@ -12,7 +12,7 @@
 
 *A comprehensive backend solution for truck logistics operations, featuring real-time tracking, intelligent route optimization, automated order management, and AI-powered customer support.*
 
-[Live Demo](https://api.truckie.io.vn) • [API Documentation](https://api.truckie.io.vn/swagger-ui.html) • [Report Bug](#-contributing) • [Request Feature](#-contributing)
+[Live Demo](https://truckie.vercel.app/) • [API Documentation](https://api.truckie.io.vn/swagger-ui.html) • [Report Bug](#-contributing) • [Request Feature](#-contributing)
 
 </div>
 
@@ -30,7 +30,6 @@
 - [Deployment](#-deployment)
 - [Contributing](#-contributing)
 - [License](#-license)
-- [Contact](#-contact)
 
 ---
 
@@ -62,7 +61,6 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 ## ⭐ Key Features
 
 ### 📦 Order Management
-- **Multi-stop delivery support** - Handle complex delivery routes with multiple pickup/drop-off points
 - **Real-time order tracking** - GPS-based location updates via WebSocket
 - **Automated status transitions** - Smart order lifecycle management
 - **Digital contracts** - PDF contract generation with e-signatures
@@ -77,15 +75,13 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 
 ### 🗺️ Route & Navigation
 - **Real-time GPS tracking** - Live vehicle location monitoring
-- **Route optimization** - Intelligent path calculation using TrackAsia Maps
+- **Route optimization** - Intelligent path calculation using Vietmap
 - **Off-route detection** - Automated deviation alerts with grace periods
 - **Journey history** - Complete trip records and analytics
 
 ### 💰 Pricing & Payments
 - **Dynamic pricing engine** - Distance-based, weight-based, and zone-based calculations
-- **Multiple payment gateways** - PayOS & Stripe integration
-- **Automated invoicing** - Digital billing and receipts
-- **Refund management** - Streamlined refund processing
+- **Multiple payment gateways** - PayOS integration
 
 ### 🤖 AI-Powered Features
 - **Intelligent chatbot** - AI customer support using knowledge base
@@ -94,7 +90,6 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 
 ### 🔐 Security & Authentication
 - **JWT-based authentication** - Secure token management
-- **OAuth2 integration** - Google SSO support
 - **Role-based access control** - Admin, Staff, Driver, Customer roles
 - **Rate limiting** - DDoS protection with Bucket4j
 
@@ -128,17 +123,15 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 | Technology | Purpose |
 |------------|---------|
 | Docker | Containerization |
-| Railway | Cloud deployment platform |
+| Railway | Backend deployment |
+| Neon | PostgreSQL cloud database |
 | Cloudinary | Image/file storage |
-| Firebase | Push notifications & real-time sync |
 
 ### External Integrations
 | Service | Purpose |
 |---------|---------|
-| TrackAsia Maps | Route calculation & geocoding |
+| Vietmap | Route calculation & geocoding |
 | PayOS | Vietnam payment gateway |
-| Stripe | International payments |
-| Google OAuth2 | Social login |
 
 ### Monitoring & Observability
 | Technology | Purpose |
@@ -146,7 +139,7 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 | Micrometer | Metrics collection |
 | Prometheus | Metrics storage |
 | OpenTelemetry | Distributed tracing |
-| Spring Actuator | Health checks & endpoints |
+
 
 ### Development Tools
 | Tool | Purpose |
@@ -166,7 +159,7 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 │                              CLIENT APPLICATIONS                             │
 ├──────────────────┬──────────────────┬──────────────────┬───────────────────┤
 │   Web Admin      │   Customer App   │   Driver App     │   Staff Portal    │
-│   (React.js)     │   (React Native) │   (React Native) │   (React.js)      │
+│   (React.ts)     │   (React.ts) │   (Flutter Android) │   (React.ts)      │
 └────────┬─────────┴────────┬─────────┴────────┬─────────┴─────────┬─────────┘
          │                  │                  │                   │
          └──────────────────┴────────┬─────────┴───────────────────┘
@@ -179,8 +172,8 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
          ┌───────────────────────────┼───────────────────────────┐
          │                           │                           │
 ┌────────▼────────┐        ┌─────────▼─────────┐       ┌────────▼────────┐
-│  REST API       │        │  WebSocket API    │       │  OAuth2         │
-│  Controllers    │        │  (Real-time)      │       │  Authentication │
+│  REST API       │        │  WebSocket API    │       │  Authentication |
+│  Controllers    │        │  (Real-time)      │       │                 │
 └────────┬────────┘        └─────────┬─────────┘       └────────┬────────┘
          │                           │                          │
          └───────────────────────────┼──────────────────────────┘
@@ -196,12 +189,12 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 │  Repository     │        │  External APIs    │       │  Event          │
 │  (JPA/Postgres) │        │  (Maps, Payment)  │       │  Schedulers     │
 └────────┬────────┘        └─────────┬─────────┘       └────────┬────────┘
-         │                           │                          │
-         ▼                           ▼                          ▼
-┌─────────────────┐        ┌─────────────────┐       ┌──────────────────┐
-│   PostgreSQL    │        │   Cloudinary    │       │    Firebase      │
-│   Database      │        │   TrackAsia     │       │    (FCM)         │
-└─────────────────┘        │   PayOS/Stripe  │       └──────────────────┘
+         │                           │                          
+         ▼                           ▼                          
+┌─────────────────┐        ┌─────────────────┐       
+│   PostgreSQL    │        │   Cloudinary    │       
+│   Database      │        │   VietMap       │       
+└─────────────────┘        │   PayOS         │       
                            └─────────────────┘
 ```
 
@@ -272,7 +265,6 @@ Ensure you have the following installed:
 6. **Access the application**
    - API Base URL: `http://localhost:8080`
    - Swagger UI: `http://localhost:8080/swagger-ui.html`
-   - Health Check: `http://localhost:8080/actuator/health`
 
 ### Docker Deployment
 
@@ -300,7 +292,7 @@ All endpoints are prefixed with `/v1.0/`
 
 | Module | Endpoint | Description |
 |--------|----------|-------------|
-| **Authentication** | `/v1.0/auths/*` | Login, register, OAuth2, password reset |
+| **Authentication** | `/v1.0/auths/*` | Login, register, password reset |
 | **Users** | `/v1.0/users/*` | User profile management |
 | **Drivers** | `/v1.0/drivers/*` | Driver management & assignments |
 | **Orders** | `/v1.0/orders/*` | Order CRUD & lifecycle |
@@ -374,13 +366,32 @@ Using Liquibase for version-controlled schema changes:
 
 ## ☁️ Deployment
 
-### Railway (Production)
+### Production Infrastructure
+
+**Backend:** Railway  
+**Database:** Neon PostgreSQL (Serverless)
+
+### Railway Deployment (Backend)
 
 The application is deployed on Railway with automatic CI/CD:
 
 1. **Automatic Deployment:** Push to `main` triggers deployment
-2. **Environment:** Configured via Railway dashboard
+2. **Environment Variables:** Configured via Railway dashboard
 3. **Domain:** `api.truckie.io.vn`
+4. **Features:**
+   - Zero-downtime deployments
+   - Automatic SSL certificates
+   - Built-in monitoring and logs
+
+### Neon Database (PostgreSQL)
+
+Serverless PostgreSQL database with the following benefits:
+
+1. **Auto-scaling:** Scales to zero when inactive
+2. **Branching:** Database branching for testing
+3. **High Availability:** Built-in redundancy
+4. **Connection Pooling:** Built-in PgBouncer
+5. **Cost-Effective:** Pay only for storage and compute used
 
 ### Manual Deployment
 
