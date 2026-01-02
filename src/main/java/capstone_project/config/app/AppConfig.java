@@ -31,9 +31,9 @@ public class AppConfig {
             // Use specific origins instead or configure in properties
             config.addAllowedOrigin("http://localhost:3000");
             config.addAllowedOrigin("http://localhost:3001");
-            config.addAllowedOrigin("http://localhost:5173");
+            config.addAllowedOrigin("https://truckie.vercel.app");
             config.addAllowedOrigin("http://localhost:5174");
-            config.addAllowedOrigin("http://localhost:8080");
+            config.addAllowedOrigin("https://web-production-7b905.up.railway.app");
             config.addAllowedOrigin("https://truckie.io.vn");
         }
 

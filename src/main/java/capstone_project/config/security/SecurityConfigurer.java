@@ -202,9 +202,9 @@ public class SecurityConfigurer {
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:3000",
                 "http://localhost:3001",
-                "http://localhost:5173",
+                "https://truckie.vercel.app",
                 "http://localhost:5174",
-                "http://localhost:8080",
+                "https://web-production-7b905.up.railway.app",
                 "http://14.225.253.8:3000",
                 "http://14.225.253.8",
                 "https://truckie-fe.vercel.app",
