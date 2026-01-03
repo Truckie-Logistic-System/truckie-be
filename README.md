@@ -150,7 +150,7 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 │                              CLIENT APPLICATIONS                             │
 ├──────────────────┬──────────────────┬──────────────────┬───────────────────┤
 │   Web Admin      │   Customer App   │   Driver App     │   Staff Portal    │
-│   (React.ts)     │   (React.ts) │   (Flutter Android) │   (React.ts)      │
+│   (React.ts)     │   (React.ts)     │(Flutter Android) │   (React.ts)      │
 └────────┬─────────┴────────┬─────────┴────────┬─────────┴─────────┬─────────┘
          │                  │                  │                   │
          └──────────────────┴────────┬─────────┴───────────────────┘
@@ -163,29 +163,30 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
          ┌───────────────────────────┼───────────────────────────┐
          │                           │                           │
 ┌────────▼────────┐        ┌─────────▼─────────┐       ┌────────▼────────┐
-│  REST API       │        │  WebSocket API    │       │  Authentication |
-│  Controllers    │        │  (Real-time)      │       │                 │
+│  REST API       │        │  WebSocket API    │       │ Authentication  │
+│  Controllers    │        │  (Real-time)      │       │     (JWT)       │
 └────────┬────────┘        └─────────┬─────────┘       └────────┬────────┘
          │                           │                          │
          └───────────────────────────┼──────────────────────────┘
                                      │
                            ┌─────────▼─────────┐
                            │  Service Layer    │
-                           │  (Business Logic) │
+                           │ (Business Logic)  │
                            └─────────┬─────────┘
                                      │
          ┌───────────────────────────┼───────────────────────────┐
          │                           │                           │
 ┌────────▼────────┐        ┌─────────▼─────────┐       ┌────────▼────────┐
-│  Repository     │        │  External APIs    │       │  Event          │
-│  (JPA/Postgres) │        │  (Maps, Payment)  │       │  Schedulers     │
+│  Repository     │        │  External APIs    │       │     Event       │
+│ (JPA/Postgres)  │        │ (Maps, Payment)   │       │   Schedulers    │
 └────────┬────────┘        └─────────┬─────────┘       └────────┬────────┘
-         │                           │                          
-         ▼                           ▼                          
-┌─────────────────┐        ┌─────────────────┐       
-│   PostgreSQL    │        │   Cloudinary    │       
-│   Database      │        │   VietMap       │       
-└─────────────────┘        │   PayOS         │       
+         │                           │                          │
+         │                           │                          │
+         ▼                           ▼                          ▼
+┌─────────────────┐        ┌─────────────────┐       ┌─────────────────┐
+│   PostgreSQL    │        │   Cloudinary    │       │  Notification   │
+│    Database     │        │    VietMap      │       │    Service      │
+└─────────────────┘        │     PayOS       │       └─────────────────┘
                            └─────────────────┘
 ```
 
