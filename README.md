@@ -27,6 +27,7 @@
 - [Getting Started](#-getting-started)
 - [API Documentation](#-api-documentation)
 - [Database Schema](#️-database-schema)
+- [Deployment](#-deployment)
 - [Contributing](#-contributing)
 - [License](#-license)
 
@@ -38,7 +39,7 @@
 
 ### 🎓 Capstone Project Details
 - **University:** FPT University
-- **Semester:** Fall 2025
+- **Semester:** Fall 2025 (9/2025 - 12/2025)
 - **Team Size:** 5 members
 - **Development Duration:** 4 months
 
@@ -352,6 +353,43 @@ Using Liquibase for version-controlled schema changes:
 
 # Rollback last change
 ./gradlew rollbackCount -PliquibaseCommandValue=1
+```
+
+---
+
+## 🚀 Deployment
+
+### Production Environment
+
+| Component | Platform | URL |
+|-----------|----------|-----|
+| **Backend** | Railway | [https://web-production-7b905.up.railway.app](https://web-production-7b905.up.railway.app) |
+| **Database** | Railway (PostgreSQL) | Internal connection |
+| **Frontend** | Vercel | [https://truckie.vercel.app](https://truckie.vercel.app) |
+
+### Quick Deploy
+
+**Railway Deployment:**
+- Push to `main` branch triggers automatic deployment
+- Environment variables configured via Railway dashboard
+- Zero-downtime deployments with health checks
+
+**Manual Build:**
+```bash
+# Build production JAR
+./gradlew clean build -Pprod
+
+# Run application
+java -jar build/libs/app.jar --spring.profiles.active=railway
+```
+
+**Docker Deployment:**
+```bash
+# Build image
+docker build -t truckie-backend .
+
+# Run container
+docker run -p 8080:8080 --env-file .env truckie-backend
 ```
 
 ---
