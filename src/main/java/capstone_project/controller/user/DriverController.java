@@ -6,6 +6,7 @@ import capstone_project.dtos.request.user.UpdateDriverRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.service.services.user.DriverService;
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -60,6 +61,7 @@ public class DriverController {
 
     @PostMapping("/generate-bulk")
     @PreAuthorize("hasRole('ADMIN')")
+    @Hidden
     public ResponseEntity<ApiResponse<List<DriverResponse>>> generateBulkDrivers(@RequestBody BulkDriverGenerationRequest request) {
         final var drivers = driverService.generateBulkDrivers(request.getCount());
         return ResponseEntity.ok(ApiResponse.ok(drivers));
@@ -83,6 +85,7 @@ public class DriverController {
 
     @PostMapping("/update-realistic-data")
     @PreAuthorize("hasRole('ADMIN')")
+    @Hidden
     public ResponseEntity<ApiResponse<List<DriverResponse>>> updateAllDriversWithRealisticData() {
         final var drivers = driverService.updateAllDriversWithRealisticData();
         return ResponseEntity.ok(ApiResponse.ok(drivers));
@@ -90,6 +93,7 @@ public class DriverController {
 
     @PostMapping("/reset-all-passwords")
     @PreAuthorize("hasRole('ADMIN')")
+    @Hidden
     public ResponseEntity<ApiResponse<String>> resetAllDriverPasswords(@RequestParam String newPassword) {
         final int count = driverService.resetAllDriverPasswords(newPassword);
         return ResponseEntity.ok(ApiResponse.ok("Đã cập nhật mật khẩu cho " + count + " tài xế"));

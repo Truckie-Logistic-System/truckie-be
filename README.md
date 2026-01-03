@@ -12,7 +12,7 @@
 
 *A comprehensive backend solution for truck logistics operations, featuring real-time tracking, intelligent route optimization, automated order management, and AI-powered customer support.*
 
-[Live Demo](https://truckie.vercel.app/) • [API Documentation](https://api.truckie.io.vn/swagger-ui.html) • [Report Bug](#-contributing) • [Request Feature](#-contributing)
+[Live Demo](https://truckie.vercel.app/) • [API Documentation](https://web-production-7b905.up.railway.app/swagger-ui/index.html) • [Report Bug](#-contributing) • [Request Feature](#-contributing)
 
 </div>
 
@@ -27,7 +27,6 @@
 - [Getting Started](#-getting-started)
 - [API Documentation](#-api-documentation)
 - [Database Schema](#️-database-schema)
-- [Deployment](#-deployment)
 - [Contributing](#-contributing)
 - [License](#-license)
 
@@ -80,7 +79,7 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 - **Journey history** - Complete trip records and analytics
 
 ### 💰 Pricing & Payments
-- **Dynamic pricing engine** - Distance-based, weight-based, and zone-based calculations
+- **Dynamic pricing engine** - Distance-based and weight-based calculations
 - **Multiple payment gateways** - PayOS integration
 
 ### 🤖 AI-Powered Features
@@ -123,8 +122,7 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 | Technology | Purpose |
 |------------|---------|
 | Docker | Containerization |
-| Railway | Backend deployment |
-| Neon | PostgreSQL cloud database |
+| Railway | Backend & Database deployment |
 | Cloudinary | Image/file storage |
 
 ### External Integrations
@@ -132,14 +130,6 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 |---------|---------|
 | Vietmap | Route calculation & geocoding |
 | PayOS | Vietnam payment gateway |
-
-### Monitoring & Observability
-| Technology | Purpose |
-|------------|---------|
-| Micrometer | Metrics collection |
-| Prometheus | Metrics storage |
-| OpenTelemetry | Distributed tracing |
-
 
 ### Development Tools
 | Tool | Purpose |
@@ -282,8 +272,10 @@ docker-compose up -d
 ## 📚 API Documentation
 
 ### Base URL
-- **Production:** `https://api.truckie.io.vn`
-- **Development:** `http://localhost:8080`
+- **Production (Backend):** `https://web-production-7b905.up.railway.app`
+- **Production (Frontend):** `https://truckie.vercel.app`
+- **Development (Backend):** `http://localhost:8080`
+- **Development (Frontend):** `http://localhost:5173`
 
 ### API Versioning
 All endpoints are prefixed with `/v1.0/`
@@ -323,7 +315,7 @@ Authorization: Bearer <your_jwt_token>
 ### Interactive Documentation
 
 Access the full Swagger/OpenAPI documentation:
-- **Swagger UI:** [https://api.truckie.io.vn/swagger-ui.html](https://api.truckie.io.vn/swagger-ui.html)
+- **Swagger UI:** [https://web-production-7b905.up.railway.app/swagger-ui/index.html](https://web-production-7b905.up.railway.app/swagger-ui/index.html)
 
 ---
 
@@ -361,55 +353,6 @@ Using Liquibase for version-controlled schema changes:
 # Rollback last change
 ./gradlew rollbackCount -PliquibaseCommandValue=1
 ```
-
----
-
-## ☁️ Deployment
-
-### Production Infrastructure
-
-**Backend:** Railway  
-**Database:** Neon PostgreSQL (Serverless)
-
-### Railway Deployment (Backend)
-
-The application is deployed on Railway with automatic CI/CD:
-
-1. **Automatic Deployment:** Push to `main` triggers deployment
-2. **Environment Variables:** Configured via Railway dashboard
-3. **Domain:** `api.truckie.io.vn`
-4. **Features:**
-   - Zero-downtime deployments
-   - Automatic SSL certificates
-   - Built-in monitoring and logs
-
-### Neon Database (PostgreSQL)
-
-Serverless PostgreSQL database with the following benefits:
-
-1. **Auto-scaling:** Scales to zero when inactive
-2. **Branching:** Database branching for testing
-3. **High Availability:** Built-in redundancy
-4. **Connection Pooling:** Built-in PgBouncer
-5. **Cost-Effective:** Pay only for storage and compute used
-
-### Manual Deployment
-
-```bash
-# Build production JAR
-./gradlew clean build -Pprod
-
-# The JAR will be at build/libs/app.jar
-java -jar build/libs/app.jar --spring.profiles.active=prod
-```
-
-### Environment Profiles
-
-| Profile | Description |
-|---------|-------------|
-| `default` | Local development |
-| `railway` | Railway production |
-| `test` | Testing environment |
 
 ---
 

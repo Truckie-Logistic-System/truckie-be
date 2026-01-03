@@ -8,6 +8,7 @@ import capstone_project.dtos.response.vehicle.PaginatedServiceRecordsResponse;
 import capstone_project.dtos.response.vehicle.VehicleServiceRecordResponse;
 import capstone_project.service.services.vehicle.VehicleServiceRecordService;
 import capstone_project.service.services.vehicle.VehicleExpiryCheckService;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -128,6 +129,7 @@ public class VehicleServiceRecordController {
      * bảo trì/đăng kiểm (overdue, ≤7 ngày, 8-30 ngày) cho một vài xe ngẫu nhiên.
      */
     @PostMapping("/generate-demo-alert-data")
+    @Hidden
     public ResponseEntity<ApiResponse<String>> generateDemoAlertDataForBanner() {
         int created = service.generateDemoAlertDataForBanner();
         String message = "Đã tạo " + created + " bản ghi demo cho banner cảnh báo bảo trì/đăng kiểm";

@@ -7,6 +7,7 @@ import capstone_project.dtos.response.demo.DemoUsersGenerationResponse;
 import capstone_project.dtos.response.demo.UpdateUsernamesResponse;
 import capstone_project.service.services.demo.DashboardDemoDataService;
 import capstone_project.service.services.auth.RegisterService;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('ADMIN')")
 @Slf4j
+@Hidden
 public class DemoDataController {
 
     private final DashboardDemoDataService demoDataService;

@@ -12,6 +12,7 @@ import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.service.services.auth.RegisterService;
 import capstone_project.service.services.driver.DriverOnboardingService;
 import capstone_project.service.services.user.UserCleanupService;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -89,6 +90,7 @@ public class AccountsManagerController {
      * @return Response containing details about deleted users
      */
     @DeleteMapping("/users/cleanup-duplicates")
+    @Hidden
     public ResponseEntity<ApiResponse<DuplicateUserCleanupResponse>> cleanupDuplicateUsers(
             @RequestParam(defaultValue = "true") boolean dryRun) {
         log.info("[cleanupDuplicateUsers] Starting duplicate user cleanup. DryRun: {}", dryRun);

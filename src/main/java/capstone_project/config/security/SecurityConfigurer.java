@@ -354,7 +354,7 @@ public class SecurityConfigurer {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
                         .anyRequest().authenticated())
-                .httpBasic(Customizer.withDefaults())
+                // httpBasic removed to prevent browser login popup for API calls
                 .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class)
                 // oauth2 - Disabled for Railway deployment
 //                .oauth2Login(oauth2Login -> oauth2Login

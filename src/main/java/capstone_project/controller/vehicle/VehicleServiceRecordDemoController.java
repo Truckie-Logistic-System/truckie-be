@@ -2,6 +2,7 @@ package capstone_project.controller.vehicle;
 
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.service.services.vehicle.VehicleServiceRecordDemoService;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import java.util.Map;
 @RequestMapping("/api/v1/vehicle-service-records/demo")
 @RequiredArgsConstructor
 @Tag(name = "Vehicle Service Record Demo", description = "API tạo dữ liệu demo cho lịch sử bảo trì/đăng kiểm xe")
+@Hidden
 public class VehicleServiceRecordDemoController {
 
     private final VehicleServiceRecordDemoService demoService;
