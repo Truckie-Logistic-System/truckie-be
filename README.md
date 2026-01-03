@@ -205,7 +205,7 @@ Ensure you have the following installed:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/truckie-be.git
+   git clone https://github.com/Truckie-Logistic-System/truckie-be.git
    cd truckie-be
    ```
 
