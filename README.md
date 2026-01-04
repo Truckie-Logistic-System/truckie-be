@@ -24,10 +24,7 @@
 - [Key Features](#-key-features)
 - [Tech Stack](#️-tech-stack)
 - [System Architecture](#-system-architecture)
-- [Getting Started](#-getting-started)
 - [API Documentation](#-api-documentation)
-- [Database Schema](#️-database-schema)
-- [Deployment](#-deployment)
 - [Contributing](#-contributing)
 - [License](#-license)
 
@@ -192,85 +189,6 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 
 ---
 
-## 🚀 Getting Started
-
-### Prerequisites
-
-Ensure you have the following installed:
-- **Java 17** or higher
-- **Gradle 8.x** (or use the included Gradle Wrapper)
-- **PostgreSQL 14** or higher
-- **Docker** (optional, for containerized deployment)
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Truckie-Logistic-System/truckie-be.git
-   cd truckie-be
-   ```
-
-2. **Configure the database**
-   
-   Create a PostgreSQL database:
-   ```sql
-   CREATE DATABASE truckie;
-   ```
-
-3. **Set up environment variables**
-   
-   Copy the example properties and configure:
-   ```bash
-   cp src/main/resources/application.properties src/main/resources/application-local.properties
-   ```
-   
-   Update the following properties:
-   ```properties
-   # Database
-   spring.datasource.url=jdbc:postgresql://localhost:5432/truckie
-   spring.datasource.username=your_username
-   spring.datasource.password=your_password
-   
-   # JWT Secret
-   jwt.secret=your_jwt_secret_key
-   
-   # External Services (optional)
-   cloudinary.cloud-name=your_cloud_name
-   cloudinary.api-key=your_api_key
-   cloudinary.api-secret=your_api_secret
-   ```
-
-4. **Run database migrations**
-   ```bash
-   ./gradlew update -PrunList=main
-   ```
-
-5. **Build and run the application**
-   ```bash
-   # Build
-   ./gradlew clean build
-   
-   # Run
-   ./gradlew bootRun
-   ```
-
-6. **Access the application**
-   - API Base URL: `http://localhost:8080`
-   - Swagger UI: `http://localhost:8080/swagger-ui.html`
-
-### Docker Deployment
-
-```bash
-# Build the Docker image
-docker build -t truckie-backend .
-
-# Run with Docker Compose
-cd development
-docker-compose up -d
-```
-
----
-
 ## 📚 API Documentation
 
 ### Base URL
@@ -321,7 +239,6 @@ Access the full Swagger/OpenAPI documentation:
 
 ---
 
-## 🗄️ Database Schema
 
 ### Core Entities
 
@@ -354,43 +271,6 @@ Using Liquibase for version-controlled schema changes:
 
 # Rollback last change
 ./gradlew rollbackCount -PliquibaseCommandValue=1
-```
-
----
-
-## 🚀 Deployment
-
-### Production Environment
-
-| Component | Platform | URL |
-|-----------|----------|-----|
-| **Backend** | Railway | [https://web-production-7b905.up.railway.app](https://web-production-7b905.up.railway.app) |
-| **Database** | Railway (PostgreSQL) | Internal connection |
-| **Frontend** | Vercel | [https://truckie.vercel.app](https://truckie.vercel.app) |
-
-### Quick Deploy
-
-**Railway Deployment:**
-- Push to `main` branch triggers automatic deployment
-- Environment variables configured via Railway dashboard
-- Zero-downtime deployments with health checks
-
-**Manual Build:**
-```bash
-# Build production JAR
-./gradlew clean build -Pprod
-
-# Run application
-java -jar build/libs/app.jar --spring.profiles.active=railway
-```
-
-**Docker Deployment:**
-```bash
-# Build image
-docker build -t truckie-backend .
-
-# Run container
-docker run -p 8080:8080 --env-file .env truckie-backend
 ```
 
 ---

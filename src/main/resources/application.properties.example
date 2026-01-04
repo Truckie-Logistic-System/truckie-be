@@ -1,22 +1,25 @@
 spring.application.name=capstone-project
-app.base.url=https://web-production-7b905.up.railway.app
+app.base.url=${APP_URL:http://localhost:8080}
+
 # Database config
 spring.datasource.driver-class-name=org.postgresql.Driver
+spring.datasource.url=${DATABASE_URL:jdbc:postgresql://localhost:5432/capstone-project}
+spring.datasource.username=${DB_USERNAME:postgres}
+spring.datasource.password=${DB_PASSWORD:your_password_here}
 
 # Hibernate - Validate mode (schema must match entities)
 spring.jpa.hibernate.ddl-auto=validate
-# Disable SQL logging in console
 spring.jpa.show-sql=false
 spring.jpa.properties.hibernate.format_sql=false
 spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
  
-#oauth2
+# OAuth2 - Configure in environment variables
 spring.security.oauth2.client.registration.google.client-id=${GOOGLE_CLIENT_ID}
 spring.security.oauth2.client.registration.google.client-secret=${GOOGLE_CLIENT_SECRET}
 spring.security.oauth2.client.registration.google.redirect-uri=${APP_URL}/v1.0/auths/login/oauth2/google
 spring.security.oauth2.client.registration.google.scope=email,profile
 
-#mail
+# Mail Configuration
 spring.mail.host=smtp.gmail.com
 spring.mail.port=587
 spring.mail.username=${MAIL_USERNAME}
@@ -33,11 +36,14 @@ notification.email.rate-limit.per-day=200
 # Frontend URL for email links
 app.frontend.url=${FRONTEND_URL:http://localhost:3000}
 
+# FCM config
+fcm.service.account.key=classpath:firebase-service-account.json
+fcm.sender.id=${FCM_SENDER_ID:your_fcm_sender_id}
+
 # CORS Configuration - Allowed origins for API and WebSocket
 app.cors.allowed-origins=${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
 
-
-#swagger
+# Swagger
 springdoc.swagger-ui.path=/swagger-ui.html
 springdoc.api-docs.path=/v3/api-docs
 springdoc.swagger-ui.enabled=true
@@ -54,13 +60,11 @@ spring.data.redis.username=${REDIS_USERNAME:default}
 spring.data.redis.password=${REDIS_PASSWORD}
 spring.data.redis.ssl.enabled=${REDIS_SSL:false}
 spring.data.redis.timeout=60000
-# Lettuce connection pool configuration
 spring.data.redis.lettuce.pool.enabled=true
 spring.data.redis.lettuce.pool.max-active=8
 spring.data.redis.lettuce.pool.max-idle=8
 spring.data.redis.lettuce.pool.min-idle=0
 spring.data.redis.lettuce.pool.max-wait=-1ms
-# Cache configuration
 spring.cache.type=redis
 
 # ================= AUTH & JWT =================
@@ -68,7 +72,7 @@ auth.api.base-path=/api/v1/auths
 email.api.base-path=/api/v1/emails
 
 # JWT Configuration
-jwt.secret=${JWT_SECRET}
+jwt.secret=${JWT_SECRET:your_jwt_secret_key_minimum_32_characters}
 jwt.access-token.expiration-ms=3600000
 jwt.refresh-token.expiration-ms=2592000000
 jwt.cache.enabled=true
@@ -83,18 +87,14 @@ driver.api.base-path=/api/v1/drivers
 
 # ================= ADMIN DASHBOARD =================
 admin-dashboard.api.base-path=/api/v1/admin/dashboard
-
-# ================= ADDRESS =================
 address.api.base-path=/api/v1/address
 
-# ================= VEHICLE =================
+# ================= VEHICLE & TRUCK =================
 vehicle.api.base-path=/api/v1/vehicles
-vehicle-type.api.base-path=/api/v1/vehicle-types
-size-rule.api.base-path=/api/v1/size-rules
-vehicle-maintenance.api.base-path=/api/v1/vehicle-maintenances
+truck.api.base-path=/api/v1/trucks
+trailer.api.base-path=/api/v1/trailers
+maintenance-schedule.api.base-path=/api/v1/maintenance-schedules
 vehicle-service-record.api.base-path=/api/v1/vehicle-service-records
-vehicle-assignment.api.base-path=/api/v1/vehicle-assignments
-vehicle-fuel-consumption.api.base-path=/api/v1/vehicle-fuel-consumptions
 
 # ================= CATEGORY =================
 category.api.base-path=/api/v1/categories
@@ -136,21 +136,14 @@ issue-type.api.base-path=/api/v1/issue-types
 issue-image.api.base-path=/api/v1/issue-images
 issue-customer.api.base-path=/api/v1/issue/customer
 damage-resolution.api.base-path=/api/v1/damage-resolution
-# Return payment deadline in minutes (driver cannot wait too long)
 issue.return-payment.deadline-minutes=30
 
 # ================= OFF-ROUTE WARNING CONFIG =================
-# Khoảng cách lệch tuyến tối đa cho phép, mét - testing threshold (giảm để dễ test)
 offroute.max-distance-meters=30.0
-# Thời gian lệch tuyến tối thiểu để gửi cảnh báo VÀNG (giây)
 offroute.warning.yellow-seconds=5
-# Thời gian lệch tuyến tối thiểu để gửi cảnh báo ĐỎ (giây)
 offroute.warning.red-seconds=10
-# Thời gian chờ driver quay lại route sau khi staff liên hệ (phút)
 offroute.contact.grace-period-minutes=1
-# Thời gian gia hạn cho mỗi lần staff gia hạn (phút)
 offroute.contact.extension-minutes=1
-# Khoảng cách tối thiểu để xác nhận driver đang quay lại route (mét)
 offroute.return.min-distance-meters=50.0
 
 # ================= REFUND =================
@@ -162,6 +155,7 @@ device-type.api.base-path=/api/v1/device-types
 
 # ================= USER CHAT =================
 user-chat.api.base-path=/api/v1/user-chat
+
 # ================= SETTING =================
 system-setting.api.base-path=/api/v1/system-settings
 contract-setting.api.base-path=/api/v1/contract-settings
@@ -174,6 +168,7 @@ seal.api.base-path=/api/v1/seals
 
 # ================= VIETMAP =================
 vietmap.api.base-path=/api/v1/vietmap
+
 # ================= NOTIFICATION =================
 notification.api.base-path=/api/v1/notifications
 
@@ -186,17 +181,10 @@ demo-data.api.base-path=/api/v1/admin/demo/dashboard-data
 # ================= ROUTE =================
 route.api.base-path=/api/v1/routes
 
-#app.cors.allowed-origins=https://truckie.io.vn,\
-#  http://localhost:5173,\
-#  http://localhost:5174,\
-#  http://localhost:8080,\
-#  http://14.225.253.8:3000,\
-#  https://domain.com
-
 # Admin user configuration
 admin.username=${ADMIN_USERNAME:admin}
 admin.email=${ADMIN_EMAIL:admin@example.com}
-admin.password=${ADMIN_PASSWORD:admin}
+admin.password=${ADMIN_PASSWORD:change_me_in_production}
 
 # AI Chatbot Configuration (Google Gemini)
 ai.gemini.api-key=${GEMINI_API_KEY}
@@ -222,8 +210,6 @@ vietmap.parameter.value.default.hcm.focus=10.762622,106.660172
 vietmap.parameter.value.city.id.hcm=12
 vietmap.maps.styles.endpoint=/maps/styles/tm/tiles.json
 vietmap.maps.mobile.styles.endpoint=/api/maps/raster/styles.json
-
-# Vietmap Route API v3 Default Configuration
 vietmap.route.default.alternative=true
 vietmap.route.default.time=2025-08-01T17:00:00Z
 
@@ -233,44 +219,27 @@ stripe.webhook-secret-key=${STRIPE_WEBHOOK_SECRET}
 stripe.publishable-key=${STRIPE_PUBLISHABLE_KEY}
 
 # ================= LOGGING CONFIGURATION =================
-# Root logging level - only show WARN and ERROR by default
 logging.level.root=WARN
-
-# Application package - show INFO for our code
 logging.level.capstone_project=INFO
 logging.level.org.hibernate=INFO
 logging.level.org.hibernate.SQL=INFO
-
-# Spring Framework - reduce noise
 logging.level.org.springframework=WARN
 logging.level.org.springframework.web=WARN
 logging.level.org.springframework.boot=WARN
 logging.level.org.springframework.boot.autoconfigure=ERROR
 logging.level.org.springframework.context=WARN
 logging.level.org.springframework.security=WARN
-
-# Hibernate - hide SQL and binding parameters
 logging.level.org.hibernate.type.descriptor.sql.BasicBinder=ERROR
 logging.level.org.hibernate.engine.transaction.internal.TransactionImpl=ERROR
-
-# Database - only errors
 logging.level.org.springframework.jdbc.core=ERROR
 logging.level.org.springframework.data.redis=ERROR
 logging.level.org.springframework.data.redis.core=ERROR
-
-# WebSocket - only errors
 logging.level.org.springframework.web.socket=ERROR
 logging.level.org.springframework.messaging=ERROR
-
-# Connection pool - only errors
 logging.level.com.zaxxer.hikari=ERROR
-
-# Other libraries - only errors
 logging.level.io.lettuce=ERROR
 logging.level.reactor=ERROR
 logging.level.org.apache=ERROR
-
-# Pattern for console output
 logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n
 
 spring.web.resources.add-mappings=false
@@ -281,7 +250,7 @@ cloudinary.api-key=${CLOUDINARY_API_KEY}
 cloudinary.api-secret=${CLOUDINARY_API_SECRET}
 cloudinary.secure=true
 
-#payos
+# PayOS Configuration
 payos.client-id=${PAYOS_CLIENT_ID}
 payos.api-key=${PAYOS_API_KEY}
 payos.checksum-key=${PAYOS_CHECKSUM_KEY}
@@ -293,63 +262,14 @@ management.tracing.enabled=false
 
 # OptaPlanner configuration
 optaplanner.solver.termination.spent-limit=5s
-#optaplanner.constraint.weights.ItemMustFitDimensions=HARD/10
-#optaplanner.constraint.weights.OverWeightCapacity=HARD/1
-#optaplanner.constraint.weights.OverVolumeCapacity=HARD/1
-#optaplanner.constraint.weights.MinimizeVehiclesUsed=SOFT/1000
-#optaplanner.constraint.weights.MinimizeLeftoverWeight=SOFT/1
 
-#local
+# DevTools - Disable in production
+spring.devtools.restart.enabled=false
+spring.devtools.livereload.enabled=false
 
-#spring.datasource.driver-class-name=org.postgresql.Driver
-#spring.datasource.url=jdbc:postgresql://localhost:5432/capstone-project
-#spring.datasource.username=postgres
-#spring.datasource.password=postgres
-
-#spring.data.redis.host=localhost
-#spring.data.redis.port=6379
-#spring.data.redis.ssl.enabled=false
-
-# Enable DevTools
-spring.devtools.restart.enabled=true
-spring.devtools.livereload.enabled=true
-
-# Optional: Additional paths to watch
-spring.devtools.restart.additional-paths=src/main/java
-
-# Optional: Trigger file for manual restart
-spring.devtools.restart.trigger-file=.reloadtrigger
-
-
-# Faster restart
-spring.devtools.restart.poll-interval=1000
-spring.devtools.restart.quiet-period=400
-
-# LiveReload server port (default 35729)
-spring.devtools.livereload.port=35729
-
-# Disable template caching for development
-spring.thymeleaf.cache=false
-spring.freemarker.cache=false
-spring.groovy.template.cache=false
-
-# Prefix code for Order and OrderDetail
-prefix.order.code=ORD
-prefix.order.detail.code=ORD_D_
-prefix.vehicle.assignment.code=TRIP_
-
-# ================= ORDER CANCELLATION REASONS =================
-# Staff cancellation reasons (comma-separated, Vietnamese)
-# NOTE: Runtime sẽ đọc từ file order-cancellation.properties (UTF-8).
-# Dòng dưới được comment để tránh override giá trị UTF-8 bằng bản ISO-8859-1 trong application.properties.
-# order.cancellation.reasons.staff=Không đủ điều kiện vận chuyển,Hàng hóa không phù hợp với dịch vụ,Thông tin đơn hàng không chính xác,Địa chỉ giao hàng không hợp lệ,Khách hàng yêu cầu hủy,Không thể liên lạc với khách hàng,Hàng hóa bị cấm vận chuyển,Lý do khác
-penalty.truck.traffic-violations=Chạy quá tốc độ,Vượt đèn đỏ,Đi sai làn đường,Không giữ khoảng cách an toàn,Không chấp hành tín hiệu giao thông,Chở quá tải trọng cho phép,Không có hoặc không mang theo giấy tờ xe,Không thắt dây an toàn,Sử dụng điện thoại khi lái xe,Đỗ dừng xe sai quy định,Lý do khác
-
-#server.port=8080
-
+# Server Configuration
 server.address=0.0.0.0
 server.port=${PORT:8080}
-
 
 # Multipart file upload configuration
 spring.servlet.multipart.enabled=true
@@ -366,8 +286,15 @@ spring.liquibase.drop-first=false
 app.weight.units.default=Tấn
 app.weight.units.available=Tấn,Kí,Kilogram,Tạ,Yến
 
+# Prefix code for Order and OrderDetail
+prefix.order.code=ORD
+prefix.order.detail.code=ORD_D_
+prefix.vehicle.assignment.code=TRIP_
+
+# Penalty reasons
+penalty.truck.traffic-violations=Chạy quá tốc độ,Vượt đèn đỏ,Đi sai làn đường,Không giữ khoảng cách an toàn,Không chấp hành tín hiệu giao thông,Chở quá tải trọng cho phép,Không có hoặc không mang theo giấy tờ xe,Không thắt dây an toàn,Sử dụng điện thoại khi lái xe,Đỗ dừng xe sai quy định,Lý do khác
+
 # ================= API ENDPOINTS =================
-# Vehicle Service Record Demo API Endpoints
 api.vehicle-service-record.demo.generate=/api/v1/vehicle-service-records/demo/generate
 api.vehicle-service-record.demo.clear=/api/v1/vehicle-service-records/demo/clear
 api.vehicle-service-record.demo.stats=/api/v1/vehicle-service-records/demo/stats
