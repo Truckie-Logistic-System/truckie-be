@@ -14,24 +14,25 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-@Configuration
-public class FirestoreConfig {
-    @Value("classpath:/private-key.json")
-    private Resource privateKey;
-
-    @Bean
-    public Firestore firestore() throws IOException {
-        InputStream credentials = new ByteArrayInputStream(privateKey.getContentAsByteArray());
-        GoogleCredentials googleCredentials = GoogleCredentials.fromStream(credentials);
-
-        FirebaseOptions firebaseOptions = FirebaseOptions.builder()
-                .setCredentials(googleCredentials)
-                .build();
-
-        if (FirebaseApp.getApps().isEmpty()) {
-            FirebaseApp.initializeApp(firebaseOptions);
-        }
-
-        return FirestoreClient.getFirestore();
-    }
-}
+// DISABLED: Firebase/Firestore not in use
+//@Configuration
+//public class FirestoreConfig {
+//    @Value("classpath:/private-key.json")
+//    private Resource privateKey;
+//
+//    @Bean
+//    public Firestore firestore() throws IOException {
+//        InputStream credentials = new ByteArrayInputStream(privateKey.getContentAsByteArray());
+//        GoogleCredentials googleCredentials = GoogleCredentials.fromStream(credentials);
+//
+//        FirebaseOptions firebaseOptions = FirebaseOptions.builder()
+//                .setCredentials(googleCredentials)
+//                .build();
+//
+//        if (FirebaseApp.getApps().isEmpty()) {
+//            FirebaseApp.initializeApp(firebaseOptions);
+//        }
+//
+//        return FirestoreClient.getFirestore();
+//    }
+//}
