@@ -48,7 +48,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
         String path = request.getRequestURI();
 
-        // Skip public endpoints (OPTIONS handled by SimpleCorsFilter)
+        // Skip public endpoints (OPTIONS handled by CORS Filter in AppConfig)
         if (isPublicEndpoint(path)) {
             filterChain.doFilter(request, response);
             return;
