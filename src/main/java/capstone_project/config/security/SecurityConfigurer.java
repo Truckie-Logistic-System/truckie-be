@@ -197,12 +197,19 @@ public class SecurityConfigurer {
     // JwtRequestFilter is now auto-configured via @Component and constructor injection
     // No need for explicit @Bean creation
 
-    // CORS configuration moved to application-azure.properties
-    // Using Spring Web native CORS support instead of custom bean
-    // @Bean
-    // public CorsConfigurationSource corsConfigurationSource() {
-    //     ... custom CORS config removed ...
-    // }
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(Arrays.asList("*")); // Allow all origins for Swagger
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+        
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 
     @Bean
     public SecurityFilterChain configure(HttpSecurity http, JwtRequestFilter jwtRequestFilter) throws Exception {
