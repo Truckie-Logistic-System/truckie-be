@@ -33,7 +33,7 @@ public class AppConfig {
             config.addAllowedOrigin("http://localhost:3001");
             config.addAllowedOrigin("https://truckie.vercel.app");
             config.addAllowedOrigin("http://localhost:5174");
-            config.addAllowedOrigin("https://web-production-7b905.up.railway.app");
+            config.addAllowedOrigin("https://truckie-be-e3bre6hmfqhcabba.southeastasia-01.azurewebsites.net");
             config.addAllowedOrigin("https://truckie.io.vn");
         }
 

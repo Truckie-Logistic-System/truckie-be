@@ -19,8 +19,8 @@ public class SwaggerConfig {
     @Bean
     public OpenAPI customOpenAPI() {
         Server localServer = new Server()
-                .url("https://web-production-7b905.up.railway.app")
-                .description("Production Environment");
+                .url("https://truckie-be-e3bre6hmfqhcabba.southeastasia-01.azurewebsites.net")
+                .description("Azure Production Environment");
 
         final String securitySchemeName = "bearerAuth";
         SecurityScheme securityScheme = new SecurityScheme()
@@ -46,7 +46,7 @@ public class SwaggerConfig {
     @Bean
     public CommandLineRunner printSwaggerUrl() {
         return args -> {
-            String swaggerUrl = "https://web-production-7b905.up.railway.app/swagger-ui.html";
+            String swaggerUrl = "https://truckie-be-e3bre6hmfqhcabba.southeastasia-01.azurewebsites.net/swagger-ui.html";
             System.out.println("\n----------------------------------------------------------");
             System.out.println("Swagger UI is available at: " + swaggerUrl);
             System.out.println("----------------------------------------------------------\n");

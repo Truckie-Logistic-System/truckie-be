@@ -207,7 +207,7 @@ public class SecurityConfigurer {
                 "http://localhost:3001",
                 "https://truckie.vercel.app",
                 "http://localhost:5174",
-                "https://web-production-7b905.up.railway.app",
+                "https://truckie-be-e3bre6hmfqhcabba.southeastasia-01.azurewebsites.net",
                 "http://14.225.253.8:3000",
                 "http://14.225.253.8",
                 "https://truckie-fe.vercel.app",
