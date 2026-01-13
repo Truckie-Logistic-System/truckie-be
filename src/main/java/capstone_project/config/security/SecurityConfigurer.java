@@ -149,6 +149,9 @@ public class SecurityConfigurer {
 
     public static final String[] PUBLIC_ENDPOINTS = Stream.concat(
             Stream.of(
+                    "/",           // Root health check for Azure
+                    "/health",     // Health endpoint for Azure warmup
+                    "/ping",       // Quick ping endpoint
                     "/api/v1/auths/**",
                     "/api/loading/**",
                     "/api/v1/address/**",
