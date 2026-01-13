@@ -70,7 +70,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             // SECURITY: Check if token is blacklisted (revoked/logged out)
             if (jwtCacheService.isTokenBlacklisted(jwt)) {
                 log.warn("[JwtRequestFilter] ❌ Blacklisted token attempted access");
-                handleErrorResponse(response, "Token has been revoked", HttpStatus.UNAUTHORIZED.value());
+                handleErrorResponse(request, response, "Token has been revoked", HttpStatus.UNAUTHORIZED.value());
                 return;
             }
 
@@ -79,7 +79,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             
             if (username == null) {
                 log.warn("[JwtRequestFilter] ❌ No username in token");
-                handleErrorResponse(response, "Invalid token format", HttpStatus.UNAUTHORIZED.value());
+                handleErrorResponse(request, response, "Invalid token format", HttpStatus.UNAUTHORIZED.value());
                 return;
             }
 
@@ -108,7 +108,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 // Block BANNED users completely
                 if ("BANNED".equals(tokenStatus)) {
                     log.warn("[JwtRequestFilter] ❌ User account is BANNED: {}", username);
-                    handleErrorResponse(response, "Account is banned", HttpStatus.FORBIDDEN.value());
+                    handleErrorResponse(request, response, "Account is banned", HttpStatus.FORBIDDEN.value());
                     return;
                 }
                 
@@ -116,7 +116,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 // DriverOnboardingFilter will restrict them to onboarding endpoints only
                 if ("INACTIVE".equals(tokenStatus) && !"DRIVER".equals(tokenRole)) {
                     log.warn("[JwtRequestFilter] ❌ Non-driver user account is INACTIVE: {}", username);
-                    handleErrorResponse(response, "Account is inactive", HttpStatus.FORBIDDEN.value());
+                    handleErrorResponse(request, response, "Account is inactive", HttpStatus.FORBIDDEN.value());
                     return;
                 }
                 
@@ -134,7 +134,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 log.debug("[JwtRequestFilter] ✅ Authenticated user: {} for {}", username, path);
             } else {
                 log.warn("[JwtRequestFilter] ❌ Token validation failed for user: {}", username);
-                handleErrorResponse(response, "Invalid token", HttpStatus.UNAUTHORIZED.value());
+                handleErrorResponse(request, response, "Invalid token", HttpStatus.UNAUTHORIZED.value());
                 return;
             }
 
@@ -142,13 +142,13 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
         } catch (ExpiredJwtException ex) {
 //            log.warn("[JwtRequestFilter] ❌ Expired token: {}", ex.getMessage());
-            handleErrorResponse(response, "Access token expired. Please refresh your token.", HttpStatus.UNAUTHORIZED.value());
+            handleErrorResponse(request, response, "Access token expired. Please refresh your token.", HttpStatus.UNAUTHORIZED.value());
         } catch (JwtException ex) {
             log.warn("[JwtRequestFilter] ❌ JWT error: {}", ex.getMessage());
-            handleErrorResponse(response, "Invalid token format", HttpStatus.UNAUTHORIZED.value());
+            handleErrorResponse(request, response, "Invalid token format", HttpStatus.UNAUTHORIZED.value());
         } catch (Exception ex) {
             log.error("[JwtRequestFilter] ❌ Unexpected error: {}", ex.getMessage(), ex);
-            handleErrorResponse(response, "Authentication error", HttpStatus.INTERNAL_SERVER_ERROR.value());
+            handleErrorResponse(request, response, "Authentication error", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
     
@@ -174,9 +174,16 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         return null;
     }
 
-    private void handleErrorResponse(HttpServletResponse response, String message, int status) throws IOException {
+    private void handleErrorResponse(HttpServletRequest request, HttpServletResponse response, String message, int status) throws IOException {
+        // CRITICAL: Add CORS headers to error responses for Swagger/Browser compatibility
+        String origin = request.getHeader("Origin");
+        response.setHeader("Access-Control-Allow-Origin", origin != null ? origin : "*");
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD");
+        response.setHeader("Access-Control-Allow-Headers", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "false");
+        
         response.setStatus(status);
-        response.setContentType("application/json");
+        response.setContentType("application/json; charset=UTF-8");
         response.getWriter().write(new ObjectMapper().writeValueAsString(
                 ApiResponse.fail(message, status)
         ));
