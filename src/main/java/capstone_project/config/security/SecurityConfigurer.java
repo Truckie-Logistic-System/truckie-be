@@ -202,32 +202,16 @@ public class SecurityConfigurer {
         CorsConfiguration configuration = new CorsConfiguration();
         
         // SECURITY: Configure allowed origins using patterns for flexibility
-        configuration.setAllowedOriginPatterns(Arrays.asList(
-                "http://localhost:*",
-                "https://*.vercel.app",
-                "https://*.azurewebsites.net",
-                "http://14.225.253.8",
-                "http://14.225.253.8:*",
-                "https://www.truckie.com",
-                "https://truckie.io.vn",
-                "https://api.truckie.io.vn"
-        ));
+        // Note: Using "*" pattern to allow Swagger UI same-origin requests
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
         
         // SECURITY: Only allow necessary HTTP methods
         configuration.setAllowedMethods(Arrays.asList(
                 "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"
         ));
         
-        // SECURITY: Explicitly allow necessary headers
-        configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Type",
-                "Accept",
-                "Origin",
-                "X-Requested-With",
-                "Access-Control-Request-Method",
-                "Access-Control-Request-Headers"
-        ));
+        // SECURITY: Allow all headers for Swagger compatibility
+        configuration.setAllowedHeaders(Arrays.asList("*"));
         
         // SECURITY: Expose necessary response headers
         configuration.setExposedHeaders(Arrays.asList(
