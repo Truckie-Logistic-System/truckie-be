@@ -25,16 +25,15 @@ public class AppConfig {
 
         List<String> allowed = corsProperties.getAllowedOrigins();
         if (allowed != null && !allowed.isEmpty()) {
-            allowed.forEach(config::addAllowedOrigin);
+            allowed.forEach(origin -> config.addAllowedOriginPattern(origin));
         } else {
-            // IMPORTANT: Cannot use wildcard "*" with allowCredentials=true
-            // Use specific origins instead or configure in properties
-            config.addAllowedOrigin("http://localhost:3000");
-            config.addAllowedOrigin("http://localhost:3001");
-            config.addAllowedOrigin("https://truckie.vercel.app");
-            config.addAllowedOrigin("http://localhost:5174");
-            config.addAllowedOrigin("https://truckie-be-e3bre6hmfqhcabba.southeastasia-01.azurewebsites.net");
-            config.addAllowedOrigin("https://truckie.io.vn");
+            // IMPORTANT: Use origin patterns to support wildcards with allowCredentials=true
+            config.addAllowedOriginPattern("http://localhost:*");
+            config.addAllowedOriginPattern("https://*.vercel.app");
+            config.addAllowedOriginPattern("https://*.azurewebsites.net");
+            config.addAllowedOriginPattern("http://14.225.253.8");
+            config.addAllowedOriginPattern("http://14.225.253.8:*");
+            config.addAllowedOriginPattern("https://truckie.io.vn");
         }
 
         config.addAllowedHeader("*");

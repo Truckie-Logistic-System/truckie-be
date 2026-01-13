@@ -201,16 +201,13 @@ public class SecurityConfigurer {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // SECURITY: Configure allowed origins
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",
-                "http://localhost:3001",
-                "https://truckie.vercel.app",
-                "http://localhost:5174",
-                "https://truckie-be-e3bre6hmfqhcabba.southeastasia-01.azurewebsites.net",
-                "http://14.225.253.8:3000",
+        // SECURITY: Configure allowed origins using patterns for flexibility
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+                "http://localhost:*",
+                "https://*.vercel.app",
+                "https://*.azurewebsites.net",
                 "http://14.225.253.8",
-                "https://truckie-fe.vercel.app",
+                "http://14.225.253.8:*",
                 "https://www.truckie.com",
                 "https://truckie.io.vn",
                 "https://api.truckie.io.vn"
