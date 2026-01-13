@@ -201,26 +201,29 @@ public class SecurityConfigurer {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // SECURITY: Configure allowed origins using patterns for flexibility
-        // Note: Using "*" pattern to allow Swagger UI same-origin requests
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        // SWAGGER FIX: For development/testing with Swagger UI
+        // Using setAllowedOrigins with "*" requires allowCredentials=false
+        configuration.setAllowedOrigins(Arrays.asList("*"));
         
-        // SECURITY: Only allow necessary HTTP methods
+        // Allow all HTTP methods
         configuration.setAllowedMethods(Arrays.asList(
-                "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"
+                "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"
         ));
         
-        // SECURITY: Allow all headers for Swagger compatibility
+        // Allow all headers for Swagger compatibility
         configuration.setAllowedHeaders(Arrays.asList("*"));
         
-        // SECURITY: Expose necessary response headers
+        // Expose necessary response headers
         configuration.setExposedHeaders(Arrays.asList(
                 "Authorization",
-                "Content-Disposition"
+                "Content-Disposition",
+                "Access-Control-Allow-Origin",
+                "Access-Control-Allow-Credentials"
         ));
         
-        // CRITICAL: Allow credentials (cookies, authorization headers)
-        configuration.setAllowCredentials(true);
+        // IMPORTANT: Must be false when using "*" for origins
+        // Switch to allowedOriginPatterns if you need credentials
+        configuration.setAllowCredentials(false);
         
         // Cache preflight requests for 1 hour
         configuration.setMaxAge(3600L);
@@ -233,7 +236,7 @@ public class SecurityConfigurer {
     @Bean
     public SecurityFilterChain configure(HttpSecurity http, JwtRequestFilter jwtRequestFilter) throws Exception {
         http
-                // CORS configuration
+                // CORS configuration - MUST come before other filters
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 
                 // CSRF disabled for REST API (using JWT instead)
