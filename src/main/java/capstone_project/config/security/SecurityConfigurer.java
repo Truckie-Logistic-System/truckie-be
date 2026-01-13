@@ -236,7 +236,7 @@ public class SecurityConfigurer {
     @Bean
     public SecurityFilterChain configure(HttpSecurity http, JwtRequestFilter jwtRequestFilter) throws Exception {
         http
-                // CORS disabled - handled by custom Filter in AppConfig (runs before Spring Security)
+                // CORS disabled - handled by SimpleCorsFilter
                 .cors(AbstractHttpConfigurer::disable)
                 
                 // CSRF disabled for REST API (using JWT instead)
