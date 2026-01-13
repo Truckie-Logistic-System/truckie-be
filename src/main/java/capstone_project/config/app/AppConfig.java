@@ -30,6 +30,8 @@ public class AppConfig {
             // IMPORTANT: Use origin patterns to support wildcards with allowCredentials=true
             config.addAllowedOriginPattern("http://localhost:*");
             config.addAllowedOriginPattern("https://*.vercel.app");
+            config.addAllowedOriginPattern("https://truckie.vercel.app");
+            config.addAllowedOriginPattern("https://truckie-fe.vercel.app");
             config.addAllowedOriginPattern("https://*.azurewebsites.net");
             config.addAllowedOriginPattern("http://14.225.253.8");
             config.addAllowedOriginPattern("http://14.225.253.8:*");
@@ -38,11 +40,9 @@ public class AppConfig {
 
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
-        // IMPORTANT: Set SameSite=Lax for cookie handling during page refresh
-        config.setExposedHeaders(Arrays.asList("Set-Cookie"));
+        config.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition", "Set-Cookie"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", config);
         source.registerCorsConfiguration("/**", config);
 
         FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(source));
