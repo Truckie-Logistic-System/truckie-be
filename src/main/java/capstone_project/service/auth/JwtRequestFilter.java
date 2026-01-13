@@ -48,13 +48,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
         String path = request.getRequestURI();
 
-        // CRITICAL: Allow CORS preflight OPTIONS requests to pass through without authentication
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        // Skip public endpoints
+        // Skip public endpoints (OPTIONS handled by SimpleCorsFilter)
         if (isPublicEndpoint(path)) {
             filterChain.doFilter(request, response);
             return;

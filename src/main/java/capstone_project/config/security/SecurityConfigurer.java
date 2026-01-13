@@ -236,8 +236,8 @@ public class SecurityConfigurer {
     @Bean
     public SecurityFilterChain configure(HttpSecurity http, JwtRequestFilter jwtRequestFilter) throws Exception {
         http
-                // CORS configuration - MUST come before other filters
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // CORS disabled - handled by SimpleCorsFilter
+                .cors(AbstractHttpConfigurer::disable)
                 
                 // CSRF disabled for REST API (using JWT instead)
                 .csrf(AbstractHttpConfigurer::disable)
