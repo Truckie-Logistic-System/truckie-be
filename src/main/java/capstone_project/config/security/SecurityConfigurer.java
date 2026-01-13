@@ -197,18 +197,60 @@ public class SecurityConfigurer {
     // JwtRequestFilter is now auto-configured via @Component and constructor injection
     // No need for explicit @Bean creation
 
-    // CORS configuration moved to application-azure.properties
-    // Using Spring Web native CORS support instead of custom bean
-    // @Bean
-    // public CorsConfigurationSource corsConfigurationSource() {
-    //     ... custom CORS config removed ...
-    // }
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        
+        // SECURITY: Configure allowed origins using patterns for flexibility
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+                "http://localhost:*",
+                "https://*.vercel.app",
+                "https://*.azurewebsites.net",
+                "http://14.225.253.8",
+                "http://14.225.253.8:*",
+                "https://www.truckie.com",
+                "https://truckie.io.vn",
+                "https://api.truckie.io.vn"
+        ));
+        
+        // SECURITY: Only allow necessary HTTP methods
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"
+        ));
+        
+        // SECURITY: Explicitly allow necessary headers
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Origin",
+                "X-Requested-With",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers"
+        ));
+        
+        // SECURITY: Expose necessary response headers
+        configuration.setExposedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Disposition"
+        ));
+        
+        // CRITICAL: Allow credentials (cookies, authorization headers)
+        configuration.setAllowCredentials(true);
+        
+        // Cache preflight requests for 1 hour
+        configuration.setMaxAge(3600L);
+        
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 
     @Bean
     public SecurityFilterChain configure(HttpSecurity http, JwtRequestFilter jwtRequestFilter) throws Exception {
         http
-                // CORS configuration - use default Spring Web CORS (from application.properties)
-                .cors(Customizer.withDefaults())
+                // CORS configuration
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 
                 // CSRF disabled for REST API (using JWT instead)
                 .csrf(AbstractHttpConfigurer::disable)
