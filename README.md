@@ -12,7 +12,7 @@
 
 *A comprehensive backend solution for truck logistics operations, featuring real-time tracking, intelligent route optimization, automated order management, and AI-powered customer support.*
 
-[Live Demo](https://truckie.vercel.app/) • [API Documentation](https://web-production-7b905.up.railway.app/swagger-ui/index.html) • [Report Bug](#-contributing) • [Request Feature](#-contributing)
+[Live Demo](https://truckie.vercel.app/) • [API Documentation](https://truckie-be-e3bre6hmfqhcabba.southeastasia-01.azurewebsites.net/swagger-ui/index.html) • [Report Bug](#-contributing) • [Request Feature](#-contributing)
 
 </div>
 
@@ -192,7 +192,7 @@ Truckie provides an end-to-end digital platform that automates logistics workflo
 ## 📚 API Documentation
 
 ### Base URL
-- **Production (Backend):** `https://web-production-7b905.up.railway.app`
+- **Production (Backend):** `https://truckie-be-e3bre6hmfqhcabba.southeastasia-01.azurewebsites.net`
 - **Production (Frontend):** `https://truckie.vercel.app`
 - **Development (Backend):** `http://localhost:8080`
 - **Development (Frontend):** `http://localhost:5173`
@@ -235,7 +235,7 @@ Authorization: Bearer <your_jwt_token>
 ### Interactive Documentation
 
 Access the full Swagger/OpenAPI documentation:
-- **Swagger UI:** [https://web-production-7b905.up.railway.app/swagger-ui/index.html](https://web-production-7b905.up.railway.app/swagger-ui/index.html)
+- **Swagger UI:** [https://truckie-be-e3bre6hmfqhcabba.southeastasia-01.azurewebsites.net/swagger-ui/index.html](https://truckie-be-e3bre6hmfqhcabba.southeastasia-01.azurewebsites.net/swagger-ui/index.html)
 
 ---
 
