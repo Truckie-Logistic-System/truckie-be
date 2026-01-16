@@ -294,18 +294,15 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
                         order.getOrderCode());
                 } else {
                     contract.setStatus(ContractStatusEnum.PAID.name());
-                    // Update Order status only (OrderDetail will be updated when assigned to driver)
-                    OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
-                    order.setStatus(OrderStatusEnum.FULLY_PAID.name());
-                    orderEntityService.save(order);
                     
-                    // Send WebSocket notification
-                    orderStatusWebSocketService.sendOrderStatusChange(
-                            order.getId(),
-                            order.getOrderCode(),
-                            previousStatus,
-                            OrderStatusEnum.FULLY_PAID
-                    );
+                    // Update order status via OrderService to ensure EDA consistency
+                    CreateOrderResponse response = orderService.changeAStatusOrder(order.getId(), OrderStatusEnum.FULLY_PAID);
+                    
+                    log.info("✅ Order {} status updated to FULLY_PAID via OrderService (EDA)", 
+                        order.getOrderCode());
+                    
+                    // Note: WebSocket notification and other side effects are now handled by OrderEventListener
+                    // after OrderStatusChangedEvent is published and transaction commits
                 }
             }
 

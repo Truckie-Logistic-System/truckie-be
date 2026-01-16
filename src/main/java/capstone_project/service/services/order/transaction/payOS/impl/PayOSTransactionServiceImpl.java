@@ -780,25 +780,18 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 if (totalPaidAmount.compareTo(totalValue) >= 0) {
                     log.info("📋 Processing FULL payment scenario");
                     
-                    // Update contract and order status
+                    // Update contract status
                     contract.setStatus(ContractStatusEnum.PAID.name());
-                    OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
-                    order.setStatus(OrderStatusEnum.FULLY_PAID.name());
-                    orderEntityService.save(order);
                     contractEntityService.save(contract);
                     
-                    log.info("✅ Order {} status updated from {} to {}", 
-                        order.getOrderCode(), previousStatus, OrderStatusEnum.FULLY_PAID);
+                    // Update order status via OrderService to ensure EDA consistency
+                    CreateOrderResponse response = orderService.changeAStatusOrder(order.getId(), OrderStatusEnum.FULLY_PAID);
                     
-                    // Send WebSocket notification
-                    orderStatusWebSocketService.sendOrderStatusChange(
-                            order.getId(),
-                            order.getOrderCode(),
-                            previousStatus,
-                            OrderStatusEnum.FULLY_PAID
-                    );
+                    log.info("✅ Order {} status updated to FULLY_PAID via OrderService (EDA)", 
+                        order.getOrderCode());
                     
-                    log.info("📡 WebSocket notification sent for full payment");
+                    // Note: WebSocket notification and other side effects are now handled by OrderEventListener
+                    // after OrderStatusChangedEvent is published and transaction commits
                     
                 } else {
                     log.info("💰 Processing DEPOSIT payment scenario");

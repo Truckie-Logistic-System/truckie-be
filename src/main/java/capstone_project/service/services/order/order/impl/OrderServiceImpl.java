@@ -205,74 +205,8 @@ public class OrderServiceImpl implements OrderService {
             insuranceCalculationService.updateOrderInsurance(saveOrder, categoryName);
             saveOrder = orderEntityService.save(saveOrder);
             
-            // Create ORDER_CREATED notification for customer with full package details
-            try {
-                List<OrderDetailEntity> orderDetails = saveOrder.getOrderDetailEntities() != null ? 
-                    new ArrayList<>(saveOrder.getOrderDetailEntities()) : new ArrayList<>();
-                
-                log.info("🔍 Creating ORDER_CREATED notification with {} packages", orderDetails.size());
-                
-                // Debug: Log all order details
-                orderDetails.forEach(detail -> 
-                    log.info("🔍 Package: {} - {} - {} {}", 
-                        detail.getTrackingCode(), 
-                        detail.getDescription(),
-                        detail.getWeightBaseUnit(),
-                        detail.getUnit())
-                );
-                
-                CreateNotificationRequest notificationRequest = NotificationBuilder.buildOrderCreated(
-                    sender.getUser().getId(),
-                    saveOrder.getOrderCode(),
-                    orderDetails,
-                    saveOrder.getId()
-                );
-                
-                notificationService.createNotification(notificationRequest);
-                log.info("✅ Created ORDER_CREATED notification for order: {}", saveOrder.getOrderCode());
-                
-                // STAFF_ORDER_CREATED - Notify all staff about new order
-                try {
-                    String customerName = sender.getRepresentativeName() != null ? 
-                        sender.getRepresentativeName() : sender.getUser().getUsername();
-                    String customerPhone = sender.getRepresentativePhone() != null ? 
-                        sender.getRepresentativePhone() : "N/A";
-                    int packageCount = orderDetails.size();
-                    
-                    // Calculate total weight
-                    double totalWeight = orderDetails.stream()
-                        .filter(detail -> detail.getWeightBaseUnit() != null)
-                        .mapToDouble(detail -> detail.getWeightBaseUnit().doubleValue())
-                        .sum();
-                    String weightUnit = orderDetails.stream()
-                        .filter(detail -> detail.getUnit() != null && !detail.getUnit().isEmpty())
-                        .map(OrderDetailEntity::getUnit)
-                        .findFirst()
-                        .orElse("kg");
-                    
-                    var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
-                    for (var staff : staffUsers) {
-                        CreateNotificationRequest staffNotification = NotificationBuilder.buildStaffOrderCreated(
-                            staff.getId(),
-                            saveOrder.getOrderCode(),
-                            customerName,
-                            customerPhone,
-                            packageCount,
-                            totalWeight,
-                            weightUnit,
-                            saveOrder.getId()
-                        );
-                        notificationService.createNotification(staffNotification);
-                    }
-                    log.info("✅ Created STAFF_ORDER_CREATED notifications for {} staff users", staffUsers.size());
-                } catch (Exception staffEx) {
-                    log.error("❌ Failed to create STAFF_ORDER_CREATED notifications: {}", staffEx.getMessage());
-                }
-                
-            } catch (Exception e) {
-                log.error("❌ Failed to create ORDER_CREATED notification: {}", e.getMessage());
-                // Don't fail the order creation if notification fails
-            }
+            // Note: ORDER_CREATED and STAFF_ORDER_CREATED notifications are now handled by OrderEventListener
+            // after OrderCreatedEvent is published and transaction commits
             
             // Publish OrderCreatedEvent for event-driven architecture
             try {
@@ -344,58 +278,8 @@ public class OrderServiceImpl implements OrderService {
             log.error("❌ Failed to publish OrderStatusChangedEvent: {}", eventEx.getMessage());
         }
 
-        // Send WebSocket notification for status change
-        try {
-            orderStatusWebSocketService.sendOrderStatusChange(
-                orderId,
-                order.getOrderCode(),
-                previousStatus,
-                newStatus
-            );
-        } catch (Exception e) {
-            log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
-            // Don't throw - WebSocket failure shouldn't break business logic
-        }
-
-        // Create notification for staff when customer agrees to vehicle proposal (PENDING → PROCESSING)
-        if (previousStatus == OrderStatusEnum.PENDING && newStatus == OrderStatusEnum.PROCESSING) {
-            try {
-                // Extract customer info for notification
-                String customerName = order.getSender().getRepresentativeName() != null ? 
-                    order.getSender().getRepresentativeName() : order.getSender().getUser().getUsername();
-                String customerPhone = order.getSender().getRepresentativePhone() != null ? 
-                    order.getSender().getRepresentativePhone() : "N/A";
-                int packageCount = order.getOrderDetailEntities() != null ? order.getOrderDetailEntities().size() : 0;
-                
-                // Create staff notification
-                CreateNotificationRequest staffNotificationRequest = NotificationBuilder.buildStaffOrderProcessing(
-                    null, // Broadcast to all staff
-                    order.getOrderCode(),
-                    customerName,
-                    customerPhone,
-                    packageCount,
-                    order.getId()
-                );
-                
-                notificationService.createNotification(staffNotificationRequest);
-                log.info("✅ Created STAFF_ORDER_PROCESSING notification for order: {}", order.getOrderCode());
-                
-                // Create customer notification
-                CreateNotificationRequest customerNotificationRequest = NotificationBuilder.buildOrderProcessing(
-                    order.getSender().getUser().getId(),
-                    order.getOrderCode(),
-                    packageCount,
-                    order.getId()
-                );
-                
-                notificationService.createNotification(customerNotificationRequest);
-                log.info("✅ Created ORDER_PROCESSING notification for customer in order: {}", order.getOrderCode());
-                
-            } catch (Exception e) {
-                log.error("❌ Failed to create notifications for order processing: {}", e.getMessage());
-                // Don't throw - notification failure shouldn't break business logic
-            }
-        }
+        // Note: WebSocket broadcast and status-specific notifications are now handled by OrderEventListener
+        // after OrderStatusChangedEvent is published and transaction commits
 
         return orderMapper.toCreateOrderResponse(order);
     }
@@ -449,18 +333,25 @@ public class OrderServiceImpl implements OrderService {
         orderDetailEntities.forEach(detail -> detail.setStatus(correspondingDetailStatus.name()));
         orderDetailEntityService.saveAllOrderDetailEntities(orderDetailEntities);
 
-        // Send WebSocket notification for status change
+        // Publish OrderStatusChangedEvent for event-driven architecture
         try {
-            orderStatusWebSocketService.sendOrderStatusChange(
+            OrderStatusChangedEvent statusChangedEvent = new OrderStatusChangedEvent(
                 orderId,
-                order.getOrderCode(),
-                previousStatus,
-                newStatus
+                previousStatus.name(),
+                newStatus.name(),
+                userContextUtils.getCurrentUserId(),
+                VietnamTimeUtils.now(),
+                order.getOrderCode()
             );
-        } catch (Exception e) {
-            log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
-            // Don't throw - WebSocket failure shouldn't break business logic
+            eventPublisher.publishEvent(statusChangedEvent);
+            log.info("📢 Published OrderStatusChangedEvent for order with details: {} ({} -> {})", 
+                order.getOrderCode(), previousStatus, newStatus);
+        } catch (Exception eventEx) {
+            log.error("❌ Failed to publish OrderStatusChangedEvent: {}", eventEx.getMessage());
         }
+
+        // Note: WebSocket broadcast and notifications are now handled by OrderEventListener
+        // after OrderStatusChangedEvent is published and transaction commits
 
         return orderMapper.toCreateOrderResponse(order);
     }

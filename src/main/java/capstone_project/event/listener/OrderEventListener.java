@@ -4,7 +4,11 @@ import capstone_project.common.enums.NotificationTypeEnum;
 import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.dtos.request.notification.CreateNotificationRequest;
 import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
+import capstone_project.entity.auth.UserEntity;
+import capstone_project.service.services.notification.NotificationBuilder;
+import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.event.OrderAssignedEvent;
 import capstone_project.event.OrderCreatedEvent;
 import capstone_project.event.OrderStatusChangedEvent;
@@ -17,6 +21,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -41,15 +47,18 @@ public class OrderEventListener {
     private final OrderStatusWebSocketService orderStatusWebSocketService;
     private final OrderEntityService orderEntityService;
     private final CustomerEntityService customerEntityService;
+    private final UserEntityService userEntityService;
 
     /**
      * Handle OrderCreatedEvent - triggered when a new order is created.
+     * Uses @TransactionalEventListener(AFTER_COMMIT) to ensure side effects only run after transaction commits.
      * Side effects:
      * - Log audit trail for order creation
      * - Send in-app notification to customer confirming order creation
+     * - Send notification to staff about new order
      */
     @Async
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleOrderCreated(OrderCreatedEvent event) {
         log.info("📦 [EDA] Order created event received. OrderId: {}, OrderCode: {}, CustomerId: {}, Quantity: {}", 
             event.getOrderId(), 
@@ -63,9 +72,11 @@ public class OrderEventListener {
                 String.format("Order created with %d items by customer %s", 
                     event.getTotalQuantity(), event.getCustomerId()));
 
-            // 2. Send notification to customer (order confirmation is already sent in OrderServiceImpl,
-            //    but we can send additional analytics/tracking notification here)
-            sendOrderCreatedAnalyticsNotification(event);
+            // 2. Send ORDER_CREATED notification to customer
+            sendOrderCreatedNotification(event);
+
+            // 3. Send STAFF_ORDER_CREATED notification to all staff
+            sendStaffOrderCreatedNotification(event);
 
             log.info("✅ [EDA] Successfully processed order creation side effects for order: {}", event.getOrderCode());
             
@@ -76,6 +87,7 @@ public class OrderEventListener {
 
     /**
      * Handle OrderStatusChangedEvent - triggered when order status changes.
+     * Uses @TransactionalEventListener(AFTER_COMMIT) to ensure side effects only run after transaction commits.
      * Side effects:
      * - Broadcast status change via WebSocket for real-time UI updates
      * - Send notification to customer about status change
@@ -83,7 +95,7 @@ public class OrderEventListener {
      * - Trigger specific workflows based on new status (COMPLETED, CANCELLED, etc.)
      */
     @Async
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleOrderStatusChanged(OrderStatusChangedEvent event) {
         log.info("🔄 [EDA] Order status changed event received. OrderId: {}, OrderCode: {}, OldStatus: {}, NewStatus: {}", 
             event.getOrderId(), 
@@ -103,7 +115,10 @@ public class OrderEventListener {
             // 3. Send notification to customer about status change
             sendStatusChangeNotification(event);
 
-            // 4. Trigger specific workflows based on new status
+            // 4. Send status-specific notifications (e.g., PENDING->PROCESSING)
+            sendStatusSpecificNotifications(event);
+
+            // 5. Trigger specific workflows based on new status
             triggerStatusSpecificWorkflows(event);
 
             log.info("✅ [EDA] Successfully processed status change side effects for order: {}", event.getOrderCode());
@@ -115,13 +130,14 @@ public class OrderEventListener {
 
     /**
      * Handle OrderAssignedEvent - triggered when order is assigned to driver/vehicle.
+     * Uses @TransactionalEventListener(AFTER_COMMIT) to ensure side effects only run after transaction commits.
      * Side effects:
      * - Send notification to driver about new assignment
      * - Send notification to customer with driver details
      * - Log audit trail
      */
     @Async
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleOrderAssigned(OrderAssignedEvent event) {
         log.info("🚚 [EDA] Order assigned event received. OrderId: {}, OrderCode: {}, DriverId: {}, VehicleId: {}", 
             event.getOrderId(), 
@@ -159,11 +175,11 @@ public class OrderEventListener {
     }
 
     /**
-     * Send analytics/tracking notification for order creation
+     * Send ORDER_CREATED notification to customer
      */
-    private void sendOrderCreatedAnalyticsNotification(OrderCreatedEvent event) {
+    private void sendOrderCreatedNotification(OrderCreatedEvent event) {
         try {
-            // Fetch order to get customer user ID
+            // Fetch order to get customer and order details
             Optional<OrderEntity> orderOpt = orderEntityService.findEntityById(event.getOrderId());
             if (orderOpt.isEmpty()) {
                 log.warn("⚠️ [EDA] Order not found for notification: {}", event.getOrderId());
@@ -177,17 +193,88 @@ public class OrderEventListener {
                 return;
             }
 
-            // Build metadata for tracking
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("orderCode", event.getOrderCode());
-            metadata.put("totalQuantity", event.getTotalQuantity());
-            metadata.put("createdAt", event.getCreatedAt().toString());
-            metadata.put("eventSource", "EVENT_DRIVEN_ARCHITECTURE");
+            // Get order details for notification
+            java.util.List<OrderDetailEntity> orderDetails = order.getOrderDetailEntities() != null ? 
+                new java.util.ArrayList<>(order.getOrderDetailEntities()) : new java.util.ArrayList<>();
 
-            log.debug("📊 [EDA] Order creation analytics recorded for order: {}", event.getOrderCode());
+            // Build ORDER_CREATED notification using NotificationBuilder
+            CreateNotificationRequest notificationRequest = NotificationBuilder.buildOrderCreated(
+                customer.getUser().getId(),
+                order.getOrderCode(),
+                orderDetails,
+                order.getId()
+            );
+
+            notificationService.createNotification(notificationRequest);
+            log.debug("📬 [EDA] ORDER_CREATED notification sent to customer for order: {}", event.getOrderCode());
             
         } catch (Exception ex) {
-            log.error("❌ [EDA] Failed to send order created analytics notification: {}", ex.getMessage());
+            log.error("❌ [EDA] Failed to send ORDER_CREATED notification: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Send STAFF_ORDER_CREATED notification to all staff
+     */
+    private void sendStaffOrderCreatedNotification(OrderCreatedEvent event) {
+        try {
+            // Fetch order to get details
+            Optional<OrderEntity> orderOpt = orderEntityService.findEntityById(event.getOrderId());
+            if (orderOpt.isEmpty()) {
+                log.warn("⚠️ [EDA] Order not found for staff notification: {}", event.getOrderId());
+                return;
+            }
+
+            OrderEntity order = orderOpt.get();
+            CustomerEntity customer = order.getSender();
+            if (customer == null) {
+                log.warn("⚠️ [EDA] Customer not found for order: {}", event.getOrderCode());
+                return;
+            }
+
+            // Get customer info
+            String customerName = customer.getRepresentativeName() != null ? 
+                customer.getRepresentativeName() : customer.getUser().getUsername();
+            String customerPhone = customer.getRepresentativePhone() != null ? 
+                customer.getRepresentativePhone() : "N/A";
+
+            // Get order details
+            java.util.List<OrderDetailEntity> orderDetails = order.getOrderDetailEntities() != null ? 
+                new java.util.ArrayList<>(order.getOrderDetailEntities()) : new java.util.ArrayList<>();
+            int packageCount = orderDetails.size();
+
+            // Calculate total weight
+            double totalWeight = orderDetails.stream()
+                .filter(detail -> detail.getWeightBaseUnit() != null)
+                .mapToDouble(detail -> detail.getWeightBaseUnit().doubleValue())
+                .sum();
+            String weightUnit = orderDetails.stream()
+                .filter(detail -> detail.getUnit() != null && !detail.getUnit().isEmpty())
+                .map(OrderDetailEntity::getUnit)
+                .findFirst()
+                .orElse("kg");
+
+            // Send notification to all staff users
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            for (var staff : staffUsers) {
+                CreateNotificationRequest staffNotification = NotificationBuilder.buildStaffOrderCreated(
+                    staff.getId(),
+                    order.getOrderCode(),
+                    customerName,
+                    customerPhone,
+                    packageCount,
+                    totalWeight,
+                    weightUnit,
+                    order.getId()
+                );
+                notificationService.createNotification(staffNotification);
+            }
+            
+            log.debug("📬 [EDA] STAFF_ORDER_CREATED notifications sent to {} staff users for order: {}", 
+                staffUsers.size(), event.getOrderCode());
+            
+        } catch (Exception ex) {
+            log.error("❌ [EDA] Failed to send STAFF_ORDER_CREATED notifications: {}", ex.getMessage());
         }
     }
 
@@ -259,6 +346,83 @@ public class OrderEventListener {
             
         } catch (Exception ex) {
             log.error("❌ [EDA] Failed to send status change notification: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Send status-specific notifications (e.g., PENDING->PROCESSING staff/customer notifications)
+     */
+    private void sendStatusSpecificNotifications(OrderStatusChangedEvent event) {
+        String oldStatus = event.getOldStatus();
+        String newStatus = event.getNewStatus();
+        
+        try {
+            // Handle PENDING -> PROCESSING transition (customer agrees to vehicle proposal)
+            if ("PENDING".equals(oldStatus) && "PROCESSING".equals(newStatus)) {
+                sendPendingToProcessingNotifications(event);
+            }
+            
+            // Add more status-specific notification logic here as needed
+            // e.g., ASSIGNED_TO_DRIVER -> send driver assignment notifications
+            // CONTRACT_SIGNED -> send contract signed notifications, etc.
+            
+        } catch (Exception ex) {
+            log.error("❌ [EDA] Failed to send status-specific notifications: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Handle PENDING -> PROCESSING notifications (staff and customer)
+     */
+    private void sendPendingToProcessingNotifications(OrderStatusChangedEvent event) {
+        try {
+            Optional<OrderEntity> orderOpt = orderEntityService.findEntityById(event.getOrderId());
+            if (orderOpt.isEmpty()) {
+                log.warn("⚠️ [EDA] Order not found for PENDING->PROCESSING notifications: {}", event.getOrderId());
+                return;
+            }
+
+            OrderEntity order = orderOpt.get();
+            CustomerEntity customer = order.getSender();
+            if (customer == null || customer.getUser() == null) {
+                log.warn("⚠️ [EDA] Customer not found for order: {}", event.getOrderCode());
+                return;
+            }
+
+            // Extract customer info
+            String customerName = customer.getRepresentativeName() != null ? 
+                customer.getRepresentativeName() : customer.getUser().getUsername();
+            String customerPhone = customer.getRepresentativePhone() != null ? 
+                customer.getRepresentativePhone() : "N/A";
+            int packageCount = order.getOrderDetailEntities() != null ? order.getOrderDetailEntities().size() : 0;
+
+            // Send STAFF_ORDER_PROCESSING notification to all staff
+            var staffUsers = userEntityService.getUserEntitiesByRoleRoleName("STAFF");
+            for (var staff : staffUsers) {
+                CreateNotificationRequest staffNotification = NotificationBuilder.buildStaffOrderProcessing(
+                    staff.getId(),
+                    order.getOrderCode(),
+                    customerName,
+                    customerPhone,
+                    packageCount,
+                    order.getId()
+                );
+                notificationService.createNotification(staffNotification);
+            }
+            log.debug("📬 [EDA] STAFF_ORDER_PROCESSING notifications sent to {} staff users", staffUsers.size());
+
+            // Send ORDER_PROCESSING notification to customer
+            CreateNotificationRequest customerNotification = NotificationBuilder.buildOrderProcessing(
+                customer.getUser().getId(),
+                order.getOrderCode(),
+                packageCount,
+                order.getId()
+            );
+            notificationService.createNotification(customerNotification);
+            log.debug("📬 [EDA] ORDER_PROCESSING notification sent to customer for order: {}", event.getOrderCode());
+
+        } catch (Exception ex) {
+            log.error("❌ [EDA] Failed to send PENDING->PROCESSING notifications: {}", ex.getMessage());
         }
     }
 
