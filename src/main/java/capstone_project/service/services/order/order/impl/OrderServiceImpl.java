@@ -51,9 +51,13 @@ import capstone_project.service.services.setting.ContractSettingService;
 import capstone_project.dtos.request.notification.CreateNotificationRequest;
 import capstone_project.service.services.order.order.OrderCancellationContext;
 import capstone_project.config.order.OrderCancellationConfig;
+import capstone_project.event.OrderAssignedEvent;
+import capstone_project.event.OrderCreatedEvent;
+import capstone_project.event.OrderStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -100,6 +104,7 @@ public class OrderServiceImpl implements OrderService {
     private final capstone_project.repository.entityServices.auth.UserEntityService userEntityService; // For staff notifications
     private final ContractSettingService contractSettingService; // For deposit rate calculation
     private final OrderCancellationConfig orderCancellationConfig; // For cancellation reasons
+    private final ApplicationEventPublisher eventPublisher; // For event-driven architecture
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -269,6 +274,21 @@ public class OrderServiceImpl implements OrderService {
                 // Don't fail the order creation if notification fails
             }
             
+            // Publish OrderCreatedEvent for event-driven architecture
+            try {
+                OrderCreatedEvent orderCreatedEvent = new OrderCreatedEvent(
+                    saveOrder.getId(),
+                    saveOrder.getOrderCode(),
+                    customerId,
+                    saveOrder.getTotalQuantity(),
+                    VietnamTimeUtils.now()
+                );
+                eventPublisher.publishEvent(orderCreatedEvent);
+                log.info("📢 Published OrderCreatedEvent for order: {}", saveOrder.getOrderCode());
+            } catch (Exception eventEx) {
+                log.error("❌ Failed to publish OrderCreatedEvent: {}", eventEx.getMessage());
+            }
+            
             return orderMapper.toCreateOrderResponse(saveOrder);
 
         } catch (Exception e) {
@@ -306,6 +326,23 @@ public class OrderServiceImpl implements OrderService {
         OrderStatusEnum previousStatus = currentStatus;
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
+
+        // Publish OrderStatusChangedEvent for event-driven architecture
+        try {
+            OrderStatusChangedEvent statusChangedEvent = new OrderStatusChangedEvent(
+                orderId,
+                previousStatus.name(),
+                newStatus.name(),
+                userContextUtils.getCurrentUserId(),
+                VietnamTimeUtils.now(),
+                order.getOrderCode()
+            );
+            eventPublisher.publishEvent(statusChangedEvent);
+            log.info("📢 Published OrderStatusChangedEvent for order: {} ({} -> {})", 
+                order.getOrderCode(), previousStatus, newStatus);
+        } catch (Exception eventEx) {
+            log.error("❌ Failed to publish OrderStatusChangedEvent: {}", eventEx.getMessage());
+        }
 
         // Send WebSocket notification for status change
         try {
